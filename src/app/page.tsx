@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-white font-sans text-slate-900">
       {/* Top/Left side: Image */}
-      <div className="w-full h-64 md:h-80 lg:h-auto lg:w-1/2 relative bg-slate-100 shrink-0 flex-none">
+      <div className="w-full h-[50vh] lg:h-auto lg:w-1/2 relative bg-slate-100 shrink-0 flex-none">
         <Image
           src="/homepage-hero.jpeg"
           alt="Airport City Church"
