@@ -13,7 +13,18 @@ export async function POST(req: Request) {
 
     console.log("Received booking request:", body);
 
-    // 1. Check for existing booking (Double-booking prevention)
+    // 1. Check if the date is blocked by admin
+    const { data: isBlocked } = await supabaseAdmin
+      .from('blocked_dates')
+      .select('id')
+      .eq('blocked_date', date.split('T')[0])
+      .maybeSingle();
+
+    if (isBlocked) {
+      return NextResponse.json({ error: "This day is not available for booking." }, { status: 400 });
+    }
+
+    // 2. Check for existing booking (Double-booking prevention)
     const { data: existingBooking, error: checkError } = await supabaseAdmin
       .from('bookings')
       .select('id')

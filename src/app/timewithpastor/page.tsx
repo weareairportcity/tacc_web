@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Loader2, Check } from "lucide-react";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay } from "date-fns";
 import { getAccraTime, isBookableDay, AVAILABLE_SLOTS } from "@/lib/date-utils";
+import { createClient } from "@/utils/supabase/client";
 
 export default function BookingPage() {
   const [currentDate, setCurrentDate] = useState(getAccraTime());
@@ -26,16 +27,25 @@ export default function BookingPage() {
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
 
   useEffect(() => {
-    // Calculate the next 4 available dates
-    const dates: Date[] = [];
-    let checkDate = getAccraTime();
-    while (dates.length < 4) {
-      if (isBookableDay(checkDate)) {
-        dates.push(new Date(checkDate));
+    async function fetchAvailability() {
+      // Fetch blocked dates
+      const { data: blockedData } = await createClient().from('blocked_dates').select('blocked_date');
+      const blockedSet = new Set(blockedData?.map(d => d.blocked_date));
+
+      // Calculate the next available dates
+      const dates: Date[] = [];
+      let checkDate = getAccraTime();
+      while (dates.length < 10) { // Check a bit further out
+        const dateStr = checkDate.toISOString().split('T')[0];
+        if (isBookableDay(checkDate) && !blockedSet.has(dateStr)) {
+          dates.push(new Date(checkDate));
+        }
+        if (dates.length >= 4) break; // We only show 4, but we look ahead to find them
+        checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000); // add 1 day
       }
-      checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000); // add 1 day
+      setAvailableDates(dates);
     }
-    setAvailableDates(dates);
+    fetchAvailability();
   }, []);
 
   const handleDateSelect = async (day: Date) => {
