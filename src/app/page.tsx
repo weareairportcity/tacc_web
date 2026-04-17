@@ -3,9 +3,9 @@ import Image from "next/image";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen bg-white font-sans text-slate-900">
-      {/* Left side: Image */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-slate-100">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-white font-sans text-slate-900">
+      {/* Top/Left side: Image */}
+      <div className="w-full h-64 md:h-80 lg:h-auto lg:w-1/2 relative bg-slate-100 shrink-0 flex-none">
         <Image
           src="/church-hero.jpg"
           alt="Airport City Church"
@@ -17,8 +17,8 @@ export default function Home() {
         <div className="absolute inset-0 bg-blue-900/10 mix-blend-multiply" />
       </div>
 
-      {/* Right side: Content */}
-      <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-12 lg:p-24 relative bg-white">
+      {/* Bottom/Right side: Content */}
+      <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-12 lg:p-24 relative bg-white flex-1">
         {/* Logo / Branding */}
         <div className="font-bold text-lg text-slate-900 mb-auto flex items-center gap-3">
           <div className="w-8 h-8 bg-slate-900 rounded-md flex items-center justify-center text-white font-bold text-sm">
