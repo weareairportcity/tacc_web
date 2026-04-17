@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Ensure you have MNOTIFY_API_KEY in your .env file
 const MNOTIFY_API_KEY = process.env.MNOTIFY_API_KEY || '';
-const MNOTIFY_SENDER_ID = process.env.MNOTIFY_SENDER_ID || 'TACC';
+const MNOTIFY_SENDER_ID = process.env.MNOTIFY_SENDER_ID || 'TACCBooking';
 const ADMIN_PHONE = process.env.ADMIN_PHONE || '0200000000'; // Set default/fallback for admin
 
 /**
