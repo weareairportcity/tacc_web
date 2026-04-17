@@ -144,10 +144,23 @@ export default function BookingPage() {
           </div>
 
           <button 
-            onClick={() => window.location.href = '/'}
+            onClick={() => {
+              setIsSuccess(false);
+              setSelectedDate(null);
+              setSelectedTime(null);
+              setFormData({
+                name: "",
+                fellowship: "",
+                phone: "",
+                email: "",
+                reason: "",
+              });
+              setStatusMessage("");
+              setIsSubmitting(false);
+            }}
             className="w-full py-4 rounded-full bg-[#030712] text-white font-medium text-[15px] transition-colors hover:bg-slate-800"
           >
-            Back to Home
+            Back to Booking
           </button>
         </div>
       </div>
@@ -155,8 +168,8 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 py-12">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 w-full max-w-lg">
+    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-2 sm:p-4 py-8 sm:py-12">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 w-full max-w-lg">
         <h1 className="text-xl font-semibold text-slate-900 mb-6">Booking Page<span className="text-red-500">*</span></h1>
 
         {/* Date Grid */}
@@ -193,7 +206,7 @@ export default function BookingPage() {
                 <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
               </div>
             )}
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
               {AVAILABLE_SLOTS.map((slot) => {
                 // Convert 24h to 12h for display
                 const [h, m] = slot.split(':');

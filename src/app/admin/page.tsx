@@ -81,17 +81,17 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-6 md:p-12">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-4 md:p-12">
+      <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Admin Portal</h1>
-            <p className="text-sm text-slate-500 mt-1">Track meetings, upcoming pastoral sessions, and cancellations.</p>
+            <h1 className="text-xl md:text-2xl font-bold">Admin Portal</h1>
+            <p className="text-xs md:text-sm text-slate-500 mt-1">Track meetings and pastoral sessions.</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 bg-white text-red-600 rounded-md text-sm font-medium hover:bg-red-50">
+            <button onClick={handleLogout} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 bg-white text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors">
               <LogOut className="w-4 h-4" /> Logout
             </button>
           </div>
