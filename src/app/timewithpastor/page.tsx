@@ -18,6 +18,7 @@ import {
 } from "date-fns";
 import { getAccraTime, isBookableDay, AVAILABLE_SLOTS } from "@/lib/date-utils";
 import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 
 export default function BookingPage() {
   const [currentMonth, setCurrentMonth] = useState(getAccraTime());
@@ -122,41 +123,38 @@ export default function BookingPage() {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center p-6 relative overflow-hidden">
-        {/* Subtle Background */}
-        <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#0077E6 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
-        
-        <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in duration-500">
-          <div className="bg-white rounded-[2rem] shadow-2xl shadow-blue-100/50 border border-slate-100 overflow-hidden">
-            <div className="bg-[#0077E6] py-10 px-6 text-center relative">
-              <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-xl rotate-3 transition-transform hover:rotate-0">
-                <Check className="w-10 h-10 text-[#0077E6]" strokeWidth={3} />
+      <div className="min-h-screen bg-white flex items-center justify-center p-6 relative">
+        <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in duration-300">
+          <div className="bg-white border-2 border-black">
+            <div className="bg-black py-10 px-6 text-center">
+              <div className="w-16 h-16 mx-auto bg-white flex items-center justify-center border-2 border-white mb-4">
+                <Check className="w-8 h-8 text-black" strokeWidth={4} />
               </div>
-              <h2 className="text-3xl font-black text-white mt-8 tracking-tight">Congrats!</h2>
-              <p className="text-blue-100 text-sm mt-1 font-medium">Your appointment is confirmed</p>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Confirmed</h2>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Your appointment is set</p>
             </div>
             
             <div className="p-8 space-y-6">
-              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-                <div className="flex justify-between items-center pb-4 border-b border-slate-200/50">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Meeting ID</span>
-                  <span className="text-sm font-bold text-slate-700">TACC-{bookingDetails.id?.split('-')[0].toUpperCase()}</span>
+              <div className="bg-slate-50 border border-slate-200 p-6 space-y-4">
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span>ID</span>
+                  <span className="text-black">TACC-{bookingDetails.id?.split('-')[0].toUpperCase()}</span>
                 </div>
-                <div className="flex justify-between items-center py-4 border-b border-slate-200/50">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</span>
-                  <span className="text-sm font-bold text-slate-700">{bookingDetails.date}</span>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span>Date</span>
+                  <span className="text-black">{bookingDetails.date}</span>
                 </div>
-                <div className="flex justify-between items-center pt-4">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time</span>
-                  <span className="text-sm font-bold text-slate-700">{bookingDetails.time}</span>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <span>Time</span>
+                  <span className="text-black">{bookingDetails.time}</span>
                 </div>
               </div>
 
               <button 
-                onClick={() => window.location.reload()}
-                className="w-full py-4 rounded-xl bg-[#0077E6] text-white font-bold text-sm shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
+                onClick={() => window.location.href = '/'}
+                className="w-full py-4 bg-black text-white font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-800 transition-all"
               >
-                Back to Home
+                Return Home
               </button>
             </div>
           </div>
@@ -166,13 +164,10 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-sans">
-      {/* Subtle Background */}
-      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#0077E6 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-
-      <div className="relative z-10 w-full max-w-5xl bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100/30 border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4 md:p-8 relative font-sans">
+      <div className="relative z-10 w-full max-w-5xl bg-white border-2 border-black overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="p-6 md:p-12">
-          <h1 className="text-3xl md:text-4xl font-black text-[#1C1917] text-center mb-12 tracking-tight">
+          <h1 className="text-3xl md:text-5xl font-black text-black text-center mb-12 uppercase tracking-tighter italic">
             Make an Appointment
           </h1>
 
@@ -180,24 +175,22 @@ export default function BookingPage() {
             
             {/* Left: Calendar */}
             <div className="space-y-6">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Date</h3>
-              </div>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">01. Select Date</h3>
               
-              <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
-                <div className="flex items-center justify-between mb-8">
-                  <button onClick={prevMonth} className="p-2 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200">
-                    <ChevronLeft className="w-5 h-5 text-slate-600" />
+              <div className="bg-white border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-4">
+                  <button onClick={prevMonth} className="p-1 hover:bg-slate-100 transition-colors">
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <span className="text-lg font-bold text-[#1C1917] tracking-tight">
+                  <span className="text-sm font-black uppercase tracking-widest">
                     {format(currentMonth, "MMMM yyyy")}
                   </span>
-                  <button onClick={nextMonth} className="p-2 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200">
-                    <ChevronRight className="w-5 h-5 text-slate-600" />
+                  <button onClick={nextMonth} className="p-1 hover:bg-slate-100 transition-colors">
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-2 mb-2">
+                <div className="grid grid-cols-7 gap-1 mb-2">
                   {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
                     <div key={d} className="text-center text-[10px] font-black text-slate-300 py-2">{d}</div>
                   ))}
@@ -216,13 +209,12 @@ export default function BookingPage() {
                           setSelectedTime(null);
                         }}
                         className={`
-                          aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all relative
-                          ${isBlocked ? 'text-slate-200 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:shadow-lg hover:scale-110'}
-                          ${isSelected ? 'bg-[#0077E6] text-white shadow-xl shadow-blue-200 scale-110 !hover:bg-[#0077E6]' : ''}
+                          aspect-square flex items-center justify-center text-xs font-bold transition-all border
+                          ${isBlocked ? 'text-slate-100 border-transparent cursor-not-allowed' : 'text-slate-600 border-transparent hover:border-black'}
+                          ${isSelected ? 'bg-black text-white !border-black scale-110 z-10' : ''}
                         `}
                       >
                         {format(day, "d")}
-                        {isSelected && <div className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"></div>}
                       </button>
                     );
                   })}
@@ -233,22 +225,19 @@ export default function BookingPage() {
             {/* Right: Form & Time */}
             <div className="space-y-8">
               <div className="space-y-4">
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">02. Personal Info</h3>
+                <div className="space-y-2">
                   <input 
                     type="email" 
-                    placeholder="Enter your email"
-                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all placeholder:text-slate-400"
+                    placeholder="EMAIL@EXAMPLE.COM"
+                    className="w-full px-4 py-4 bg-slate-50 border border-slate-200 text-xs font-bold focus:outline-none focus:border-black transition-all placeholder:text-slate-300 uppercase tracking-widest"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                   />
-                </div>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input 
                     type="text" 
-                    placeholder="Full Name"
-                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all placeholder:text-slate-400"
+                    placeholder="YOUR FULL NAME"
+                    className="w-full px-4 py-4 bg-slate-50 border border-slate-200 text-xs font-bold focus:outline-none focus:border-black transition-all placeholder:text-slate-300 uppercase tracking-widest"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                   />
@@ -256,12 +245,12 @@ export default function BookingPage() {
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Time</h3>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">03. Select Time</h3>
                 {selectedDate ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 relative min-h-[160px]">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 relative min-h-[160px]">
                     {isLoadingAvailability && (
-                      <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-2xl">
-                        <Loader2 className="w-6 h-6 animate-spin text-[#0077E6]" />
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                        <Loader2 className="w-6 h-6 animate-spin" />
                       </div>
                     )}
                     {AVAILABLE_SLOTS.map((slot) => {
@@ -279,9 +268,9 @@ export default function BookingPage() {
                           disabled={isBooked}
                           onClick={() => setSelectedTime(slot)}
                           className={`
-                            py-3 rounded-xl text-xs font-bold transition-all border
-                            ${isBooked ? 'bg-slate-50 text-slate-200 border-slate-50 cursor-not-allowed line-through' : 'bg-[#ADDBFF]/10 text-[#0077E6] border-[#ADDBFF]/20 hover:bg-[#ADDBFF]/20 hover:scale-105'}
-                            ${isSelected ? 'bg-[#0077E6] !text-white border-[#0077E6] shadow-xl shadow-blue-100 scale-105' : ''}
+                            py-3 text-[10px] font-black uppercase tracking-widest transition-all border
+                            ${isBooked ? 'bg-slate-50 text-slate-200 border-slate-50 cursor-not-allowed line-through' : 'bg-white text-black border-slate-200 hover:border-black'}
+                            ${isSelected ? 'bg-black !text-white !border-black scale-105 z-10' : ''}
                           `}
                         >
                           {displayTime}
@@ -290,35 +279,31 @@ export default function BookingPage() {
                     })}
                   </div>
                 ) : (
-                  <div className="bg-slate-50 rounded-3xl p-8 border border-dashed border-slate-200 text-center">
-                    <Clock className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Please select a date first</p>
+                  <div className="bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Select a date first</p>
                   </div>
                 )}
               </div>
 
-              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-[#ADDBFF] flex items-center justify-center shrink-0">
-                  <Info className="w-3 h-3 text-[#0077E6]" />
-                </div>
-                <p className="text-[10px] font-bold text-blue-800 uppercase tracking-tight">All times are in Greenwich Mean Time (Accra)</p>
+              <div className="border border-black p-4 flex items-center gap-3">
+                <Info className="w-4 h-4" />
+                <p className="text-[10px] font-black uppercase tracking-widest">Times in GMT (Accra)</p>
               </div>
             </div>
           </div>
 
           <div className="mt-12 flex flex-col items-center gap-4">
-            {statusMessage && <p className="text-red-500 text-[10px] font-black uppercase">{statusMessage}</p>}
+            {statusMessage && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{statusMessage}</p>}
             <button 
               disabled={isSubmitting || !selectedDate || !selectedTime || !formData.email || !formData.name}
               onClick={handleBooking}
-              className="px-12 py-5 rounded-2xl bg-[#0077E6] text-white font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+              className="px-16 py-6 bg-black text-white font-black text-xs uppercase tracking-[0.3em] hover:bg-slate-800 transition-all disabled:opacity-20 disabled:cursor-not-allowed flex items-center gap-4"
             >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get Appointment'}
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Appointment'}
             </button>
           </div>
         </div>
       </div>
     </div>
-
   );
 }
