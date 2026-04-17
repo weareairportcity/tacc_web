@@ -1,18 +1,36 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Check } from "lucide-react";
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay } from "date-fns";
+import { ChevronLeft, ChevronRight, Loader2, Check, Calendar as CalendarIcon, Clock, User, Phone as PhoneIcon, Mail, Info } from "lucide-react";
+import { 
+  format, 
+  addMonths, 
+  subMonths, 
+  startOfMonth, 
+  endOfMonth, 
+  eachDayOfInterval, 
+  isSameMonth, 
+  isSameDay, 
+  addDays, 
+  isBefore, 
+  startOfDay,
+  getDay
+} from "date-fns";
 import { getAccraTime, isBookableDay, AVAILABLE_SLOTS } from "@/lib/date-utils";
 import { createClient } from "@/utils/supabase/client";
 
 export default function BookingPage() {
-  const [currentDate, setCurrentDate] = useState(getAccraTime());
+  const [currentMonth, setCurrentMonth] = useState(getAccraTime());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [availableDates, setAvailableDates] = useState<Date[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [bookingDetails, setBookingDetails] = useState<any>(null);
 
-  // Form State
   const [formData, setFormData] = useState({
     name: "",
     fellowship: "",
@@ -20,69 +38,43 @@ export default function BookingPage() {
     email: "",
     reason: "",
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
-  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
 
+  // Fetch blocked dates on mount
   useEffect(() => {
-    async function fetchAvailability() {
-      // Fetch blocked dates
-      const { data: blockedData } = await createClient().from('blocked_dates').select('blocked_date');
-      const blockedSet = new Set(blockedData?.map(d => d.blocked_date));
-
-      // Calculate the next available dates
-      const dates: Date[] = [];
-      let checkDate = getAccraTime();
-      while (dates.length < 10) { // Check a bit further out
-        const dateStr = checkDate.toISOString().split('T')[0];
-        if (isBookableDay(checkDate) && !blockedSet.has(dateStr)) {
-          dates.push(new Date(checkDate));
-        }
-        if (dates.length >= 4) break; // We only show 4, but we look ahead to find them
-        checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000); // add 1 day
-      }
-      setAvailableDates(dates);
+    async function fetchBlocked() {
+      const { data } = await createClient().from('blocked_dates').select('blocked_date');
+      setBlockedDates(new Set(data?.map(d => d.blocked_date)));
     }
-    fetchAvailability();
+    fetchBlocked();
   }, []);
 
-  const handleDateSelect = async (day: Date) => {
-    setSelectedDate(day);
-    setSelectedTime(null);
-    setBookedSlots([]);
-    setIsLoadingAvailability(true);
-
-    try {
-      const dateStr = day.toISOString().split('T')[0];
-      const res = await fetch(`/api/bookings/availability?date=${dateStr}`);
-      if (res.ok) {
-        const data = await res.json();
-        setBookedSlots(data.bookedSlots || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch availability:", error);
-    } finally {
-      setIsLoadingAvailability(false);
+  // Fetch availability when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchBooked = async () => {
+        setIsLoadingAvailability(true);
+        try {
+          const dateStr = selectedDate.toISOString().split('T')[0];
+          const res = await fetch(`/api/bookings/availability?date=${dateStr}`);
+          const data = await res.json();
+          setBookedSlots(data.bookedSlots || []);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setIsLoadingAvailability(false);
+        }
+      };
+      fetchBooked();
     }
-  };
+  }, [selectedDate]);
 
-  const handleTimeSelect = (time: string) => {
-    setSelectedTime(time);
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate || !selectedTime) {
-      setStatusMessage("Please select a date and time.");
+      alert("Please select a date and time");
       return;
     }
-    
+
     setIsSubmitting(true);
     setStatusMessage("");
 
@@ -91,243 +83,240 @@ export default function BookingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...formData,
           date: selectedDate.toISOString(),
           time: selectedTime,
-          ...formData
-        })
+        }),
       });
 
       const data = await res.json();
-      if (res.ok) {
-        setIsSuccess(true);
-      } else {
-        setStatusMessage(data.error || "Something went wrong.");
-        setIsSubmitting(false);
+
+      if (!res.ok) {
+        throw new Error(data.error || "Something went wrong");
       }
-    } catch (error) {
-      setStatusMessage("Failed to submit booking.");
+
+      setBookingDetails({
+        id: data.bookingId,
+        date: format(selectedDate, "dd MMMM yyyy"),
+        time: selectedTime,
+        name: formData.name
+      });
+      setIsSuccess(true);
+    } catch (err: any) {
+      setStatusMessage(err.message);
       setIsSubmitting(false);
     }
   };
 
-  if (isSuccess && selectedDate && selectedTime) {
-    // Convert 24h to 12h for display
-    const [h, m] = selectedTime.split(':');
-    const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
-    const displayH = parseInt(h) > 12 ? parseInt(h) - 12 : parseInt(h);
-    const displaySlot = `${displayH}:${m} ${ampm}`;
+  // Calendar Logic
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(monthStart);
+  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  
+  // Fill leading empty days
+  const startDay = getDay(monthStart);
+  const leadingDays = Array.from({ length: startDay }, (_, i) => null);
 
+  const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+
+  if (isSuccess) {
     return (
-      <div className="min-h-screen bg-[#f1f5f9] flex items-center justify-center p-4 py-12 font-sans">
-        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 md:p-12 w-full max-w-md text-center">
-          <div className="w-24 h-24 mx-auto bg-[#eef2ff] rounded-full flex items-center justify-center mb-8">
-            <div className="w-16 h-16 bg-[#6366f1] rounded-full flex items-center justify-center">
-              <Check className="w-8 h-8 text-white" strokeWidth={3} />
+      <div className="min-h-screen bg-[#f1f5f9] flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Particle Background */}
+        <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#1e3a8a 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+        
+        <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in duration-500">
+          <div className="bg-white rounded-3xl shadow-2xl border-4 border-[#1e40af] overflow-hidden">
+            <div className="bg-[#1e40af] py-8 px-6 text-center relative">
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-white rounded-full border-4 border-[#1e40af] flex items-center justify-center shadow-lg">
+                <Check className="w-12 h-12 text-[#1e40af]" />
+              </div>
+              <h2 className="text-3xl font-bold text-white mt-8 tracking-tight">Congrats!</h2>
+              <p className="text-blue-100 text-sm mt-1">Your appointment is confirmed</p>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100">
+                <div className="flex justify-between items-center pb-4 border-b border-blue-100/50">
+                  <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Meeting ID</span>
+                  <span className="text-sm font-mono font-bold text-slate-700">TACC-{bookingDetails.id?.split('-')[0].toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between items-center py-4 border-b border-blue-100/50">
+                  <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Date</span>
+                  <span className="text-sm font-bold text-slate-700">{bookingDetails.date}</span>
+                </div>
+                <div className="flex justify-between items-center pt-4">
+                  <span className="text-xs font-bold text-blue-400 uppercase tracking-widest">Time</span>
+                  <span className="text-sm font-bold text-slate-700">{bookingDetails.time}</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => window.location.reload()}
+                className="w-full py-4 rounded-xl bg-[#1e40af] text-white font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-800 transition-all active:scale-95"
+              >
+                Back to Home
+              </button>
             </div>
           </div>
-          
-          <h1 className="text-2xl md:text-[1.75rem] font-medium tracking-tight text-slate-900 mb-4 leading-tight">
-            Success! Your meeting is<br/>scheduled.
-          </h1>
-          
-          <p className="text-[15px] text-slate-500 mb-10 max-w-[280px] mx-auto leading-relaxed">
-            Please check your email and SMS for confirmation and further instructions about the meeting.
-          </p>
-
-          <div className="bg-[#f8fafc] rounded-2xl p-6 text-left space-y-4 mb-10">
-            <div className="flex justify-between items-center text-[15px]">
-              <span className="text-slate-500">Meeting ID</span>
-              <span className="font-medium text-slate-900">TACC-{Math.floor(Math.random() * 100000)}</span>
-            </div>
-            <div className="flex justify-between items-center text-[15px]">
-              <span className="text-slate-500">Name</span>
-              <span className="font-medium text-slate-900">{formData.name}</span>
-            </div>
-            <div className="flex justify-between items-center text-[15px]">
-              <span className="text-slate-500">Date</span>
-              <span className="font-medium text-slate-900">{format(selectedDate, "d MMMM yyyy")}</span>
-            </div>
-            <div className="flex justify-between items-center text-[15px]">
-              <span className="text-slate-500">Time</span>
-              <span className="font-medium text-slate-900">{displaySlot}</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => {
-              setIsSuccess(false);
-              setSelectedDate(null);
-              setSelectedTime(null);
-              setFormData({
-                name: "",
-                fellowship: "",
-                phone: "",
-                email: "",
-                reason: "",
-              });
-              setStatusMessage("");
-              setIsSubmitting(false);
-            }}
-            className="w-full py-4 rounded-full bg-[#030712] text-white font-medium text-[15px] transition-colors hover:bg-slate-800"
-          >
-            Back to Booking
-          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-2 sm:p-4 py-8 sm:py-12">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 w-full max-w-lg">
-        <h1 className="text-xl font-semibold text-slate-900 mb-6">Booking Page<span className="text-red-500">*</span></h1>
+    <div className="min-h-screen bg-[#f1f5f9] flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-sans">
+      {/* Particle Background */}
+      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#1e3a8a 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
 
-        {/* Date Grid */}
-        <div className="flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide justify-between">
-          {availableDates.map((day, i) => {
-            const isSelected = selectedDate && isSameDay(day, selectedDate);
+      <div className="relative z-10 w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl border-[12px] border-[#1e40af] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="p-6 md:p-12">
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 text-center mb-12 tracking-tight">
+            Make an Appointment
+          </h1>
 
-            return (
-              <button
-                key={i}
-                onClick={() => handleDateSelect(day)}
-                className={`
-                  flex-1 flex flex-col items-center justify-center py-3 rounded-xl border transition-colors
-                  ${isSelected ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'border-slate-200 hover:border-slate-400 text-slate-900'}
-                `}
-              >
-                <span className="text-xs mb-1 font-medium">{format(day, "EEE")}</span>
-                <span className="text-xl font-semibold">{format(day, "dd")}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Timezone Info */}
-        <div className="mb-4">
-          <p className="text-sm text-slate-600">Lisbon (GMT +1) <ChevronRight className="w-3 h-3 rotate-90 inline" /></p>
-        </div>
-
-        {/* Time Slots */}
-        {selectedDate && (
-          <div className="relative">
-            {isLoadingAvailability && (
-              <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            
+            {/* Left: Calendar */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Select Date</h3>
               </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-              {AVAILABLE_SLOTS.map((slot) => {
-                // Convert 24h to 12h for display
-                const [h, m] = slot.split(':');
-                const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
-                const displayH = parseInt(h) > 12 ? parseInt(h) - 12 : parseInt(h);
-                const displaySlot = `${displayH}:${m} ${ampm}`;
-                const isSelected = selectedTime === slot;
-                const isBooked = bookedSlots.includes(slot);
-
-                return (
-                  <button
-                    key={slot}
-                    disabled={isBooked}
-                    onClick={() => handleTimeSelect(slot)}
-                    className={`
-                      py-2.5 rounded-md text-sm font-medium transition-colors border
-                      ${isSelected 
-                        ? 'bg-[#0f172a] text-white border-[#0f172a]' 
-                        : isBooked
-                        ? 'bg-slate-100 text-slate-400 border-slate-100 cursor-not-allowed line-through'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'}
-                    `}
-                  >
-                    {displaySlot}
+              
+              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+                <div className="flex items-center justify-between mb-8">
+                  <button onClick={prevMonth} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200">
+                    <ChevronLeft className="w-5 h-5 text-slate-600" />
                   </button>
-                );
-              })}
+                  <span className="text-lg font-bold text-slate-800 tracking-tight">
+                    {format(currentMonth, "MMMM yyyy")}
+                  </span>
+                  <button onClick={nextMonth} className="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200">
+                    <ChevronRight className="w-5 h-5 text-slate-600" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+                    <div key={d} className="text-center text-[10px] font-black text-slate-300 py-2">{d}</div>
+                  ))}
+                  {leadingDays.map((_, i) => <div key={`empty-${i}`} />)}
+                  {calendarDays.map((day) => {
+                    const dateStr = day.toISOString().split('T')[0];
+                    const isBlocked = blockedDates.has(dateStr) || !isBookableDay(day) || isBefore(day, startOfDay(getAccraTime()));
+                    const isSelected = selectedDate && isSameDay(day, selectedDate);
+                    
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        disabled={isBlocked}
+                        onClick={() => {
+                          setSelectedDate(day);
+                          setSelectedTime(null);
+                        }}
+                        className={`
+                          aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all relative
+                          ${isBlocked ? 'text-slate-200 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:shadow-md hover:scale-110'}
+                          ${isSelected ? 'bg-[#1e40af] text-white shadow-lg shadow-blue-200 scale-110 !hover:bg-[#1e40af]' : ''}
+                        `}
+                      >
+                        {format(day, "d")}
+                        {isSelected && <div className="absolute -bottom-1 w-1 h-1 bg-white rounded-full"></div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Form & Time */}
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="email" 
+                    placeholder="Enter your email"
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  />
+                </div>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Full Name"
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Select Time</h3>
+                {selectedDate ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 relative min-h-[160px]">
+                    {isLoadingAvailability && (
+                      <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-xl">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                      </div>
+                    )}
+                    {AVAILABLE_SLOTS.map((slot) => {
+                      const isBooked = bookedSlots.includes(slot);
+                      const isSelected = selectedTime === slot;
+                      
+                      // Format to 12h
+                      const [h, m] = slot.split(':');
+                      const hour = parseInt(h);
+                      const displayTime = `${hour > 12 ? hour - 12 : hour}:${m} ${hour >= 12 ? 'pm' : 'am'}`;
+
+                      return (
+                        <button
+                          key={slot}
+                          disabled={isBooked}
+                          onClick={() => setSelectedTime(slot)}
+                          className={`
+                            py-3 rounded-xl text-xs font-bold transition-all border
+                            ${isBooked ? 'bg-slate-50 text-slate-200 border-slate-50 cursor-not-allowed line-through' : 'bg-blue-50/30 text-blue-700 border-blue-100 hover:bg-blue-50 hover:scale-105'}
+                            ${isSelected ? 'bg-[#1e40af] !text-white border-[#1e40af] shadow-lg shadow-blue-100 scale-105' : ''}
+                          `}
+                        >
+                          {displayTime}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 rounded-2xl p-8 border border-dashed border-slate-200 text-center">
+                    <Clock className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Please select a date first</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100 flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                  <Info className="w-3 h-3 text-orange-600" />
+                </div>
+                <p className="text-[10px] sm:text-xs font-bold text-orange-800 uppercase tracking-tight">All times are in Greenwich Mean Time (Accra)</p>
+              </div>
             </div>
           </div>
-        )}
-        <p className="text-sm text-slate-600 mb-8">Timezone: Accra Time)</p>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Name<span className="text-red-500">*</span></label>
-            <input
-              required
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Name"
-              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm text-slate-900 placeholder:text-slate-400"
-            />
+          <div className="mt-12 flex flex-col items-center gap-4">
+            {statusMessage && <p className="text-red-500 text-xs font-bold uppercase">{statusMessage}</p>}
+            <button 
+              disabled={isSubmitting || !selectedDate || !selectedTime || !formData.email || !formData.name}
+              onClick={handleBooking}
+              className="px-12 py-5 rounded-2xl bg-[#1e40af] text-white font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-blue-100 hover:bg-blue-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get Appointment'}
+            </button>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Fellowship<span className="text-red-500">*</span></label>
-              <input
-                required
-                name="fellowship"
-                value={formData.fellowship}
-                onChange={handleChange}
-                placeholder="Fellowship"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm text-slate-900 placeholder:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number<span className="text-red-500">*</span></label>
-              <input
-                required
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                placeholder="+1234567890"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm text-slate-900 placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-            <input
-              required
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Email"
-              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm text-slate-900 placeholder:text-slate-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Meeting Reason<span className="text-red-500">*</span></label>
-            <textarea
-              required
-              name="reason"
-              value={formData.reason}
-              onChange={handleChange}
-              placeholder="Meeting Reason for here..."
-              rows={3}
-              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-sm text-slate-900 placeholder:text-slate-400 resize-none"
-            />
-          </div>
-
-          {statusMessage && (
-            <p className={`text-sm ${statusMessage.includes("successful") ? "text-green-600" : "text-red-600"}`}>
-              {statusMessage}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting || !selectedDate || !selectedTime}
-            className="w-full py-3 rounded-lg bg-[#0f172a] text-white font-medium text-sm transition-colors hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Schedule"}
-          </button>
-        </form>
+        </div>
       </div>
     </div>
   );
