@@ -9,6 +9,7 @@ export default function BookingPage() {
   const [currentDate, setCurrentDate] = useState(getAccraTime());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [availableDates, setAvailableDates] = useState<Date[]>([]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -22,18 +23,22 @@ export default function BookingPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-  const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const handleNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
+  useEffect(() => {
+    // Calculate the next 4 available dates
+    const dates: Date[] = [];
+    let checkDate = getAccraTime();
+    while (dates.length < 4) {
+      if (isBookableDay(checkDate)) {
+        dates.push(new Date(checkDate));
+      }
+      checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000); // add 1 day
+    }
+    setAvailableDates(dates);
+  }, []);
 
   const handleDateSelect = (day: Date) => {
-    if (isBookableDay(day)) {
-      setSelectedDate(day);
-      setSelectedTime(null);
-    }
+    setSelectedDate(day);
+    setSelectedTime(null);
   };
 
   const handleTimeSelect = (time: string) => {
@@ -137,44 +142,22 @@ export default function BookingPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 w-full max-w-lg">
         <h1 className="text-xl font-semibold text-slate-900 mb-6">Booking Page<span className="text-red-500">*</span></h1>
 
-        {/* Calendar Navigation */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="border border-slate-200 rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 flex items-center gap-2">
-            {format(currentDate, "MMMM yyyy")}
-            <ChevronRight className="w-4 h-4 rotate-90" />
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handlePrevMonth} className="p-1.5 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button onClick={handleNextMonth} className="p-1.5 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Calendar Grid */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-          {daysInMonth.map((day, i) => {
-            const bookable = isBookableDay(day);
+        {/* Date Grid */}
+        <div className="flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide justify-between">
+          {availableDates.map((day, i) => {
             const isSelected = selectedDate && isSameDay(day, selectedDate);
-            
-            if (!isSameMonth(day, currentDate)) return null;
 
             return (
               <button
                 key={i}
-                disabled={!bookable}
                 onClick={() => handleDateSelect(day)}
                 className={`
-                  flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 rounded-xl border transition-colors
-                  ${isSelected ? 'bg-[#0f172a] text-white border-[#0f172a]' : ''}
-                  ${!isSelected && bookable ? 'border-slate-200 hover:border-slate-400 text-slate-900' : ''}
-                  ${!bookable ? 'border-slate-100 text-slate-300 cursor-not-allowed' : ''}
+                  flex-1 flex flex-col items-center justify-center py-3 rounded-xl border transition-colors
+                  ${isSelected ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'border-slate-200 hover:border-slate-400 text-slate-900'}
                 `}
               >
-                <span className="text-xs mb-1">{format(day, "EEE")}</span>
-                <span className="text-lg font-semibold">{format(day, "dd")}</span>
+                <span className="text-xs mb-1 font-medium">{format(day, "EEE")}</span>
+                <span className="text-xl font-semibold">{format(day, "dd")}</span>
               </button>
             );
           })}

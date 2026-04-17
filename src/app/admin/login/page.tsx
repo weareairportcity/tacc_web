@@ -17,19 +17,21 @@ export default function AdminLogin() {
     setError("");
 
     try {
-      // Temporary mock authentication since Supabase isn't hooked up yet
-      // In real implementation, this would call Supabase Auth
-      if (email && password) {
-        // Mock success
-        setTimeout(() => {
-          router.push("/admin");
-        }, 1000);
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
+        router.push("/admin");
       } else {
-        setError("Please enter email and password.");
-        setIsLoading(false);
+        const data = await res.json();
+        setError(data.error || "Invalid password.");
       }
     } catch (err) {
       setError("Login failed. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };

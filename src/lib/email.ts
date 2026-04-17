@@ -87,3 +87,31 @@ export async function sendAdminNotificationEmail(
     console.error("Error sending admin email:", error);
   }
 }
+
+export async function sendReminderEmail(
+  toEmail: string,
+  name: string,
+  time: string
+) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  try {
+    await resend.emails.send({
+      from: `The Airport City Church <${fromEmail}>`,
+      to: toEmail,
+      subject: 'Reminder: Meeting with Pastor Tomorrow',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto;">
+          <h2>Meeting Reminder</h2>
+          <p>Dear ${name},</p>
+          <p>This is a friendly reminder that you have a scheduled meeting with the Pastor <strong>tomorrow</strong> at <strong>${time}</strong>.</p>
+          <p>We look forward to speaking with you.</p>
+          <p>Blessings,<br/>The Airport City Church</p>
+        </div>
+      `,
+    });
+    console.log("Reminder email sent to", toEmail);
+  } catch (error) {
+    console.error("Error sending reminder email:", error);
+  }
+}

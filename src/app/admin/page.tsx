@@ -1,27 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { Download, ChevronDown, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, ChevronDown, LogOut, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 
-// Mock Data
-const mockBookings = [
-  { id: 1, name: "Nota", fellowship: "Pastor", date: "May 2025", time: "4:00 PM", reason: "Proce...", phone: "6559937", email: "Email", status: "Scheduled" },
-  { id: 2, name: "Sashira", fellowship: "Pastor", date: "May 2025", time: "5:00 PM", reason: "Proce...", phone: "6559608", email: "Email", status: "Scheduled" },
-  { id: 3, name: "Jose B.", fellowship: "Church", date: "May 2025", time: "3:00 PM", reason: "Proce...", phone: "6559959", email: "Email", status: "Scheduled" },
-  { id: 4, name: "Cose", fellowship: "Pastor", date: "May 2025", time: "6:00 PM", reason: "Proce...", phone: "6559697", email: "Email", status: "Scheduled" },
-  { id: 5, name: "Kuda Domin", fellowship: "Pastor", date: "May 2025", time: "6:30 PM", reason: "Mech...", phone: "6529902", email: "Email", status: "Cancelled" },
-  { id: 6, name: "Jeanny", fellowship: "Pastor", date: "May 2025", time: "6:00 PM", reason: "Mech...", phone: "6329967", email: "Email", status: "Cancelled" },
-  { id: 7, name: "Janes", fellowship: "Pastor", date: "May 2023", time: "6:30 PM", reason: "Mech...", phone: "5328907", email: "Email", status: "Scheduled" },
-];
+type Booking = {
+  id: string;
+  created_at: string;
+  meeting_date: string;
+  meeting_time: string;
+  name: string;
+  fellowship: string;
+  phone: string;
+  email: string;
+  reason: string;
+  status: string;
+};
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const handleLogout = () => {
-    // Mock logout
+  useEffect(() => {
+    async function fetchBookings() {
+      try {
+        const res = await fetch("/api/admin/bookings");
+        if (res.status === 401) {
+          router.push("/admin/login");
+          return;
+        }
+        if (!res.ok) throw new Error("Failed to fetch data");
+        const data = await res.json();
+        setBookings(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchBookings();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await fetch("/api/admin/logout", { method: "POST" });
     router.push("/admin/login");
   };
+
+  const totalMeetings = bookings.length;
+  const upcomingMeetings = bookings.filter(b => new Date(b.meeting_date) >= new Date()).length;
+  const cancellations = bookings.filter(b => b.status === 'Cancelled').length;
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-slate-500" /></div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-6 md:p-12">
@@ -34,12 +68,6 @@ export default function AdminDashboard() {
             <p className="text-sm text-slate-500 mt-1">Track meetings, upcoming pastoral sessions, and cancellations.</p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 bg-white rounded-md text-sm font-medium hover:bg-slate-50">
-              Last 7 days <ChevronDown className="w-4 h-4" />
-            </button>
-            <button className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 bg-white rounded-md text-sm font-medium hover:bg-slate-50">
-              Cash <ChevronDown className="w-4 h-4" />
-            </button>
             <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 bg-white text-red-600 rounded-md text-sm font-medium hover:bg-red-50">
               <LogOut className="w-4 h-4" /> Logout
             </button>
@@ -47,27 +75,23 @@ export default function AdminDashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <KpiCard title="Total Meetings" value="18" />
-          <KpiCard title="Upcoming Meetings" value="7 Days" />
-          <KpiCard title="Cancellations" value="0" />
-          <KpiCard title="New Fellowship Int..." value="2" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <KpiCard title="Total Meetings" value={totalMeetings.toString()} />
+          <KpiCard title="Upcoming Meetings" value={upcomingMeetings.toString()} />
+          <KpiCard title="Cancellations" value={cancellations.toString()} />
         </div>
 
         {/* Data Table Area */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-white">
             <h2 className="font-semibold text-lg">Data Table</h2>
-            <button className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-md text-sm font-medium hover:bg-slate-50 text-slate-600">
-              <Download className="w-4 h-4" /> Export CSV
-            </button>
           </div>
           
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase">
                 <tr>
-                  <th className="px-6 py-4 font-medium">Name <ChevronDown className="w-3 h-3 inline" /></th>
+                  <th className="px-6 py-4 font-medium">Name</th>
                   <th className="px-6 py-4 font-medium">Fellowship</th>
                   <th className="px-6 py-4 font-medium">Date</th>
                   <th className="px-6 py-4 font-medium">Time</th>
@@ -78,13 +102,13 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {mockBookings.map((booking) => (
+                {bookings.map((booking) => (
                   <tr key={booking.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900">{booking.name}</td>
                     <td className="px-6 py-4 text-slate-600">{booking.fellowship}</td>
-                    <td className="px-6 py-4 text-slate-600">{booking.date}</td>
-                    <td className="px-6 py-4 text-slate-600">{booking.time}</td>
-                    <td className="px-6 py-4 text-slate-600">{booking.reason}</td>
+                    <td className="px-6 py-4 text-slate-600">{format(new Date(booking.meeting_date), 'MMM dd, yyyy')}</td>
+                    <td className="px-6 py-4 text-slate-600">{booking.meeting_time}</td>
+                    <td className="px-6 py-4 text-slate-600 max-w-xs truncate" title={booking.reason}>{booking.reason}</td>
                     <td className="px-6 py-4 text-slate-600">{booking.phone}</td>
                     <td className="px-6 py-4 text-slate-600">{booking.email}</td>
                     <td className="px-6 py-4">
@@ -98,6 +122,11 @@ export default function AdminDashboard() {
                     </td>
                   </tr>
                 ))}
+                {bookings.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-slate-500">No bookings found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
