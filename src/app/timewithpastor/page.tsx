@@ -13,6 +13,7 @@ import {
   isSameDay, 
   isBefore, 
   startOfDay,
+  getDay
 } from "date-fns";
 import { getAccraTime, isBookableDay, AVAILABLE_SLOTS } from "@/lib/date-utils";
 import { createClient } from "@/utils/supabase/client";
@@ -110,6 +111,8 @@ export default function BookingPage() {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
   const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startDay = getDay(monthStart);
+  const leadingDays = Array.from({ length: startDay }, (_, i) => null);
 
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -199,32 +202,37 @@ export default function BookingPage() {
             </div>
           </div>
 
-          {/* Horizontal Days Scroll */}
-          <div className="flex gap-2 overflow-x-auto pb-4 mb-2 scrollbar-hide snap-x">
-            {calendarDays.map((day) => {
-              const dateStr = day.toISOString().split('T')[0];
-              const isBlocked = blockedDates.has(dateStr) || !isBookableDay(day) || isBefore(day, startOfDay(getAccraTime()));
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
-              
-              return (
-                <button
-                  key={day.toISOString()}
-                  disabled={isBlocked}
-                  onClick={() => {
-                    setSelectedDate(day);
-                    setSelectedTime(null);
-                  }}
-                  className={`
-                    flex flex-col items-center justify-center min-w-[3.5rem] p-2 rounded-lg transition-colors snap-start border
-                    ${isBlocked ? 'opacity-40 cursor-not-allowed border-transparent' : 'hover:border-slate-300 border-slate-100 cursor-pointer'}
-                    ${isSelected ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700'}
-                  `}
-                >
-                  <span className={`text-xs ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>{format(day, "EEE")}</span>
-                  <span className="text-lg font-bold">{format(day, "dd")}</span>
-                </button>
-              );
-            })}
+          {/* Calendar Grid */}
+          <div className="mb-6">
+            <div className="grid grid-cols-7 gap-2 mb-2">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+                <div key={d} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
+              ))}
+              {leadingDays.map((_, i) => <div key={`empty-${i}`} />)}
+              {calendarDays.map((day) => {
+                const dateStr = day.toISOString().split('T')[0];
+                const isBlocked = blockedDates.has(dateStr) || !isBookableDay(day) || isBefore(day, startOfDay(getAccraTime()));
+                const isSelected = selectedDate && isSameDay(day, selectedDate);
+                
+                return (
+                  <button
+                    key={day.toISOString()}
+                    disabled={isBlocked}
+                    onClick={() => {
+                      setSelectedDate(day);
+                      setSelectedTime(null);
+                    }}
+                    className={`
+                      aspect-square flex items-center justify-center rounded-lg transition-colors border text-sm font-medium
+                      ${isBlocked ? 'opacity-40 cursor-not-allowed border-transparent text-slate-400' : 'hover:border-slate-300 border-slate-100 cursor-pointer text-slate-700 hover:bg-slate-50'}
+                      ${isSelected ? 'bg-slate-900 !text-white border-slate-900 hover:bg-slate-800 hover:border-slate-800' : 'bg-white'}
+                    `}
+                  >
+                    {format(day, "d")}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Timezone & Time Slots */}
