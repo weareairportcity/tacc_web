@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -10,6 +11,7 @@ export default function AdminLogin() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,17 +19,16 @@ export default function AdminLogin() {
     setError("");
 
     try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (res.ok) {
-        router.push("/admin");
+      if (authError) {
+        setError(authError.message);
       } else {
-        const data = await res.json();
-        setError(data.error || "Invalid password.");
+        router.push("/admin");
+        router.refresh();
       }
     } catch (err) {
       setError("Login failed. Please try again.");

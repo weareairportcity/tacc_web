@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Download, ChevronDown, LogOut, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { createClient } from "@/utils/supabase/client";
 
 type Booking = {
   id: string;
@@ -23,18 +24,18 @@ export default function AdminDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const supabase = createClient();
 
   useEffect(() => {
     async function fetchBookings() {
       try {
-        const res = await fetch("/api/admin/bookings");
-        if (res.status === 401) {
-          router.push("/admin/login");
-          return;
-        }
-        if (!res.ok) throw new Error("Failed to fetch data");
-        const data = await res.json();
-        setBookings(data);
+        const { data, error: fetchError } = await supabase
+          .from('bookings')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+        setBookings(data || []);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -42,11 +43,12 @@ export default function AdminDashboard() {
       }
     }
     fetchBookings();
-  }, [router]);
+  }, [supabase]);
 
   const handleLogout = async () => {
-    await fetch("/api/admin/logout", { method: "POST" });
+    await supabase.auth.signOut();
     router.push("/admin/login");
+    router.refresh();
   };
 
   const totalMeetings = bookings.length;
