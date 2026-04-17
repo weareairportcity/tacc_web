@@ -25,12 +25,15 @@ export default function Home() {
 
       {/* Hero Section */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 text-center max-w-5xl mx-auto -mt-12 md:-mt-24">
-        <div className="space-y-2 mb-12">
-          <h1 className="text-6xl md:text-[7.5rem] font-bold text-slate-400/30 leading-[1.1] tracking-tight select-none">
-            We don't <br className="hidden md:block" /> just think.
+        <div className="space-y-0 mb-12">
+          <h1 className="text-5xl md:text-[6.5rem] font-bold text-slate-400/20 leading-[1.1] tracking-tight select-none">
+            We are
+          </h1>
+          <h1 className="text-5xl md:text-[7.5rem] font-bold text-slate-400/30 leading-[1] tracking-tight select-none">
+            building something
           </h1>
           <h2 className="text-6xl md:text-[8.5rem] font-bold text-slate-900 leading-[0.9] tracking-tighter flex items-center justify-center gap-4">
-            We do<span className="w-4 h-4 md:w-8 md:h-8 bg-green-500 rounded-full inline-block mt-4"></span>
+            Amazing<span className="w-4 h-4 md:w-8 md:h-8 bg-green-500 rounded-full inline-block mt-4"></span>
           </h2>
         </div>
 
