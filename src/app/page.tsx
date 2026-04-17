@@ -7,7 +7,7 @@ export default function Home() {
       {/* Top/Left side: Image */}
       <div className="w-full h-64 md:h-80 lg:h-auto lg:w-1/2 relative bg-slate-100 shrink-0 flex-none">
         <Image
-          src="/church-hero.jpg"
+          src="/homepage-hero.jpeg"
           alt="Airport City Church"
           fill
           className="object-cover"
