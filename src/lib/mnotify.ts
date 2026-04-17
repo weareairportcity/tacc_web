@@ -56,3 +56,7 @@ export async function sendBookingNotifications(userPhone: string, userName: stri
   // Send to Admin
   await sendSMS(ADMIN_PHONE, adminMessage);
 }
+export async function sendThankYouSMS(phone: string, name: string) {
+  const message = `Hello ${name}, thank you for meeting with the Pastor today. We hope the session was a blessing to you. - The Airport City Church`;
+  return await sendSMS(phone, message);
+}

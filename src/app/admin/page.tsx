@@ -51,20 +51,22 @@ export default function AdminDashboard() {
     router.refresh();
   };
 
-  const handleStatusChange = async (id: string, currentStatus: string) => {
-    const statuses = ['Scheduled', 'Completed', 'Cancelled'];
-    const nextIndex = (statuses.indexOf(currentStatus) + 1) % statuses.length;
-    const nextStatus = statuses[nextIndex];
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    if (newStatus === 'Completed') {
+      const confirmed = window.confirm("Are you sure you want to mark this as Completed? This will send a Thank You email and SMS to the user.");
+      if (!confirmed) return;
+    }
 
     try {
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({ status: nextStatus })
-        .eq('id', id);
+      const res = await fetch("/api/bookings/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus })
+      });
 
-      if (updateError) throw updateError;
+      if (!res.ok) throw new Error("Failed to update status");
       
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: nextStatus } : b));
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
     } catch (err: any) {
       alert("Failed to update status: " + err.message);
     }
@@ -133,17 +135,21 @@ export default function AdminDashboard() {
                     <td className="px-6 py-4 text-slate-600">{booking.phone}</td>
                     <td className="px-6 py-4 text-slate-600">{booking.email}</td>
                     <td className="px-6 py-4">
-                      <button 
-                        onClick={() => handleStatusChange(booking.id, booking.status)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer hover:opacity-80 ${
-                        booking.status === 'Scheduled' 
-                          ? 'bg-green-50 text-green-700 border-green-200' 
-                          : booking.status === 'Completed'
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : 'bg-red-50 text-red-700 border-red-200'
-                      }`}>
-                        {booking.status}
-                      </button>
+                      <select
+                        value={booking.status}
+                        onChange={(e) => handleStatusChange(booking.id, e.target.value)}
+                        className={`px-2 py-1 rounded-full text-xs font-medium border bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 ${
+                          booking.status === 'Scheduled' 
+                            ? 'text-green-700 border-green-200' 
+                            : booking.status === 'Completed'
+                            ? 'text-blue-700 border-blue-200'
+                            : 'text-red-700 border-red-200'
+                        }`}
+                      >
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
                     </td>
                   </tr>
                 ))}

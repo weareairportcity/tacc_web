@@ -117,3 +117,30 @@ export async function sendReminderEmail(
     console.error("Error sending reminder email:", error.message || error);
   }
 }
+
+export async function sendThankYouEmail(
+  toEmail: string,
+  name: string
+) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  try {
+    await resend.emails.send({
+      from: `The Airport City Church <${fromEmail}>`,
+      to: toEmail,
+      subject: 'Thank You for Meeting with the Pastor',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto;">
+          <h2>Thank You</h2>
+          <p>Dear ${name},</p>
+          <p>It was a blessing to have you meet with the Pastor. We hope the session was impactful and encouraging for you.</p>
+          <p>If you have any further questions or need additional support, feel free to reach out to us.</p>
+          <p>Blessings,<br/>The Airport City Church</p>
+        </div>
+      `,
+    });
+    console.log("Thank you email sent to", toEmail);
+  } catch (error: any) {
+    console.error("Error sending thank you email:", error.message || error);
+  }
+}
