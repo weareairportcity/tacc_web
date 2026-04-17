@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail = process.env.EMAIL_FROM || 'booking@theairportcitychurch.com';
+const adminEmail = process.env.ADMIN_EMAIL || fromEmail;
 
 export async function sendConfirmationEmail(
   toEmail: string,
@@ -63,7 +64,7 @@ export async function sendAdminNotificationEmail(
   try {
     await resend.emails.send({
       from: `TACC System <${fromEmail}>`,
-      to: fromEmail, // Sending to admin
+      to: adminEmail, // Dedicated admin inbox
       subject: `New Meeting Request: ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif;">
