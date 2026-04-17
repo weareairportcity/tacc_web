@@ -22,6 +22,8 @@ export default function BookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
 
   useEffect(() => {
     // Calculate the next 4 available dates
