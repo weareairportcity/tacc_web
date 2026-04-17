@@ -159,7 +159,7 @@ export default function BookingPage() {
       {/* Mobile Background Image */}
       <div className="lg:hidden absolute inset-0 z-0">
         <Image
-          src="/homepage-hero.jpeg"
+          src="/booking-hero.jpeg"
           alt="Background"
           fill
           className="object-cover"
@@ -171,7 +171,7 @@ export default function BookingPage() {
       {/* Right side: Image (Desktop) - Note: order-last makes it appear on the right */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-slate-100 shrink-0 border-l border-slate-200 order-last">
         <Image
-          src="/homepage-hero.jpeg"
+          src="/booking-hero.jpeg"
           alt="Airport City Church"
           fill
           className="object-cover"
