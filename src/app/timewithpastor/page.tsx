@@ -183,14 +183,19 @@ export default function BookingPage() {
       {/* Left side: Booking Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-3 sm:p-6 lg:p-12 relative z-10 lg:order-first">
         <div className="w-full max-w-[500px] bg-white/90 lg:bg-white backdrop-blur-xl lg:backdrop-blur-none rounded-xl shadow-2xl lg:shadow-sm p-5 sm:p-7 border border-white/50 lg:border-slate-200 max-h-[95vh] overflow-y-auto scrollbar-hide">
-          <div className="flex items-center gap-3 mb-4">
-            <Link href="/" className="p-1.5 -ml-1.5 rounded-md hover:bg-slate-100 transition-colors">
-              <ChevronLeft className="w-5 h-5 text-slate-600" />
+          
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/">
+              <Image src="/logo.png" alt="TACC Logo" width={120} height={40} className="object-contain" />
             </Link>
-            <h1 className="text-xl font-bold text-slate-900">
-              Booking Page<span className="text-red-500">*</span>
-            </h1>
+            <Link href="/" className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors bg-white/50 lg:bg-slate-50 px-2.5 py-1.5 rounded-md">
+              <ChevronLeft className="w-3.5 h-3.5" /> Back
+            </Link>
           </div>
+
+          <h1 className="text-xl font-bold text-slate-900 mb-4">
+            Booking Page<span className="text-red-500">*</span>
+          </h1>
 
           {/* Month Navigator */}
           <div className="flex items-center justify-between mb-2">

@@ -5,6 +5,7 @@ import { Download, ChevronDown, LogOut, Loader2, Calendar, Users, Ban, Trash2, A
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { createClient } from "@/utils/supabase/client";
+import Image from "next/image";
 
 type Booking = {
   id: string;
@@ -83,15 +84,18 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-4 sm:p-8 lg:p-12">
-      <div className="max-w-[1400px] mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+      <div className="max-w-[1400px] mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 md:p-8">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Admin Portal</h1>
-            <p className="text-sm text-slate-500 mt-1">Track church appointments and availability.</p>
+          <div className="flex items-center gap-4">
+            <Image src="/logo.png" alt="TACC Logo" width={40} height={40} className="object-contain" />
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Admin Portal</h1>
+              <p className="text-sm text-slate-500 mt-1">Track church appointments and availability.</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
               Last 7 days <ChevronDown className="w-4 h-4" />
             </button>

@@ -20,11 +20,8 @@ export default function Home() {
       {/* Bottom/Right side: Content */}
       <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-12 lg:p-24 relative bg-white flex-1">
         {/* Logo / Branding */}
-        <div className="font-bold text-lg text-slate-900 mb-auto flex items-center gap-3">
-          <div className="w-8 h-8 bg-slate-900 rounded-md flex items-center justify-center text-white font-bold text-sm">
-            T
-          </div>
-          Airport City Church
+        <div className="mb-auto">
+          <Image src="/logo.png" alt="Airport City Church Logo" width={160} height={60} className="object-contain" />
         </div>
 
         {/* Hero Content */}
