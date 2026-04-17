@@ -18,6 +18,7 @@ import {
 import { getAccraTime, isBookableDay, AVAILABLE_SLOTS } from "@/lib/date-utils";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function BookingPage() {
   const [currentMonth, setCurrentMonth] = useState(getAccraTime());
@@ -182,21 +183,25 @@ export default function BookingPage() {
       {/* Left side: Booking Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-3 sm:p-6 lg:p-12 relative z-10 lg:order-first">
         <div className="w-full max-w-[500px] bg-white/90 lg:bg-white backdrop-blur-xl lg:backdrop-blur-none rounded-xl shadow-2xl lg:shadow-sm p-5 sm:p-7 border border-white/50 lg:border-slate-200 max-h-[95vh] overflow-y-auto scrollbar-hide">
-          <h1 className="text-xl font-bold text-slate-900 mb-4">
-            Booking Page<span className="text-red-500">*</span>
-          </h1>
+          <div className="flex items-center gap-3 mb-4">
+            <Link href="/" className="p-1.5 -ml-1.5 rounded-md hover:bg-slate-100 transition-colors">
+              <ChevronLeft className="w-5 h-5 text-slate-600" />
+            </Link>
+            <h1 className="text-xl font-bold text-slate-900">
+              Booking Page<span className="text-red-500">*</span>
+            </h1>
+          </div>
 
           {/* Month Navigator */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="px-3 py-1.5 border border-slate-200/60 lg:border-slate-200 rounded-md text-sm font-medium text-slate-700 bg-white/80 lg:bg-white shadow-sm flex items-center gap-2 cursor-pointer hover:bg-white">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-base font-bold text-slate-900">
               {format(currentMonth, "MMMM yyyy")}
-              <ChevronDownIcon className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={prevMonth} className="p-1.5 border border-slate-200/60 lg:border-slate-200 bg-white/50 lg:bg-transparent rounded-md hover:bg-white text-slate-600 transition-colors">
+            <div className="flex items-center gap-1">
+              <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button onClick={nextMonth} className="p-1.5 border border-slate-200/60 lg:border-slate-200 bg-white/50 lg:bg-transparent rounded-md hover:bg-white text-slate-600 transition-colors">
+              <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -204,7 +209,7 @@ export default function BookingPage() {
 
           {/* Calendar Grid */}
           <div className="mb-4">
-            <div className="grid grid-cols-7 gap-1.5 mb-1">
+            <div className="grid grid-cols-7 gap-1 mb-1">
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
               ))}
@@ -223,7 +228,7 @@ export default function BookingPage() {
                       setSelectedTime(null);
                     }}
                     className={`
-                      aspect-square flex items-center justify-center rounded-lg transition-colors border text-sm font-medium
+                      py-1.5 flex items-center justify-center rounded-md transition-colors border text-base font-bold
                       ${isBlocked ? 'opacity-40 cursor-not-allowed border-transparent text-slate-400' : 'hover:border-slate-300 border-slate-200/60 lg:border-slate-100 cursor-pointer text-slate-700 hover:bg-white'}
                       ${isSelected ? 'bg-slate-900 !text-white border-slate-900 shadow-md hover:bg-slate-800 hover:border-slate-800' : 'bg-white/60 lg:bg-white'}
                     `}
@@ -281,41 +286,41 @@ export default function BookingPage() {
           <div className="h-px bg-slate-100 w-full mb-6"></div>
 
           {/* Form Fields */}
-          <div className="space-y-4 mb-8">
+          <div className="space-y-3 mb-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 mb-1">
                 Name<span className="text-red-500">*</span>
               </label>
               <input 
                 type="text" 
                 placeholder="Name"
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
                   Fellowship<span className="text-red-500">*</span>
                 </label>
                 <input 
                   type="text" 
                   placeholder="Fellowship"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
                   value={formData.fellowship}
                   onChange={(e) => setFormData({...formData, fellowship: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
                   Phone Number<span className="text-red-500">*</span>
                 </label>
                 <input 
                   type="tel" 
                   placeholder="Phone Number"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 />
@@ -323,26 +328,26 @@ export default function BookingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 mb-1">
                 Email<span className="text-red-500">*</span>
               </label>
               <input 
                 type="email" 
                 placeholder="Email Address"
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 mb-1">
                 Meeting Reason<span className="text-red-500">*</span>
               </label>
               <textarea 
                 placeholder="Meeting Reason for here..."
-                rows={3}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400 resize-none"
+                rows={2}
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400 resize-none"
                 value={formData.reason}
                 onChange={(e) => setFormData({...formData, reason: e.target.value})}
               />
