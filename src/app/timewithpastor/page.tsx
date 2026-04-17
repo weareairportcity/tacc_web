@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Check, Calendar as CalendarIcon, Clock, User, Phone as PhoneIcon, Mail, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Check, Calendar as CalendarIcon, Clock, User, Phone as PhoneIcon, Mail, Info, ArrowRight } from "lucide-react";
 import { 
   format, 
   addMonths, 
@@ -31,6 +31,7 @@ export default function BookingPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [bookingDetails, setBookingDetails] = useState<any>(null);
+  const [step, setStep] = useState(1); // 1: Date & Time, 2: Personal Info
 
   const [formData, setFormData] = useState({
     name: "",
@@ -69,10 +70,9 @@ export default function BookingPage() {
     }
   }, [selectedDate]);
 
-  const handleBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleBooking = async () => {
     if (!selectedDate || !selectedTime) {
-      alert("Please select a date and time");
+      setStep(1);
       return;
     }
 
@@ -123,141 +123,138 @@ export default function BookingPage() {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6 relative">
-        <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in duration-300">
-          <div className="bg-white border-2 border-black">
-            <div className="bg-black py-10 px-6 text-center">
-              <div className="w-16 h-16 mx-auto bg-white flex items-center justify-center border-2 border-white mb-4">
-                <Check className="w-8 h-8 text-black" strokeWidth={4} />
-              </div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Confirmed</h2>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Your appointment is set</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+        <div className="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-sm p-8 text-center animate-in fade-in zoom-in duration-300">
+          <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200">
+            <Check className="w-10 h-10 text-white" strokeWidth={3} />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-2">Booking Confirmed!</h2>
+          <p className="text-slate-500 mb-8 font-medium">Your appointment has been successfully scheduled.</p>
+          
+          <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left space-y-4 border border-slate-100">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-400 font-medium">Booking ID</span>
+              <span className="text-slate-900 font-bold">TACC-{bookingDetails.id?.split('-')[0].toUpperCase()}</span>
             </div>
-            
-            <div className="p-8 space-y-6">
-              <div className="bg-slate-50 border border-slate-200 p-6 space-y-4">
-                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <span>ID</span>
-                  <span className="text-black">TACC-{bookingDetails.id?.split('-')[0].toUpperCase()}</span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <span>Date</span>
-                  <span className="text-black">{bookingDetails.date}</span>
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <span>Time</span>
-                  <span className="text-black">{bookingDetails.time}</span>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => window.location.href = '/'}
-                className="w-full py-4 bg-black text-white font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-800 transition-all"
-              >
-                Return Home
-              </button>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-400 font-medium">Date</span>
+              <span className="text-slate-900 font-bold">{bookingDetails.date}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-400 font-medium">Time</span>
+              <span className="text-slate-900 font-bold">{bookingDetails.time}</span>
             </div>
           </div>
+
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
+          >
+            Back to Home
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4 md:p-8 relative font-sans">
-      <div className="relative z-10 w-full max-w-5xl bg-white border-2 border-black overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <div className="p-6 md:p-12">
-          <h1 className="text-3xl md:text-5xl font-black text-black text-center mb-12 uppercase tracking-tighter italic">
-            Make an Appointment
-          </h1>
+    <div className="min-h-screen bg-slate-50/50 flex flex-col items-center justify-center p-4 md:p-8 relative font-sans">
+      {/* Subtle Grid Background */}
+      <div className="absolute inset-0 z-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#4f46e5 1px, transparent 1px), linear-gradient(90deg, #4f46e5 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            
-            {/* Left: Calendar */}
-            <div className="space-y-6">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">01. Select Date</h3>
-              
-              <div className="bg-white border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-4">
-                  <button onClick={prevMonth} className="p-1 hover:bg-slate-100 transition-colors">
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <span className="text-sm font-black uppercase tracking-widest">
-                    {format(currentMonth, "MMMM yyyy")}
-                  </span>
-                  <button onClick={nextMonth} className="p-1 hover:bg-slate-100 transition-colors">
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-                    <div key={d} className="text-center text-[10px] font-black text-slate-300 py-2">{d}</div>
-                  ))}
-                  {leadingDays.map((_, i) => <div key={`empty-${i}`} />)}
-                  {calendarDays.map((day) => {
-                    const dateStr = day.toISOString().split('T')[0];
-                    const isBlocked = blockedDates.has(dateStr) || !isBookableDay(day) || isBefore(day, startOfDay(getAccraTime()));
-                    const isSelected = selectedDate && isSameDay(day, selectedDate);
-                    
-                    return (
-                      <button
-                        key={day.toISOString()}
-                        disabled={isBlocked}
-                        onClick={() => {
-                          setSelectedDate(day);
-                          setSelectedTime(null);
-                        }}
-                        className={`
-                          aspect-square flex items-center justify-center text-xs font-bold transition-all border
-                          ${isBlocked ? 'text-slate-100 border-transparent cursor-not-allowed' : 'text-slate-600 border-transparent hover:border-black'}
-                          ${isSelected ? 'bg-black text-white !border-black scale-110 z-10' : ''}
-                        `}
-                      >
-                        {format(day, "d")}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+      <div className="relative z-10 w-full max-w-4xl bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+        
+        {/* Stepper Header */}
+        <div className="px-8 pt-10 pb-6 border-b border-slate-100">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
+              <CalendarIcon className="w-5 h-5" />
             </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Book a Meeting</h1>
+              <p className="text-slate-500 text-sm font-medium">Schedule a session with the Pastor.</p>
+            </div>
+          </div>
 
-            {/* Right: Form & Time */}
-            <div className="space-y-8">
+          {/* Stepper */}
+          <div className="flex items-center gap-4 max-w-md">
+            <div className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${step === 1 ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-blue-100 text-blue-600'}`}>01</div>
+              <span className={`text-sm font-bold ${step === 1 ? 'text-slate-900' : 'text-slate-400'}`}>Date & Time</span>
+            </div>
+            <div className="flex-1 h-px bg-slate-100"></div>
+            <div className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${step === 2 ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-slate-100 text-slate-400'}`}>02</div>
+              <span className={`text-sm font-bold ${step === 2 ? 'text-slate-900' : 'text-slate-400'}`}>Personal Details</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 md:p-10">
+          {step === 1 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in slide-in-from-right-4 duration-500">
+              {/* Calendar Section */}
               <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">02. Personal Info</h3>
-                <div className="space-y-2">
-                  <input 
-                    type="email" 
-                    placeholder="EMAIL@EXAMPLE.COM"
-                    className="w-full px-4 py-4 bg-slate-50 border border-slate-200 text-xs font-bold focus:outline-none focus:border-black transition-all placeholder:text-slate-300 uppercase tracking-widest"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="YOUR FULL NAME"
-                    className="w-full px-4 py-4 bg-slate-50 border border-slate-200 text-xs font-bold focus:outline-none focus:border-black transition-all placeholder:text-slate-300 uppercase tracking-widest"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  />
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select Date *</label>
+                <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
+                  <div className="flex items-center justify-between mb-8">
+                    <button onClick={prevMonth} className="p-2 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200">
+                      <ChevronLeft className="w-5 h-5 text-slate-600" />
+                    </button>
+                    <span className="text-lg font-bold text-slate-900 tracking-tight">
+                      {format(currentMonth, "MMMM yyyy")}
+                    </span>
+                    <button onClick={nextMonth} className="p-2 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200">
+                      <ChevronRight className="w-5 h-5 text-slate-600" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-2 mb-2">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
+                      <div key={d} className="text-center text-[10px] font-black text-slate-300 py-2">{d}</div>
+                    ))}
+                    {leadingDays.map((_, i) => <div key={`empty-${i}`} />)}
+                    {calendarDays.map((day) => {
+                      const dateStr = day.toISOString().split('T')[0];
+                      const isBlocked = blockedDates.has(dateStr) || !isBookableDay(day) || isBefore(day, startOfDay(getAccraTime()));
+                      const isSelected = selectedDate && isSameDay(day, selectedDate);
+                      
+                      return (
+                        <button
+                          key={day.toISOString()}
+                          disabled={isBlocked}
+                          onClick={() => {
+                            setSelectedDate(day);
+                            setSelectedTime(null);
+                          }}
+                          className={`
+                            aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all relative
+                            ${isBlocked ? 'text-slate-200 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:shadow-lg hover:scale-110'}
+                            ${isSelected ? 'bg-blue-600 text-white shadow-xl shadow-blue-200 scale-110' : ''}
+                          `}
+                        >
+                          {format(day, "d")}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
+              {/* Time Section */}
               <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">03. Select Time</h3>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select Time *</label>
                 {selectedDate ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 relative min-h-[160px]">
+                  <div className="grid grid-cols-2 gap-3 relative min-h-[200px]">
                     {isLoadingAvailability && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                        <Loader2 className="w-6 h-6 animate-spin" />
+                      <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-2xl">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                       </div>
                     )}
                     {AVAILABLE_SLOTS.map((slot) => {
                       const isBooked = bookedSlots.includes(slot);
                       const isSelected = selectedTime === slot;
                       
-                      // Format to 12h
                       const [h, m] = slot.split(':');
                       const hour = parseInt(h);
                       const displayTime = `${hour > 12 ? hour - 12 : hour}:${m} ${hour >= 12 ? 'pm' : 'am'}`;
@@ -268,9 +265,9 @@ export default function BookingPage() {
                           disabled={isBooked}
                           onClick={() => setSelectedTime(slot)}
                           className={`
-                            py-3 text-[10px] font-black uppercase tracking-widest transition-all border
-                            ${isBooked ? 'bg-slate-50 text-slate-200 border-slate-50 cursor-not-allowed line-through' : 'bg-white text-black border-slate-200 hover:border-black'}
-                            ${isSelected ? 'bg-black !text-white !border-black scale-105 z-10' : ''}
+                            py-4 rounded-2xl text-xs font-bold transition-all border
+                            ${isBooked ? 'bg-slate-50 text-slate-200 border-slate-50 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-100 hover:border-blue-200 hover:bg-blue-50/30'}
+                            ${isSelected ? 'bg-blue-600 !text-white border-blue-600 shadow-xl shadow-blue-100 scale-105' : ''}
                           `}
                         >
                           {displayTime}
@@ -279,29 +276,122 @@ export default function BookingPage() {
                     })}
                   </div>
                 ) : (
-                  <div className="bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Select a date first</p>
+                  <div className="bg-slate-50/50 rounded-2xl p-8 border border-dashed border-slate-200 text-center h-[340px] flex flex-col items-center justify-center">
+                    <Clock className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Please select a date first</p>
                   </div>
                 )}
               </div>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 max-w-2xl mx-auto">
+              {/* Form Fields - Restoring all previous fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 ml-1">Full Name *</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Enter your full name"
+                      className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all placeholder:text-slate-300 font-medium"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    />
+                  </div>
+                </div>
 
-              <div className="border border-black p-4 flex items-center gap-3">
-                <Info className="w-4 h-4" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Times in GMT (Accra)</p>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 ml-1">Email Address *</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="email" 
+                      placeholder="email@example.com"
+                      className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all placeholder:text-slate-300 font-medium"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 ml-1">Phone Number *</label>
+                  <div className="relative">
+                    <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="tel" 
+                      placeholder="+233 XX XXX XXXX"
+                      className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all placeholder:text-slate-300 font-medium"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 ml-1">Fellowship (Optional)</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Young Professionals"
+                      className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all placeholder:text-slate-300 font-medium"
+                      value={formData.fellowship}
+                      onChange={(e) => setFormData({...formData, fellowship: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 ml-1">Reason for Meeting *</label>
+                <textarea 
+                  placeholder="Tell us briefly why you want to meet with the Pastor..."
+                  rows={4}
+                  className="w-full px-6 py-4 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 focus:border-blue-400 transition-all placeholder:text-slate-300 font-medium resize-none"
+                  value={formData.reason}
+                  onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                />
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="mt-12 flex flex-col items-center gap-4">
-            {statusMessage && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest">{statusMessage}</p>}
-            <button 
-              disabled={isSubmitting || !selectedDate || !selectedTime || !formData.email || !formData.name}
-              onClick={handleBooking}
-              className="px-16 py-6 bg-black text-white font-black text-xs uppercase tracking-[0.3em] hover:bg-slate-800 transition-all disabled:opacity-20 disabled:cursor-not-allowed flex items-center gap-4"
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Appointment'}
-            </button>
+          {/* Action Footer */}
+          <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-slate-100">
+            <div className="flex items-center gap-2 text-blue-600">
+              <Info className="w-4 h-4" />
+              <p className="text-[10px] font-bold uppercase tracking-tight">Times are in GMT (Accra)</p>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              {step === 2 && (
+                <button 
+                  onClick={() => setStep(1)}
+                  className="px-8 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Back
+                </button>
+              )}
+              
+              <button 
+                disabled={isSubmitting || (step === 1 && (!selectedDate || !selectedTime)) || (step === 2 && (!formData.email || !formData.name || !formData.phone || !formData.reason))}
+                onClick={() => {
+                  if (step === 1) setStep(2);
+                  else handleBooking();
+                }}
+                className="flex-1 md:flex-none px-10 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                  <>
+                    {step === 1 ? 'Next Step' : 'Confirm Booking'}
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+          {statusMessage && <p className="text-red-500 text-xs font-bold mt-4 text-center">{statusMessage}</p>}
         </div>
       </div>
     </div>

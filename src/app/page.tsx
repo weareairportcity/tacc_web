@@ -1,70 +1,70 @@
 import Link from "next/link";
-import { Calendar, Mail, Instagram, Facebook, Twitter } from "lucide-react";
+import Image from "next/image";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white flex flex-col font-sans relative overflow-hidden selection:bg-slate-100 selection:text-black">
-      {/* Subtle Background Accent */}
-      <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(#e5e5e5_1px,transparent_1px)] [background-size:40px_40px] opacity-40"></div>
+    <div className="flex min-h-screen bg-white font-sans text-slate-900">
+      {/* Left side: Image */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-slate-100">
+        <Image
+          src="/church-hero.jpg"
+          alt="Airport City Church"
+          fill
+          className="object-cover"
+          priority
+        />
+        {/* Optional overlay for better text contrast if needed, but since we don't have text on the image, a subtle blend is nice */}
+        <div className="absolute inset-0 bg-blue-900/10 mix-blend-multiply" />
+      </div>
 
-      {/* Navigation */}
-      <nav className="relative z-10 w-full px-6 py-8 flex justify-between items-center max-w-7xl mx-auto border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-black flex items-center justify-center text-white font-black text-lg">
+      {/* Right side: Content */}
+      <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-12 lg:p-24 relative bg-white">
+        {/* Logo / Branding */}
+        <div className="font-bold text-lg text-slate-900 mb-auto flex items-center gap-3">
+          <div className="w-8 h-8 bg-slate-900 rounded-md flex items-center justify-center text-white font-bold text-sm">
             T
           </div>
-          <span className="hidden sm:block font-bold text-black tracking-tight">The Airport City Church</span>
+          Airport City Church
         </div>
-        
-        <div className="flex items-center gap-4 sm:gap-8 text-sm font-medium">
-          <Link href="/timewithpastor" className="text-black hover:underline transition-all">Book a meeting</Link>
-          <a href="#about" className="text-slate-500 hover:text-black transition-colors hidden md:block">Who we are</a>
-          <a href="#contact" className="text-slate-500 hover:text-black transition-colors">Contact us</a>
-        </div>
-      </nav>
 
-      {/* Hero Section */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 text-center max-w-5xl mx-auto -mt-12 md:-mt-24">
-        <div className="space-y-0 mb-12">
-          <h1 className="text-5xl md:text-[6rem] font-bold text-slate-200 leading-[1.1] tracking-tight select-none">
-            We are
+        {/* Hero Content */}
+        <div className="my-auto max-w-md pt-12 pb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-medium mb-6 border border-slate-200">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-600"></span>
+            </span>
+            Under Construction
+          </div>
+
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">
+            Welcome to <br /> Airport City Church.
           </h1>
-          <h1 className="text-5xl md:text-[7rem] font-bold text-slate-300 leading-[1] tracking-tight select-none">
-            building something
-          </h1>
-          <h2 className="text-6xl md:text-[8rem] font-bold text-black leading-[0.9] tracking-tighter flex items-center justify-center gap-4">
-            Amazing<span className="w-3 h-3 md:w-6 md:h-6 bg-black rounded-full inline-block mt-4"></span>
-          </h2>
+          <p className="text-slate-500 mb-8 leading-relaxed text-sm md:text-base">
+            The digital sanctuary of The Airport City Church is being refined. We are creating a new way for our community to connect, grow, and belong.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link 
+              href="/timewithpastor" 
+              className="inline-flex items-center justify-center h-10 px-6 font-medium text-sm text-white transition-colors bg-slate-900 rounded-md hover:bg-slate-800"
+            >
+              Book a Meeting
+            </Link>
+            <Link 
+              href="#about" 
+              className="inline-flex items-center justify-center h-10 px-6 font-medium text-sm text-slate-900 transition-colors bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+            >
+              Learn More
+            </Link>
+          </div>
         </div>
 
-        <p className="text-lg md:text-xl text-slate-500 mb-12 max-w-xl font-medium leading-relaxed">
-          The digital sanctuary of The Airport City Church is under construction. We are building a new way for you to connect and belong.
-        </p>
-
-        <Link 
-          href="/timewithpastor" 
-          className="group relative inline-flex items-center justify-center px-12 py-5 font-bold text-white transition-all duration-200 bg-black hover:bg-slate-800"
-        >
-          <Calendar className="w-5 h-5 mr-3" />
-          Book a meeting with Pastor
-        </Link>
-      </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 w-full px-6 py-12 flex flex-col md:flex-row justify-between items-center gap-6 max-w-7xl mx-auto text-[10px] font-bold text-slate-400 uppercase tracking-widest border-t border-slate-100">
-        <div className="flex gap-6">
-          <a href="#" className="hover:text-black transition-colors">Instagram</a>
-          <a href="#" className="hover:text-black transition-colors">Facebook</a>
-          <a href="#" className="hover:text-black transition-colors">Twitter</a>
+        {/* Footer / Copyright */}
+        <div className="mt-auto text-xs text-slate-400 font-medium">
+          © {new Date().getFullYear()} Airport City Church. All rights reserved.
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-slate-600">Coming Soon 2026</span>
-          <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-          <span>Accra, Ghana</span>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
-
-
