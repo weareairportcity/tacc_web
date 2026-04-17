@@ -13,7 +13,24 @@ export async function POST(req: Request) {
 
     console.log("Received booking request:", body);
 
-    // 1. Insert into Supabase
+    // 1. Check for existing booking (Double-booking prevention)
+    const { data: existingBooking, error: checkError } = await supabaseAdmin
+      .from('bookings')
+      .select('id')
+      .eq('meeting_date', date.split('T')[0])
+      .eq('meeting_time', time)
+      .neq('status', 'Cancelled')
+      .maybeSingle();
+
+    if (checkError) {
+      console.error("Error checking existing booking:", checkError);
+    }
+
+    if (existingBooking) {
+      return NextResponse.json({ error: "This slot is already booked. Please choose another time." }, { status: 400 });
+    }
+
+    // 2. Insert into Supabase
     const { data: dbEvent, error: dbError } = await supabaseAdmin
       .from('bookings')
       .insert([
@@ -39,26 +56,31 @@ export async function POST(req: Request) {
     const bookingId = dbEvent.id;
 
     // 2. Create Google Calendar event
+    console.log("Creating Google Calendar event...");
     const eventId = await createCalendarEvent({
       name, fellowship, phone, email, reason, date, time
     });
+    console.log("Calendar Event ID:", eventId);
 
     // Update Supabase with Google Event ID if successful
     if (eventId) {
-      await supabaseAdmin.from('bookings').update({ google_event_id: eventId }).eq('id', bookingId);
+      const { error: updateError } = await supabaseAdmin.from('bookings').update({ google_event_id: eventId }).eq('id', bookingId);
+      if (updateError) console.error("Error updating booking with eventId:", updateError);
     }
 
     // 3. Format date for communications
     const formattedDate = format(new Date(date), 'MMM dd, yyyy');
 
     // 4. Send SMS via mNotify
+    console.log("Sending SMS notifications...");
     await sendBookingNotifications(phone, name, formattedDate, time);
 
     // 5. Generate ICS & Send Emails via Resend
+    console.log("Generating ICS content...");
     const [year, month, day] = date.split('T')[0].split('-').map(Number);
     const [hour, minute] = time.split(':').map(Number);
     
-    const { value: icsContent } = ics.createEvent({
+    const icsResult = ics.createEvent({
       title: `Meeting with Pastor (${name})`,
       description: reason,
       start: [year, month, day, hour, minute],
@@ -68,13 +90,21 @@ export async function POST(req: Request) {
       organizer: { name: 'The Airport City Church', email: process.env.EMAIL_FROM || 'booking@theairportcitychurch.com' },
     });
 
+    const icsContent = icsResult.value;
+    if (icsResult.error) console.error("ICS Generation Error:", icsResult.error);
+
     if (email && icsContent) {
+      console.log("Sending confirmation email to:", email);
       await sendConfirmationEmail(email, name, formattedDate, time, icsContent);
+    } else {
+      console.log("Skipping confirmation email. Email provided:", email, "ICS created:", !!icsContent);
     }
 
     // Provide a basic absolute URL for cancellation (assuming localhost for dev, you should use an env var in production)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const cancelUrl = `${appUrl}/api/cancel?id=${bookingId}&token=mock_secure_token`;
+    
+    console.log("Sending admin notification email...");
     await sendAdminNotificationEmail(name, fellowship, phone, email, reason, formattedDate, time, cancelUrl);
 
     return NextResponse.json({ success: true, message: "Booking recorded", bookingId }, { status: 200 });

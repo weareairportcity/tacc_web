@@ -36,9 +36,24 @@ export default function BookingPage() {
     setAvailableDates(dates);
   }, []);
 
-  const handleDateSelect = (day: Date) => {
+  const handleDateSelect = async (day: Date) => {
     setSelectedDate(day);
     setSelectedTime(null);
+    setBookedSlots([]);
+    setIsLoadingAvailability(true);
+
+    try {
+      const dateStr = day.toISOString().split('T')[0];
+      const res = await fetch(`/api/bookings/availability?date=${dateStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBookedSlots(data.bookedSlots || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch availability:", error);
+    } finally {
+      setIsLoadingAvailability(false);
+    }
   };
 
   const handleTimeSelect = (time: string) => {
@@ -170,28 +185,41 @@ export default function BookingPage() {
 
         {/* Time Slots */}
         {selectedDate && (
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            {AVAILABLE_SLOTS.map((slot) => {
-              // Convert 24h to 12h for display
-              const [h, m] = slot.split(':');
-              const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
-              const displayH = parseInt(h) > 12 ? parseInt(h) - 12 : parseInt(h);
-              const displaySlot = `${displayH}:${m} ${ampm}`;
-              const isSelected = selectedTime === slot;
+          <div className="relative">
+            {isLoadingAvailability && (
+              <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {AVAILABLE_SLOTS.map((slot) => {
+                // Convert 24h to 12h for display
+                const [h, m] = slot.split(':');
+                const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
+                const displayH = parseInt(h) > 12 ? parseInt(h) - 12 : parseInt(h);
+                const displaySlot = `${displayH}:${m} ${ampm}`;
+                const isSelected = selectedTime === slot;
+                const isBooked = bookedSlots.includes(slot);
 
-              return (
-                <button
-                  key={slot}
-                  onClick={() => handleTimeSelect(slot)}
-                  className={`
-                    py-2.5 rounded-md text-sm font-medium transition-colors border
-                    ${isSelected ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'}
-                  `}
-                >
-                  {displaySlot}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={slot}
+                    disabled={isBooked}
+                    onClick={() => handleTimeSelect(slot)}
+                    className={`
+                      py-2.5 rounded-md text-sm font-medium transition-colors border
+                      ${isSelected 
+                        ? 'bg-[#0f172a] text-white border-[#0f172a]' 
+                        : isBooked
+                        ? 'bg-slate-100 text-slate-400 border-slate-100 cursor-not-allowed line-through'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'}
+                    `}
+                  >
+                    {displaySlot}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
         <p className="text-sm text-slate-600 mb-8">Timezone: Accra Time)</p>

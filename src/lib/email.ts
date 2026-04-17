@@ -42,8 +42,9 @@ export async function sendConfirmationEmail(
       ],
     });
     console.log("Confirmation email sent to", toEmail);
-  } catch (error) {
-    console.error("Error sending email:", error);
+  } catch (error: any) {
+    console.error("Error sending email:", error.message || error);
+    if (error.response) console.error("Resend Response Error:", error.response.data || error.response);
   }
 }
 
@@ -84,8 +85,8 @@ export async function sendAdminNotificationEmail(
       `,
     });
     console.log("Admin notification email sent.");
-  } catch (error) {
-    console.error("Error sending admin email:", error);
+  } catch (error: any) {
+    console.error("Error sending admin email:", error.message || error);
   }
 }
 
@@ -112,7 +113,7 @@ export async function sendReminderEmail(
       `,
     });
     console.log("Reminder email sent to", toEmail);
-  } catch (error) {
-    console.error("Error sending reminder email:", error);
+  } catch (error: any) {
+    console.error("Error sending reminder email:", error.message || error);
   }
 }

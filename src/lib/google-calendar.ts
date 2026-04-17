@@ -30,6 +30,8 @@ export async function createCalendarEvent(bookingData: {
     return null;
   }
 
+  console.log("createCalendarEvent data:", bookingData);
+
   // Calculate start and end times in Africa/Accra timezone
   const dateObj = new Date(bookingData.date);
   const [hours, minutes] = bookingData.time.split(':').map(Number);
