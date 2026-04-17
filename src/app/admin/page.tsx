@@ -51,6 +51,25 @@ export default function AdminDashboard() {
     router.refresh();
   };
 
+  const handleStatusChange = async (id: string, currentStatus: string) => {
+    const statuses = ['Scheduled', 'Completed', 'Cancelled'];
+    const nextIndex = (statuses.indexOf(currentStatus) + 1) % statuses.length;
+    const nextStatus = statuses[nextIndex];
+
+    try {
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({ status: nextStatus })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+      
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: nextStatus } : b));
+    } catch (err: any) {
+      alert("Failed to update status: " + err.message);
+    }
+  };
+
   const totalMeetings = bookings.length;
   const upcomingMeetings = bookings.filter(b => new Date(b.meeting_date) >= new Date()).length;
   const cancellations = bookings.filter(b => b.status === 'Cancelled').length;
@@ -114,13 +133,17 @@ export default function AdminDashboard() {
                     <td className="px-6 py-4 text-slate-600">{booking.phone}</td>
                     <td className="px-6 py-4 text-slate-600">{booking.email}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                      <button 
+                        onClick={() => handleStatusChange(booking.id, booking.status)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer hover:opacity-80 ${
                         booking.status === 'Scheduled' 
                           ? 'bg-green-50 text-green-700 border-green-200' 
+                          : booking.status === 'Completed'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
                           : 'bg-red-50 text-red-700 border-red-200'
                       }`}>
                         {booking.status}
-                      </span>
+                      </button>
                     </td>
                   </tr>
                 ))}
