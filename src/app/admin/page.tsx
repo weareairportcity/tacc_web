@@ -121,7 +121,8 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        <div className="border border-slate-200 rounded-xl overflow-hidden mb-12">
+        {/* Desktop Table View */}
+        <div className="hidden lg:block border border-slate-200 rounded-xl overflow-hidden mb-12">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-xs text-slate-500 bg-slate-50/50 border-b border-slate-200">
@@ -141,7 +142,7 @@ export default function AdminDashboard() {
                   <tr key={booking.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors text-slate-600">
                     <td className="px-6 py-4 text-slate-900">{booking.name}</td>
                     <td className="px-6 py-4">{booking.fellowship || '-'}</td>
-                    <td className="px-6 py-4">{format(new Date(booking.meeting_date), 'MMM yyyy')}</td>
+                    <td className="px-6 py-4">{format(new Date(booking.meeting_date), 'MMM dd, yyyy')}</td>
                     <td className="px-6 py-4">{booking.meeting_time}</td>
                     <td className="px-6 py-4 max-w-[150px] truncate">{booking.reason}</td>
                     <td className="px-6 py-4">{booking.phone}</td>
@@ -173,6 +174,60 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="lg:hidden flex flex-col gap-4 mb-12">
+          {bookings.map((booking) => (
+            <div key={booking.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-semibold text-slate-900">{booking.name}</h3>
+                  <p className="text-xs text-slate-500">{booking.fellowship || 'No Fellowship'}</p>
+                </div>
+                <select
+                  value={booking.status}
+                  onChange={(e) => handleStatusChange(booking.id, e.target.value)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium border cursor-pointer focus:outline-none ${
+                    booking.status === 'Scheduled' 
+                      ? 'bg-green-100 text-green-700 border-green-200' 
+                      : booking.status === 'Completed'
+                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                      : 'bg-red-100 text-red-700 border-red-200'
+                  }`}
+                >
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 mt-1">
+                <div>
+                  <span className="block text-xs text-slate-400 mb-0.5">Date & Time</span>
+                  <div className="font-medium text-slate-700">{format(new Date(booking.meeting_date), 'MMM dd')}</div>
+                  <div className="text-xs">{booking.meeting_time}</div>
+                </div>
+                <div>
+                  <span className="block text-xs text-slate-400 mb-0.5">Contact</span>
+                  <div className="truncate text-slate-700 font-medium">{booking.phone}</div>
+                  <div className="truncate text-xs">{booking.email}</div>
+                </div>
+              </div>
+
+              {booking.reason && (
+                <div className="mt-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                  <span className="block text-xs text-slate-400 mb-0.5">Reason</span>
+                  <p className="text-sm text-slate-700 line-clamp-2">{booking.reason}</p>
+                </div>
+              )}
+            </div>
+          ))}
+          {bookings.length === 0 && (
+            <div className="text-center py-8 border border-dashed border-slate-200 rounded-xl text-slate-400 text-sm">
+              No records found.
+            </div>
+          )}
         </div>
 
         {/* Blackout Dates (Moved below table for a cleaner layout matching the mockup) */}
