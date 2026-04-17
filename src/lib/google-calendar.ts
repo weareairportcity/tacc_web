@@ -58,13 +58,8 @@ export async function createCalendarEvent(bookingData: {
       dateTime: endDateTime,
       timeZone: 'Africa/Accra',
     },
-    attendees: bookingData.email ? [{ email: bookingData.email }] : [],
     reminders: {
-      useDefault: false,
-      overrides: [
-        { method: 'email', minutes: 24 * 60 },
-        { method: 'popup', minutes: 10 },
-      ],
+      useDefault: true,
     },
   };
 
@@ -72,7 +67,6 @@ export async function createCalendarEvent(bookingData: {
     const response = await calendar.events.insert({
       calendarId: CALENDAR_ID,
       requestBody: event,
-      sendUpdates: 'all', // Send email notifications to attendees
     });
     
     console.log('Event created:', response.data.htmlLink);
