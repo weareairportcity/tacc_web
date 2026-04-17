@@ -41,7 +41,7 @@ export default function Home() {
             Welcome to <br /> Airport City Church.
           </h1>
           <p className="text-slate-500 mb-8 leading-relaxed text-sm md:text-base">
-            The digital sanctuary of The Airport City Church is being refined. We are creating a new way for our community to connect, grow, and belong.
+            We're building a new online space for our community to connect and grow.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3">
