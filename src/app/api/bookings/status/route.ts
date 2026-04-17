@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { sendThankYouEmail } from '@/lib/email';
-import { sendThankYouSMS } from '@/lib/mnotify';
+import { sendThankYouEmail, sendCancellationEmail } from '@/lib/email';
+import { sendThankYouSMS, sendCancellationSMS } from '@/lib/mnotify';
+import { format } from 'date-fns';
 
 export async function POST(req: Request) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     // 1. Get booking details for notification
     const { data: booking, error: fetchError } = await supabaseAdmin
       .from('bookings')
-      .select('name, email, phone')
+      .select('name, email, phone, meeting_date, meeting_time')
       .eq('id', id)
       .single();
 
@@ -30,13 +31,21 @@ export async function POST(req: Request) {
 
     if (updateError) throw updateError;
 
-    // 3. If status is 'Completed', send thank you messages
+    // 3. Send notifications based on status
     if (status === 'Completed') {
       if (booking.email) {
         await sendThankYouEmail(booking.email, booking.name);
       }
       if (booking.phone) {
         await sendThankYouSMS(booking.phone, booking.name);
+      }
+    } else if (status === 'Cancelled') {
+      const formattedDate = format(new Date(booking.meeting_date), 'MMMM do, yyyy');
+      if (booking.email) {
+        await sendCancellationEmail(booking.email, booking.name, formattedDate, booking.meeting_time);
+      }
+      if (booking.phone) {
+        await sendCancellationSMS(booking.phone, booking.name, formattedDate, booking.meeting_time);
       }
     }
 

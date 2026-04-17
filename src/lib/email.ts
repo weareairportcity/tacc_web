@@ -144,3 +144,32 @@ export async function sendThankYouEmail(
     console.error("Error sending thank you email:", error.message || error);
   }
 }
+
+export async function sendCancellationEmail(
+  toEmail: string,
+  name: string,
+  date: string,
+  time: string
+) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  try {
+    await resend.emails.send({
+      from: `The Airport City Church <${fromEmail}>`,
+      to: toEmail,
+      subject: 'Update: Your Meeting with the Pastor has been Cancelled',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto;">
+          <h2>Meeting Cancelled</h2>
+          <p>Dear ${name},</p>
+          <p>We regret to inform you that your scheduled meeting with the Pastor on <strong>${date} at ${time}</strong> has been cancelled.</p>
+          <p>We sincerely apologize for any inconvenience this may cause. If you wish to reschedule, please visit our booking page again.</p>
+          <p>Blessings,<br/>The Airport City Church</p>
+        </div>
+      `,
+    });
+    console.log("Cancellation email sent to", toEmail);
+  } catch (error: any) {
+    console.error("Error sending cancellation email:", error.message || error);
+  }
+}
