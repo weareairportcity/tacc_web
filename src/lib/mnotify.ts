@@ -25,7 +25,7 @@ export async function sendSMS(recipient: string, message: string) {
 
   const formattedPhone = formatGhanaPhone(recipient);
   const url = `https://api.mnotify.com/api/sms/quick?key=${MNOTIFY_API_KEY}`;
-  
+
   const payload = {
     recipient: [formattedPhone], // mNotify expects an array
     sender: MNOTIFY_SENDER_ID,
@@ -52,11 +52,11 @@ export async function sendBookingNotifications(userPhone: string, userName: stri
 
   // Send to User
   await sendSMS(userPhone, userMessage);
-  
+
   // Send to Admin
   await sendSMS(ADMIN_PHONE, adminMessage);
 }
 export async function sendThankYouSMS(phone: string, name: string) {
-  const message = `Hello ${name}, thank you for meeting with the Pastor today. We hope the session was a blessing to you. - The Airport City Church`;
+  const message = `Hello ${name}, thank you for meeting with Pastor today. We hope the session was a blessing to you. - The Airport City Church`;
   return await sendSMS(phone, message);
 }
