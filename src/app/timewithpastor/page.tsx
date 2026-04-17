@@ -274,7 +274,7 @@ export default function BookingPage() {
                       className={`
                         py-2.5 rounded-md text-sm transition-all border font-medium
                         ${isBooked ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed line-through' : 
-                          isSelected ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'}
+                          isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900 ring-offset-2' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-slate-50'}
                       `}
                     >
                       {displayTime}
