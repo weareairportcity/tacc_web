@@ -154,21 +154,21 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 relative">
+    <div className="flex min-h-screen bg-transparent lg:bg-slate-50 font-sans text-slate-900 relative overflow-hidden">
       {/* Mobile Background Image */}
       <div className="lg:hidden absolute inset-0 z-0">
         <Image
           src="/homepage-hero.jpeg"
           alt="Background"
           fill
-          className="object-cover opacity-20"
+          className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" />
       </div>
 
-      {/* Left side: Image (Desktop) */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-slate-100 shrink-0 border-r border-slate-200">
+      {/* Right side: Image (Desktop) - Note: order-last makes it appear on the right */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-slate-100 shrink-0 border-l border-slate-200 order-last">
         <Image
           src="/homepage-hero.jpeg"
           alt="Airport City Church"
@@ -179,32 +179,32 @@ export default function BookingPage() {
         <div className="absolute inset-0 bg-slate-900/10 mix-blend-multiply" />
       </div>
 
-      {/* Right side: Booking Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 lg:p-12 relative z-10">
-        <div className="w-full max-w-[500px] bg-white rounded-xl shadow-sm p-6 sm:p-8 border border-slate-200">
-          <h1 className="text-xl font-bold text-slate-900 mb-6">
+      {/* Left side: Booking Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-3 sm:p-6 lg:p-12 relative z-10 lg:order-first">
+        <div className="w-full max-w-[500px] bg-white/90 lg:bg-white backdrop-blur-xl lg:backdrop-blur-none rounded-xl shadow-2xl lg:shadow-sm p-5 sm:p-7 border border-white/50 lg:border-slate-200 max-h-[95vh] overflow-y-auto scrollbar-hide">
+          <h1 className="text-xl font-bold text-slate-900 mb-4">
             Booking Page<span className="text-red-500">*</span>
           </h1>
 
           {/* Month Navigator */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="px-3 py-1.5 border border-slate-200 rounded-md text-sm font-medium text-slate-700 bg-white shadow-sm flex items-center gap-2 cursor-pointer hover:bg-slate-50">
+          <div className="flex items-center justify-between mb-3">
+            <div className="px-3 py-1.5 border border-slate-200/60 lg:border-slate-200 rounded-md text-sm font-medium text-slate-700 bg-white/80 lg:bg-white shadow-sm flex items-center gap-2 cursor-pointer hover:bg-white">
               {format(currentMonth, "MMMM yyyy")}
               <ChevronDownIcon className="w-4 h-4 text-slate-400" />
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={prevMonth} className="p-1.5 border border-slate-200 rounded-md hover:bg-slate-50 text-slate-600 transition-colors">
+              <button onClick={prevMonth} className="p-1.5 border border-slate-200/60 lg:border-slate-200 bg-white/50 lg:bg-transparent rounded-md hover:bg-white text-slate-600 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button onClick={nextMonth} className="p-1.5 border border-slate-200 rounded-md hover:bg-slate-50 text-slate-600 transition-colors">
+              <button onClick={nextMonth} className="p-1.5 border border-slate-200/60 lg:border-slate-200 bg-white/50 lg:bg-transparent rounded-md hover:bg-white text-slate-600 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Calendar Grid */}
-          <div className="mb-6">
-            <div className="grid grid-cols-7 gap-2 mb-2">
+          <div className="mb-4">
+            <div className="grid grid-cols-7 gap-1.5 mb-1">
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
               ))}
@@ -224,8 +224,8 @@ export default function BookingPage() {
                     }}
                     className={`
                       aspect-square flex items-center justify-center rounded-lg transition-colors border text-sm font-medium
-                      ${isBlocked ? 'opacity-40 cursor-not-allowed border-transparent text-slate-400' : 'hover:border-slate-300 border-slate-100 cursor-pointer text-slate-700 hover:bg-slate-50'}
-                      ${isSelected ? 'bg-slate-900 !text-white border-slate-900 hover:bg-slate-800 hover:border-slate-800' : 'bg-white'}
+                      ${isBlocked ? 'opacity-40 cursor-not-allowed border-transparent text-slate-400' : 'hover:border-slate-300 border-slate-200/60 lg:border-slate-100 cursor-pointer text-slate-700 hover:bg-white'}
+                      ${isSelected ? 'bg-slate-900 !text-white border-slate-900 shadow-md hover:bg-slate-800 hover:border-slate-800' : 'bg-white/60 lg:bg-white'}
                     `}
                   >
                     {format(day, "d")}
