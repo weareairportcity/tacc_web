@@ -79,7 +79,7 @@ export async function createCalendarEvent(bookingData: {
     return response.data.id; // Return the event ID
   } catch (error: any) {
     console.error('Error creating calendar event:', error.message);
-    throw new Error('Failed to create Google Calendar event');
+    return null; // Non-fatal: booking proceeds without calendar event
   }
 }
 
@@ -93,6 +93,6 @@ export async function deleteCalendarEvent(eventId: string) {
     console.log(`Event ${eventId} deleted successfully`);
   } catch (error: any) {
     console.error(`Error deleting event ${eventId}:`, error.message);
-    throw new Error('Failed to delete Google Calendar event');
+    // Non-fatal: log and continue
   }
 }
