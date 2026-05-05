@@ -9,7 +9,7 @@ import * as ics from 'ics';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, fellowship, phone, email, reason, date, time } = body;
+    const { name, fellowship, phone, email, reason, date, time, attendees } = body;
 
     console.log("Received booking request:", body);
 
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
           phone,
           email,
           reason,
+          attendees: attendees || 1,
           status: 'Scheduled'
         }
       ])

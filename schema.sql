@@ -10,6 +10,7 @@ CREATE TABLE public.bookings (
   phone TEXT NOT NULL,
   email TEXT,
   reason TEXT NOT NULL,
+  attendees INTEGER DEFAULT 1,
   status TEXT DEFAULT 'Scheduled',
   google_event_id TEXT
 );

@@ -39,6 +39,8 @@ export default function BookingPage() {
     phone: "",
     email: "",
     reason: "",
+    isComingAlone: true,
+    attendees: 1,
   });
 
   // Fetch blocked dates on mount
@@ -85,6 +87,7 @@ export default function BookingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          attendees: formData.isComingAlone ? 1 : formData.attendees,
           date: selectedDate.toISOString(),
           time: selectedTime,
         }),
@@ -367,13 +370,51 @@ export default function BookingPage() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Are you coming alone?
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, isComingAlone: true, attendees: 1})}
+                      className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors border ${formData.isComingAlone ? 'bg-slate-900 text-white border-slate-900 ring-1 ring-slate-900 ring-offset-1' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      Just me
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, isComingAlone: false, attendees: 2})}
+                      className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors border ${!formData.isComingAlone ? 'bg-slate-900 text-white border-slate-900 ring-1 ring-slate-900 ring-offset-1' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      With others
+                    </button>
+                  </div>
+                </div>
+
+                {!formData.isComingAlone && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Total number of people<span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      type="number" 
+                      min="2"
+                      placeholder="e.g. 2"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400"
+                      value={formData.attendees}
+                      onChange={(e) => setFormData({...formData, attendees: parseInt(e.target.value) || 2})}
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Meeting Reason<span className="text-red-500">*</span>
                   </label>
                   <textarea 
                     placeholder="What would you like to discuss?"
-                    rows={4}
+                    rows={3}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 placeholder:text-slate-400 resize-none"
                     value={formData.reason}
                     onChange={(e) => setFormData({...formData, reason: e.target.value})}

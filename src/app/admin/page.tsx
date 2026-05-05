@@ -17,6 +17,7 @@ type Booking = {
   phone: string;
   email: string;
   reason: string;
+  attendees: number;
   status: string;
 };
 
@@ -126,7 +127,10 @@ export default function AdminDashboard() {
           <tbody>
             {bookingsToRender.map((booking) => (
               <tr key={booking.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors text-slate-600">
-                <td className="px-6 py-4 text-slate-900 font-medium">{booking.name}</td>
+                <td className="px-6 py-4 text-slate-900 font-medium">
+                  {booking.name}
+                  {booking.attendees > 1 && <span className="text-xs text-slate-400 font-normal ml-1">(+{booking.attendees - 1} guests)</span>}
+                </td>
                 <td className="px-6 py-4">{booking.fellowship || '-'}</td>
                 {showDateColumn && <td className="px-6 py-4 text-slate-700">{format(new Date(booking.meeting_date), 'MMM dd, yyyy')}</td>}
                 <td className="px-6 py-4 text-slate-700">{booking.meeting_time}</td>
@@ -164,8 +168,11 @@ export default function AdminDashboard() {
         <div key={booking.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
           <div className="flex justify-between items-start">
             <div>
-              <h3 className="font-semibold text-slate-900">{booking.name}</h3>
-              <p className="text-xs text-slate-500">{booking.fellowship || 'No Fellowship'}</p>
+              <h3 className="font-semibold text-slate-900">
+                {booking.name}
+                {booking.attendees > 1 && <span className="text-xs text-slate-400 font-normal ml-1 block mt-0.5">{booking.attendees} people</span>}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">{booking.fellowship || 'No Fellowship'}</p>
             </div>
             <select
               value={booking.status}
