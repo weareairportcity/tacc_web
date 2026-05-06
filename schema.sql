@@ -34,3 +34,19 @@ CREATE POLICY "Admin can update bookings"
 ON public.bookings FOR UPDATE 
 TO authenticated 
 USING (true);
+
+-- Enable RLS for blocked_dates
+ALTER TABLE public.blocked_dates ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Anyone can view blocked dates (needed for the booking calendar)
+CREATE POLICY "Anyone can view blocked dates"
+ON public.blocked_dates FOR SELECT
+TO public
+USING (true);
+
+-- Policy: Only authenticated users (Admin) can insert/delete blocked dates
+CREATE POLICY "Admin can manage blocked dates"
+ON public.blocked_dates FOR ALL
+TO authenticated
+USING (true)
+WITH CHECK (true);
