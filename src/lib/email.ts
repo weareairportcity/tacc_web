@@ -56,17 +56,20 @@ export async function sendAdminNotificationEmail(
   reason: string,
   date: string,
   time: string,
-  cancelUrl: string
+  cancelUrl: string,
+  attendees: number = 1
 ) {
   if (!process.env.RESEND_API_KEY) {
     return;
   }
 
+  const guestText = attendees > 1 ? ` for ${attendees} people` : '';
+
   try {
     await resend.emails.send({
       from: `TACC System <${fromEmail}>`,
       to: adminEmail, // Dedicated admin inbox
-      subject: `New Meeting Request: ${name}`,
+      subject: `New Meeting Request${guestText}: ${name}`,
       html: `
         <div style="font-family: Arial, sans-serif;">
           <h2>New Meeting Scheduled</h2>
@@ -76,6 +79,7 @@ export async function sendAdminNotificationEmail(
           <p><strong>Email:</strong> ${email}</p>
           <p><strong>Date:</strong> ${date}</p>
           <p><strong>Time:</strong> ${time}</p>
+          <p><strong>Attendees:</strong> ${attendees}</p>
           <p><strong>Reason:</strong><br/>${reason}</p>
           <hr/>
           <p>

@@ -117,7 +117,7 @@ export async function POST(req: Request) {
     const cancelUrl = `${appUrl}/api/cancel?id=${bookingId}&token=mock_secure_token`;
     
     console.log("Sending admin notification email...");
-    await sendAdminNotificationEmail(name, fellowship, phone, email, reason, formattedDate, time, cancelUrl);
+    await sendAdminNotificationEmail(name, fellowship, phone, email, reason, formattedDate, time, cancelUrl, attendees);
 
     return NextResponse.json({ success: true, message: "Booking recorded", bookingId }, { status: 200 });
 
