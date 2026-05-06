@@ -197,19 +197,21 @@ export default function BookingPage() {
                 <ChevronLeft className="w-3.5 h-3.5" /> Back
               </Link>
             ) : (
-              <button onClick={() => setStep(1)} className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors bg-white/50 lg:bg-slate-50 px-2.5 py-1.5 rounded-md">
-                <ChevronLeft className="w-3.5 h-3.5" /> Back to Calendar
+              <button onClick={() => setStep(step - 1)} className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors bg-white/50 lg:bg-slate-50 px-2.5 py-1.5 rounded-md">
+                <ChevronLeft className="w-3.5 h-3.5" /> {step === 2 ? 'Back to Calendar' : 'Back to Details'}
               </button>
             )}
           </div>
 
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold text-slate-900">
-              {step === 1 ? "Select Date & Time" : "Your Details"}
+              {step === 1 && "Select Date & Time"}
+              {step === 2 && "Your Details"}
+              {step === 3 && "Review Booking"}
               <span className="text-red-500">*</span>
             </h1>
             <div className="text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
-              Step {step} of 2
+              Step {step} of 3
             </div>
           </div>
 
@@ -313,7 +315,7 @@ export default function BookingPage() {
                 Next Step
               </button>
             </div>
-          ) : (
+          ) : step === 2 ? (
             <div className="animate-in slide-in-from-right-4 fade-in duration-300">
               {/* Form Fields */}
               <div className="space-y-3 mb-6">
@@ -425,11 +427,48 @@ export default function BookingPage() {
               {statusMessage && <p className="text-red-500 text-sm mb-4 text-center">{statusMessage}</p>}
 
               <button 
-                disabled={isSubmitting || !formData.name || !formData.email || !formData.phone || !formData.reason}
-                onClick={handleBooking}
+                disabled={!formData.name || !formData.email || !formData.phone || !formData.reason}
+                onClick={() => setStep(3)}
                 className="w-full py-2.5 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Schedule Meeting'}
+                Review Booking
+              </button>
+            </div>
+          ) : (
+            <div className="animate-in slide-in-from-right-4 fade-in duration-300">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 space-y-4 mb-6">
+                <div>
+                  <span className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Date & Time</span>
+                  <div className="text-sm font-medium text-slate-900">{selectedDate && format(selectedDate, "EEEE, MMMM do, yyyy")} at {selectedTime}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Name</span>
+                    <div className="text-sm font-medium text-slate-900">{formData.name}</div>
+                  </div>
+                  <div>
+                    <span className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</span>
+                    <div className="text-sm font-medium text-slate-900">{formData.phone}</div>
+                  </div>
+                  <div>
+                    <span className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Email</span>
+                    <div className="text-sm font-medium text-slate-900">{formData.email || '-'}</div>
+                  </div>
+                  <div>
+                    <span className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Attendees</span>
+                    <div className="text-sm font-medium text-slate-900">{formData.isComingAlone ? '1 person' : `${formData.attendees} people`}</div>
+                  </div>
+                </div>
+              </div>
+
+              {statusMessage && <p className="text-red-500 text-sm mb-4 text-center">{statusMessage}</p>}
+
+              <button 
+                disabled={isSubmitting}
+                onClick={handleBooking}
+                className="w-full py-3 bg-slate-900 text-white text-sm font-bold rounded-md hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm & Schedule'}
               </button>
             </div>
           )}
