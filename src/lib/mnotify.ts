@@ -46,9 +46,10 @@ export async function sendSMS(recipient: string, message: string) {
   }
 }
 
-export async function sendBookingNotifications(userPhone: string, userName: string, date: string, time: string) {
-  const userMessage = `Hello ${userName}, your meeting with the Pastor on ${date} at ${time} has been scheduled successfully. - The Airport City Church`;
-  const adminMessage = `New Meeting Alert: ${userName} has booked a session on ${date} at ${time}. Phone: ${userPhone}`;
+export async function sendBookingNotifications(userPhone: string, userName: string, date: string, time: string, attendees: number = 1) {
+  const guestText = attendees > 1 ? ` for ${attendees} people` : '';
+  const userMessage = `Hello ${userName}, your meeting with the Pastor${guestText} on ${date} at ${time} has been scheduled successfully. - The Airport City Church`;
+  const adminMessage = `New Meeting Alert: ${userName} has booked a session${guestText} on ${date} at ${time}. Phone: ${userPhone}`;
 
   // Send to User
   await sendSMS(userPhone, userMessage);

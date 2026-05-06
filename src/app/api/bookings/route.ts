@@ -85,7 +85,7 @@ export async function POST(req: Request) {
 
     // 4. Send SMS via mNotify
     console.log("Sending SMS notifications...");
-    await sendBookingNotifications(phone, name, formattedDate, time);
+    await sendBookingNotifications(phone, name, formattedDate, time, attendees);
 
     // 5. Generate ICS & Send Emails via Resend
     console.log("Generating ICS content...");
