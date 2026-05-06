@@ -29,6 +29,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>('Upcoming');
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -126,7 +127,11 @@ export default function AdminDashboard() {
           </thead>
           <tbody>
             {bookingsToRender.map((booking) => (
-              <tr key={booking.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors text-slate-600">
+              <tr 
+                key={booking.id} 
+                onClick={() => setSelectedBooking(booking)}
+                className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors text-slate-600 cursor-pointer"
+              >
                 <td className="px-6 py-4 text-slate-900 font-medium">
                   {booking.name}
                   {booking.attendees > 1 && <span className="text-xs text-slate-400 font-normal ml-1">(+{booking.attendees - 1} guests)</span>}
@@ -137,7 +142,7 @@ export default function AdminDashboard() {
                 <td className="px-6 py-4 max-w-[150px] truncate">{booking.reason}</td>
                 <td className="px-6 py-4">{booking.phone}</td>
                 <td className="px-6 py-4 text-slate-500">{booking.email}</td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                   <select
                     value={booking.status}
                     onChange={(e) => handleStatusChange(booking.id, e.target.value)}
@@ -165,7 +170,11 @@ export default function AdminDashboard() {
   const renderBookingCards = (bookingsToRender: Booking[], showDate = true) => (
     <div className="lg:hidden flex flex-col gap-4">
       {bookingsToRender.map((booking) => (
-        <div key={booking.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+        <div 
+          key={booking.id} 
+          onClick={() => setSelectedBooking(booking)}
+          className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 cursor-pointer hover:border-slate-300 transition-colors"
+        >
           <div className="flex justify-between items-start">
             <div>
               <h3 className="font-semibold text-slate-900">
@@ -174,7 +183,8 @@ export default function AdminDashboard() {
               </h3>
               <p className="text-xs text-slate-500 mt-1">{booking.fellowship || 'No Fellowship'}</p>
             </div>
-            <select
+            <div onClick={(e) => e.stopPropagation()}>
+              <select
               value={booking.status}
               onChange={(e) => handleStatusChange(booking.id, e.target.value)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium border cursor-pointer focus:outline-none ${
@@ -189,6 +199,7 @@ export default function AdminDashboard() {
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
             </select>
+          </div>
           </div>
           
           <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 mt-1">
@@ -344,6 +355,92 @@ export default function AdminDashboard() {
         </div>
 
       </div>
+
+      {/* Booking Details Modal */}
+      {selectedBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedBooking(null)}>
+          <div 
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Booking Details</h2>
+                <p className="text-xs text-slate-500 mt-1">ID: TACC-{selectedBooking.id.split('-')[0].toUpperCase()}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedBooking(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Name</label>
+                  <p className="text-sm font-medium text-slate-900">{selectedBooking.name}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Status</label>
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                    selectedBooking.status === 'Scheduled' 
+                      ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                      : selectedBooking.status === 'Completed'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {selectedBooking.status}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Date</label>
+                  <p className="text-sm text-slate-700">{format(new Date(selectedBooking.meeting_date), 'EEEE, MMMM do, yyyy')}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Time</label>
+                  <p className="text-sm text-slate-700">{selectedBooking.meeting_time}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Phone</label>
+                  <a href={`tel:${selectedBooking.phone}`} className="text-sm text-slate-700 hover:text-slate-900 hover:underline">{selectedBooking.phone}</a>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Email</label>
+                  <a href={`mailto:${selectedBooking.email}`} className="text-sm text-slate-700 hover:text-slate-900 hover:underline">{selectedBooking.email || 'N/A'}</a>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Fellowship</label>
+                  <p className="text-sm text-slate-700">{selectedBooking.fellowship || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Attendees</label>
+                  <p className="text-sm text-slate-700">{selectedBooking.attendees} {selectedBooking.attendees === 1 ? 'person' : 'people'}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Meeting Reason</label>
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-700 whitespace-pre-wrap">
+                  {selectedBooking.reason}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 pt-0 border-t border-slate-100 bg-slate-50/50 mt-6 flex justify-end gap-3 rounded-b-2xl">
+              <button 
+                onClick={() => setSelectedBooking(null)}
+                className="px-4 py-2 mt-4 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
