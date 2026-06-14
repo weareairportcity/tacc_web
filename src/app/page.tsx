@@ -35,21 +35,21 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-4">
-            Welcome to <br /> Airport City Church.
+            Welcome to <br /> The Airport City Church.
           </h1>
           <p className="text-slate-500 mb-8 leading-relaxed text-sm md:text-base">
             We're building a new online space for our community to connect and grow.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <Link 
-              href="/timewithpastor" 
+            <Link
+              href="/timewithpastor"
               className="inline-flex items-center justify-center h-10 px-6 font-medium text-sm text-white transition-colors bg-slate-900 rounded-md hover:bg-slate-800"
             >
               Book a Meeting
             </Link>
-            <Link 
-              href="#about" 
+            <Link
+              href="#about"
               className="inline-flex items-center justify-center h-10 px-6 font-medium text-sm text-slate-900 transition-colors bg-white border border-slate-200 rounded-md hover:bg-slate-50"
             >
               Learn More
@@ -59,7 +59,7 @@ export default function Home() {
 
         {/* Footer / Copyright */}
         <div className="mt-auto text-xs text-slate-400 font-medium">
-          © {new Date().getFullYear()} Airport City Church. All rights reserved.
+          © {new Date().getFullYear()} The Airport City Church. All rights reserved.
         </div>
       </div>
     </div>
