@@ -464,6 +464,10 @@ export default function AdminPage() {
   const [films, setFilms] = useState<Film[]>([]);
   const [activeGroups, setActiveGroups] = useState<string[]>([]);
 
+  useEffect(() => {
+    if (sessionStorage.getItem("vote_admin_authed") === "1") setAuthed(true);
+  }, []);
+
   async function loadBase() {
     const [fr, ar] = await Promise.all([
       fetch("/api/vote/films"),
@@ -477,7 +481,17 @@ export default function AdminPage() {
     if (authed) loadBase();
   }, [authed]);
 
-  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+  function handleLogin() {
+    sessionStorage.setItem("vote_admin_authed", "1");
+    setAuthed(true);
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem("vote_admin_authed");
+    setAuthed(false);
+  }
+
+  if (!authed) return <Login onLogin={handleLogin} />;
 
   const TABS = [
     { id: "films", label: "Films" },
@@ -496,13 +510,21 @@ export default function AdminPage() {
               Admin
             </span>
           </div>
-          <a
-            href="/vote"
-            target="_blank"
-            className="h-8 px-3 inline-flex items-center text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            Voter View ↗
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href="/vote"
+              target="_blank"
+              className="h-8 px-3 inline-flex items-center text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Voter View ↗
+            </a>
+            <button
+              onClick={handleLogout}
+              className="h-8 px-3 text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
