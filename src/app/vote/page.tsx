@@ -353,6 +353,25 @@ export default function VoterPage() {
                 />
               ))}
             </div>
+
+            <div className="mt-10 pt-6 border-t border-slate-200 text-center">
+              <p className="text-sm text-slate-500 mb-3">
+                Voting for a different week?
+              </p>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("vote_weekly_code");
+                  setWeeklyCode("");
+                  setGroup("");
+                  setInputCode("");
+                  setFilms([]);
+                  setVotedFilms([]);
+                }}
+                className="h-9 px-5 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Enter a different code
+              </button>
+            </div>
           </>
         )}
       </main>
