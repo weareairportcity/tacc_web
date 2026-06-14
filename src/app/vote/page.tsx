@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import Image from "next/image";
 
 const CATEGORIES = [
@@ -282,14 +281,6 @@ export default function VoterPage() {
             The code is announced at the event each week.
           </p>
 
-          <div className="mt-6 flex justify-center">
-            <Link
-              href="/vote/results"
-              className="text-sm text-slate-600 underline underline-offset-2 hover:text-slate-900"
-            >
-              View live results
-            </Link>
-          </div>
         </div>
       </div>
     );
@@ -311,20 +302,12 @@ export default function VoterPage() {
               {group}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/vote/results"
-              className="h-8 px-3 inline-flex items-center text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              Results
-            </Link>
-            <button
-              onClick={() => { localStorage.removeItem("vote_weekly_code"); setWeeklyCode(""); setGroup(""); setInputCode(""); }}
-              className="h-8 px-3 text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              Exit
-            </button>
-          </div>
+          <button
+            onClick={() => { localStorage.removeItem("vote_weekly_code"); setWeeklyCode(""); setGroup(""); setInputCode(""); }}
+            className="h-8 px-3 text-sm text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
+          >
+            Exit
+          </button>
         </div>
       </header>
 
