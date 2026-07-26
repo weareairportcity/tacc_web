@@ -315,7 +315,7 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
           {/* RIGHT Column: Lyrics Container */}
           <div className="lg:col-span-7 bg-snow rounded-cards p-6 sm:p-10 border border-hairline shadow-subtle-4">
             <h2 className="text-lg sm:text-xl font-bold tracking-[-0.32px] text-ink-black uppercase border-b border-hairline pb-3 mb-6">
-              Lyrics Content
+              Lyrics
             </h2>
 
             {lyricSections.length === 0 ? (

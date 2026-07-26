@@ -60,7 +60,7 @@ export default async function SongOfTheWeekPortal() {
             SONG OF THE WEEK
           </span>
           
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-[-4.97px] leading-[1.0] text-ink-black max-w-5xl text-balance mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-[-0.5px] sm:tracking-[-1.5px] md:tracking-[-4.97px] leading-[1.05] md:leading-[1.0] text-ink-black max-w-5xl text-balance mb-6">
             Teaching and Admonishing Through Psalms and Hymns
           </h1>
           
@@ -70,14 +70,8 @@ export default async function SongOfTheWeekPortal() {
 
           <div className="flex gap-3">
             <Link 
-              href="/timewithpastor" 
-              className="flex items-center px-6 py-3 bg-brand-blue text-white font-semibold text-sm rounded-[10px] shadow-subtle hover:bg-opacity-95 transition-all animate-pulse-subtle"
-            >
-              Join Service
-            </Link>
-            <Link 
               href="#catalog" 
-              className="px-6 py-3 bg-snow border border-hairline text-ink-black font-semibold text-sm rounded-[10px] shadow-subtle hover:border-graphite transition-all"
+              className="px-6 py-3 bg-brand-blue text-white font-semibold text-sm rounded-[10px] shadow-subtle hover:opacity-90 transition-all"
             >
               Explore Lyrics
             </Link>
