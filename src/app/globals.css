@@ -21,6 +21,39 @@
   --radius-md: 0.75rem;
   --radius-lg: 1.25rem;
   --radius-xl: 2rem;
+
+  /* Craftwork Theme Tokens */
+  --color-brand-blue: #3cc2cf;
+  --color-vermillion: #f54911;
+  --color-magenta-pop: #c42df9;
+  --color-ink-black: #000000;
+  --color-obsidian: #0d0d0d;
+  --color-charcoal: #1e1e1e;
+  --color-slate-ink: #14151a;
+  --color-graphite: #606060;
+  --color-ash-gray: #999999;
+  --color-mist: #9ea0a8;
+  --color-paper: #f9f9f9;
+  --color-fog: #f2f2f2;
+  --color-snow: #ffffff;
+  --color-hairline: #dee0e3;
+
+  --font-euclid-circular-a: var(--font-euclid-circular-a), 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --radius-cards: 10px;
+  --radius-pills: 9999px;
+  --radius-avatars: 9999px;
+  --radius-buttons: 10px;
+  --radius-nav-tabs: 10px;
+  --radius-logo-cards: 16px;
+  --radius-large-panels: 20px;
+  --radius-testimonials: 10px;
+
+  --shadow-subtle: rgba(47, 43, 67, 0.1) 0px -1px 0px 0px inset, rgba(47, 43, 67, 0.1) 0px 1px 3px 0px;
+  --shadow-subtle-2: rgba(47, 43, 67, 0.1) 0px 1px 3px 0px, rgba(47, 43, 67, 0.1) 0px -1px 0px 0px inset;
+  --shadow-subtle-3: rgba(0, 0, 0, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 5px 10px 0px;
+  --shadow-subtle-4: rgba(20, 21, 26, 0.05) 0px 1px 2px 0px;
+  --shadow-xl: rgba(0, 0, 0, 0.04) 0px 8px 40px 0px, rgba(0, 0, 0, 0.03) 0px 2px 12px 0px;
 }
 
 :root {

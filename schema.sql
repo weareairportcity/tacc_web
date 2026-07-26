@@ -50,3 +50,34 @@ ON public.blocked_dates FOR ALL
 TO authenticated
 USING (true)
 WITH CHECK (true);
+
+-- Song of the Week Table
+CREATE TABLE public.sotw_songs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  week_label TEXT NOT NULL,          -- e.g. "WEEK ONE"
+  publish_date DATE NOT NULL,        -- e.g. "2026-07-26"
+  title TEXT NOT NULL,
+  artist TEXT NOT NULL,
+  lyrics TEXT NOT NULL,              -- Full lyrics formatted with newlines or Markdown
+  audio_url TEXT,                    -- URL to the audio file
+  cover_image_url TEXT,              -- URL to the cover image
+  is_published BOOLEAN DEFAULT true
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.sotw_songs ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Anyone can view published songs
+CREATE POLICY "Anyone can view songs"
+ON public.sotw_songs FOR SELECT
+TO public
+USING (true);
+
+-- Policy: Only authenticated users (Admins) can modify songs
+CREATE POLICY "Admin can manage songs"
+ON public.sotw_songs FOR ALL
+TO authenticated
+USING (true)
+WITH CHECK (true);
+

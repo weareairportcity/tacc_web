@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, ChevronDown, LogOut, Loader2, Calendar, Users, Ban, Trash2, ArrowRight } from "lucide-react";
+import { Download, ChevronDown, LogOut, Loader2, Calendar, Users, Ban, Trash2, ArrowRight, Music } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
+import Link from "next/link";
 
 type Booking = {
   id: string;
@@ -244,6 +245,9 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <Link href="/admin/songs" className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-md text-sm font-medium hover:bg-slate-800 transition-colors">
+              <Music className="w-4 h-4 text-slate-300" /> Manage Songs
+            </Link>
             <button className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
               <Download className="w-4 h-4" /> Export CSV
             </button>

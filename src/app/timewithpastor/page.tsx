@@ -235,8 +235,8 @@ export default function BookingPage() {
               {/* Calendar Grid */}
               <div className="mb-4">
                 <div className="grid grid-cols-7 gap-1 mb-1">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-                    <div key={d} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                    <div key={i} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
                   ))}
                   {leadingDays.map((_, i) => <div key={`empty-${i}`} />)}
                   {calendarDays.map((day) => {
