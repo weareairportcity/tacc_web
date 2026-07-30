@@ -81,3 +81,28 @@ TO authenticated
 USING (true)
 WITH CHECK (true);
 
+-- Song of the Week Analytics Table
+CREATE TABLE IF NOT EXISTS public.sotw_analytics_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  song_id UUID REFERENCES public.sotw_songs(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL, -- 'view' or 'play'
+  visitor_id TEXT NOT NULL   -- anonymous browser visitor UUID
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.sotw_analytics_events ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Anyone can insert analytics events (public tracking)
+CREATE POLICY "Anyone can log analytics"
+ON public.sotw_analytics_events FOR INSERT
+TO public
+WITH CHECK (true);
+
+-- Policy: Anyone can view analytics
+CREATE POLICY "Anyone can view analytics"
+ON public.sotw_analytics_events FOR SELECT
+TO public
+USING (true);
+
+

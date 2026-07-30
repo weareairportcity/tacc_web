@@ -39,6 +39,7 @@ export default function AdminSongs() {
   const supabase = createClient();
 
   const [songs, setSongs] = useState<Song[]>([]);
+  const [analyticsMap, setAnalyticsMap] = useState<Record<string, { views: number; visitors: number; plays: number; listeners: number }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -76,6 +77,38 @@ export default function AdminSongs() {
 
       if (fetchError) throw fetchError;
       setSongs(data || []);
+
+      // Fetch analytics events if table exists
+      const { data: eventsData, error: eventsError } = await supabase
+        .from("sotw_analytics_events")
+        .select("song_id, event_type, visitor_id");
+
+      if (!eventsError && eventsData) {
+        const stats: Record<string, { views: number; visitors: Set<string>; plays: number; listeners: Set<string> }> = {};
+        eventsData.forEach((ev: any) => {
+          if (!stats[ev.song_id]) {
+            stats[ev.song_id] = { views: 0, visitors: new Set(), plays: 0, listeners: new Set() };
+          }
+          if (ev.event_type === "view") {
+            stats[ev.song_id].views += 1;
+            stats[ev.song_id].visitors.add(ev.visitor_id);
+          } else if (ev.event_type === "play") {
+            stats[ev.song_id].plays += 1;
+            stats[ev.song_id].listeners.add(ev.visitor_id);
+          }
+        });
+
+        const formatted: Record<string, { views: number; visitors: number; plays: number; listeners: number }> = {};
+        Object.keys(stats).forEach((sid) => {
+          formatted[sid] = {
+            views: stats[sid].views,
+            visitors: stats[sid].visitors.size,
+            plays: stats[sid].plays,
+            listeners: stats[sid].listeners.size,
+          };
+        });
+        setAnalyticsMap(formatted);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -217,6 +250,51 @@ export default function AdminSongs() {
           </button>
         </div>
 
+        {/* Analytics Overview Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Views</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {Object.values(analyticsMap).reduce((acc, cur) => acc + cur.views, 0)}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              {Object.values(analyticsMap).reduce((acc, cur) => acc + cur.visitors, 0)} unique visitors
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Audio Plays</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {Object.values(analyticsMap).reduce((acc, cur) => acc + cur.plays, 0)}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              {Object.values(analyticsMap).reduce((acc, cur) => acc + cur.listeners, 0)} unique listeners
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Songs</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {songs.length}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              {songs.filter((s) => s.is_published).length} published
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg. Play Rate</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {(() => {
+                const totalV = Object.values(analyticsMap).reduce((acc, cur) => acc + cur.visitors, 0);
+                const totalL = Object.values(analyticsMap).reduce((acc, cur) => acc + cur.listeners, 0);
+                return totalV > 0 ? Math.min(100, Math.round((totalL / totalV) * 100)) + "%" : "0%";
+              })()}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-0.5">visitors who listened</div>
+          </div>
+        </div>
+
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-6">
             Error loading songs: {error}
@@ -237,55 +315,59 @@ export default function AdminSongs() {
                   <tr>
                     <th className="px-6 py-4 font-semibold">Week</th>
                     <th className="px-6 py-4 font-semibold">Song Info</th>
-                    <th className="px-6 py-4 font-semibold">Publish Date</th>
+                    <th className="px-6 py-4 font-semibold">Page Views</th>
+                    <th className="px-6 py-4 font-semibold">Audio Listens</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {songs.map((song) => (
-                    <tr 
-                      key={song.id} 
-                      className="hover:bg-slate-50/50 transition-colors text-slate-600"
-                    >
-                      <td className="px-6 py-4">
-                        <span className="inline-flex px-2 py-1 rounded bg-slate-100 text-slate-700 text-xs font-semibold uppercase tracking-wider">
-                          {song.week_label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="relative w-10 h-10 rounded bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
-                            {song.cover_image_url ? (
-                              <img 
-                                src={song.cover_image_url} 
-                                alt={song.title} 
-                                className="object-cover w-full h-full"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = "none";
-                                }}
-                              />
-                            ) : (
-                              <Music className="w-5 h-5 text-slate-400 absolute inset-0 m-auto" />
-                            )}
+                  {songs.map((song) => {
+                    const stats = analyticsMap[song.id] || { views: 0, visitors: 0, plays: 0, listeners: 0 };
+
+                    return (
+                      <tr 
+                        key={song.id} 
+                        className="hover:bg-slate-50/50 transition-colors text-slate-600"
+                      >
+                        <td className="px-6 py-4">
+                          <span className="inline-flex px-2 py-1 rounded bg-slate-100 text-slate-700 text-xs font-semibold uppercase tracking-wider">
+                            {song.week_label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-10 h-10 rounded bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
+                              {song.cover_image_url ? (
+                                <img 
+                                  src={song.cover_image_url} 
+                                  alt={song.title} 
+                                  className="object-cover w-full h-full"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <Music className="w-5 h-5 text-slate-400 absolute inset-0 m-auto" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-900 text-sm max-w-[240px] truncate">{song.title}</div>
+                              <div className="text-xs text-slate-400 max-w-[240px] truncate">{song.artist}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 text-sm max-w-[240px] truncate">{song.title}</div>
-                            <div className="text-xs text-slate-400 max-w-[240px] truncate">{song.artist}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-500">
-                        {new Date(song.publish_date).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                          timeZone: "UTC"
-                        })}
-                      </td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleTogglePublish(song)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900 text-xs">{stats.views} views</div>
+                          <div className="text-[11px] text-slate-400">{stats.visitors} unique visitors</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900 text-xs">{stats.plays} plays</div>
+                          <div className="text-[11px] text-slate-400">{stats.listeners} unique listeners</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => handleTogglePublish(song)}
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                             song.is_published 
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" 
@@ -322,7 +404,8 @@ export default function AdminSongs() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

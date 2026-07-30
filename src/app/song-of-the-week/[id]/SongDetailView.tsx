@@ -30,78 +30,58 @@ const COVERS = [
   "linear-gradient(135deg, rgba(60, 194, 207, 0.15) 0%, rgba(242, 242, 242, 0.6) 100%)",
 ];
 
+import { useAudioPlayer } from "@/context/AudioPlayerContext";
+import { trackSongEvent } from "@/lib/analytics-client";
+
 export default function SongDetailView({ song, otherSongs }: SongDetailViewProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
+  const {
+    currentTrack,
+    isPlaying: isGlobalPlaying,
+    currentTime: globalCurrentTime,
+    duration: globalDuration,
+    volume: globalVolume,
+    isMuted: isGlobalMuted,
+    playTrack,
+    togglePlayPause,
+    seek,
+    setVolume,
+    toggleMute,
+  } = useAudioPlayer();
 
-  // Synchronize audio state when song changes
   useEffect(() => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    if (audioRef.current) {
-      audioRef.current.load();
+    if (song?.id) {
+      trackSongEvent(song.id, "view");
     }
-  }, [song.id]);
+  }, [song?.id]);
 
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-      }).catch((e) => {
-        console.error("Audio playback error:", e);
+  const isCurrentSong = currentTrack?.id === song.id;
+  const isPlaying = isCurrentSong && isGlobalPlaying;
+  const currentTime = isCurrentSong ? globalCurrentTime : 0;
+  const duration = isCurrentSong ? globalDuration : 0;
+  const volume = globalVolume;
+  const isMuted = isGlobalMuted;
+
+  const handlePlayClick = () => {
+    if (song.audio_url) {
+      playTrack({
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        audioUrl: song.audio_url,
+        coverImageUrl: song.cover_image_url,
+        weekLabel: song.week_label,
       });
     }
   };
 
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration || 0);
-    }
-  };
-
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-  };
-
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!audioRef.current) return;
-    const seekValue = parseFloat(e.target.value);
-    audioRef.current.currentTime = seekValue;
-    setCurrentTime(seekValue);
+    if (isCurrentSong) {
+      seek(parseFloat(e.target.value));
+    }
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const vol = parseFloat(e.target.value);
-    setVolume(vol);
-    setIsMuted(vol === 0);
-    if (audioRef.current) {
-      audioRef.current.volume = vol;
-      audioRef.current.muted = vol === 0;
-    }
-  };
-
-  const toggleMute = () => {
-    if (!audioRef.current) return;
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    audioRef.current.muted = nextMuted;
+    setVolume(parseFloat(e.target.value));
   };
 
   const formatTime = (time: number) => {
@@ -148,16 +128,7 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
   return (
     <div className="min-h-screen bg-paper font-euclid-circular-a text-ink-black antialiased flex flex-col relative selection:bg-brand-blue selection:text-white">
       
-      {/* Hidden HTML5 Audio Element */}
-      {song.audio_url && (
-        <audio
-          ref={audioRef}
-          src={song.audio_url}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleLoadedMetadata}
-          onEnded={handleAudioEnded}
-        />
-      )}
+
 
       {/* Sticky Header Nav */}
       <header className="sticky top-0 z-40 bg-snow rounded-b-[10px] border-b border-hairline shadow-subtle px-4 sm:px-6 h-[64px] flex items-center justify-between">
@@ -271,7 +242,7 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                   <div className="flex items-center justify-between gap-4 pt-1">
                     {/* Brand Blue brand action circle */}
                     <button 
-                      onClick={togglePlay}
+                      onClick={handlePlayClick}
                       className="w-12 h-12 rounded-full bg-brand-blue text-white border border-brand-blue hover:opacity-90 active:scale-95 shadow-subtle flex items-center justify-center transition-all"
                       title={isPlaying ? "Pause" : "Play"}
                     >

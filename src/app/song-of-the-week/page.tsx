@@ -2,6 +2,7 @@ import { getSongs } from "@/lib/songs-db";
 import Link from "next/link";
 import Image from "next/image";
 import { Music, Search, Plus, ExternalLink } from "lucide-react";
+import CatalogGrid from "./CatalogGrid";
 
 // Accent gradients for fallback catalog cards matching the brand blue
 const COVERS = [
@@ -97,73 +98,7 @@ export default async function SongOfTheWeekPortal() {
           </div>
 
           {/* Compact Product Catalog Grid */}
-          {songs.length === 0 ? (
-            <div className="text-center py-16 bg-snow rounded-[10px] border border-hairline shadow-subtle flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-fog flex items-center justify-center mb-3 text-graphite border border-hairline">
-                <Music className="w-5 h-5" />
-              </div>
-              <h3 className="font-semibold text-ink-black text-sm">No hymns published</h3>
-              <p className="text-xs text-ash-gray mt-1">Please ask your church admin to add weekly songs.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {songs.map((song, idx) => {
-                const coverStyle = COVERS[idx % COVERS.length];
-
-                return (
-                  <Link 
-                    key={song.id} 
-                    href={`/song-of-the-week/${song.id}`}
-                    className="group bg-snow rounded-[10px] p-[16px] border border-hairline shadow-subtle-4 hover:border-graphite hover:shadow-subtle-3 transition-all duration-200 flex flex-col justify-between"
-                  >
-                    <div>
-                      {/* Preview Image/Gradient Container (10px card radius, 16px internal radius) */}
-                      <div className="relative w-full aspect-video rounded-logo-cards overflow-hidden mb-4 bg-fog border border-hairline flex-shrink-0 flex items-center justify-center">
-                        {song.cover_image_url ? (
-                          <img 
-                            src={song.cover_image_url} 
-                            alt={song.title} 
-                            className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-[1.02]"
-                          />
-                        ) : (
-                          <div 
-                            className="w-full h-full flex flex-col items-center justify-center text-ink-black p-4"
-                            style={{ background: coverStyle }}
-                          >
-                            <Music className="w-6 h-6 text-slate-ink stroke-[1.5]" />
-                          </div>
-                        )}
-                        <span className="absolute top-2 left-2 bg-snow border border-hairline text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm text-slate-ink">
-                          {song.week_label}
-                        </span>
-                      </div>
-                      
-                      {/* Song Details */}
-                      <h3 className="text-sm font-bold tracking-tight text-ink-black uppercase leading-tight group-hover:text-brand-blue transition-colors truncate">
-                        {song.title}
-                      </h3>
-                      <p className="text-xs text-graphite truncate mt-1">
-                        by {song.artist}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-hairline/60 flex items-center justify-between text-[11px] text-ash-gray font-semibold">
-                      <span>
-                        {new Date(song.publish_date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          timeZone: "UTC"
-                        })}
-                      </span>
-                      <span className="flex items-center gap-0.5 group-hover:text-ink-black transition-colors">
-                        View Lyrics <ExternalLink className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          <CatalogGrid songs={songs} />
         </div>
 
         {/* Company Logo Wall (Social Proof in Craftwork spec) */}

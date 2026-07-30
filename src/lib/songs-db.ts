@@ -59,101 +59,78 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
 }
 
 async function seedSongs() {
-  const demoSongs = [
+  const defaultSong = [
     {
       week_label: "WEEK ONE",
       publish_date: "2026-07-26",
-      title: "The Saviour of the World",
-      artist: "Oge & Loveworld Singers",
-      lyrics: `My life honors You
-I live to worship You
-You are the song I sing
-You’re the source of my joy
+      title: "The Center of Your Love",
+      artist: "Loveworld Singers",
+      lyrics: `Verse 1
+You are the height
+The depth, the width
+And the breadth of life
+Lord over winds, the seas, and the storms
+Encapsulation of the Father’s love
 
-[Pre-Chorus]
-You are magnified
-You are glorified
-You are the King of the world
+The revelation of divinity
+Eternal Word supreme
+You’re the greatest
+The biggest, oh, Lord
 
-You are magnified
-You are glorified
-You’re the King of Heaven and earth
+Chorus 
+I stand amazed
+At the wonders of Your works, my God
+There’s no beginning
+And no end to Your pleasant ways
 
-[Chorus]
-Master, The ruler of the world
-Dear Lord Jesus
-Dear Lord Jesus
+Unfathomable is the love
+You bestowed on me
+You made me the centre of Your love
 
-You are the One who conquered death
-Dear Lord Jesus
-Dear Lord Jesus
+Verse 2
+The heavens rule
+For heaven is Your throne
+And the earth Your footstool
 
-Dear Lord Jesus
-Dear Lord Jesus
-The Saviour of the world
+Your word’s the beginning
+And the end of all things
+Dependable and infallible
 
-[Bridge]
-You are God in us
-You are God with us
-You are King of glory
-Lord of all
+Your word, our divine ability
+It has the power to create
+and sustain all things
 
-You’re Lord Jesus, Lord Jesus
-Dear Lord Jesus
-The Saviour of the world
+Chorus
+I stand amazed
+At the wonders of Your works, my God
+There’s no beginning
+And no end to Your pleasant ways
 
-You are God in us
-You are God with us
-You are King of glory
-Lord of all`,
-      audio_url: "https://loveworldlyrics.com/wp-content/uploads/2026/06/SAVIOUR-OF-THE-WORLD-BY-OGE.mp3",
-      cover_image_url: "https://loveworldlyrics.com/wp-content/uploads/2026/06/SAVIOUR-OF-THE-WORLD-BY-OGE-AND-LOVEWORLD-SINGERS.jpg",
-      is_published: true,
-    },
-    {
-      week_label: "WEEK TWO",
-      publish_date: "2026-07-19",
-      title: "Awesome God",
-      artist: "Sinach",
-      lyrics: `[Verse 1]
-Holy are You Lord
-All creation call You God
-Worthy is Your name
-We worship Your Name
+Unfathomable is the love
+You bestowed on me
+You made me the centre of Your love
 
-[Chorus]
-You are awesome in this place Mighty God
-You are awesome in this place Abba Father
-You are worthy of our praise
-To You our lives we raise
-You are awesome in this place Mighty God`,
-      audio_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-      cover_image_url: "",
-      is_published: true,
-    },
-    {
-      week_label: "WEEK THREE",
-      publish_date: "2026-07-12",
-      title: "Praise the Lord",
-      artist: "Frank Edwards",
-      lyrics: `[Verse]
-Praise the Lord, praise the Lord
-Let everything that breathes praise the Lord
-For His goodness and His mercy
-Let us shout for joy
+Bridge 
+You are the greatest, Lord
+You are the strongest, Lord
+All of creation tremble before You
+Heaven and earth bow before You
 
-[Chorus]
-Hallelujah, hallelujah
-Sing a new song to the Lord
-Hallelujah, hallelujah
-Celebrate His holy name`,
-      audio_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-      cover_image_url: "",
+All sovereign God
+You are the greatest
+There’s none like You
+
+Coda 
+You are the greatest
+The biggest, the strongest, the wisest
+The highest, the fairest, oh Lord`,
+      audio_url: "https://loveworldworship.com/worship/upload/audio/2026/02/otPdGjse1C7YvxPrq5FP_21_962866e322d9272bb9434bd7d0195cf1_audio_36532_converted.mp3",
+      cover_image_url: "https://loveworldworship.com/worship/upload/photos/2026/02/ya7lrmcYnjrvsYPBrRnT_21_8e98bf661deab569e26c964f24938f08_image.jpeg",
       is_published: true,
     }
   ];
 
-  await supabaseAdmin.from("sotw_songs").insert(demoSongs);
+  await supabaseAdmin.from("sotw_songs").insert(defaultSong);
 }
 
 // Fetch a single song by ID
