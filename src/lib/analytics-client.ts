@@ -16,15 +16,6 @@ export function trackSongEvent(songId: string, eventType: "view" | "play") {
 
   const visitorId = getOrCreateVisitorId();
 
-  // Deduplicate rapid view calls in session storage
-  const sessionKey = `tracked_${eventType}_${songId}`;
-  if (eventType === "view" && sessionStorage.getItem(sessionKey)) {
-    return;
-  }
-  if (eventType === "view") {
-    sessionStorage.setItem(sessionKey, "1");
-  }
-
   fetch("/api/sotw/track", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
