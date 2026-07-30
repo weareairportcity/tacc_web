@@ -34,12 +34,17 @@ const DEFAULT_SONG_FORM = {
   is_published: true,
 };
 
+import AnalyticsDashboard, { RawAnalyticsEvent } from "./AnalyticsDashboard";
+import { BarChart3 } from "lucide-react";
+
 export default function AdminSongs() {
   const router = useRouter();
   const supabase = createClient();
 
   const [songs, setSongs] = useState<Song[]>([]);
+  const [rawEvents, setRawEvents] = useState<RawAnalyticsEvent[]>([]);
   const [analyticsMap, setAnalyticsMap] = useState<Record<string, { views: number; visitors: number; plays: number; listeners: number }>>({});
+  const [activeTab, setActiveTab] = useState<"catalog" | "analytics">("catalog");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -88,9 +93,10 @@ export default function AdminSongs() {
       // Fetch analytics events if table exists
       const { data: eventsData, error: eventsError } = await supabase
         .from("sotw_analytics_events")
-        .select("song_id, event_type, visitor_id");
+        .select("id, created_at, song_id, event_type, visitor_id");
 
       if (!eventsError && eventsData) {
+        setRawEvents(eventsData as RawAnalyticsEvent[]);
         const stats: Record<string, { views: number; visitors: Set<string>; plays: number; listeners: Set<string> }> = {};
         eventsData.forEach((ev: any) => {
           if (!stats[ev.song_id]) {
@@ -257,7 +263,36 @@ export default function AdminSongs() {
           </button>
         </div>
 
-        {/* Analytics Overview Cards */}
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-slate-200 mb-8 pb-3">
+          <button
+            onClick={() => setActiveTab("catalog")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              activeTab === "catalog"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <Music className="w-4 h-4" /> Weekly Song Catalog
+          </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              activeTab === "analytics"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" /> Detailed Analytics & Graphs
+          </button>
+        </div>
+
+        {/* Tab 2: Detailed Analytics & Interactive Graphs */}
+        {activeTab === "analytics" ? (
+          <AnalyticsDashboard songs={songs} events={rawEvents} />
+        ) : (
+          <>
+            {/* Analytics Overview Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Views</div>
@@ -418,6 +453,8 @@ export default function AdminSongs() {
             </div>
           </div>
         )}
+      </>
+    )}
       </div>
 
       {/* Modal Form */}
