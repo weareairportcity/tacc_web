@@ -37,6 +37,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [currentTrack, setCurrentTrack] = useState<AudioTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolumeState] = useState(0.85);
+  const [isMuted, setIsMuted] = useState(false);
   const currentTrackRef = useRef<AudioTrack | null>(null);
   const hasTrackedCurrentTrackRef = useRef(false);
 
