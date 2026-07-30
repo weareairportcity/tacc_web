@@ -16,6 +16,11 @@ export function trackSongEvent(songId: string, eventType: "view" | "play") {
 
   const visitorId = getOrCreateVisitorId();
   
+  // If playing, ensure a view event is also logged if not yet tracked in this session
+  if (eventType === "play" && !sessionStorage.getItem(`tracked_view_${songId}`)) {
+    trackSongEvent(songId, "view");
+  }
+
   // Deduplicate rapid view calls in session storage
   const sessionKey = `tracked_${eventType}_${songId}`;
   if (eventType === "view" && sessionStorage.getItem(sessionKey)) {
