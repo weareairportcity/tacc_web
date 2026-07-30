@@ -20,19 +20,8 @@ const COVERS = [
   "linear-gradient(135deg, rgba(60, 194, 207, 0.15) 0%, rgba(242, 242, 242, 0.6) 100%)",
 ];
 
-import { useEffect } from "react";
-import { trackSongEvent } from "@/lib/analytics-client";
-
 export default function CatalogGrid({ songs }: { songs: Song[] }) {
   const { currentTrack, isPlaying, playTrack } = useAudioPlayer();
-
-  useEffect(() => {
-    if (songs && songs.length > 0) {
-      songs.forEach((s) => {
-        trackSongEvent(s.id, "view");
-      });
-    }
-  }, [songs]);
 
   if (songs.length === 0) {
     return (
