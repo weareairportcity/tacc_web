@@ -37,9 +37,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [currentTrack, setCurrentTrack] = useState<AudioTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(0.85);
-  const [isMuted, setIsMuted] = useState(false);
+  const currentTrackRef = useRef<AudioTrack | null>(null);
+  const hasTrackedCurrentTrackRef = useRef(false);
+
+  // Synchronize currentTrack ref
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+    hasTrackedCurrentTrackRef.current = false;
+  }, [currentTrack?.id]);
 
   // Initialize hidden audio element once on mount
   useEffect(() => {
@@ -48,7 +53,20 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     audio.volume = volume;
     audioRef.current = audio;
 
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+
+      // Verify 5 seconds of active playback before counting as a play
+      if (
+        audio.currentTime >= 5 &&
+        !hasTrackedCurrentTrackRef.current &&
+        currentTrackRef.current?.id
+      ) {
+        hasTrackedCurrentTrackRef.current = true;
+        trackSongEvent(currentTrackRef.current.id, "play");
+      }
+    };
+
     const handleLoadedMetadata = () => setDuration(audio.duration || 0);
     const handleEnded = () => {
       setIsPlaying(false);
@@ -79,9 +97,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       }
       return;
     }
-
-    // Log play analytics event for the new track
-    trackSongEvent(track.id, "play");
 
     setCurrentTrack(track);
     audioRef.current.src = track.audioUrl;
