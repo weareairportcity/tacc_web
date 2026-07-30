@@ -124,8 +124,8 @@ Coda
 You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
-      audio_url: "https://nsiaryznabnexpwuokzv.supabase.co/storage/v1/object/public/sotw-media/the-center-of-your-love.mp3",
-      cover_image_url: "https://nsiaryznabnexpwuokzv.supabase.co/storage/v1/object/public/sotw-media/week-one-cover.jpg",
+      audio_url: "https://loveworldworship.com/worship/upload/audio/2026/02/otPdGjse1C7YvxPrq5FP_21_962866e322d9272bb9434bd7d0195cf1_audio_36532_converted.mp3",
+      cover_image_url: "https://loveworldworship.com/worship/upload/photos/2026/02/ya7lrmcYnjrvsYPBrRnT_21_8e98bf661deab569e26c964f24938f08_image.jpeg",
       is_published: true,
     }
   ];
