@@ -64,10 +64,17 @@ export default function AdminSongs() {
       }
     }
     checkAuth();
+
+    // Auto-refresh analytics every 5 seconds for live real-time stats
+    const interval = setInterval(() => {
+      fetchSongs(true);
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [supabase, router]);
 
-  async function fetchSongs() {
-    setIsLoading(true);
+  async function fetchSongs(isBackground = false) {
+    if (!isBackground) setIsLoading(true);
     setError("");
     try {
       const { data, error: fetchError } = await supabase
