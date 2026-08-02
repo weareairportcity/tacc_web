@@ -18,6 +18,7 @@ type Booking = {
   phone: string;
   email: string;
   reason: string;
+  cancellation_reason?: string;
   attendees: number;
   status: string;
 };
@@ -31,6 +32,12 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>('Upcoming');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  
+  // Cancellation Modal State
+  const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null);
+  const [cancellationReasonText, setCancellationReasonText] = useState<string>("");
+  const [isSubmittingCancellation, setIsSubmittingCancellation] = useState<boolean>(false);
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -58,27 +65,55 @@ export default function AdminDashboard() {
     router.refresh();
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleStatusChange = async (id: string, newStatus: string, cancellationReason?: string) => {
     if (newStatus === 'Completed') {
       const confirmed = window.confirm("Are you sure you want to mark this as Completed? This will send a Thank You email and SMS to the user.");
       if (!confirmed) return;
-    } else if (newStatus === 'Cancelled') {
-      const confirmed = window.confirm("Are you sure you want to Cancel this appointment? This will send a Cancellation email and SMS to the user.");
-      if (!confirmed) return;
+    } else if (newStatus === 'Cancelled' && cancellationReason === undefined) {
+      const target = bookings.find(b => b.id === id);
+      if (target) {
+        setCancellingBooking(target);
+        setCancellationReasonText("");
+      }
+      return;
     }
 
     try {
       const res = await fetch("/api/bookings/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: newStatus })
+        body: JSON.stringify({ id, status: newStatus, cancellationReason })
       });
 
       if (!res.ok) throw new Error("Failed to update status");
       
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
+      setBookings(prev => prev.map(b => b.id === id ? { 
+        ...b, 
+        status: newStatus, 
+        ...(newStatus === 'Cancelled' ? { cancellation_reason: cancellationReason } : {}) 
+      } : b));
+
+      if (selectedBooking && selectedBooking.id === id) {
+        setSelectedBooking(prev => prev ? { 
+          ...prev, 
+          status: newStatus, 
+          ...(newStatus === 'Cancelled' ? { cancellation_reason: cancellationReason } : {}) 
+        } : null);
+      }
     } catch (err: any) {
       alert("Failed to update status: " + err.message);
+    }
+  };
+
+  const confirmCancellation = async () => {
+    if (!cancellingBooking) return;
+    setIsSubmittingCancellation(true);
+    try {
+      await handleStatusChange(cancellingBooking.id, 'Cancelled', cancellationReasonText);
+      setCancellingBooking(null);
+      setCancellationReasonText("");
+    } finally {
+      setIsSubmittingCancellation(false);
     }
   };
 
@@ -432,6 +467,15 @@ export default function AdminDashboard() {
                   {selectedBooking.reason}
                 </div>
               </div>
+
+              {selectedBooking.cancellation_reason && (
+                <div>
+                  <label className="block text-xs font-medium text-red-500 uppercase tracking-wider mb-2">Cancellation Reason</label>
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-sm text-red-800 whitespace-pre-wrap">
+                    {selectedBooking.cancellation_reason}
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="p-6 pt-0 border-t border-slate-100 bg-slate-50/50 mt-6 flex justify-end gap-3 rounded-b-2xl">
@@ -440,6 +484,59 @@ export default function AdminDashboard() {
                 className="px-4 py-2 mt-4 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Reason Modal */}
+      {cancellingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setCancellingBooking(null)}>
+          <div 
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-lg font-bold text-slate-900">Cancel Appointment</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Cancelling meeting for <span className="font-semibold text-slate-700">{cancellingBooking.name}</span> on {format(new Date(cancellingBooking.meeting_date), 'MMM dd, yyyy')} at {cancellingBooking.meeting_time}.
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 uppercase tracking-wider mb-2">
+                  Reason for Cancellation <span className="text-slate-400 font-normal lowercase">(sent via email & SMS)</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={cancellationReasonText}
+                  onChange={(e) => setCancellationReasonText(e.target.value)}
+                  placeholder="e.g. Pastor is traveling for an emergency church function..."
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 placeholder:text-slate-400"
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                This reason will be included in the email and SMS cancellation message sent to the booking guest.
+              </p>
+            </div>
+            
+            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+              <button 
+                onClick={() => setCancellingBooking(null)}
+                disabled={isSubmittingCancellation}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Keep Booking
+              </button>
+              <button 
+                onClick={confirmCancellation}
+                disabled={isSubmittingCancellation}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {isSubmittingCancellation ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Confirm Cancellation
               </button>
             </div>
           </div>

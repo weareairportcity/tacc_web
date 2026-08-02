@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 
 export async function POST(req: Request) {
   try {
-    const { id, status } = await req.json();
+    const { id, status, cancellationReason } = await req.json();
 
     if (!id || !status) {
       return NextResponse.json({ error: "Booking ID and Status are required" }, { status: 400 });
@@ -23,10 +23,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
-    // 2. Update status in Supabase
+    // 2. Update status and cancellation_reason in Supabase
+    const updateData: { status: string; cancellation_reason?: string | null } = { status };
+    if (status === 'Cancelled') {
+      updateData.cancellation_reason = cancellationReason || null;
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from('bookings')
-      .update({ status })
+      .update(updateData)
       .eq('id', id);
 
     if (updateError) throw updateError;
@@ -42,10 +47,10 @@ export async function POST(req: Request) {
     } else if (status === 'Cancelled') {
       const formattedDate = format(new Date(booking.meeting_date), 'MMMM do, yyyy');
       if (booking.email) {
-        await sendCancellationEmail(booking.email, booking.name, formattedDate, booking.meeting_time);
+        await sendCancellationEmail(booking.email, booking.name, formattedDate, booking.meeting_time, cancellationReason);
       }
       if (booking.phone) {
-        await sendCancellationSMS(booking.phone, booking.name, formattedDate, booking.meeting_time);
+        await sendCancellationSMS(booking.phone, booking.name, formattedDate, booking.meeting_time, cancellationReason);
       }
     }
 

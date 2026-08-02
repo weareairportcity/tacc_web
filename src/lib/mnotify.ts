@@ -62,7 +62,8 @@ export async function sendThankYouSMS(phone: string, name: string) {
   return await sendSMS(phone, message);
 }
 
-export async function sendCancellationSMS(phone: string, name: string, date: string, time: string) {
-  const message = `Hello ${name}, your meeting with Pastor on ${date} at ${time} has been cancelled. Please check your email or visit our site to reschedule. - The Airport City Church`;
+export async function sendCancellationSMS(phone: string, name: string, date: string, time: string, cancellationReason?: string) {
+  const reasonText = cancellationReason && cancellationReason.trim() ? ` Reason: ${cancellationReason.trim()}.` : '';
+  const message = `Hello ${name}, your meeting with Pastor on ${date} at ${time} has been cancelled.${reasonText} Please check your email or visit our site to reschedule. - The Airport City Church`;
   return await sendSMS(phone, message);
 }

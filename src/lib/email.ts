@@ -153,9 +153,17 @@ export async function sendCancellationEmail(
   toEmail: string,
   name: string,
   date: string,
-  time: string
+  time: string,
+  cancellationReason?: string
 ) {
   if (!process.env.RESEND_API_KEY) return;
+
+  const reasonHtml = cancellationReason && cancellationReason.trim()
+    ? `<div style="background-color: #f8fafc; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+        <p style="margin: 0; font-weight: bold; color: #334155; font-size: 14px;">Reason for Cancellation:</p>
+        <p style="margin: 4px 0 0 0; color: #475569; font-size: 14px;">${cancellationReason}</p>
+       </div>`
+    : '';
 
   try {
     await resend.emails.send({
@@ -167,6 +175,7 @@ export async function sendCancellationEmail(
           <h2>Meeting Cancelled</h2>
           <p>Dear ${name},</p>
           <p>We regret to inform you that your scheduled meeting with the Pastor on <strong>${date} at ${time}</strong> has been cancelled.</p>
+          ${reasonHtml}
           <p>We sincerely apologize for any inconvenience this may cause. If you wish to reschedule, please visit our booking page again.</p>
           <p>Blessings,<br/>The Airport City Church</p>
         </div>

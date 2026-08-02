@@ -12,6 +12,7 @@ CREATE TABLE public.bookings (
   reason TEXT NOT NULL,
   attendees INTEGER DEFAULT 1,
   status TEXT DEFAULT 'Scheduled',
+  cancellation_reason TEXT,
   google_event_id TEXT
 );
 
