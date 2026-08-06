@@ -48,24 +48,132 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
   }
 
   // Order by publish date descending (latest week first)
-  const { data, error } = await query.order("publish_date", { ascending: false });
+  let { data, error } = await query.order("publish_date", { ascending: false });
 
   if (error) {
     console.error("Error fetching songs:", error);
     return [];
   }
 
+  // Auto-ensure "Your Dominion Is For Eternity" exists in database
+  if (data && !data.some(s => s.title?.toLowerCase() === "your dominion is for eternity")) {
+    try {
+      const { data: newSongData } = await supabaseAdmin
+        .from("sotw_songs")
+        .insert([DEFAULT_SONGS[0]])
+        .select();
+      if (newSongData) {
+        data = [...newSongData, ...(data || [])];
+      }
+    } catch (e) {
+      console.error("Failed to auto-insert new song:", e);
+    }
+  }
+
   return data || [];
 }
 
-async function seedSongs() {
-  const defaultSong = [
-    {
-      week_label: "WEEK ONE",
-      publish_date: "2026-07-26",
-      title: "The Center of Your Love",
-      artist: "Loveworld Singers",
-      lyrics: `Verse 1
+const DEFAULT_SONGS = [
+  {
+    week_label: "WEEK TWO",
+    publish_date: "2026-08-02",
+    title: "Your Dominion Is For Eternity",
+    artist: "Loveworld Singers",
+    lyrics: `Verse 1
+
+Almighty God, you are so great
+Your majesty is for eternity
+
+All the earth resounds your matchless name
+Faithful God
+Holy God
+
+We affirm and extol your mightiness
+Great God, maker of the universe
+Your excellence is seen in all the earth
+Faithful God
+Holy God
+
+
+Chorus
+
+The great I Am
+Faithful and true You are
+Righteous and lofty One
+The everlasting King of glory
+Above all royalties
+Is your holy name
+Your dominion is for eternity
+
+
+The great I Am
+Faithful and true You are
+Righteous and lofty One
+The everlasting King of glory
+Above all royalties
+Is your holy name
+Your dominion is for eternity
+Almighty God
+
+
+Verse 2
+
+Yours is the kingdom,
+The power and the glory
+All authority is in your name
+Your power is supreme
+In all the earth
+Faithful God
+Holy God
+
+
+Chorus
+
+The great I Am
+Faithful and true You are
+Righteous and lofty One
+The everlasting King of glory
+Above all royalties
+Is your holy name
+Your dominion is for eternity
+
+The great I Am
+Faithful and true You are
+Righteous and lofty One
+The everlasting King of glory
+Above all royalties
+Is your holy name
+Your dominion is for eternity
+Almighty God
+
+
+Refrain
+
+The soon coming King
+
+The Lord of Hosts
+Nations of men shall declare Your Lordship
+No more palaces and kings
+Nor Kingdoms of men
+For Your decree shall rule the nations
+
+The soon coming King
+The Lord of Hosts
+Nations of men shall declare Your Lordship
+No more palaces and kings
+Nor kingdoms of men
+For Your decree shall rule the nations
+Almighty God`,
+    audio_url: "https://loveworldworship.com/worship/upload/audio/2025/05/ZgnAPaiFdwpACTq9Nla2_11_520e043bf3f84965024552b8d3d4303c_audio_69214_converted.mp3",
+    cover_image_url: "https://loveworldworship.com/worship/upload/photos/2025/05/bpAMWIYdaCac4OiUo6UA_11_8afb422ff4aff35ce84a47bd76310acf_image.jpeg",
+    is_published: true,
+  },
+  {
+    week_label: "WEEK ONE",
+    publish_date: "2026-07-26",
+    title: "The Center of Your Love",
+    artist: "Loveworld Singers",
+    lyrics: `Verse 1
 You are the height
 The depth, the width
 And the breadth of life
@@ -124,13 +232,14 @@ Coda
 You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
-      audio_url: "https://loveworldworship.com/worship/upload/audio/2026/02/otPdGjse1C7YvxPrq5FP_21_962866e322d9272bb9434bd7d0195cf1_audio_36532_converted.mp3",
-      cover_image_url: "https://loveworldworship.com/worship/upload/photos/2026/02/ya7lrmcYnjrvsYPBrRnT_21_8e98bf661deab569e26c964f24938f08_image.jpeg",
-      is_published: true,
-    }
-  ];
+    audio_url: "https://loveworldworship.com/worship/upload/audio/2026/02/otPdGjse1C7YvxPrq5FP_21_962866e322d9272bb9434bd7d0195cf1_audio_36532_converted.mp3",
+    cover_image_url: "https://loveworldworship.com/worship/upload/photos/2026/02/ya7lrmcYnjrvsYPBrRnT_21_8e98bf661deab569e26c964f24938f08_image.jpeg",
+    is_published: true,
+  }
+];
 
-  await supabaseAdmin.from("sotw_songs").insert(defaultSong);
+async function seedSongs() {
+  await supabaseAdmin.from("sotw_songs").insert(DEFAULT_SONGS);
 }
 
 // Fetch a single song by ID
