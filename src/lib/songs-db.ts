@@ -55,10 +55,11 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
     return [];
   }
 
-  // Auto-ensure default songs exist in database
+  // Auto-ensure default songs exist in database and update any stale external URLs to self-hosted local assets
   if (data) {
     for (const defaultSong of DEFAULT_SONGS) {
-      if (!data.some(s => s.title?.toLowerCase() === defaultSong.title.toLowerCase())) {
+      const existing = data.find(s => s.title?.toLowerCase() === defaultSong.title.toLowerCase());
+      if (!existing) {
         try {
           const { data: newSongData } = await supabaseAdmin
             .from("sotw_songs")
@@ -69,6 +70,25 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
           }
         } catch (e) {
           console.error(`Failed to auto-insert default song ${defaultSong.title}:`, e);
+        }
+      } else if (
+        existing.audio_url?.includes("loveworldworship.com") ||
+        existing.cover_image_url?.includes("loveworldworship.com")
+      ) {
+        try {
+          await supabaseAdmin
+            .from("sotw_songs")
+            .update({
+              audio_url: defaultSong.audio_url,
+              cover_image_url: defaultSong.cover_image_url,
+              lyrics: defaultSong.lyrics,
+            })
+            .eq("id", existing.id);
+          existing.audio_url = defaultSong.audio_url;
+          existing.cover_image_url = defaultSong.cover_image_url;
+          existing.lyrics = defaultSong.lyrics;
+        } catch (e) {
+          console.error(`Failed to update URLs for ${defaultSong.title}:`, e);
         }
       }
     }
@@ -126,8 +146,8 @@ By Your grace
 Your thoughts of me
 Are so great
 You’re my All`,
-    audio_url: "https://loveworldworship.com/worship/upload/audio/2025/05/gqWNeWDGmz8EYaRw6n1P_21_97bd2db2be614ebe8beb0f564c844184_audio_16105_converted.mp3",
-    cover_image_url: "https://loveworldworship.com/worship/upload/photos/2025/05/ikm2mcyjpG2k1bhRRAmN_21_ea22a870d6d717660d662eafbdd180e4_image.jpeg",
+    audio_url: "/sotw/i-am-complete-in-you.mp3",
+    cover_image_url: "/sotw/i-am-complete-in-you.jpeg",
     is_published: true,
   },
   {
@@ -220,8 +240,8 @@ No more palaces and kings
 Nor kingdoms of men
 For Your decree shall rule the nations
 Almighty God`,
-    audio_url: "https://loveworldworship.com/worship/upload/audio/2025/05/ZgnAPaiFdwpACTq9Nla2_11_520e043bf3f84965024552b8d3d4303c_audio_69214_converted.mp3",
-    cover_image_url: "https://loveworldworship.com/worship/upload/photos/2025/05/bpAMWIYdaCac4OiUo6UA_11_8afb422ff4aff35ce84a47bd76310acf_image.jpeg",
+    audio_url: "/sotw/your-dominion-is-for-eternity.mp3",
+    cover_image_url: "/sotw/your-dominion-is-for-eternity.jpeg",
     is_published: true,
   },
   {
@@ -288,8 +308,8 @@ Coda
 You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
-    audio_url: "https://loveworldworship.com/worship/upload/audio/2026/02/otPdGjse1C7YvxPrq5FP_21_962866e322d9272bb9434bd7d0195cf1_audio_36532_converted.mp3",
-    cover_image_url: "https://loveworldworship.com/worship/upload/photos/2026/02/ya7lrmcYnjrvsYPBrRnT_21_8e98bf661deab569e26c964f24938f08_image.jpeg",
+    audio_url: "/sotw/the-center-of-your-love.mp3",
+    cover_image_url: "/sotw/week-one-cover.jpg",
     is_published: true,
   }
 ];
