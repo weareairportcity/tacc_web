@@ -55,7 +55,7 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
     return [];
   }
 
-  // Auto-ensure default songs exist in database and update any stale external URLs to self-hosted local assets
+  // Auto-ensure default songs exist in database and update any stale URLs to Supabase Storage CDN assets
   if (data) {
     for (const defaultSong of DEFAULT_SONGS) {
       const existing = data.find(s => s.title?.toLowerCase() === defaultSong.title.toLowerCase());
@@ -72,8 +72,8 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
           console.error(`Failed to auto-insert default song ${defaultSong.title}:`, e);
         }
       } else if (
-        existing.audio_url?.includes("loveworldworship.com") ||
-        existing.cover_image_url?.includes("loveworldworship.com")
+        !existing.audio_url?.includes("supabase.co") ||
+        !existing.cover_image_url?.includes("supabase.co")
       ) {
         try {
           await supabaseAdmin
@@ -96,6 +96,8 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
 
   return data || [];
 }
+
+const SUPABASE_STORAGE_BASE = "https://nsiaryznabnexpwuokzv.supabase.co/storage/v1/object/public/sotw-media";
 
 const DEFAULT_SONGS = [
   {
@@ -146,8 +148,8 @@ By Your grace
 Your thoughts of me
 Are so great
 You’re my All`,
-    audio_url: "/sotw/i-am-complete-in-you.mp3",
-    cover_image_url: "/sotw/i-am-complete-in-you.jpeg",
+    audio_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.mp3`,
+    cover_image_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.jpeg`,
     is_published: true,
   },
   {
@@ -240,8 +242,8 @@ No more palaces and kings
 Nor kingdoms of men
 For Your decree shall rule the nations
 Almighty God`,
-    audio_url: "/sotw/your-dominion-is-for-eternity.mp3",
-    cover_image_url: "/sotw/your-dominion-is-for-eternity.jpeg",
+    audio_url: `${SUPABASE_STORAGE_BASE}/your-dominion-is-for-eternity.mp3`,
+    cover_image_url: `${SUPABASE_STORAGE_BASE}/your-dominion-is-for-eternity.jpeg`,
     is_published: true,
   },
   {
@@ -308,8 +310,8 @@ Coda
 You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
-    audio_url: "/sotw/the-center-of-your-love.mp3",
-    cover_image_url: "/sotw/week-one-cover.jpg",
+    audio_url: `${SUPABASE_STORAGE_BASE}/the-center-of-your-love.mp3`,
+    cover_image_url: `${SUPABASE_STORAGE_BASE}/week-one-cover.jpg`,
     is_published: true,
   }
 ];
