@@ -55,18 +55,22 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
     return [];
   }
 
-  // Auto-ensure "Your Dominion Is For Eternity" exists in database
-  if (data && !data.some(s => s.title?.toLowerCase() === "your dominion is for eternity")) {
-    try {
-      const { data: newSongData } = await supabaseAdmin
-        .from("sotw_songs")
-        .insert([DEFAULT_SONGS[0]])
-        .select();
-      if (newSongData) {
-        data = [...newSongData, ...(data || [])];
+  // Auto-ensure default songs exist in database
+  if (data) {
+    for (const defaultSong of DEFAULT_SONGS) {
+      if (!data.some(s => s.title?.toLowerCase() === defaultSong.title.toLowerCase())) {
+        try {
+          const { data: newSongData } = await supabaseAdmin
+            .from("sotw_songs")
+            .insert([defaultSong])
+            .select();
+          if (newSongData) {
+            data = [...newSongData, ...data];
+          }
+        } catch (e) {
+          console.error(`Failed to auto-insert default song ${defaultSong.title}:`, e);
+        }
       }
-    } catch (e) {
-      console.error("Failed to auto-insert new song:", e);
     }
   }
 
@@ -74,6 +78,58 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
 }
 
 const DEFAULT_SONGS = [
+  {
+    week_label: "WEEK THREE",
+    publish_date: "2026-08-09",
+    title: "I Am Complete In You",
+    artist: "Loveworld Singers",
+    lyrics: `Verse 1
+
+Precious Lord, Your amazing love
+You displayed at Calvary
+Made a show of Your foes
+Triumphed over them for me
+
+
+Chorus
+
+I am complete in You
+The head over all rule and power
+In heaven and earth
+Great God of strength
+Eternal King, Light of my life
+I am complete in You
+
+
+Verse 2
+
+In Your name, I triumph
+I'm victorious over all
+By Your Spirit, You lead and guide me
+Lord, Your word is my delight
+
+
+Bridge
+
+Dear Lord Jesus, You're my delight
+My hope and joy
+(My hope and joy)
+Full of compassion
+Boundless in mercy
+You are my life
+
+
+Refrain
+
+You called me and chose me
+By Your grace
+Your thoughts of me
+Are so great
+You’re my All`,
+    audio_url: "https://loveworldworship.com/worship/upload/audio/2025/05/gqWNeWDGmz8EYaRw6n1P_21_97bd2db2be614ebe8beb0f564c844184_audio_16105_converted.mp3",
+    cover_image_url: "https://loveworldworship.com/worship/upload/photos/2025/05/ikm2mcyjpG2k1bhRRAmN_21_ea22a870d6d717660d662eafbdd180e4_image.jpeg",
+    is_published: true,
+  },
   {
     week_label: "WEEK TWO",
     publish_date: "2026-08-02",
