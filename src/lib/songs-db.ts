@@ -55,7 +55,7 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
     return [];
   }
 
-  // Auto-ensure default songs exist in database and update any stale URLs to Supabase Storage CDN assets
+  // Auto-ensure default songs exist in database and update any stale URLs or week labels to Spotify studio assets
   if (data) {
     for (const defaultSong of DEFAULT_SONGS) {
       const existing = data.find(s => s.title?.toLowerCase() === defaultSong.title.toLowerCase());
@@ -71,19 +71,18 @@ export async function getSongs(onlyPublished = false): Promise<Song[]> {
         } catch (e) {
           console.error(`Failed to auto-insert default song ${defaultSong.title}:`, e);
         }
-      } else if (
-        !existing.audio_url?.includes("supabase.co") ||
-        !existing.cover_image_url?.includes("supabase.co")
-      ) {
+      } else {
         try {
           await supabaseAdmin
             .from("sotw_songs")
             .update({
+              week_label: defaultSong.week_label,
               audio_url: defaultSong.audio_url,
               cover_image_url: defaultSong.cover_image_url,
               lyrics: defaultSong.lyrics,
             })
             .eq("id", existing.id);
+          existing.week_label = defaultSong.week_label;
           existing.audio_url = defaultSong.audio_url;
           existing.cover_image_url = defaultSong.cover_image_url;
           existing.lyrics = defaultSong.lyrics;
@@ -103,53 +102,89 @@ const DEFAULT_SONGS = [
   {
     week_label: "WEEK THREE",
     publish_date: "2026-08-09",
-    title: "I Am Complete In You",
+    title: "The King",
     artist: "Loveworld Singers",
     lyrics: `Verse 1
 
-Precious Lord, Your amazing love
-You displayed at Calvary
-Made a show of Your foes
-Triumphed over them for me
+With your blood, you paid for every soul
+And gave us a name so man can be saved
+Lord Jesus, you know all by name
+And we'll make the world know your name
+
+Heaven and earth shall pass away
+But your word, our anchor for each day
+Some have the sun and the stars as gods
+Folly's the wisdom of men
+
+
+Pre-Chorus
+
+Lord Christ, you're the first begotten
+And the Creator divine, you are
 
 
 Chorus
 
-I am complete in You
-The head over all rule and power
-In heaven and earth
-Great God of strength
-Eternal King, Light of my life
-I am complete in You
+King of heaven
+Our Lord on high
+The King of the city of lights
+The Son of God, you are
+Beyond duty
+We raise our hands in praise
+Too much for words for us
+Is your love
 
 
 Verse 2
 
-In Your name, I triumph
-I'm victorious over all
-By Your Spirit, You lead and guide me
-Lord, Your word is my delight
+The world gives powerless thrones
+The power of the world is no power at all
+Humble on earth, the King from above
+To you, there's nothing unknown
+
+You do not change nor age with time
+You dwell not in past, present, nor future
+That's why you gave us a life so divine
+A life beyond time
 
 
-Bridge
+Pre-Chorus
 
-Dear Lord Jesus, You're my delight
-My hope and joy
-(My hope and joy)
-Full of compassion
-Boundless in mercy
-You are my life
+Lord Christ, you're the first begotten
+And the Creator divine, you are
+
+
+Chorus
+
+King of heaven
+Our Lord on high
+The King of the city of lights
+The Son of God, you are
+Beyond duty
+We raise our hands in praise
+Too much for words for us
+Is your love
 
 
 Refrain
 
-You called me and chose me
-By Your grace
-Your thoughts of me
-Are so great
-You’re my All`,
-    audio_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.mp3`,
-    cover_image_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.jpeg`,
+There's no depth
+There's no height
+There's no power
+In this world
+And the world to come
+That can separate us from your love
+Christ, the King
+
+
+Coda
+
+Beyond duty
+We raise our hands in praise
+Too much for words for us
+Is your love`,
+    audio_url: `${SUPABASE_STORAGE_BASE}/the-king.mp3`,
+    cover_image_url: `${SUPABASE_STORAGE_BASE}/the-king.jpeg`,
     is_published: true,
   },
   {
@@ -311,7 +346,59 @@ You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
     audio_url: `${SUPABASE_STORAGE_BASE}/the-center-of-your-love.mp3`,
-    cover_image_url: `${SUPABASE_STORAGE_BASE}/week-one-cover.jpg`,
+    cover_image_url: `${SUPABASE_STORAGE_BASE}/the-center-of-your-love.jpeg`,
+    is_published: true,
+  },
+  {
+    week_label: "BONUS",
+    publish_date: "2026-07-19",
+    title: "I Am Complete In You",
+    artist: "Loveworld Singers",
+    lyrics: `Verse 1
+
+Precious Lord, Your amazing love
+You displayed at Calvary
+Made a show of Your foes
+Triumphed over them for me
+
+
+Chorus
+
+I am complete in You
+The head over all rule and power
+In heaven and earth
+Great God of strength
+Eternal King, Light of my life
+I am complete in You
+
+
+Verse 2
+
+In Your name, I triumph
+I'm victorious over all
+By Your Spirit, You lead and guide me
+Lord, Your word is my delight
+
+
+Bridge
+
+Dear Lord Jesus, You're my delight
+My hope and joy
+(My hope and joy)
+Full of compassion
+Boundless in mercy
+You are my life
+
+
+Refrain
+
+You called me and chose me
+By Your grace
+Your thoughts of me
+Are so great
+You’re my All`,
+    audio_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.mp3`,
+    cover_image_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.jpeg`,
     is_published: true,
   }
 ];
