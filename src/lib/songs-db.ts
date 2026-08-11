@@ -350,8 +350,8 @@ The highest, the fairest, oh Lord`,
     is_published: true,
   },
   {
-    week_label: "BONUS",
-    publish_date: "2026-07-19",
+    week_label: "WEEK THREE",
+    publish_date: "2026-08-09",
     title: "I Am Complete In You",
     artist: "Loveworld Singers",
     lyrics: `Verse 1
