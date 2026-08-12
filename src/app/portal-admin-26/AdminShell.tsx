@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import {
   LayoutDashboard, Users, Building2, Handshake, Settings, Map,
-  Flame, LogOut, Loader2, X, ChevronRight
+  Flame, LogOut, Loader2, X, ChevronRight, Layers
 } from "lucide-react";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ export function useAdminCtx() { return useContext(AdminContext); }
 const NAV = [
   { label: "Overview",     href: "/portal-admin-26",             icon: LayoutDashboard },
   { label: "People",       href: "/portal-admin-26/people",      icon: Users },
+  { label: "Groups",       href: "/portal-admin-26/groups",      icon: Layers },
   { label: "Rooms",        href: "/portal-admin-26/rooms",       icon: Building2 },
   { label: "Fellowships",  href: "/portal-admin-26/fellowships", icon: Handshake },
   { label: "My Camps",     href: "/portal-admin-26/camps",       icon: Map },

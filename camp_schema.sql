@@ -53,6 +53,26 @@ CREATE TABLE IF NOT EXISTS rooms (
 ALTER TABLE attendees
   ADD CONSTRAINT fk_attendees_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL;
 
+-- 5. Groups Table (Pairings imported via CSV)
+CREATE TABLE IF NOT EXISTS groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  camp_id UUID NOT NULL REFERENCES camps(id) ON DELETE CASCADE,
+  group_number INT NOT NULL,
+  room_type_preference TEXT,
+  room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(camp_id, group_number)
+);
+
+-- Add group_id FK to attendees
+ALTER TABLE attendees
+  ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL;
+
+-- Supabase Storage bucket for camp logos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('camp-logos', 'camp-logos', true)
+ON CONFLICT DO NOTHING;
+
 -- Index for ultra-fast public search
 CREATE INDEX IF NOT EXISTS idx_attendees_full_name ON attendees(full_name text_pattern_ops);
 CREATE INDEX IF NOT EXISTS idx_attendees_camp_id ON attendees(camp_id);

@@ -36,6 +36,16 @@ export type FellowshipGroup = {
   unassigned: AttendeeAdmin[];
 };
 
+export type Group = {
+  id: string;
+  camp_id: string;
+  group_number: number;
+  room_type_preference?: string;
+  room_id?: string;
+  members?: AttendeeAdmin[];
+  created_at: string;
+};
+
 export type Coordinator = {
   id: string;
   camp_id: string;
@@ -387,4 +397,153 @@ export async function sendRoomAssignmentSMSAction(params: {
   const message = `Hi ${params.name}, your camp room is ${params.roomNumber} (${params.roomType}). ${params.keyBearer} has the key. – TACC Camp Meeting`;
   const ok = await sendSMS(phone, message);
   return { success: ok };
+}
+
+// ─── Admin — Groups ───────────────────────────────────────────────────────────
+
+let LOCAL_GROUPS_STORE: Group[] = [];
+
+export async function getGroupsAction(campId: string): Promise<Group[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("groups")
+      .select("*")
+      .eq("camp_id", campId)
+      .order("group_number");
+    if (!error && data && data.length > 0) {
+      // Attach members
+      const attendees = await getAdminAttendees(campId);
+      return data.map((g: any) => ({
+        ...g,
+        members: attendees.filter(a => (a as any).group_id === g.id),
+      }));
+    }
+  } catch {}
+
+  const attendees = LOCAL_ATTENDEES_STORE.filter(a => a.camp_id === campId || !a.camp_id);
+  return LOCAL_GROUPS_STORE
+    .filter(g => g.camp_id === campId)
+    .map(g => ({ ...g, members: attendees.filter(a => (a as any).group_id === g.id) }));
+}
+
+export async function importGroupsFromCSVAction(
+  campId: string,
+  rows: Array<{ full_name: string; fellowship: string; group_id: string; phone_number?: string }>,
+  roomTypePreference: string
+): Promise<{ success: boolean; groupsCreated: number; peopleCreated: number; error?: string }> {
+  // Group rows by group_id value
+  const groupMap = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = String(row.group_id).trim();
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(row);
+  }
+
+  const existingGroups = LOCAL_GROUPS_STORE.filter(g => g.camp_id === campId);
+  const nextGroupNumber = existingGroups.length > 0
+    ? Math.max(...existingGroups.map(g => g.group_number)) + 1
+    : 1;
+
+  let groupsCreated = 0;
+  let peopleCreated = 0;
+  let groupCounter = nextGroupNumber;
+
+  for (const [, members] of groupMap.entries()) {
+    const groupId = `group_${Date.now()}_${groupCounter}`;
+    const newGroup: Group = {
+      id: groupId,
+      camp_id: campId,
+      group_number: groupCounter++,
+      room_type_preference: roomTypePreference,
+      created_at: new Date().toISOString(),
+    };
+    LOCAL_GROUPS_STORE.push(newGroup);
+    groupsCreated++;
+
+    for (const member of members) {
+      const personId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+      const newAttendee: any = {
+        id: personId,
+        camp_id: campId,
+        full_name: member.full_name.trim(),
+        fellowship: member.fellowship?.trim() || "General",
+        room_type: "",
+        room_number: "",
+        key_bearer: "",
+        room_id: undefined,
+        group_id: groupId,
+        phone_number: member.phone_number || "",
+        created_at: new Date().toISOString(),
+      };
+      LOCAL_ATTENDEES_STORE.unshift(newAttendee);
+      peopleCreated++;
+    }
+  }
+
+  return { success: true, groupsCreated, peopleCreated };
+}
+
+export async function assignGroupToRoomAction(
+  groupId: string,
+  roomId: string
+): Promise<{ success: boolean; error?: string }> {
+  const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
+  if (!room) return { success: false, error: "Room not found" };
+
+  // Update group's room_id
+  LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
+    g.id === groupId ? { ...g, room_id: roomId } : g
+  );
+
+  // Update all attendees in this group
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+    (a as any).group_id === groupId
+      ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
+      : a
+  );
+
+  return { success: true };
+}
+
+export async function unassignGroupFromRoomAction(groupId: string): Promise<{ success: boolean }> {
+  LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
+    g.id === groupId ? { ...g, room_id: undefined } : g
+  );
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+    (a as any).group_id === groupId
+      ? { ...a, room_id: undefined, room_number: "", room_type: "" }
+      : a
+  );
+  return { success: true };
+}
+
+export async function deleteGroupAction(groupId: string): Promise<{ success: boolean }> {
+  // Remove attendees that belong to this group
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => (a as any).group_id !== groupId);
+  LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.filter(g => g.id !== groupId);
+  return { success: true };
+}
+
+// ─── Admin — Logo Upload ──────────────────────────────────────────────────────
+
+export async function uploadCampLogoAction(
+  campId: string,
+  fileBase64: string,
+  fileName: string,
+  mimeType: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const buffer = Buffer.from(fileBase64, "base64");
+    const path = `${campId}/${Date.now()}_${fileName}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("camp-logos")
+      .upload(path, buffer, { contentType: mimeType, upsert: true });
+    if (uploadError) throw uploadError;
+    const { data } = supabaseAdmin.storage.from("camp-logos").getPublicUrl(path);
+    await updateCampAction(campId, { logoUrl: data.publicUrl });
+    return { success: true, url: data.publicUrl };
+  } catch (err: any) {
+    // Fallback: return a placeholder so UI doesn't break
+    return { success: false, error: err?.message || "Upload failed" };
+  }
 }

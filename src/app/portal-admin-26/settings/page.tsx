@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useTransition, useRef } from "react";
 import {
-  Settings, Lock, Plus, Trash2, Loader2, X, ShieldCheck, AlertTriangle
+  Settings, Lock, Plus, Trash2, Loader2, X, ShieldCheck, Upload, ImageIcon
 } from "lucide-react";
 import {
   getCampByToken, updateCampAction, getCoordinatorsAction,
-  addCoordinatorAction, removeCoordinatorAction,
+  addCoordinatorAction, removeCoordinatorAction, uploadCampLogoAction,
   Coordinator, CampDetails
 } from "../../camp/actions";
 import { useAdminCtx } from "../AdminShell";
@@ -47,14 +47,41 @@ export default function SettingsPage() {
   // Camp edit form state
   const [campName, setCampName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState("");
   const [roomTypes, setRoomTypes] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
 
   const [isPending, startTransition] = useTransition();
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setLogoError("Please select an image file."); return; }
+    if (file.size > 5 * 1024 * 1024) { setLogoError("Image must be under 5MB."); return; }
+    setLogoError("");
+    setLogoUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = (ev.target?.result as string).split(",")[1];
+      const res = await uploadCampLogoAction(campId, base64, file.name, file.type);
+      setLogoUploading(false);
+      if (res.success && res.url) {
+        setLogoUrl(res.url);
+      } else {
+        // Show preview locally even if Supabase Storage isn't set up yet
+        const localUrl = URL.createObjectURL(file);
+        setLogoUrl(localUrl);
+        if (res.error) setLogoError(`Uploaded locally (Storage not configured: ${res.error})`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const load = async () => {
     const [c, coordList] = await Promise.all([
@@ -127,16 +154,38 @@ export default function SettingsPage() {
                 className="w-full px-3 py-2 bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1">Camp Logo URL</label>
-              <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..."
-                className="w-full px-3 py-2 bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
-              {logoUrl && (
-                <div className="mt-2 flex items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={logoUrl} alt="Logo preview" className="w-10 h-10 rounded object-cover border border-[#e8e6e5]" onError={e => (e.currentTarget.style.display = "none")} />
-                  <span className="text-[11px] text-[#a8a29e]">Logo preview</span>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-2">Camp Logo</label>
+              <div
+                onClick={() => logoInputRef.current?.click()}
+                className="flex items-center gap-3 p-3 bg-[#fafaf9] border border-dashed border-[#d6d3d1] rounded-[8px] cursor-pointer hover:border-[#3ba6f1] transition-colors group">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="Camp logo" className="w-12 h-12 rounded object-cover border border-[#e8e6e5] shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0">
+                    <ImageIcon size={18} className="text-[#a8a29e]" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  {logoUploading ? (
+                    <div className="flex items-center gap-1.5 text-xs text-[#78716c]"><Loader2 size={13} className="animate-spin" /> Uploading...</div>
+                  ) : (
+                    <>
+                      <div className="text-xs font-medium text-[#0c0a09]">{logoUrl ? "Change logo" : "Upload logo"}</div>
+                      <div className="text-[10px] text-[#a8a29e]">PNG, JPG or SVG · Max 5MB</div>
+                    </>
+                  )}
                 </div>
-              )}
+                <Upload size={14} className="ml-auto text-[#a8a29e] group-hover:text-[#3ba6f1] transition-colors shrink-0" />
+              </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              {logoError && <p className="text-[10px] text-amber-600 mt-1">{logoError}</p>}
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-2">Room Categories</label>
