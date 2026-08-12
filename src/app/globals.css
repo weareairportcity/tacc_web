@@ -22,6 +22,22 @@
   --radius-lg: 1.25rem;
   --radius-xl: 2rem;
 
+  /* Seline Analytics Theme Tokens */
+  --color-stone-canvas: #fafaf9;
+  --color-pure-white: #ffffff;
+  --color-stone-border: #e8e6e5;
+  --color-stone-muted: #d6d3d1;
+  --color-ash-gray: #a8a29e;
+  --color-warm-gray: #78716c;
+  --color-ink-black: #0c0a09;
+  --color-soot: #1c1917;
+  --color-sky-wash: #c1e1f7;
+  --color-cyan-signal: #3ba6f1;
+  --color-cyan-edge: #3398e1;
+
+  --shadow-seline-card: rgba(0, 0, 0, 0.05) 0px 4px 16px 0px;
+  --shadow-seline-hero: rgba(17, 12, 46, 0.12) 0px 12px 45px 0px;
+
   /* Craftwork Theme Tokens */
   --color-brand-blue: #3cc2cf;
   --color-vermillion: #f54911;
