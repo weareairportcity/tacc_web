@@ -1,28 +1,37 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import { Search, MapPin, Users, Key, Building2, Flame, Loader2, RefreshCw, Sparkles, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, MapPin, Users, Key, ChevronLeft, Building2, Flame, Loader2, X } from "lucide-react";
 import { searchCampAttendees, getRoomAssignmentDetails, AttendeePublic } from "./actions";
 
 export default function CampPublicSearchPortal() {
+  const router = useRouter();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<AttendeePublic[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<AttendeePublic | null>(null);
   const [roommates, setRoommates] = useState<AttendeePublic[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
+  const [clickCount, setClickCount] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus search bar on mount
-  useEffect(() => {
-    if (searchInputRef.current && !selectedPerson) {
-      searchInputRef.current.focus();
-    }
-  }, [selectedPerson]);
+  // Secret 3-click logo easter egg to open secret admin portal
+  const handleLogoClick = () => {
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
 
-  // 300ms debounced search keystrokes calling Server Action
+    if (newCount >= 3) {
+      setClickCount(0);
+      router.push("/portal-admin-26");
+    }
+
+    setTimeout(() => setClickCount(0), 1000);
+  };
+
+  // 300ms debounced search
   useEffect(() => {
     if (!searchTerm.trim()) {
       setSearchResults([]);
@@ -31,296 +40,204 @@ export default function CampPublicSearchPortal() {
     }
 
     setIsSearching(true);
-    const handler = setTimeout(async () => {
+    const timeoutId = setTimeout(async () => {
       const { results } = await searchCampAttendees(searchTerm);
       setSearchResults(results);
       setIsSearching(false);
     }, 300);
 
-    return () => clearTimeout(handler);
+    return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
   const handleSelectPerson = async (person: AttendeePublic) => {
-    setIsLoadingDetails(true);
-    const { person: fullPerson, roommates: roomMatesList } = await getRoomAssignmentDetails(person.id);
+    setIsLoading(true);
+    const { person: fullPerson, roommates: mates } = await getRoomAssignmentDetails(person.id);
     setSelectedPerson(fullPerson || person);
-    setRoommates(roomMatesList);
-    setIsLoadingDetails(false);
+    setRoommates(mates);
+    setIsLoading(false);
     setSearchTerm("");
     setSearchResults([]);
   };
 
-  const handleResetSearch = () => {
+  const handleBack = () => {
     setSelectedPerson(null);
-    setRoommates([]);
-    setSearchTerm("");
     setSearchResults([]);
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 100);
+    setSearchTerm("");
   };
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] text-[#78716c] font-sans antialiased flex flex-col items-center justify-between p-4 sm:p-6 md:p-8 w-full max-w-[1200px] mx-auto select-none">
+    <div className="min-h-screen w-full bg-[#fafaf9] text-[#78716c] font-sans antialiased flex flex-col items-center pt-8 px-4 sm:px-6">
       
-      {/* Top Header */}
-      <header className="w-full flex justify-between items-center py-4 mb-8 sm:mb-12">
-        <div className="flex items-center gap-2 text-[#0c0a09] font-medium text-[15px]">
-          <div className="w-8 h-8 rounded-full bg-white border border-[#e8e6e5] flex items-center justify-center text-[#3ba6f1] shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px]">
-            <Flame className="w-4 h-4 fill-current" />
-          </div>
-          <span className="font-display font-medium tracking-tight text-[#0c0a09] text-base">TACC CampFinder</span>
+      {/* Top Header Bar */}
+      <header className="w-full max-w-[1200px] flex justify-between items-center mb-12 sm:mb-20 select-none">
+        <div
+          onClick={handleLogoClick}
+          className="flex items-center gap-2 text-[#0c0a09] font-medium text-[14px] cursor-pointer hover:opacity-80 transition-opacity"
+          title="Click 3 times for Admin Portal"
+        >
+          <Flame size={16} strokeWidth={2.5} className="text-[#3ba6f1]" />
+          <span className="font-display font-medium">CampFinder</span>
         </div>
 
-        <Link
-          href="/camp/admin/create"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#e8e6e5] bg-white text-xs font-medium text-[#78716c] hover:text-[#0c0a09] hover:border-[#d6d3d1] transition-all shadow-[rgba(0,0,0,0.05)_0px_1px_2px_0px]"
+        <button
+          onClick={() => router.push("/portal-admin-26")}
+          className="text-[14px] text-[#78716c] hover:text-[#0c0a09] transition-colors cursor-pointer"
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-[#3ba6f1]" />
-          <span>Camp Staff</span>
-        </Link>
+          Portal Access
+        </button>
       </header>
 
-      {/* Main Container */}
-      <main className="w-full max-w-[560px] my-auto flex flex-col items-center">
+      {/* Main Content Container */}
+      <main className="w-full max-w-[1200px] flex-grow flex flex-col items-center">
 
-        {/* VIEW 1: SEARCH STATE */}
-        {!selectedPerson && (
-          <div className="w-full flex flex-col items-center text-center animate-fadeIn">
-            
-            {/* Header Title */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#c1e1f7]/40 text-[#3398e1] text-xs font-medium mb-6 border border-[#c1e1f7]/60">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Church Camp Meeting 2026</span>
-            </div>
-
-            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-normal text-[#0c0a09] tracking-[-0.025em] leading-[1.15] mb-4">
-              Find your <span className="text-[#3398e1] bg-[#c1e1f7] px-2.5 py-0.5 rounded-md font-normal inline-block">room & key</span>
-            </h1>
-
-            <p className="text-sm sm:text-base text-[#78716c] mb-8 max-w-[420px] leading-relaxed">
-              Search your name below to instantly view your building, assigned room number, and key bearer.
-            </p>
-
-            {/* Centered Search Bar Input */}
-            <div className="relative w-full mb-4">
-              <div className="relative flex items-center">
-                <Search className="absolute left-4 w-5 h-5 text-[#a8a29e] pointer-events-none" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Type your full name (e.g. Kwame Mensah)..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-10 py-3.5 bg-white border border-[#e8e6e5] rounded-[10px] text-base text-[#0c0a09] placeholder-[#a8a29e] focus:outline-none focus:ring-2 focus:ring-[#3ba6f1] focus:border-transparent shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] transition-all"
-                />
-                {isSearching ? (
-                  <Loader2 className="absolute right-4 w-5 h-5 text-[#3ba6f1] animate-spin" />
-                ) : searchTerm ? (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-4 text-[#a8a29e] hover:text-[#0c0a09] text-xs font-semibold uppercase tracking-wider"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-
-              {/* Skeleton Loader State */}
-              {isSearching && (
-                <div className="mt-3 w-full bg-white border border-[#e8e6e5] rounded-[10px] p-4 shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] space-y-3">
-                  <div className="h-4 bg-[#fafaf9] rounded animate-pulse w-3/4" />
-                  <div className="h-4 bg-[#fafaf9] rounded animate-pulse w-1/2" />
-                  <div className="h-4 bg-[#fafaf9] rounded animate-pulse w-2/3" />
-                </div>
-              )}
-
-              {/* Live Search Results Dropdown */}
-              {!isSearching && searchResults.length > 0 && (
-                <div className="mt-2 w-full bg-white border border-[#e8e6e5] rounded-[10px] shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] max-h-[320px] overflow-y-auto divide-y divide-[#fafaf9] text-left z-20">
-                  {searchResults.map((person) => (
-                    <button
-                      key={person.id}
-                      onClick={() => handleSelectPerson(person)}
-                      className="w-full px-4 py-3.5 hover:bg-[#fafaf9] flex items-center justify-between group transition-colors text-left"
-                    >
-                      <div>
-                        <div className="text-[#0c0a09] font-medium text-sm group-hover:text-[#3398e1] transition-colors">
-                          {person.full_name}
-                        </div>
-                        <div className="text-xs text-[#a8a29e] flex items-center gap-2 mt-0.5">
-                          <span>{person.fellowship}</span>
-                          <span>•</span>
-                          <span className="text-[#78716c] font-medium">{person.room_type}</span>
-                        </div>
-                      </div>
-                      <div className="text-xs font-mono font-semibold px-2 py-1 bg-[#fafaf9] border border-[#e8e6e5] rounded text-[#0c0a09]">
-                        {person.room_number}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* No Results Fallback */}
-              {!isSearching && searchTerm.trim().length > 2 && searchResults.length === 0 && (
-                <div className="mt-3 w-full bg-white border border-[#e8e6e5] rounded-[10px] p-6 text-center shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px]">
-                  <p className="text-sm text-[#0c0a09] font-medium mb-1">No attendee found matching "{searchTerm}"</p>
-                  <p className="text-xs text-[#a8a29e]">Please check the spelling or ask camp info desk for help.</p>
-                </div>
-              )}
-            </div>
+        {/* Global Loading Overlay */}
+        {isLoading && (
+          <div className="fixed inset-0 bg-[#fafaf9]/80 backdrop-blur-xs z-50 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-[#3ba6f1] animate-spin mb-4" />
+            <p className="font-display text-[#0c0a09] text-[20px] font-medium">Finding your room...</p>
           </div>
         )}
 
-        {/* VIEW 2: ROOM ASSIGNMENT RESULT VIEW */}
-        {selectedPerson && (
-          <div className="w-full flex flex-col items-center text-center animate-fadeIn">
+        {/* VIEW 1: SEARCH INTERFACE */}
+        {!selectedPerson && (
+          <div className="w-full max-w-2xl flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
             
-            {/* Loading Indicator when details are fetched */}
-            {isLoadingDetails ? (
-              <div className="p-12 flex flex-col items-center justify-center">
-                <Loader2 className="w-8 h-8 text-[#3ba6f1] animate-spin mb-3" />
-                <p className="text-sm text-[#78716c]">Retrieving your room assignment...</p>
+            <div className="text-center mb-10 max-w-lg">
+              <h1 className="font-display-large text-[40px] sm:text-[52px] font-normal text-[#0c0a09] leading-[1.12] mb-4 tracking-[-1.092px]">
+                Welcome to <span className="text-[#3398e1] bg-[#c1e1f7] px-2.5 py-0.5 rounded-[4px] font-normal">Camp 2026</span>
+              </h1>
+              <p className="text-[16px] leading-[1.69] text-[#78716c]">
+                Enter your name below to find your assigned room, building, and check who has the key.
+              </p>
+            </div>
+
+            {/* Search Input Container */}
+            <div className="w-full relative max-w-xl">
+              <div className="relative flex items-center w-full">
+                <Search className="absolute left-4 text-[#a8a29e] w-5 h-5 pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Enter your full name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-[#ffffff] border border-[#d6d3d1] text-[#0c0a09] text-[16px] rounded-[6px] py-4 pl-12 pr-4 focus:outline-none focus:border-[#3ba6f1] focus:ring-1 focus:ring-[#3ba6f1] transition-all placeholder:text-[#a8a29e] shadow-sm"
+                  autoFocus
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-4 w-5 h-5 text-[#3ba6f1] animate-spin" />
+                )}
               </div>
-            ) : (
-              <div className="w-full">
-                
-                {/* Person Badge */}
-                <div className="mb-6 inline-flex flex-col items-center">
-                  <h2 className="text-lg font-medium text-[#0c0a09] tracking-tight">
-                    {selectedPerson.full_name}
-                  </h2>
-                  <span className="text-xs text-[#a8a29e] uppercase tracking-wider font-medium mt-0.5">
-                    {selectedPerson.fellowship}
-                  </span>
-                </div>
 
-                {/* Main Floating Card */}
-                <div className="w-full bg-white border border-[#e8e6e5] rounded-[10px] p-8 sm:p-10 shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] flex flex-col items-center mb-8 relative overflow-hidden">
-                  
-                  {/* Subtle top cyan line indicator */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-[#3ba6f1]" />
-
-                  <span className="text-xs uppercase tracking-widest text-[#a8a29e] font-semibold mb-2">
-                    Assigned Room Number
-                  </span>
-
-                  {/* MASSIVE TYPOGRAPHY FOR ROOM NUMBER (80px+) */}
-                  <div className="font-display font-normal text-[88px] sm:text-[104px] text-[#0c0a09] leading-none tracking-[-0.04em] my-2 select-all">
-                    {selectedPerson.room_number}
-                  </div>
-
-                  {/* Room Type directly beneath */}
-                  <div className="text-base sm:text-lg text-[#0c0a09] font-medium mt-1 mb-8 flex items-center justify-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#3ba6f1]" />
-                    <span>{selectedPerson.room_type}</span>
-                  </div>
-
-                  {/* Key Bearer Box */}
-                  <div className="w-full bg-[#fafaf9] border border-[#e8e6e5] rounded-[10px] p-4 flex items-center justify-between text-left mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-[#c1e1f7] text-[#3398e1] flex items-center justify-center flex-shrink-0">
-                        <Key className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-[#a8a29e] font-medium uppercase tracking-wider">
-                          Holds Physical Key
-                        </div>
-                        <div className="text-sm font-semibold text-[#0c0a09] mt-0.5">
-                          {selectedPerson.key_bearer}
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedPerson.key_bearer.toLowerCase() === selectedPerson.full_name.toLowerCase() ? (
-                      <span className="text-[11px] font-semibold bg-[#3ba6f1] text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
-                        You Have Key
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-medium text-[#78716c] bg-white border border-[#e8e6e5] px-2.5 py-1 rounded-full">
-                        Roommate
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Roommates List */}
-                  <div className="w-full text-left pt-4 border-t border-[#e8e6e5]">
-                    <div className="text-xs font-semibold text-[#a8a29e] uppercase tracking-wider mb-3 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-[#78716c]" />
-                        Roommates ({roommates.length + 1} Total)
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {/* Self item */}
-                      <div className="p-2.5 rounded-lg bg-[#fafaf9] border border-[#e8e6e5] flex items-center justify-between text-xs">
-                        <span className="font-semibold text-[#0c0a09]">
-                          {selectedPerson.full_name} <span className="text-[#a8a29e] font-normal">(You)</span>
-                        </span>
-                        {selectedPerson.key_bearer.toLowerCase() === selectedPerson.full_name.toLowerCase() && (
-                          <span className="inline-flex items-center gap-1 text-[#3398e1] font-semibold">
-                            <Key className="w-3 h-3" /> Key Bearer
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Roommates list */}
-                      {roommates.map((rm) => {
-                        const isKeyHolder = rm.full_name.toLowerCase() === selectedPerson.key_bearer.toLowerCase();
-                        return (
-                          <div
-                            key={rm.id}
-                            className="p-2.5 rounded-lg bg-white border border-[#e8e6e5] flex items-center justify-between text-xs text-[#0c0a09]"
+              {/* Search Results Dropdown */}
+              {searchTerm.trim().length > 0 && !isSearching && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-[#ffffff] border border-[#e8e6e5] rounded-[10px] shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] overflow-hidden z-40 max-h-[300px] overflow-y-auto">
+                  {searchResults.length > 0 ? (
+                    <ul className="py-2">
+                      {searchResults.map((person) => (
+                        <li key={person.id}>
+                          <button
+                            onClick={() => handleSelectPerson(person)}
+                            className="w-full text-left px-4 py-3 hover:bg-[#fafaf9] flex flex-col gap-1 transition-colors group cursor-pointer"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{rm.full_name}</span>
-                              <span className="text-[#a8a29e]">• {rm.fellowship}</span>
-                            </div>
-                            {isKeyHolder && (
-                              <span className="inline-flex items-center gap-1 text-[#3398e1] font-semibold bg-[#c1e1f7]/50 px-2 py-0.5 rounded">
-                                <Key className="w-3 h-3" /> Key Bearer
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
+                            <span className="text-[16px] text-[#0c0a09] font-medium group-hover:text-[#3398e1] transition-colors">{person.full_name}</span>
+                            <span className="text-[13px] text-[#78716c]">{person.fellowship} • {person.room_type}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="px-4 py-8 text-center text-[#78716c] text-[14px]">
+                      No attendee found matching "{searchTerm}"
                     </div>
-                  </div>
+                  )}
                 </div>
+              )}
+            </div>
 
-                {/* Fixed "Check Another Person" Button */}
-                <div className="w-full flex justify-center">
-                  <button
-                    onClick={handleResetSearch}
-                    className="w-full sm:w-auto px-8 py-3.5 bg-[#3ba6f1] hover:bg-[#3398e1] text-white font-medium text-sm rounded-full shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Check Another Person</span>
-                  </button>
-                </div>
+            {/* Decorative Seline Line-Art Mascot Beat */}
+            <div className="mt-20 opacity-60 flex flex-col items-center pointer-events-none mb-12">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0c0a09" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(rgba(0,0,0,0.1) 0px 2px 4px)' }}>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className="text-[12px] mt-4 text-[#a8a29e]">Quiet lookup</span>
+            </div>
 
+          </div>
+        )}
+
+        {/* VIEW 2: DETAILED ROOM REVEAL */}
+        {selectedPerson && (
+          <div className="w-full max-w-2xl flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-500">
+            
+            {/* Seline Floating Hero Reveal Card */}
+            <div className="w-full bg-[#ffffff] rounded-[16px] shadow-[rgba(17,12,46,0.12)_0px_12px_45px_0px] p-8 sm:p-12 text-center mb-8 border border-[#e8e6e5]">
+              <h2 className="text-[20px] font-medium text-[#78716c] mb-1">{selectedPerson.full_name}</h2>
+              <p className="text-[14px] text-[#a8a29e] mb-8">{selectedPerson.fellowship}</p>
+              
+              <div className="font-display-large text-[80px] sm:text-[120px] font-normal text-[#0c0a09] leading-none mb-6 tracking-tighter select-all">
+                {selectedPerson.room_number}
               </div>
-            )}
 
+              <div className="text-[20px] sm:text-[24px] font-medium text-[#78716c] tracking-wide">
+                {selectedPerson.room_type}
+              </div>
+            </div>
+
+            {/* Roommates Card */}
+            <div className="w-full bg-[#ffffff] rounded-[10px] border border-[#e8e6e5] shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] p-6 sm:p-8 mb-24">
+              <h3 className="font-display text-[20px] text-[#0c0a09] mb-6 flex items-center gap-2">
+                <Users size={20} className="text-[#a8a29e]"/> 
+                Roommates
+              </h3>
+
+              <ul className="space-y-4">
+                {/* Self */}
+                <li className="flex justify-between items-center py-2 border-b border-[#fafaf9]">
+                  <span className="text-[16px] text-[#78716c]">{selectedPerson.full_name} (You)</span>
+                  {selectedPerson.key_bearer.toLowerCase() === selectedPerson.full_name.toLowerCase() && (
+                    <span className="flex items-center gap-1 text-[12px] text-[#3ba6f1] bg-[#c1e1f7]/50 px-2.5 py-1 rounded-[4px] font-medium">
+                      <Key size={12} /> Key Bearer
+                    </span>
+                  )}
+                </li>
+
+                {/* Others */}
+                {roommates.map((roommate) => {
+                  const isKeyHolder = selectedPerson.key_bearer.toLowerCase() === roommate.full_name.toLowerCase();
+                  return (
+                    <li key={roommate.id} className="flex justify-between items-center py-2 border-b border-[#fafaf9] last:border-0">
+                      <span className="text-[16px] text-[#0c0a09] font-medium">{roommate.full_name}</span>
+                      {isKeyHolder && (
+                        <span className="flex items-center gap-1 text-[12px] text-[#3ba6f1] bg-[#c1e1f7]/50 px-2.5 py-1 rounded-[4px] font-medium">
+                          <Key size={12} /> Key Bearer
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+                
+                {roommates.length === 0 && (
+                  <li className="text-[14px] text-[#a8a29e] py-2">You have the room to yourself.</li>
+                )}
+              </ul>
+            </div>
+
+            {/* Fixed Bottom Action - Seline Primary Cyan CTA Button */}
+            <div className="fixed bottom-8 left-0 right-0 flex justify-center px-4 z-10 pointer-events-none">
+              <button
+                onClick={handleBack}
+                className="pointer-events-auto bg-[#3ba6f1] hover:bg-[#3398e1] text-white border border-[#3398e1] rounded-full px-6 py-3 sm:px-8 sm:py-4 font-medium text-[16px] shadow-md transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+              >
+                <ChevronLeft size={20} />
+                Check Another Person
+              </button>
+            </div>
           </div>
         )}
 
       </main>
-
-      {/* Footer */}
-      <footer className="w-full py-6 mt-12 text-center text-xs text-[#a8a29e] border-t border-[#e8e6e5] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          © 2026 TACC Church Camp Meeting • All rights reserved
-        </div>
-        <div className="flex items-center gap-4 text-[#78716c]">
-          <Link href="/camp/admin/create" className="hover:text-[#0c0a09] transition-colors">
-            Camp Admin Dashboard
-          </Link>
-        </div>
-      </footer>
-
     </div>
   );
 }
