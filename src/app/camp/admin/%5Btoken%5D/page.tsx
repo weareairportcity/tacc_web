@@ -92,7 +92,7 @@ export default function ProtectedCampAdminDashboard() {
   // Add single attendee
   const handleAddAttendee = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !fellowship || !roomNumber || !keyBearer) {
+    if (!fullName || !fellowship) {
       alert("Please fill in all required fields.");
       return;
     }
@@ -104,7 +104,6 @@ export default function ProtectedCampAdminDashboard() {
         fellowship,
         roomType,
         roomNumber,
-        keyBearer,
         phoneNumber,
       });
 

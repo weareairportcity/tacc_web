@@ -34,17 +34,49 @@ CREATE TABLE IF NOT EXISTS attendees (
   room_number TEXT NOT NULL,
   key_bearer TEXT NOT NULL,
   encrypted_phone BYTEA,
+  room_id UUID,  -- FK to rooms, assigned via the Admin Rooms page
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 4. Rooms Table
+CREATE TABLE IF NOT EXISTS rooms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  camp_id UUID NOT NULL REFERENCES camps(id) ON DELETE CASCADE,
+  room_number TEXT NOT NULL,
+  room_type TEXT NOT NULL,
+  key_bearer_id UUID REFERENCES attendees(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(camp_id, room_number)
+);
+
+-- Add room_id FK constraint after rooms table is created
+ALTER TABLE attendees
+  ADD CONSTRAINT fk_attendees_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL;
 
 -- Index for ultra-fast public search
 CREATE INDEX IF NOT EXISTS idx_attendees_full_name ON attendees(full_name text_pattern_ops);
 CREATE INDEX IF NOT EXISTS idx_attendees_camp_id ON attendees(camp_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_camp_id ON rooms(camp_id);
 
 -- Enable RLS
 ALTER TABLE camps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE camp_admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for rooms
+CREATE POLICY "Public read rooms" ON rooms
+  FOR SELECT USING (true);
+
+CREATE POLICY "Admins can manage rooms" ON rooms
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM camps
+      WHERE camps.id = rooms.camp_id
+      AND (camps.created_by = auth.uid() OR EXISTS (SELECT 1 FROM camp_admins WHERE camp_id = camps.id AND user_id = auth.uid()))
+    )
+  );
+
 
 -- RLS Policies for camps
 CREATE POLICY "Public read access for camps" ON camps

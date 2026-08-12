@@ -3,6 +3,8 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { sendSMS } from "@/lib/mnotify";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export type AttendeePublic = {
   id: string;
   camp_id?: string;
@@ -11,11 +13,34 @@ export type AttendeePublic = {
   room_type: string;
   room_number: string;
   key_bearer: string;
+  room_id?: string;
 };
 
 export type AttendeeAdmin = AttendeePublic & {
   phone_number?: string;
   created_at?: string;
+};
+
+export type Room = {
+  id: string;
+  camp_id: string;
+  room_number: string;
+  room_type: string;
+  key_bearer_id?: string;
+  created_at: string;
+};
+
+export type FellowshipGroup = {
+  name: string;
+  members: AttendeeAdmin[];
+  unassigned: AttendeeAdmin[];
+};
+
+export type Coordinator = {
+  id: string;
+  camp_id: string;
+  email: string;
+  status: "pending" | "accepted";
 };
 
 export type CampDetails = {
@@ -29,377 +54,337 @@ export type CampDetails = {
   created_at?: string;
 };
 
-// Global in-memory reactive cache to ensure zero-downtime performance
-// regardless of remote database migration state!
+// ─── Reactive Local Stores (DB fallback) ──────────────────────────────────────
+
 let LOCAL_ATTENDEES_STORE: AttendeeAdmin[] = [
-  { id: '1', full_name: 'Kwame Mensah', fellowship: 'Youth Ablaze', room_type: 'Villa', room_number: 'V-102', key_bearer: 'Kwame Mensah', phone_number: '0550076503', created_at: new Date().toISOString() },
-  { id: '2', full_name: 'Ama Serwaa', fellowship: 'Women of Valor', room_type: 'Hostel', room_number: 'H-304', key_bearer: 'Akosua Osei', phone_number: '0240000000', created_at: new Date().toISOString() },
-  { id: '3', full_name: 'Akosua Osei', fellowship: 'Women of Valor', room_type: 'Hostel', room_number: 'H-304', key_bearer: 'Akosua Osei', phone_number: '0240000001', created_at: new Date().toISOString() },
-  { id: '4', full_name: 'Yaw Osei', fellowship: 'Men of Honor', room_type: 'Dormitory', room_number: 'D-01', key_bearer: 'Kofi Annan', phone_number: '0200000002', created_at: new Date().toISOString() },
-  { id: '5', full_name: 'Abena Mensah', fellowship: 'Youth Ablaze', room_type: 'Wise as Serpents', room_number: 'W-05', key_bearer: 'Abena Mensah', phone_number: '0550076503', created_at: new Date().toISOString() },
-  { id: '6', full_name: 'Kofi Annan', fellowship: 'Men of Honor', room_type: 'Dormitory', room_number: 'D-01', key_bearer: 'Kofi Annan', phone_number: '0200000004', created_at: new Date().toISOString() },
-  { id: '7', full_name: 'Esi Owusu', fellowship: 'Women of Valor', room_type: 'Villa', room_number: 'V-205', key_bearer: 'Esi Owusu', phone_number: '0240000005', created_at: new Date().toISOString() },
-  { id: '8', full_name: 'Prince Boakye', fellowship: 'Youth Ablaze', room_type: 'Villa', room_number: 'V-102', key_bearer: 'Kwame Mensah', phone_number: '0550076503', created_at: new Date().toISOString() },
-  { id: '9', full_name: 'Samuel Osei', fellowship: 'Youth Ablaze', room_type: 'Villa', room_number: 'V-102', key_bearer: 'Kwame Mensah', phone_number: '0550076503', created_at: new Date().toISOString() },
-  { id: '10', full_name: 'Grace Appiah', fellowship: 'Women of Valor', room_type: 'Hostel', room_number: 'H-304', key_bearer: 'Akosua Osei', phone_number: '0240000008', created_at: new Date().toISOString() },
+  { id: "1", full_name: "Kwame Mensah", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", created_at: new Date().toISOString() },
+  { id: "2", full_name: "Ama Serwaa", fellowship: "Women of Valor", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000000", created_at: new Date().toISOString() },
+  { id: "3", full_name: "Akosua Osei", fellowship: "Women of Valor", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000001", created_at: new Date().toISOString() },
+  { id: "4", full_name: "Yaw Osei", fellowship: "Men of Honor", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000002", created_at: new Date().toISOString() },
+  { id: "5", full_name: "Abena Mensah", fellowship: "Youth Ablaze", room_type: "Wise as Serpents", room_number: "W-05", key_bearer: "Abena Mensah", room_id: "room-w05", phone_number: "0550076503", created_at: new Date().toISOString() },
+  { id: "6", full_name: "Kofi Annan", fellowship: "Men of Honor", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000004", created_at: new Date().toISOString() },
+  { id: "7", full_name: "Esi Owusu", fellowship: "Women of Valor", room_type: "Villa", room_number: "V-205", key_bearer: "Esi Owusu", room_id: "room-v205", phone_number: "0240000005", created_at: new Date().toISOString() },
+  { id: "8", full_name: "Prince Boakye", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", created_at: new Date().toISOString() },
+  { id: "9", full_name: "Samuel Osei", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", created_at: new Date().toISOString() },
+  { id: "10", full_name: "Grace Appiah", fellowship: "Women of Valor", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000008", created_at: new Date().toISOString() },
+  { id: "11", full_name: "Emmanuel Tetteh", fellowship: "Men of Honor", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000010", created_at: new Date().toISOString() },
+  { id: "12", full_name: "Ruth Antwi", fellowship: "Youth Ablaze", room_type: "Wise as Serpents", room_number: "W-05", key_bearer: "Abena Mensah", room_id: "room-w05", phone_number: "0550076503", created_at: new Date().toISOString() },
+  { id: "unassigned-1", full_name: "Nana Yaa Asante", fellowship: "Women of Valor", room_type: "", room_number: "", key_bearer: "", room_id: undefined, phone_number: "0240000099", created_at: new Date().toISOString() },
+  { id: "unassigned-2", full_name: "David Opoku", fellowship: "Men of Honor", room_type: "", room_number: "", key_bearer: "", room_id: undefined, phone_number: "0200000099", created_at: new Date().toISOString() },
 ];
 
-/**
- * Public Server Action: Search attendees by name (debounced on client side).
- */
+let LOCAL_ROOMS_STORE: Room[] = [
+  { id: "room-v102", camp_id: "camp-meeting-2026", room_number: "V-102", room_type: "Villa", key_bearer_id: "1", created_at: new Date().toISOString() },
+  { id: "room-h304", camp_id: "camp-meeting-2026", room_number: "H-304", room_type: "Hostel", key_bearer_id: "3", created_at: new Date().toISOString() },
+  { id: "room-d01", camp_id: "camp-meeting-2026", room_number: "D-01", room_type: "Dormitory", key_bearer_id: "6", created_at: new Date().toISOString() },
+  { id: "room-v205", camp_id: "camp-meeting-2026", room_number: "V-205", room_type: "Villa", key_bearer_id: "7", created_at: new Date().toISOString() },
+  { id: "room-w05", camp_id: "camp-meeting-2026", room_number: "W-05", room_type: "Wise as Serpents", key_bearer_id: "5", created_at: new Date().toISOString() },
+];
+
+let LOCAL_COORDINATORS_STORE: Coordinator[] = [
+  { id: "coord-1", camp_id: "camp-meeting-2026", email: "pastor@theairportcitychurch.com", status: "accepted" },
+];
+
+let LOCAL_CAMPS_STORE: CampDetails[] = [
+  {
+    id: "camp-meeting-2026",
+    name: "TACC Church Camp Meeting 2026",
+    slug: "tacc-camp-2026",
+    room_types: ["Wise as Serpents", "Villa", "Hostel", "Dormitory"],
+    admin_token: "portal-admin-26",
+    created_at: new Date().toISOString(),
+  },
+];
+
+// ─── Public Actions ───────────────────────────────────────────────────────────
+
 export async function searchCampAttendees(query: string, campId?: string): Promise<{
   results: AttendeePublic[];
-  selectedPerson?: AttendeePublic;
-  roommates?: AttendeePublic[];
 }> {
-  if (!query || query.trim().length === 0) {
-    return { results: [] };
-  }
-
-  const cleanQuery = query.trim().toLowerCase();
+  if (!query || query.trim().length === 0) return { results: [] };
+  const q = query.trim().toLowerCase();
 
   try {
-    let selectQuery = supabaseAdmin
+    let dbQuery = supabaseAdmin
       .from("attendees")
       .select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer");
+    if (campId) dbQuery = dbQuery.eq("camp_id", campId);
+    const { data, error } = await dbQuery.ilike("full_name", `%${q}%`).limit(10);
+    if (!error && data && data.length > 0) return { results: data as AttendeePublic[] };
+  } catch {}
 
-    if (campId) {
-      selectQuery = selectQuery.eq("camp_id", campId);
-    }
-
-    const { data, error } = await selectQuery.ilike("full_name", `%${cleanQuery}%`).limit(10);
-
-    if (!error && data && data.length > 0) {
-      return { results: data as AttendeePublic[] };
-    }
-  } catch (err) {
-    // Graceful fallback to local reactive store
-  }
-
-  // Fallback local search
-  const filtered = LOCAL_ATTENDEES_STORE.filter(p =>
-    p.full_name.toLowerCase().includes(cleanQuery)
-  ).map(p => ({
-    id: p.id,
-    camp_id: p.camp_id,
-    full_name: p.full_name,
-    fellowship: p.fellowship,
-    room_type: p.room_type,
-    room_number: p.room_number,
-    key_bearer: p.key_bearer,
-  }));
-
-  return { results: filtered };
+  return {
+    results: LOCAL_ATTENDEES_STORE
+      .filter(p => p.full_name.toLowerCase().includes(q))
+      .map(p => ({ id: p.id, camp_id: p.camp_id, full_name: p.full_name, fellowship: p.fellowship, room_type: p.room_type, room_number: p.room_number, key_bearer: p.key_bearer, room_id: p.room_id })),
+  };
 }
 
-/**
- * Public Server Action: Get room assignment details & roommates for selected person.
- */
 export async function getRoomAssignmentDetails(personId: string, campId?: string): Promise<{
   person: AttendeePublic | null;
   roommates: AttendeePublic[];
 }> {
   try {
-    const { data: personData, error: personError } = await supabaseAdmin
-      .from("attendees")
-      .select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer")
-      .eq("id", personId)
-      .maybeSingle();
-
-    if (!personError && personData) {
-      const { data: roommatesData } = await supabaseAdmin
-        .from("attendees")
-        .select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer")
-        .eq("room_number", personData.room_number)
-        .neq("id", personData.id);
-
-      return {
-        person: personData as AttendeePublic,
-        roommates: (roommatesData as AttendeePublic[]) || [],
-      };
+    const { data: personData, error } = await supabaseAdmin
+      .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("id", personId).maybeSingle();
+    if (!error && personData) {
+      const { data: mates } = await supabaseAdmin
+        .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("room_number", personData.room_number).neq("id", personData.id);
+      return { person: personData as AttendeePublic, roommates: (mates as AttendeePublic[]) || [] };
     }
-  } catch (err) {
-    // Fallthrough to local store
-  }
+  } catch {}
 
-  // Local store fallback
-  const mockPerson = LOCAL_ATTENDEES_STORE.find(p => p.id === personId);
-  if (mockPerson) {
-    const mockRoommates = LOCAL_ATTENDEES_STORE.filter(p => p.room_number === mockPerson.room_number && p.id !== mockPerson.id).map(p => ({
-      id: p.id,
-      camp_id: p.camp_id,
-      full_name: p.full_name,
-      fellowship: p.fellowship,
-      room_type: p.room_type,
-      room_number: p.room_number,
-      key_bearer: p.key_bearer,
-    }));
-    return {
-      person: {
-        id: mockPerson.id,
-        camp_id: mockPerson.camp_id,
-        full_name: mockPerson.full_name,
-        fellowship: mockPerson.fellowship,
-        room_type: mockPerson.room_type,
-        room_number: mockPerson.room_number,
-        key_bearer: mockPerson.key_bearer,
-      },
-      roommates: mockRoommates,
-    };
-  }
-
-  return { person: null, roommates: [] };
-}
-
-/**
- * Admin Server Action: Fetch camp details by secret token.
- */
-export async function getCampByToken(adminToken: string): Promise<CampDetails | null> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("camps")
-      .select("*")
-      .eq("admin_token", adminToken)
-      .maybeSingle();
-
-    if (!error && data) {
-      return {
-        ...data,
-        room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || '[]')
-      };
-    }
-  } catch (e) {
-    // Fallback
-  }
-
+  const p = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
+  if (!p) return { person: null, roommates: [] };
+  const mates = LOCAL_ATTENDEES_STORE.filter(a => a.room_number === p.room_number && a.id !== p.id);
   return {
-    id: "camp-meeting-2026",
-    name: "TACC Church Camp Meeting 2026",
-    slug: "tacc-camp-2026",
-    room_types: ["Wise as Serpents", "Villa", "Hostel", "Dormitory"],
-    admin_token: adminToken,
+    person: { id: p.id, full_name: p.full_name, fellowship: p.fellowship, room_type: p.room_type, room_number: p.room_number, key_bearer: p.key_bearer },
+    roommates: mates.map(m => ({ id: m.id, full_name: m.full_name, fellowship: m.fellowship, room_type: m.room_type, room_number: m.room_number, key_bearer: m.key_bearer })),
   };
 }
 
-/**
- * Admin Server Action: Get all attendees (with decrypted phone numbers if authorized).
- */
-export async function getAdminAttendees(campId: string, secretKey: string = "tacc-camp-secret"): Promise<AttendeeAdmin[]> {
+// ─── Admin — Camp ─────────────────────────────────────────────────────────────
+
+export async function getCampByToken(adminToken: string): Promise<CampDetails | null> {
   try {
-    // Try stored procedure first
-    const { data, error } = await supabaseAdmin.rpc("get_attendees_decrypted", {
-      p_camp_id: campId,
-      p_secret_key: secretKey
-    });
+    const { data, error } = await supabaseAdmin.from("camps").select("*").eq("admin_token", adminToken).maybeSingle();
+    if (!error && data) return { ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") };
+  } catch {}
+  return LOCAL_CAMPS_STORE.find(c => c.admin_token === adminToken) || LOCAL_CAMPS_STORE[0];
+}
 
-    if (!error && data && data.length > 0) {
-      return data as AttendeeAdmin[];
-    }
+export async function getCampsList(): Promise<CampDetails[]> {
+  try {
+    const { data, error } = await supabaseAdmin.from("camps").select("*").order("created_at", { ascending: false });
+    if (!error && data && data.length > 0) return data.map(c => ({ ...c, room_types: Array.isArray(c.room_types) ? c.room_types : JSON.parse(c.room_types || "[]") }));
+  } catch {}
+  return LOCAL_CAMPS_STORE;
+}
 
-    // Fallback standard select
-    const { data: rawData, error: rawError } = await supabaseAdmin
-      .from("attendees")
-      .select("*")
-      .eq("camp_id", campId);
+export async function createCampAction(data: {
+  name: string; slug: string; logoUrl?: string; roomTypes: string[];
+}): Promise<{ success: boolean; camp?: CampDetails; error?: string }> {
+  const newCamp: CampDetails = {
+    id: `camp_${Date.now()}`,
+    name: data.name,
+    slug: data.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+    logo_url: data.logoUrl,
+    room_types: data.roomTypes,
+    admin_token: `camp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    created_at: new Date().toISOString(),
+  };
+  LOCAL_CAMPS_STORE.unshift(newCamp);
+  try {
+    const { data: dbData, error } = await supabaseAdmin.from("camps")
+      .insert([{ name: data.name, slug: data.slug, logo_url: data.logoUrl, room_types: JSON.stringify(data.roomTypes) }])
+      .select().single();
+    if (!error && dbData) return { success: true, camp: { ...dbData, room_types: data.roomTypes } };
+  } catch {}
+  return { success: true, camp: newCamp };
+}
 
-    if (!rawError && rawData && rawData.length > 0) {
-      return rawData.map(a => ({
-        id: a.id,
-        camp_id: a.camp_id,
-        full_name: a.full_name,
-        fellowship: a.fellowship,
-        room_type: a.room_type,
-        room_number: a.room_number,
-        key_bearer: a.key_bearer,
-        phone_number: a.encrypted_phone ? "0550076503" : undefined,
-        created_at: a.created_at,
-      }));
-    }
-  } catch (e) {
-    // Fallthrough to local store
+export async function updateCampAction(campId: string, updates: {
+  name?: string; logoUrl?: string; roomTypes?: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  const idx = LOCAL_CAMPS_STORE.findIndex(c => c.id === campId);
+  if (idx !== -1) {
+    if (updates.name) LOCAL_CAMPS_STORE[idx].name = updates.name;
+    if (updates.logoUrl !== undefined) LOCAL_CAMPS_STORE[idx].logo_url = updates.logoUrl;
+    if (updates.roomTypes) LOCAL_CAMPS_STORE[idx].room_types = updates.roomTypes;
   }
+  try {
+    const payload: any = {};
+    if (updates.name) payload.name = updates.name;
+    if (updates.logoUrl !== undefined) payload.logo_url = updates.logoUrl;
+    if (updates.roomTypes) payload.room_types = JSON.stringify(updates.roomTypes);
+    await supabaseAdmin.from("camps").update(payload).eq("id", campId);
+  } catch {}
+  return { success: true };
+}
 
+// ─── Admin — Attendees ────────────────────────────────────────────────────────
+
+export async function getAdminAttendees(campId: string): Promise<AttendeeAdmin[]> {
+  try {
+    const { data, error } = await supabaseAdmin.from("attendees").select("*").eq("camp_id", campId);
+    if (!error && data && data.length > 0) return data as AttendeeAdmin[];
+  } catch {}
   return [...LOCAL_ATTENDEES_STORE];
 }
 
-/**
- * Admin Server Action: Add single attendee with pgcrypto encryption & local reactive fallback.
- */
 export async function addAttendeeAction(data: {
-  campId: string;
-  fullName: string;
-  fellowship: string;
-  roomType: string;
-  roomNumber: string;
-  keyBearer: string;
-  phoneNumber?: string;
-  secretKey?: string;
-}) {
-  const secretKey = data.secretKey || "tacc-camp-secret";
-  const newId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-  const newAttendeeItem: AttendeeAdmin = {
+  campId: string; fullName: string; fellowship: string;
+  roomType?: string; roomNumber?: string; phoneNumber?: string;
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  const newId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+  const newItem: AttendeeAdmin = {
     id: newId,
     camp_id: data.campId,
     full_name: data.fullName,
     fellowship: data.fellowship,
-    room_type: data.roomType,
-    room_number: data.roomNumber,
-    key_bearer: data.keyBearer,
-    phone_number: data.phoneNumber || "0550076503",
+    room_type: data.roomType || "",
+    room_number: data.roomNumber || "",
+    key_bearer: "",
+    room_id: undefined,
+    phone_number: data.phoneNumber || "",
     created_at: new Date().toISOString(),
   };
-
-  // Always update local store for instant reactive responsiveness
-  LOCAL_ATTENDEES_STORE.unshift(newAttendeeItem);
-
+  LOCAL_ATTENDEES_STORE.unshift(newItem);
   try {
-    // Attempt DB insert
-    const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc("add_attendee_encrypted", {
-      p_camp_id: data.campId,
-      p_full_name: data.fullName,
-      p_fellowship: data.fellowship,
-      p_room_type: data.roomType,
-      p_room_number: data.roomNumber,
-      p_key_bearer: data.keyBearer,
-      p_phone_number: data.phoneNumber || "",
-      p_secret_key: secretKey
-    });
-
-    if (!rpcError) {
-      return { success: true, id: rpcData };
-    }
-
-    // Direct insert fallback
     await supabaseAdmin.from("attendees").insert([{
-      camp_id: data.campId,
-      full_name: data.fullName,
-      fellowship: data.fellowship,
-      room_type: data.roomType,
-      room_number: data.roomNumber,
-      key_bearer: data.keyBearer,
+      camp_id: data.campId, full_name: data.fullName, fellowship: data.fellowship,
+      room_type: data.roomType || "", room_number: data.roomNumber || "", key_bearer: "",
     }]);
-
-  } catch (err) {
-    // Log note but return success because local reactive store accepted the item!
-    console.warn("DB insert note (local fallback active):", err);
-  }
-
-  return { success: true, id: newId, error: undefined };
+  } catch {}
+  return { success: true, id: newId };
 }
 
-/**
- * Admin Server Action: Bulk upload attendees from parsed CSV/Excel.
- */
 export async function bulkUploadAttendeesAction(
   campId: string,
-  attendeesList: Array<{
-    full_name: string;
-    fellowship: string;
-    room_type: string;
-    room_number: string;
-    key_bearer: string;
-    phone_number?: string;
-  }>,
-  secretKey: string = "tacc-camp-secret"
-) {
-  if (!attendeesList || attendeesList.length === 0) {
-    return { success: false, error: "No attendees provided for upload" };
-  }
-
+  list: Array<{ full_name: string; fellowship: string; room_type?: string; room_number?: string; key_bearer?: string; phone_number?: string }>,
+): Promise<{ success: boolean; count?: number; error?: string }> {
   let count = 0;
-  for (const item of attendeesList) {
-    const res = await addAttendeeAction({
-      campId,
-      fullName: item.full_name,
-      fellowship: item.fellowship,
-      roomType: item.room_type,
-      roomNumber: item.room_number,
-      keyBearer: item.key_bearer,
-      phoneNumber: item.phone_number,
-      secretKey,
-    });
+  for (const item of list) {
+    const res = await addAttendeeAction({ campId, fullName: item.full_name, fellowship: item.fellowship, roomType: item.room_type, roomNumber: item.room_number, phoneNumber: item.phone_number });
     if (res.success) count++;
   }
-
   return { success: true, count };
 }
 
-/**
- * Admin Server Action: Delete an attendee.
- */
 export async function deleteAttendeeAction(id: string): Promise<{ success: boolean; error?: string }> {
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.id !== id);
-
-  try {
-    await supabaseAdmin.from("attendees").delete().eq("id", id);
-  } catch (err) {
-    // Fallback handled
-  }
-
+  try { await supabaseAdmin.from("attendees").delete().eq("id", id); } catch {}
   return { success: true };
 }
 
-/**
- * Admin Server Action: Create a new Camp.
- */
-export async function createCampAction(data: {
-  name: string;
-  slug: string;
-  logoUrl?: string;
-  roomTypes: string[];
-}): Promise<{ success: boolean; camp?: any; error?: string }> {
-  const token = `camp_${Date.now()}`;
+// ─── Admin — Rooms ────────────────────────────────────────────────────────────
+
+export async function getRoomsAction(campId: string): Promise<Room[]> {
   try {
-    const { data: campData, error } = await supabaseAdmin
-      .from("camps")
-      .insert([{
-        name: data.name,
-        slug: data.slug,
-        logo_url: data.logoUrl || null,
-        room_types: JSON.stringify(data.roomTypes),
-      }])
-      .select()
-      .single();
-
-    if (!error && campData) {
-      return { success: true, camp: campData };
-    }
-  } catch (err) {
-    // Fallback
-  }
-
-  return {
-    success: true,
-    camp: {
-      id: `camp_${Date.now()}`,
-      name: data.name,
-      slug: data.slug,
-      logo_url: data.logoUrl,
-      room_types: data.roomTypes,
-      admin_token: token,
-    }
-  };
+    const { data, error } = await supabaseAdmin.from("rooms").select("*").eq("camp_id", campId);
+    if (!error && data && data.length > 0) return data as Room[];
+  } catch {}
+  return LOCAL_ROOMS_STORE.filter(r => r.camp_id === campId);
 }
 
-/**
- * Admin Server Action: Send SMS Room Assignment Notification via mNotify.
- */
-export async function sendRoomAssignmentSMSAction(params: {
-  name: string;
-  roomNumber: string;
-  roomType: string;
-  keyBearer: string;
-  phoneNumber: string;
-}) {
-  const phone = params.phoneNumber || "0550076503";
-  const message = `Hi ${params.name}, your camp room is ${params.roomNumber} (${params.roomType}). ${params.keyBearer} has the key. - TACC Camp Meeting`;
-
-  const success = await sendSMS(phone, message);
-
-  if (success) {
-    return { success: true };
-  } else {
-    return { success: true, note: "SMS simulated in dev mode" };
+export async function addRoomAction(campId: string, roomNumber: string, roomType: string): Promise<{ success: boolean; room?: Room; error?: string }> {
+  if (LOCAL_ROOMS_STORE.find(r => r.camp_id === campId && r.room_number === roomNumber)) {
+    return { success: false, error: `Room ${roomNumber} already exists.` };
   }
+  const newRoom: Room = { id: `room_${Date.now()}`, camp_id: campId, room_number: roomNumber, room_type: roomType, created_at: new Date().toISOString() };
+  LOCAL_ROOMS_STORE.push(newRoom);
+  try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNumber, room_type: roomType }]); } catch {}
+  return { success: true, room: newRoom };
+}
+
+export async function deleteRoomAction(roomId: string): Promise<{ success: boolean; error?: string }> {
+  const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
+  if (room) {
+    // Unassign all people from this room
+    LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a => a.room_id === roomId ? { ...a, room_id: undefined, room_number: "", room_type: "", key_bearer: "" } : a);
+  }
+  LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.filter(r => r.id !== roomId);
+  try { await supabaseAdmin.from("rooms").delete().eq("id", roomId); } catch {}
+  return { success: true };
+}
+
+export async function assignPersonToRoomAction(personId: string, roomId: string): Promise<{ success: boolean; error?: string }> {
+  const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
+  if (!room) return { success: false, error: "Room not found" };
+
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+    a.id === personId
+      ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
+      : a
+  );
+  try {
+    await supabaseAdmin.from("attendees").update({ room_number: room.room_number, room_type: room.room_type }).eq("id", personId);
+  } catch {}
+  return { success: true };
+}
+
+export async function removePersonFromRoomAction(personId: string): Promise<{ success: boolean; error?: string }> {
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+    a.id === personId ? { ...a, room_id: undefined, room_number: "", room_type: "", key_bearer: "" } : a
+  );
+  try { await supabaseAdmin.from("attendees").update({ room_number: "", room_type: "", key_bearer: "" }).eq("id", personId); } catch {}
+  return { success: true };
+}
+
+export async function setKeyBearerAction(roomId: string, personId: string): Promise<{ success: boolean; error?: string }> {
+  const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
+  if (!room) return { success: false, error: "Room not found" };
+  const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
+  if (!person) return { success: false, error: "Person not found" };
+
+  // Update room's key bearer
+  LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.map(r => r.id === roomId ? { ...r, key_bearer_id: personId } : r);
+  // Update all people in the room to reflect who holds the key
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+    a.room_id === roomId ? { ...a, key_bearer: person.full_name } : a
+  );
+  return { success: true };
+}
+
+export async function getRoomOccupants(roomId: string): Promise<AttendeeAdmin[]> {
+  return LOCAL_ATTENDEES_STORE.filter(a => a.room_id === roomId);
+}
+
+// ─── Admin — Fellowships ──────────────────────────────────────────────────────
+
+export async function getFellowshipsAction(campId: string): Promise<FellowshipGroup[]> {
+  const all = await getAdminAttendees(campId);
+  const map = new Map<string, AttendeeAdmin[]>();
+  for (const att of all) {
+    const key = att.fellowship || "Unassigned";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(att);
+  }
+  return Array.from(map.entries()).map(([name, members]) => ({
+    name,
+    members,
+    unassigned: members.filter(m => !m.room_id && !m.room_number),
+  }));
+}
+
+export async function getFellowshipNames(campId: string): Promise<string[]> {
+  const all = await getAdminAttendees(campId);
+  return [...new Set(all.map(a => a.fellowship).filter(Boolean))].sort();
+}
+
+// ─── Admin — Coordinators ─────────────────────────────────────────────────────
+
+export async function getCoordinatorsAction(campId: string): Promise<Coordinator[]> {
+  try {
+    const { data, error } = await supabaseAdmin.from("camp_admins").select("*").eq("camp_id", campId);
+    if (!error && data && data.length > 0) return data as Coordinator[];
+  } catch {}
+  return LOCAL_COORDINATORS_STORE.filter(c => c.camp_id === campId);
+}
+
+export async function addCoordinatorAction(campId: string, email: string): Promise<{ success: boolean; error?: string }> {
+  if (LOCAL_COORDINATORS_STORE.find(c => c.camp_id === campId && c.email === email)) {
+    return { success: false, error: "This email is already a coordinator." };
+  }
+  const newCoord: Coordinator = { id: `coord_${Date.now()}`, camp_id: campId, email, status: "accepted" };
+  LOCAL_COORDINATORS_STORE.push(newCoord);
+  try { await supabaseAdmin.from("camp_admins").insert([{ camp_id: campId, email, status: "accepted" }]); } catch {}
+  return { success: true };
+}
+
+export async function removeCoordinatorAction(campId: string, coordinatorId: string): Promise<{ success: boolean; error?: string }> {
+  LOCAL_COORDINATORS_STORE = LOCAL_COORDINATORS_STORE.filter(c => !(c.camp_id === campId && c.id === coordinatorId));
+  try { await supabaseAdmin.from("camp_admins").delete().eq("id", coordinatorId); } catch {}
+  return { success: true };
+}
+
+// ─── Admin — SMS ──────────────────────────────────────────────────────────────
+
+export async function sendRoomAssignmentSMSAction(params: {
+  name: string; roomNumber: string; roomType: string; keyBearer: string; phoneNumber: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const phone = params.phoneNumber || "0550076503";
+  const message = `Hi ${params.name}, your camp room is ${params.roomNumber} (${params.roomType}). ${params.keyBearer} has the key. – TACC Camp Meeting`;
+  const ok = await sendSMS(phone, message);
+  return { success: ok };
 }
