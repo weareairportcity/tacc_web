@@ -156,13 +156,31 @@ export default function CampsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 mb-4">
+                <div className="flex flex-wrap gap-1.5 mb-3">
                   {(camp.room_types || []).slice(0, 3).map(t => (
                     <span key={t} className="text-[10px] px-2 py-0.5 bg-[#fafaf9] border border-[#e8e6e5] rounded-full text-[#78716c]">{t}</span>
                   ))}
                   {(camp.room_types || []).length > 3 && (
                     <span className="text-[10px] px-2 py-0.5 text-[#a8a29e]">+{camp.room_types.length - 3} more</span>
                   )}
+                </div>
+
+                {/* Unique public URL */}
+                <div className="mb-3 px-2.5 py-2 bg-[#fafaf9] border border-[#e8e6e5] rounded-[6px] flex items-center gap-2">
+                  <span className="text-[10px] text-[#a8a29e] shrink-0">Public URL</span>
+                  <span className="text-[10px] font-mono text-[#3398e1] truncate flex-1">
+                    /camp/{camp.slug}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}/camp/${camp.slug}`;
+                      navigator.clipboard.writeText(url);
+                    }}
+                    className="text-[10px] text-[#a8a29e] hover:text-[#3ba6f1] cursor-pointer shrink-0 px-1.5 py-0.5 rounded hover:bg-white transition-colors"
+                    title="Copy link"
+                  >
+                    Copy
+                  </button>
                 </div>
 
                 <Link
@@ -173,6 +191,7 @@ export default function CampsPage() {
                   Manage Camp <ChevronRight size={12} />
                 </Link>
               </div>
+
             );
           })}
 

@@ -163,6 +163,22 @@ export async function getCampByToken(adminToken: string): Promise<CampDetails | 
   return LOCAL_CAMPS_STORE.find(c => c.admin_token === adminToken) || LOCAL_CAMPS_STORE[0];
 }
 
+export async function getCampBySlug(slug: string): Promise<CampDetails | null> {
+  try {
+    const { data, error } = await supabaseAdmin.from("camps").select("*").eq("slug", slug).maybeSingle();
+    if (!error && data) return { ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") };
+  } catch {}
+  return LOCAL_CAMPS_STORE.find(c => c.slug === slug) || null;
+}
+
+export async function getDefaultCamp(): Promise<CampDetails | null> {
+  try {
+    const { data, error } = await supabaseAdmin.from("camps").select("*").order("created_at").limit(1).maybeSingle();
+    if (!error && data) return { ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") };
+  } catch {}
+  return LOCAL_CAMPS_STORE[0] || null;
+}
+
 export async function getCampsList(): Promise<CampDetails[]> {
   try {
     const { data, error } = await supabaseAdmin.from("camps").select("*").order("created_at", { ascending: false });
