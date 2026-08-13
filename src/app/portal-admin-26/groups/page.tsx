@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Layers, Upload, Trash2, Loader2, X, Users, ArrowRight, CheckCircle2, Home, Plus, Unlink, Phone, Calendar, Search, ShieldCheck } from "lucide-react";
 import {
   getGroupsAction, importGroupsFromCSVAction, deleteGroupAction,
+  clearCampAttendeesAndRoomsAction,
   getCampsList, getRoomsAction, addRoomAction, assignGroupToRoomAction,
   unassignGroupFromRoomAction, Group, Room
 } from "../../camp/actions";
@@ -260,7 +261,24 @@ export default function GroupsPage() {
 
   const load = async () => {
     const [g, camps] = await Promise.all([getGroupsAction(campId), getCampsList()]);
-    setGroups(g);
+    const cacheKey = `tacc_groups_${campId}`;
+    if (g && g.length > 0) {
+      setGroups(g);
+      try { localStorage.setItem(cacheKey, JSON.stringify(g)); } catch {}
+    } else {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) setGroups(parsed);
+          else setGroups(g);
+        } else {
+          setGroups(g);
+        }
+      } catch {
+        setGroups(g);
+      }
+    }
     const currentCamp = camps.find(c => c.id === campId);
     if (currentCamp?.room_types) setRoomTypes(currentCamp.room_types);
     setLoading(false);
@@ -280,7 +298,24 @@ export default function GroupsPage() {
     if (!confirm(`Delete Group ${groupNumber} and all its members?`)) return;
     startTransition(async () => {
       await deleteGroupAction(groupId);
+      try {
+        const updated = groups.filter(g => g.id !== groupId);
+        localStorage.setItem(`tacc_groups_${campId}`, JSON.stringify(updated));
+      } catch {}
       if (selectedGroup?.id === groupId) setSelectedGroup(null);
+      await load();
+    });
+  };
+
+  const handleClearAll = () => {
+    if (!confirm("Clear all imported groups and attendees for this camp?")) return;
+    startTransition(async () => {
+      await clearCampAttendeesAndRoomsAction(campId);
+      try {
+        localStorage.removeItem(`tacc_groups_${campId}`);
+        localStorage.removeItem(`tacc_attendees_${campId}`);
+      } catch {}
+      if (selectedGroup) setSelectedGroup(null);
       await load();
     });
   };
@@ -304,12 +339,19 @@ export default function GroupsPage() {
           <h1 className="font-display font-normal text-[28px] text-[#0c0a09] tracking-tight">Groups</h1>
           <p className="text-xs text-[#78716c] mt-1">Click any group card to view member details and assign a room.</p>
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {groups.length > 0 && (
-            <Link href="/portal-admin-26/groups/assign"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-transparent border border-[#d6d3d1] text-[#0c0a09] text-xs font-medium rounded-full hover:bg-white transition-all cursor-pointer">
-              Assign Rooms <ArrowRight size={13} />
-            </Link>
+            <>
+              <button onClick={handleClearAll}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-[#78716c] hover:text-red-600 hover:bg-red-50 border border-[#d6d3d1] rounded-full transition-colors cursor-pointer"
+                title="Clear all imported groups">
+                <Trash2 size={12} /> Clear All
+              </button>
+              <Link href="/portal-admin-26/groups/assign"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-transparent border border-[#d6d3d1] text-[#0c0a09] text-xs font-medium rounded-full hover:bg-white transition-all cursor-pointer">
+                Assign Rooms <ArrowRight size={13} />
+              </Link>
+            </>
           )}
           <button onClick={() => setShowImport(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3ba6f1] hover:bg-[#3398e1] text-white text-xs font-medium rounded-full shadow-sm cursor-pointer transition-all">
