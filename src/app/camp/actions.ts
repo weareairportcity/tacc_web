@@ -250,7 +250,7 @@ export async function getAdminAttendees(campId: string): Promise<AttendeeAdmin[]
     const { data, error } = await supabaseAdmin.from("attendees").select("*").eq("camp_id", campId);
     if (!error && data && data.length > 0) return data as AttendeeAdmin[];
   } catch {}
-  return [...LOCAL_ATTENDEES_STORE];
+  return LOCAL_ATTENDEES_STORE.filter(a => a.camp_id === campId || (!a.camp_id && campId === "camp-meeting-2026"));
 }
 
 export async function addAttendeeAction(data: {
@@ -576,15 +576,33 @@ export async function getGroupsAction(campId: string): Promise<Group[]> {
 
 export async function importGroupsFromCSVAction(
   campId: string,
-  rows: Array<{ full_name: string; fellowship: string; group_id: string; phone_number?: string }>,
+  rows: Array<{
+    full_name: string;
+    fellowship: string;
+    group_id: string;
+    phone_number?: string;
+    pfcc?: string;
+    gender?: string;
+    day_of_arrival?: string;
+  }>,
   roomTypePreference: string
 ): Promise<{ success: boolean; groupsCreated: number; peopleCreated: number; error?: string }> {
+  // Pre-pass: Map non-empty PFCC for each group_id so missing PFCC values in a group inherit it
+  const groupPfccMap = new Map<string, string>();
+  for (const row of rows) {
+    const key = String(row.group_id).trim();
+    if (row.pfcc?.trim() && !groupPfccMap.has(key)) {
+      groupPfccMap.set(key, row.pfcc.trim());
+    }
+  }
+
   // Group rows by group_id value
   const groupMap = new Map<string, typeof rows>();
   for (const row of rows) {
     const key = String(row.group_id).trim();
     if (!groupMap.has(key)) groupMap.set(key, []);
-    groupMap.get(key)!.push(row);
+    const inheritedPfcc = row.pfcc?.trim() || groupPfccMap.get(key) || "";
+    groupMap.get(key)!.push({ ...row, pfcc: inheritedPfcc });
   }
 
   const existingGroups = LOCAL_GROUPS_STORE.filter(g => g.camp_id === campId);
@@ -621,9 +639,25 @@ export async function importGroupsFromCSVAction(
         room_id: undefined,
         group_id: groupId,
         phone_number: member.phone_number || "",
+        pfcc: member.pfcc || "",
+        gender: member.gender || "",
+        day_of_arrival: member.day_of_arrival || "",
         created_at: new Date().toISOString(),
       };
       LOCAL_ATTENDEES_STORE.unshift(newAttendee);
+      try {
+        await supabaseAdmin.from("attendees").insert([{
+          camp_id: campId,
+          full_name: member.full_name.trim(),
+          fellowship: member.fellowship?.trim() || "General",
+          room_type: "",
+          room_number: "",
+          key_bearer: "",
+          pfcc: member.pfcc || "",
+          gender: member.gender || "",
+          day_of_arrival: member.day_of_arrival || "",
+        }]);
+      } catch {}
       peopleCreated++;
     }
   }

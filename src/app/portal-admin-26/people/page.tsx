@@ -181,6 +181,7 @@ function CsvModal({ onClose, onUploaded, campId, roomTypes }: {
       // Step 3: Parse data rows, skip blanks/sub-headers
       const SKIP_LABELS = new Set(["PAIRINGS", "FEMALE", "MALE", "SECTION", ""]);
       const rows: any[] = [];
+      let groupCounter = 0;
       let prevNo = 0;
 
       for (let i = headerRowIdx + 1; i < rawLines.length; i++) {
@@ -192,19 +193,35 @@ function CsvModal({ onClose, onUploaded, campId, roomTypes }: {
         if (!name || SKIP_LABELS.has(name.toUpperCase())) continue;
 
         const currentNo = noIdx >= 0 ? parseInt(cols[noIdx]) || 0 : 0;
+        if (currentNo === 1 || (prevNo > 0 && currentNo <= prevNo && currentNo !== 0)) groupCounter++;
+        else if (groupCounter === 0) groupCounter = 1;
         prevNo = currentNo;
 
-        // Use room number from CSV only — no auto-generation
         const rawRoom = roomIdx >= 0 ? cols[roomIdx]?.trim() || "" : "";
+        const rawPfcc = pfccIdx >= 0 ? cols[pfccIdx]?.trim() || "" : "";
         rows.push({
           full_name: name,
           fellowship: fellowIdx >= 0 ? cols[fellowIdx]?.trim() || "General" : "General",
           phone_number: contactIdx >= 0 ? cols[contactIdx]?.trim() || "" : "",
           gender: genderIdx >= 0 ? cols[genderIdx]?.trim() || "" : "",
           day_of_arrival: arrivalIdx >= 0 ? cols[arrivalIdx]?.trim() || "" : "",
-          pfcc: pfccIdx >= 0 ? cols[pfccIdx]?.trim() || "" : "",
+          pfcc: rawPfcc,
           room_number: rawRoom,
+          _group: groupCounter,
         });
+      }
+
+      // Step 4: Post-process — inherit PFCC within the same roommate group if missing
+      const groupPfccMap = new Map<number, string>();
+      for (const r of rows) {
+        if (r.pfcc && r._group && !groupPfccMap.has(r._group)) {
+          groupPfccMap.set(r._group, r.pfcc);
+        }
+      }
+      for (const r of rows) {
+        if (!r.pfcc && r._group && groupPfccMap.has(r._group)) {
+          r.pfcc = groupPfccMap.get(r._group)!;
+        }
       }
 
       if (rows.length === 0) { setParseError("No valid data rows found after the header."); return; }

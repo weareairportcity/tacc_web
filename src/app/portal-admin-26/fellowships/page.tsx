@@ -55,11 +55,15 @@ function PFCCCard({ group }: { group: PFCCGroup }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <div className="text-sm font-medium text-[#0c0a09]">{group.name}</div>
-            {unassignedInPFCC > 0 && (
-              <span className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                {unassignedInPFCC} unassigned
+            {group.name === "Unassigned" ? (
+              <span className="text-[10px] font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                Missing PFCC in CSV
               </span>
-            )}
+            ) : unassignedInPFCC > 0 ? (
+              <span className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                {unassignedInPFCC} unassigned to rooms
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-2 mt-1.5">
             <div className="h-1 flex-1 max-w-[160px] bg-[#f0eeec] rounded-full overflow-hidden">
