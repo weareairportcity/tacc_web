@@ -168,6 +168,7 @@ export async function searchCampAttendees(query: string, campId?: string): Promi
 }> {
   if (!query || query.trim().length === 0) return { results: [] };
   const q = query.trim().toLowerCase();
+  loadStoreFromFile();
 
   try {
     let dbQuery = supabaseAdmin
@@ -178,10 +179,23 @@ export async function searchCampAttendees(query: string, campId?: string): Promi
     if (!error && data && data.length > 0) return { results: data as AttendeePublic[] };
   } catch {}
 
+  const filtered = LOCAL_ATTENDEES_STORE.filter(p => {
+    const matchName = p.full_name.toLowerCase().includes(q);
+    const matchCamp = !campId || p.camp_id === campId || !p.camp_id || campId === "camp-meeting-2026";
+    return matchName && matchCamp;
+  });
+
   return {
-    results: LOCAL_ATTENDEES_STORE
-      .filter(p => p.full_name.toLowerCase().includes(q))
-      .map(p => ({ id: p.id, camp_id: p.camp_id, full_name: p.full_name, fellowship: p.fellowship, room_type: p.room_type, room_number: p.room_number, key_bearer: p.key_bearer, room_id: p.room_id })),
+    results: filtered.slice(0, 10).map(p => ({
+      id: p.id,
+      camp_id: p.camp_id,
+      full_name: p.full_name,
+      fellowship: p.fellowship,
+      room_type: p.room_type || "",
+      room_number: p.room_number || "",
+      key_bearer: p.key_bearer || "",
+      room_id: p.room_id,
+    })),
   };
 }
 
@@ -189,6 +203,7 @@ export async function getRoomAssignmentDetails(personId: string, campId?: string
   person: AttendeePublic | null;
   roommates: AttendeePublic[];
 }> {
+  loadStoreFromFile();
   try {
     const { data: personData, error } = await supabaseAdmin
       .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("id", personId).maybeSingle();
