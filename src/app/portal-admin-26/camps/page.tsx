@@ -174,26 +174,30 @@ function PublicUrlBadge({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="mb-3 px-2.5 py-2 bg-[#fafaf9] border border-[#e8e6e5] rounded-[6px] flex items-center gap-2">
-      <span className="text-[10px] text-[#a8a29e] shrink-0 font-medium">Public URL</span>
+    <div className="mb-3.5 p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-[#a8a29e]">Public Portal URL</span>
+        <button
+          onClick={handleCopy}
+          className="text-[10px] text-[#78716c] hover:text-[#3ba6f1] cursor-pointer px-2.5 py-0.5 rounded-full bg-white border border-[#e8e6e5] hover:border-[#3ba6f1] transition-colors flex items-center gap-1 font-medium"
+          title="Copy link"
+        >
+          {copied ? <Check size={10} className="text-emerald-600" /> : <Copy size={10} />}
+          {copied ? "Copied ✓" : "Copy Link"}
+        </button>
+      </div>
       <a
         href={publicHref}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-[11px] font-medium text-[#3398e1] hover:underline truncate flex-1 flex items-center gap-1 group/link"
-        title="Open public camp portal"
+        className="block text-xs font-medium text-[#3398e1] hover:underline break-all group/link leading-relaxed"
+        title="Open public camp portal in new tab"
       >
-        <span className="truncate">{publicHref}</span>
-        <ExternalLink size={10} className="shrink-0 text-[#3398e1] opacity-70 group-hover/link:opacity-100" />
+        <span className="inline-flex items-center gap-1.5 flex-wrap">
+          <span>{publicHref}</span>
+          <ExternalLink size={12} className="shrink-0 text-[#3398e1] inline" />
+        </span>
       </a>
-      <button
-        onClick={handleCopy}
-        className="text-[10px] text-[#78716c] hover:text-[#3ba6f1] cursor-pointer shrink-0 px-2 py-0.5 rounded-full bg-white border border-[#e8e6e5] hover:border-[#3ba6f1] transition-colors flex items-center gap-1 font-medium"
-        title="Copy full link"
-      >
-        {copied ? <Check size={10} className="text-emerald-600" /> : <Copy size={10} />}
-        {copied ? "Copied" : "Copy"}
-      </button>
     </div>
   );
 }
