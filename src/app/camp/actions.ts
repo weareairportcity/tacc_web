@@ -67,6 +67,51 @@ export type CampDetails = {
   created_at?: string;
 };
 
+import fs from "fs";
+import path from "path";
+
+// ─── Persistent File Backup Storage ──────────────────────────────────────────
+const STORE_FILE = path.join(process.cwd(), ".data", "camp_store.json");
+
+function loadStoreFromFile() {
+  try {
+    if (fs.existsSync(STORE_FILE)) {
+      const raw = fs.readFileSync(STORE_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed.attendees && Array.isArray(parsed.attendees) && parsed.attendees.length > 0) {
+        LOCAL_ATTENDEES_STORE = parsed.attendees;
+      }
+      if (parsed.rooms && Array.isArray(parsed.rooms) && parsed.rooms.length > 0) {
+        LOCAL_ROOMS_STORE = parsed.rooms;
+      }
+      if (parsed.groups && Array.isArray(parsed.groups)) {
+        LOCAL_GROUPS_STORE = parsed.groups;
+      }
+      if (parsed.camps && Array.isArray(parsed.camps) && parsed.camps.length > 0) {
+        LOCAL_CAMPS_STORE = parsed.camps;
+      }
+      if (parsed.coordinators && Array.isArray(parsed.coordinators)) {
+        LOCAL_COORDINATORS_STORE = parsed.coordinators;
+      }
+    }
+  } catch (e) {}
+}
+
+function saveStoreToFile() {
+  try {
+    const dir = path.dirname(STORE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const payload = {
+      attendees: LOCAL_ATTENDEES_STORE,
+      rooms: LOCAL_ROOMS_STORE,
+      groups: LOCAL_GROUPS_STORE,
+      camps: LOCAL_CAMPS_STORE,
+      coordinators: LOCAL_COORDINATORS_STORE,
+    };
+    fs.writeFileSync(STORE_FILE, JSON.stringify(payload, null, 2), "utf-8");
+  } catch (e) {}
+}
+
 // ─── Reactive Local Stores (DB fallback) ──────────────────────────────────────
 
 let LOCAL_ATTENDEES_STORE: AttendeeAdmin[] = [
@@ -112,6 +157,9 @@ let LOCAL_CAMPS_STORE: CampDetails[] = [
     created_at: new Date().toISOString(),
   },
 ];
+
+// Initialize store from file
+loadStoreFromFile();
 
 // ─── Public Actions ───────────────────────────────────────────────────────────
 
@@ -360,12 +408,14 @@ export async function importRealCSVAction(
     }
   }
 
+  saveStoreToFile();
   return { success: true, peopleCreated, roomsCreated };
 }
 
 export async function clearCampAttendeesAndRoomsAction(campId: string): Promise<{ success: boolean }> {
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.camp_id && a.camp_id !== campId);
   LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.filter(r => r.camp_id !== campId);
+  saveStoreToFile();
   try {
     await supabaseAdmin.from("attendees").delete().eq("camp_id", campId);
     await supabaseAdmin.from("rooms").delete().eq("camp_id", campId);
@@ -375,6 +425,7 @@ export async function clearCampAttendeesAndRoomsAction(campId: string): Promise<
 
 export async function deleteAttendeeAction(id: string): Promise<{ success: boolean; error?: string }> {
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.id !== id);
+  saveStoreToFile();
   try { await supabaseAdmin.from("attendees").delete().eq("id", id); } catch {}
   return { success: true };
 }
@@ -395,6 +446,7 @@ export async function addRoomAction(campId: string, roomNumber: string, roomType
   }
   const newRoom: Room = { id: `room_${Date.now()}`, camp_id: campId, room_number: roomNumber, room_type: roomType, created_at: new Date().toISOString() };
   LOCAL_ROOMS_STORE.push(newRoom);
+  saveStoreToFile();
   try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNumber, room_type: roomType }]); } catch {}
   return { success: true, room: newRoom };
 }
@@ -406,6 +458,7 @@ export async function deleteRoomAction(roomId: string): Promise<{ success: boole
     LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a => a.room_id === roomId ? { ...a, room_id: undefined, room_number: "", room_type: "", key_bearer: "" } : a);
   }
   LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.filter(r => r.id !== roomId);
+  saveStoreToFile();
   try { await supabaseAdmin.from("rooms").delete().eq("id", roomId); } catch {}
   return { success: true };
 }
@@ -436,6 +489,7 @@ export async function assignPersonToRoomAction(personId: string, roomId: string)
     }
   }
 
+  saveStoreToFile();
   try {
     await supabaseAdmin.from("attendees").update({ room_number: room.room_number, room_type: room.room_type }).eq("id", personId);
   } catch {}
@@ -459,6 +513,7 @@ export async function removePersonFromRoomAction(personId: string): Promise<{ su
     try { await supabaseAdmin.from("groups").update({ room_id: null }).eq("id", groupId); } catch {}
   }
 
+  saveStoreToFile();
   try { await supabaseAdmin.from("attendees").update({ room_number: "", room_type: "", key_bearer: "" }).eq("id", personId); } catch {}
   return { success: true };
 }
