@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Map, Plus, Users, Calendar, ArrowRight, Loader2, X, ChevronRight, Upload } from "lucide-react";
+import { Map, Plus, Users, Calendar, ArrowRight, Loader2, X, ChevronRight, Upload, ExternalLink, Check, Copy } from "lucide-react";
 import { getCampsList, createCampAction, CampDetails } from "../../camp/actions";
 import { useAdminCtx } from "../AdminShell";
 
@@ -159,6 +159,45 @@ function CreateCampModal({ onClose, onCreated }: { onClose: () => void; onCreate
   );
 }
 
+// ─── Interactive Public URL Component ─────────────────────────────────────────
+function PublicUrlBadge({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const publicHref = `/camp/${slug}`;
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fullUrl = `${window.location.origin}${publicHref}`;
+    navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-3 px-2.5 py-2 bg-[#fafaf9] border border-[#e8e6e5] rounded-[6px] flex items-center gap-2">
+      <span className="text-[10px] text-[#a8a29e] shrink-0 font-medium">Public URL</span>
+      <a
+        href={publicHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[11px] font-medium text-[#3398e1] hover:underline truncate flex-1 flex items-center gap-1 group/link"
+        title="Open public camp portal"
+      >
+        <span className="truncate">{publicHref}</span>
+        <ExternalLink size={10} className="shrink-0 text-[#3398e1] opacity-70 group-hover/link:opacity-100" />
+      </a>
+      <button
+        onClick={handleCopy}
+        className="text-[10px] text-[#78716c] hover:text-[#3ba6f1] cursor-pointer shrink-0 px-2 py-0.5 rounded-full bg-white border border-[#e8e6e5] hover:border-[#3ba6f1] transition-colors flex items-center gap-1 font-medium"
+        title="Copy full link"
+      >
+        {copied ? <Check size={10} className="text-emerald-600" /> : <Copy size={10} />}
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
 // ─── Camps Page ───────────────────────────────────────────────────────────────
 export default function CampsPage() {
   const { isSuperAdmin, campId } = useAdminCtx();
@@ -239,22 +278,7 @@ export default function CampsPage() {
                 </div>
 
                 {/* Unique public URL */}
-                <div className="mb-3 px-2.5 py-2 bg-[#fafaf9] border border-[#e8e6e5] rounded-[6px] flex items-center gap-2">
-                  <span className="text-[10px] text-[#a8a29e] shrink-0">Public URL</span>
-                  <span className="text-[10px] font-mono text-[#3398e1] truncate flex-1">
-                    /camp/{camp.slug}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const url = `${window.location.origin}/camp/${camp.slug}`;
-                      navigator.clipboard.writeText(url);
-                    }}
-                    className="text-[10px] text-[#a8a29e] hover:text-[#3ba6f1] cursor-pointer shrink-0 px-1.5 py-0.5 rounded hover:bg-white transition-colors"
-                    title="Copy link"
-                  >
-                    Copy
-                  </button>
-                </div>
+                <PublicUrlBadge slug={camp.slug} />
 
                 <Link
                   href={`/camp/admin/${camp.admin_token}`}
