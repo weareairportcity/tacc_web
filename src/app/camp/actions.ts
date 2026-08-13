@@ -336,8 +336,11 @@ export async function updateCampAction(campId: string, updates: {
 // ─── Admin — Attendees ────────────────────────────────────────────────────────
 
 export async function getAdminAttendees(campId: string): Promise<AttendeeAdmin[]> {
+  const realCampUuid = await resolveCampUuid(campId);
   try {
-    const { data, error } = await supabaseAdmin.from("attendees").select("*").eq("camp_id", campId);
+    let q = supabaseAdmin.from("attendees").select("*");
+    if (realCampUuid) q = q.eq("camp_id", realCampUuid);
+    const { data, error } = await q;
     if (!error && data && data.length > 0) return data as AttendeeAdmin[];
   } catch {}
   return LOCAL_ATTENDEES_STORE.filter(a => a.camp_id === campId || (!a.camp_id && campId === "camp-meeting-2026"));
@@ -365,13 +368,17 @@ export async function addAttendeeAction(data: {
     created_at: new Date().toISOString(),
   };
   LOCAL_ATTENDEES_STORE.unshift(newItem);
-  try {
-    await supabaseAdmin.from("attendees").insert([{
-      camp_id: data.campId, full_name: data.fullName, fellowship: data.fellowship,
-      room_type: data.roomType || "", room_number: data.roomNumber || "", key_bearer: "",
-      pfcc: data.pfcc || "", gender: data.gender || "", day_of_arrival: data.dayOfArrival || "",
-    }]);
-  } catch {}
+
+  const realCampUuid = await resolveCampUuid(data.campId);
+  if (realCampUuid) {
+    try {
+      await supabaseAdmin.from("attendees").insert([{
+        camp_id: realCampUuid, full_name: data.fullName, fellowship: data.fellowship,
+        room_type: data.roomType || "", room_number: data.roomNumber || "", key_bearer: "",
+        pfcc: data.pfcc || "", gender: data.gender || "", day_of_arrival: data.dayOfArrival || "",
+      }]);
+    } catch {}
+  }
   return { success: true, id: newId };
 }
 
@@ -422,7 +429,10 @@ export async function importRealCSVAction(
       };
       LOCAL_ROOMS_STORE.push(newRoom);
       roomsCreated++;
-      try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNum, room_type: detectedRoomType || "General" }]); } catch {}
+      const realCampUuid = await resolveCampUuid(campId);
+      if (realCampUuid) {
+        try { await supabaseAdmin.from("rooms").insert([{ camp_id: realCampUuid, room_number: roomNum, room_type: detectedRoomType || "General" }]); } catch {}
+      }
     }
   }
 
@@ -457,11 +467,17 @@ export async function importRealCSVAction(
 export async function clearCampAttendeesAndRoomsAction(campId: string): Promise<{ success: boolean }> {
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.camp_id && a.camp_id !== campId);
   LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.filter(r => r.camp_id !== campId);
+  LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.filter(g => g.camp_id !== campId);
   saveStoreToFile();
-  try {
-    await supabaseAdmin.from("attendees").delete().eq("camp_id", campId);
-    await supabaseAdmin.from("rooms").delete().eq("camp_id", campId);
-  } catch {}
+
+  const realCampUuid = await resolveCampUuid(campId);
+  if (realCampUuid) {
+    try {
+      await supabaseAdmin.from("attendees").delete().eq("camp_id", realCampUuid);
+      await supabaseAdmin.from("rooms").delete().eq("camp_id", realCampUuid);
+      await supabaseAdmin.from("groups").delete().eq("camp_id", realCampUuid);
+    } catch {}
+  }
   return { success: true };
 }
 
@@ -475,9 +491,12 @@ export async function deleteAttendeeAction(id: string): Promise<{ success: boole
 // ─── Admin — Rooms ────────────────────────────────────────────────────────────
 
 export async function getRoomsAction(campId: string): Promise<Room[]> {
+  const realCampUuid = await resolveCampUuid(campId);
   try {
-    const { data, error } = await supabaseAdmin.from("rooms").select("*").eq("camp_id", campId);
-    if (!error && data && data.length > 0) return data as Room[];
+    if (realCampUuid) {
+      const { data, error } = await supabaseAdmin.from("rooms").select("*").eq("camp_id", realCampUuid);
+      if (!error && data && data.length > 0) return data as Room[];
+    }
   } catch {}
   return LOCAL_ROOMS_STORE.filter(r => r.camp_id === campId);
 }
@@ -489,7 +508,10 @@ export async function addRoomAction(campId: string, roomNumber: string, roomType
   const newRoom: Room = { id: `room_${Date.now()}`, camp_id: campId, room_number: roomNumber, room_type: roomType, created_at: new Date().toISOString() };
   LOCAL_ROOMS_STORE.push(newRoom);
   saveStoreToFile();
-  try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNumber, room_type: roomType }]); } catch {}
+  const realCampUuid = await resolveCampUuid(campId);
+  if (realCampUuid) {
+    try { await supabaseAdmin.from("rooms").insert([{ camp_id: realCampUuid, room_number: roomNumber, room_type: roomType }]); } catch {}
+  }
   return { success: true, room: newRoom };
 }
 
@@ -679,26 +701,29 @@ export async function sendRoomAssignmentSMSAction(params: {
 let LOCAL_GROUPS_STORE: Group[] = [];
 
 export async function getGroupsAction(campId: string): Promise<Group[]> {
+  const realCampUuid = await resolveCampUuid(campId);
   try {
-    const { data, error } = await supabaseAdmin
-      .from("groups")
-      .select("*")
-      .eq("camp_id", campId)
-      .order("group_number");
-    if (!error && data && data.length > 0) {
-      // Attach members
-      const attendees = await getAdminAttendees(campId);
-      return data.map((g: any) => {
-        const members = attendees.filter(a => (a as any).group_id === g.id);
-        const allInSameRoom = members.length > 0 && members.every(m => m.room_id && m.room_id === members[0].room_id)
-          ? members[0].room_id
-          : undefined;
-        return {
-          ...g,
-          room_id: g.room_id || allInSameRoom,
-          members,
-        };
-      });
+    if (realCampUuid) {
+      const { data, error } = await supabaseAdmin
+        .from("groups")
+        .select("*")
+        .eq("camp_id", realCampUuid)
+        .order("group_number");
+      if (!error && data && data.length > 0) {
+        // Attach members
+        const attendees = await getAdminAttendees(campId);
+        return data.map((g: any) => {
+          const members = attendees.filter(a => (a as any).group_id === g.id);
+          const allInSameRoom = members.length > 0 && members.every(m => m.room_id && m.room_id === members[0].room_id)
+            ? members[0].room_id
+            : undefined;
+          return {
+            ...g,
+            room_id: g.room_id || allInSameRoom,
+            members,
+          };
+        });
+      }
     }
   } catch {}
 
