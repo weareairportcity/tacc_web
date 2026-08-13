@@ -778,19 +778,27 @@ export async function importGroupsFromCSVAction(
       };
       LOCAL_ATTENDEES_STORE.unshift(newAttendee);
 
+      const attPayload: any = {
+        camp_id: campId,
+        full_name: member.full_name.trim(),
+        fellowship: member.fellowship?.trim() || "General",
+        room_type: "",
+        room_number: "",
+        key_bearer: "",
+        pfcc: member.pfcc || "",
+        gender: member.gender || "",
+        day_of_arrival: member.day_of_arrival || "",
+      };
+      if (dbGroupId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dbGroupId)) {
+        attPayload.group_id = dbGroupId;
+      }
+
       try {
-        await supabaseAdmin.from("attendees").insert([{
-          camp_id: campId,
-          full_name: member.full_name.trim(),
-          fellowship: member.fellowship?.trim() || "General",
-          room_type: "",
-          room_number: "",
-          key_bearer: "",
-          group_id: dbGroupId,
-          pfcc: member.pfcc || "",
-          gender: member.gender || "",
-          day_of_arrival: member.day_of_arrival || "",
-        }]);
+        const { error: insertErr } = await supabaseAdmin.from("attendees").insert([attPayload]);
+        if (insertErr && (insertErr.code === 'PGRST204' || insertErr.message?.includes('group_id'))) {
+          delete attPayload.group_id;
+          await supabaseAdmin.from("attendees").insert([attPayload]);
+        }
       } catch (err) {
         console.error("Supabase attendees insert error:", err);
       }
