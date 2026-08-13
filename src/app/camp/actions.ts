@@ -145,15 +145,23 @@ export async function getRoomAssignmentDetails(personId: string, campId?: string
     const { data: personData, error } = await supabaseAdmin
       .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("id", personId).maybeSingle();
     if (!error && personData) {
-      const { data: mates } = await supabaseAdmin
-        .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("room_number", personData.room_number).neq("id", personData.id);
+      const roomNum = personData.room_number?.trim();
+      const hasRoom = roomNum && roomNum.toUpperCase() !== "TBD";
+      const { data: mates } = hasRoom
+        ? await supabaseAdmin
+            .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("room_number", roomNum).neq("id", personData.id)
+        : { data: [] };
       return { person: personData as AttendeePublic, roommates: (mates as AttendeePublic[]) || [] };
     }
   } catch {}
 
   const p = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
   if (!p) return { person: null, roommates: [] };
-  const mates = LOCAL_ATTENDEES_STORE.filter(a => a.room_number === p.room_number && a.id !== p.id);
+  const roomNum = p.room_number?.trim();
+  const hasRoom = roomNum && roomNum.toUpperCase() !== "TBD";
+  const mates = hasRoom
+    ? LOCAL_ATTENDEES_STORE.filter(a => a.room_number?.trim() === roomNum && a.id !== p.id)
+    : [];
   return {
     person: { id: p.id, full_name: p.full_name, fellowship: p.fellowship, room_type: p.room_type, room_number: p.room_number, key_bearer: p.key_bearer },
     roommates: mates.map(m => ({ id: m.id, full_name: m.full_name, fellowship: m.fellowship, room_type: m.room_type, room_number: m.room_number, key_bearer: m.key_bearer })),
