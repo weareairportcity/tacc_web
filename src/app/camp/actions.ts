@@ -417,30 +417,27 @@ export async function assignPersonToRoomAction(personId: string, roomId: string)
   const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
   const groupId = (person as any)?.group_id;
 
+  // Only assign the specific person to the room
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
     a.id === personId
       ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
       : a
   );
 
+  // If person belongs to a group, check if ALL group members are now in the same room
   if (groupId) {
-    // Update group's room_id so group shows as assigned on Groups page
-    LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
-      g.id === groupId ? { ...g, room_id: roomId } : g
-    );
-    // Sync all members of the group to the room
-    LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
-      (a as any).group_id === groupId
-        ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
-        : a
-    );
+    const groupMembers = LOCAL_ATTENDEES_STORE.filter(a => (a as any).group_id === groupId);
+    const allInSameRoom = groupMembers.length > 0 && groupMembers.every(m => m.room_id === roomId);
+    if (allInSameRoom) {
+      LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
+        g.id === groupId ? { ...g, room_id: roomId } : g
+      );
+      try { await supabaseAdmin.from("groups").update({ room_id: roomId }).eq("id", groupId); } catch {}
+    }
   }
 
   try {
     await supabaseAdmin.from("attendees").update({ room_number: room.room_number, room_type: room.room_type }).eq("id", personId);
-    if (groupId) {
-      await supabaseAdmin.from("groups").update({ room_id: roomId }).eq("id", groupId);
-    }
   } catch {}
   return { success: true };
 }
@@ -449,20 +446,17 @@ export async function removePersonFromRoomAction(personId: string): Promise<{ su
   const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
   const groupId = (person as any)?.group_id;
 
+  // Only unassign the specific person
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
     a.id === personId ? { ...a, room_id: undefined, room_number: "", room_type: "", key_bearer: "" } : a
   );
 
   if (groupId) {
-    const remainingInRoom = LOCAL_ATTENDEES_STORE.filter(
-      a => (a as any).group_id === groupId && a.room_id
+    // Since this person was removed, group is no longer fully assigned to a single room
+    LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
+      g.id === groupId ? { ...g, room_id: undefined } : g
     );
-    if (remainingInRoom.length === 0) {
-      LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
-        g.id === groupId ? { ...g, room_id: undefined } : g
-      );
-      try { await supabaseAdmin.from("groups").update({ room_id: null }).eq("id", groupId); } catch {}
-    }
+    try { await supabaseAdmin.from("groups").update({ room_id: null }).eq("id", groupId); } catch {}
   }
 
   try { await supabaseAdmin.from("attendees").update({ room_number: "", room_type: "", key_bearer: "" }).eq("id", personId); } catch {}
@@ -599,10 +593,12 @@ export async function getGroupsAction(campId: string): Promise<Group[]> {
       const attendees = await getAdminAttendees(campId);
       return data.map((g: any) => {
         const members = attendees.filter(a => (a as any).group_id === g.id);
-        const memberRoomId = members.find(m => m.room_id)?.room_id;
+        const allInSameRoom = members.length > 0 && members.every(m => m.room_id && m.room_id === members[0].room_id)
+          ? members[0].room_id
+          : undefined;
         return {
           ...g,
-          room_id: g.room_id || memberRoomId,
+          room_id: g.room_id || allInSameRoom,
           members,
         };
       });
@@ -614,10 +610,12 @@ export async function getGroupsAction(campId: string): Promise<Group[]> {
     .filter(g => g.camp_id === campId)
     .map(g => {
       const members = attendees.filter(a => (a as any).group_id === g.id);
-      const memberRoomId = members.find(m => m.room_id)?.room_id;
+      const allInSameRoom = members.length > 0 && members.every(m => m.room_id && m.room_id === members[0].room_id)
+        ? members[0].room_id
+        : undefined;
       return {
         ...g,
-        room_id: g.room_id || memberRoomId,
+        room_id: g.room_id || allInSameRoom,
         members,
       };
     });
