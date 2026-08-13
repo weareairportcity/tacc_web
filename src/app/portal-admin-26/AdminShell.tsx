@@ -196,8 +196,8 @@ function Sidebar({
   );
 }
 
-// ─── Mobile Bottom Tab Bar ────────────────────────────────────────────────────
-function MobileTabBar({
+// ─── Mobile Header (Camp Switcher at top) ────────────────────────────────────
+function MobileHeader({
   activeCamp,
   campsList,
   onSwitchCamp,
@@ -206,30 +206,33 @@ function MobileTabBar({
   campsList: CampDetails[];
   onSwitchCamp: (id: string) => void;
 }) {
-  const pathname = usePathname();
-  const mobileNav = NAV.slice(0, 5);
   return (
-    <>
-      <div className="md:hidden border-b border-[#e8e6e5] bg-white px-4 py-2.5 flex items-center justify-between">
-        <div className="flex-1 max-w-[240px]">
-          <CampSwitcher activeCamp={activeCamp} campsList={campsList} onSwitchCamp={onSwitchCamp} />
-        </div>
+    <div className="md:hidden sticky top-0 z-30 border-b border-[#e8e6e5] bg-white px-4 py-2.5 flex items-center justify-between shadow-2xs">
+      <div className="flex-1 max-w-[280px]">
+        <CampSwitcher activeCamp={activeCamp} campsList={campsList} onSwitchCamp={onSwitchCamp} />
       </div>
+    </div>
+  );
+}
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#e8e6e5] flex">
-        {mobileNav.map(({ label, href, icon: Icon }) => {
-          const isActive = href === "/portal-admin-26"
-            ? pathname === "/portal-admin-26"
-            : pathname.startsWith(href);
-          return (
-            <Link key={href} href={href} className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors ${isActive ? "text-[#3ba6f1]" : "text-[#a8a29e]"}`}>
-              <Icon size={17} />
-              <span>{label.split(" ")[0]}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </>
+// ─── Mobile Bottom Tab Bar ────────────────────────────────────────────────────
+function MobileBottomNav() {
+  const pathname = usePathname();
+  const mobileNav = NAV.slice(0, 6);
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#e8e6e5] flex shadow-lg">
+      {mobileNav.map(({ label, href, icon: Icon }) => {
+        const isActive = href === "/portal-admin-26"
+          ? pathname === "/portal-admin-26"
+          : pathname.startsWith(href);
+        return (
+          <Link key={href} href={href} className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors ${isActive ? "text-[#3ba6f1]" : "text-[#a8a29e]"}`}>
+            <Icon size={17} />
+            <span className="truncate max-w-[54px]">{label.split(" ")[0]}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -320,19 +323,22 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     loadCamps();
   }, []);
 
-  const handleAuth = (email: string) => { setIsAuthed(true); setUserEmail(email); };
+  const switchCamp = (newCampId: string) => {
+    setActiveCampId(newCampId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("activeCampId", newCampId);
+    }
+  };
+
+  const handleAuth = (email: string) => {
+    setIsAuthed(true);
+    setUserEmail(email);
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setIsAuthed(false);
     setUserEmail("");
-  };
-
-  const switchCamp = (id: string) => {
-    setActiveCampId(id);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("activeCampId", id);
-    }
   };
 
   if (isChecking) {
@@ -368,14 +374,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           userEmail={userEmail}
           onSignOut={handleSignOut}
         />
-        <main className="flex-1 min-w-0 pb-20 md:pb-0 overflow-x-hidden">
-          {children}
-        </main>
-        <MobileTabBar
-          activeCamp={activeCamp}
-          campsList={campsList}
-          onSwitchCamp={switchCamp}
-        />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <MobileHeader
+            activeCamp={activeCamp}
+            campsList={campsList}
+            onSwitchCamp={switchCamp}
+          />
+          <main className="flex-1 min-w-0 pb-24 md:pb-0 overflow-x-hidden">
+            {children}
+          </main>
+        </div>
+        <MobileBottomNav />
       </div>
     </AdminContext.Provider>
   );

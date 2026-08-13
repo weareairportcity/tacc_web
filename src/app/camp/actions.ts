@@ -673,6 +673,21 @@ export async function importGroupsFromCSVAction(
     LOCAL_GROUPS_STORE.push(newGroup);
     groupsCreated++;
 
+    let dbGroupId = groupId;
+    try {
+      const { data: groupDb } = await supabaseAdmin.from("groups").insert([{
+        camp_id: campId,
+        group_number: newGroup.group_number,
+        room_type_preference: roomTypePreference,
+      }]).select().single();
+      if (groupDb?.id) {
+        dbGroupId = groupDb.id;
+        newGroup.id = dbGroupId;
+      }
+    } catch (err) {
+      console.error("Supabase groups insert error:", err);
+    }
+
     for (const member of members) {
       const personId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
       const newAttendee: any = {
@@ -684,7 +699,7 @@ export async function importGroupsFromCSVAction(
         room_number: "",
         key_bearer: "",
         room_id: undefined,
-        group_id: groupId,
+        group_id: dbGroupId,
         phone_number: member.phone_number || "",
         pfcc: member.pfcc || "",
         gender: member.gender || "",
@@ -692,6 +707,7 @@ export async function importGroupsFromCSVAction(
         created_at: new Date().toISOString(),
       };
       LOCAL_ATTENDEES_STORE.unshift(newAttendee);
+
       try {
         await supabaseAdmin.from("attendees").insert([{
           camp_id: campId,
@@ -700,11 +716,14 @@ export async function importGroupsFromCSVAction(
           room_type: "",
           room_number: "",
           key_bearer: "",
+          group_id: dbGroupId,
           pfcc: member.pfcc || "",
           gender: member.gender || "",
           day_of_arrival: member.day_of_arrival || "",
         }]);
-      } catch {}
+      } catch (err) {
+        console.error("Supabase attendees insert error:", err);
+      }
       peopleCreated++;
     }
   }
@@ -716,7 +735,13 @@ export async function assignGroupToRoomAction(
   groupId: string,
   roomId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
+  let room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
+  if (!room) {
+    try {
+      const { data } = await supabaseAdmin.from("rooms").select("*").eq("id", roomId).maybeSingle();
+      if (data) room = data as Room;
+    } catch {}
+  }
   if (!room) return { success: false, error: "Room not found" };
 
   // Update group's room_id
@@ -727,9 +752,16 @@ export async function assignGroupToRoomAction(
   // Update all attendees in this group
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
     (a as any).group_id === groupId
-      ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
+      ? { ...a, room_id: roomId, room_number: room!.room_number, room_type: room!.room_type }
       : a
   );
+
+  try {
+    await supabaseAdmin.from("groups").update({ room_id: roomId }).eq("id", groupId);
+    await supabaseAdmin.from("attendees").update({ room_id: roomId, room_number: room.room_number, room_type: room.room_type }).eq("group_id", groupId);
+  } catch (err) {
+    console.error("Supabase assignGroupToRoom error:", err);
+  }
 
   return { success: true };
 }
@@ -743,6 +775,10 @@ export async function unassignGroupFromRoomAction(groupId: string): Promise<{ su
       ? { ...a, room_id: undefined, room_number: "", room_type: "" }
       : a
   );
+  try {
+    await supabaseAdmin.from("groups").update({ room_id: null }).eq("id", groupId);
+    await supabaseAdmin.from("attendees").update({ room_id: null, room_number: "", room_type: "" }).eq("group_id", groupId);
+  } catch {}
   return { success: true };
 }
 
@@ -750,6 +786,10 @@ export async function deleteGroupAction(groupId: string): Promise<{ success: boo
   // Remove attendees that belong to this group
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => (a as any).group_id !== groupId);
   LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.filter(g => g.id !== groupId);
+  try {
+    await supabaseAdmin.from("attendees").delete().eq("group_id", groupId);
+    await supabaseAdmin.from("groups").delete().eq("id", groupId);
+  } catch {}
   return { success: true };
 }
 
