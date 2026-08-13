@@ -6,8 +6,8 @@ import {
 } from "lucide-react";
 import {
   getAdminAttendees, addAttendeeAction, deleteAttendeeAction,
-  importRealCSVAction, sendRoomAssignmentSMSAction,
-  getFellowshipNames, AttendeeAdmin
+  importRealCSVAction, sendRoomAssignmentSMSAction, clearCampAttendeesAndRoomsAction,
+  getFellowshipNames, AttendeeAdmin, getCampsList
 } from "../../camp/actions";
 import { useAdminCtx } from "../AdminShell";
 
@@ -120,23 +120,22 @@ function AddPersonModal({ onClose, onAdded, campId, fellowships }: { onClose: ()
 }
 
 // ─── CSV Upload Modal ─────────────────────────────────────────────────────────
-function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUploaded: () => void; campId: string }) {
+function CsvModal({ onClose, onUploaded, campId, roomTypes }: {
+  onClose: () => void; onUploaded: () => void; campId: string; roomTypes: string[];
+}) {
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<any[]>([]);
   const [parseError, setParseError] = useState("");
+  const [detectedRoomType, setDetectedRoomType] = useState<string | null>(null);
   const [result, setResult] = useState<{ peopleCreated: number; roomsCreated: number } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Column name normaliser
-  const normalise = (h: string) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-
-  const findCol = (headers: string[], ...candidates: string[]) => {
-    for (const c of candidates) {
-      const idx = headers.findIndex(h => normalise(h) === normalise(c));
-      if (idx >= 0) return idx;
-    }
-    return -1;
+  // Detect room type from filename by matching against camp's room types
+  const detectRoomTypeFromFilename = (name: string): string | null => {
+    const nameLower = name.toLowerCase();
+    return roomTypes.find(rt => nameLower.includes(rt.toLowerCase())) || null;
   };
+
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -145,69 +144,58 @@ function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUplo
     setParseError("");
     setPreview([]);
 
+    // Detect room type from filename
+    const rt = detectRoomTypeFromFilename(file.name);
+    setDetectedRoomType(rt);
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      // Split into lines, keep blanks for group-break detection
       const rawLines = text.split("\n");
 
-      // ── Step 1: Find the real header row by scanning for a row containing "NAME" ──
+      // Step 1: Find the real header row by scanning for a row containing "NAME"
       let headerRowIdx = -1;
       for (let i = 0; i < Math.min(rawLines.length, 30); i++) {
         const cols = rawLines[i].split(",").map(c => c.trim().replace(/^"|"$/g, "").toUpperCase());
         if (cols.includes("NAME")) { headerRowIdx = i; break; }
       }
-      if (headerRowIdx === -1) {
-        setParseError("Could not find a header row with a NAME column in the first 30 rows.");
-        return;
-      }
+      if (headerRowIdx === -1) { setParseError("Could not find a header row with a NAME column in the first 30 rows."); return; }
 
-      // ── Step 2: Build column index map from the header ──
+      // Step 2: Build column index map
       const hdr = rawLines[headerRowIdx].split(",").map(c => c.trim().replace(/^"|"$/g, "").toUpperCase());
       const col = (name: string, ...aliases: string[]) => {
-        const all = [name, ...aliases];
-        for (const a of all) { const i = hdr.findIndex(h => h === a || h.replace(/\s+/g, "") === a.replace(/\s+/g, "")); if (i >= 0) return i; }
+        for (const a of [name, ...aliases]) { const i = hdr.findIndex(h => h === a || h.replace(/\s+/g, "") === a.replace(/\s+/g, "")); if (i >= 0) return i; }
         return -1;
       };
-      const noIdx       = col("NO.", "NO", "#");
-      const nameIdx     = col("NAME", "FULL NAME", "FULLNAME");
-      const contactIdx  = col("CONTACT", "PHONE", "MOBILE", "TEL");
-      const fellowIdx   = col("FELLOWSHIP", "CHURCH", "PCF");
-      const genderIdx   = col("GENDER", "SEX");
-      const arrivalIdx  = col("DAY OF ARRIVAL", "DAYOFARRIVAL", "ARRIVAL");
-      const pfccIdx     = col("PFCC");
-      const roomIdx     = col("ROOM NUMBER", "ROOMNUMBER", "ROOM NO", "ROOM");
+      const noIdx      = col("NO.", "NO", "#");
+      const nameIdx    = col("NAME", "FULL NAME", "FULLNAME");
+      const contactIdx = col("CONTACT", "PHONE", "MOBILE", "TEL");
+      const fellowIdx  = col("FELLOWSHIP", "CHURCH", "PCF");
+      const genderIdx  = col("GENDER", "SEX");
+      const arrivalIdx = col("DAY OF ARRIVAL", "DAYOFARRIVAL", "ARRIVAL");
+      const pfccIdx    = col("PFCC");
+      const roomIdx    = col("ROOM NUMBER", "ROOMNUMBER", "ROOM NO", "ROOM");
 
       if (nameIdx === -1) { setParseError("Found header row but could not locate NAME column."); return; }
 
-      // ── Step 3: Parse data rows, skip blanks/sub-headers, group by NO. reset ──
-      // Section labels like "PAIRINGS", "FEMALE", "MALE" appear in the name column
+      // Step 3: Parse data rows, skip blanks/sub-headers
       const SKIP_LABELS = new Set(["PAIRINGS", "FEMALE", "MALE", "SECTION", ""]);
       const rows: any[] = [];
-      let groupCounter = 0;
       let prevNo = 0;
 
       for (let i = headerRowIdx + 1; i < rawLines.length; i++) {
         const line = rawLines[i].trim();
-        // Blank line = section separator (reset tracking but don't force new group yet)
         if (!line) { prevNo = 0; continue; }
 
         const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
-        const name = nameIdx >= 0 ? cols[nameIdx]?.trim() : "";
-
-        // Skip sub-header / section label rows
+        const name = cols[nameIdx]?.trim() || "";
         if (!name || SKIP_LABELS.has(name.toUpperCase())) continue;
 
-        // Detect group break: NO. resets to 1 (or is ≤ prevNo after a non-zero prevNo)
         const currentNo = noIdx >= 0 ? parseInt(cols[noIdx]) || 0 : 0;
-        if (currentNo === 1 || (prevNo > 0 && currentNo <= prevNo && currentNo !== 0)) {
-          groupCounter++;
-        } else if (groupCounter === 0) {
-          groupCounter = 1; // first person
-        }
         prevNo = currentNo;
 
-        const rawRoom = roomIdx >= 0 ? cols[roomIdx]?.trim() : "";
+        // Use room number from CSV only — no auto-generation
+        const rawRoom = roomIdx >= 0 ? cols[roomIdx]?.trim() || "" : "";
         rows.push({
           full_name: name,
           fellowship: fellowIdx >= 0 ? cols[fellowIdx]?.trim() || "General" : "General",
@@ -215,9 +203,7 @@ function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUplo
           gender: genderIdx >= 0 ? cols[genderIdx]?.trim() || "" : "",
           day_of_arrival: arrivalIdx >= 0 ? cols[arrivalIdx]?.trim() || "" : "",
           pfcc: pfccIdx >= 0 ? cols[pfccIdx]?.trim() || "" : "",
-          // Use CSV room number if available, otherwise auto-generate from group
-          room_number: rawRoom || `G${groupCounter}`,
-          _group: groupCounter,
+          room_number: rawRoom,
         });
       }
 
@@ -230,7 +216,7 @@ function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUplo
   const handleUpload = () => {
     if (!preview.length) return;
     startTransition(async () => {
-      const res = await importRealCSVAction(campId, preview);
+      const res = await importRealCSVAction(campId, preview, detectedRoomType || undefined);
       if (res.success) {
         setResult({ peopleCreated: res.peopleCreated, roomsCreated: res.roomsCreated });
         onUploaded();
@@ -288,6 +274,15 @@ function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUplo
                 </label>
               </div>
 
+              {/* Detected room type from filename */}
+              {detectedRoomType && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#c1e1f7]/30 border border-[#3ba6f1]/30 rounded-[8px]">
+                  <span className="text-[10px] text-[#3398e1] uppercase tracking-wider font-semibold shrink-0">Detected from filename</span>
+                  <span className="text-xs font-medium text-[#0c0a09]">{detectedRoomType}</span>
+                  <span className="text-[10px] text-[#78716c] ml-auto">Rooms will be created as this type</span>
+                </div>
+              )}
+
               {/* Preview */}
               {preview.length > 0 && (
                 <div className="space-y-2">
@@ -302,7 +297,7 @@ function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUplo
                     )}
                     {uniqueRooms.length > 0 && (
                       <span className="text-[11px] text-emerald-700 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
-                        {uniqueRooms.length} rooms (auto-created)
+                        {uniqueRooms.length} rooms {detectedRoomType ? `(${detectedRoomType})` : ""} will be created
                       </span>
                     )}
                   </div>
@@ -345,13 +340,16 @@ export default function PeoplePage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showCsv, setShowCsv] = useState(false);
+  const [roomTypes, setRoomTypes] = useState<string[]>([]);
   const [smsMap, setSmsMap] = useState<Record<string, "sending" | "sent" | "error">>({});
   const [isPending, startTransition] = useTransition();
 
   const load = async () => {
-    const [atts, fships] = await Promise.all([getAdminAttendees(campId), getFellowshipNames(campId)]);
+    const [atts, fships, camps] = await Promise.all([getAdminAttendees(campId), getFellowshipNames(campId), getCampsList()]);
     setAttendees(atts);
     setFellowships(fships);
+    const currentCamp = camps.find(c => c.id === campId);
+    if (currentCamp?.room_types) setRoomTypes(currentCamp.room_types);
     setLoading(false);
   };
 
@@ -384,9 +382,17 @@ export default function PeoplePage() {
           <div className="text-xs uppercase tracking-wider text-[#a8a29e] font-semibold mb-1">Directory</div>
           <h1 className="font-display font-normal text-[28px] text-[#0c0a09] tracking-tight">People</h1>
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <button onClick={() => setShowCsv(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-transparent border border-[#d6d3d1] text-[#0c0a09] text-xs font-medium rounded-full hover:bg-white transition-colors cursor-pointer">
-            <Upload size={13} /> CSV
+            <Upload size={13} /> Import CSV
+          </button>
+          <button
+            onClick={() => {
+              if (!confirm("This will clear ALL people and rooms for this camp. Continue?")) return;
+              startTransition(async () => { await clearCampAttendeesAndRoomsAction(campId); await load(); });
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-transparent border border-red-200 text-red-500 text-xs font-medium rounded-full hover:bg-red-50 transition-colors cursor-pointer">
+            <Trash2 size={12} /> Clear Data
           </button>
           <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3ba6f1] hover:bg-[#3398e1] text-white text-xs font-medium rounded-full shadow-sm transition-all cursor-pointer">
             <Plus size={13} /> Add Person
@@ -424,6 +430,7 @@ export default function PeoplePage() {
               <thead>
                 <tr className="border-b border-[#e8e6e5] bg-[#fafaf9] text-[#78716c]">
                   <th className="p-3 pl-5 font-medium">Name</th>
+                  <th className="p-3 font-medium">PFCC</th>
                   <th className="p-3 font-medium">Fellowship</th>
                   <th className="p-3 font-medium">Room</th>
                   <th className="p-3 pr-5 text-right font-medium">Actions</th>
@@ -437,6 +444,7 @@ export default function PeoplePage() {
                   return (
                     <tr key={att.id} className="hover:bg-[#fafaf9] transition-colors text-[#0c0a09]">
                       <td className="p-3 pl-5 font-medium text-sm">{att.full_name}</td>
+                      <td className="p-3 text-[#78716c] text-[11px]">{(att as any).pfcc || "—"}</td>
                       <td className="p-3 text-[#78716c]">{att.fellowship}</td>
                       <td className="p-3">
                         {att.room_number
@@ -471,7 +479,7 @@ export default function PeoplePage() {
       )}
 
       {showAdd && <AddPersonModal onClose={() => setShowAdd(false)} onAdded={load} campId={campId} fellowships={fellowships} />}
-      {showCsv && <CsvModal onClose={() => setShowCsv(false)} onUploaded={load} campId={campId} />}
+      {showCsv && <CsvModal onClose={() => setShowCsv(false)} onUploaded={load} campId={campId} roomTypes={roomTypes} />}
     </div>
   );
 }

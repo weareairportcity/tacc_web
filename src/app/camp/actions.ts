@@ -70,28 +70,32 @@ export type CampDetails = {
 // ─── Reactive Local Stores (DB fallback) ──────────────────────────────────────
 
 let LOCAL_ATTENDEES_STORE: AttendeeAdmin[] = [
-  { id: "1", full_name: "Kwame Mensah", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", created_at: new Date().toISOString() },
-  { id: "2", full_name: "Ama Serwaa", fellowship: "Women of Valor", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000000", created_at: new Date().toISOString() },
-  { id: "3", full_name: "Akosua Osei", fellowship: "Women of Valor", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000001", created_at: new Date().toISOString() },
-  { id: "4", full_name: "Yaw Osei", fellowship: "Men of Honor", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000002", created_at: new Date().toISOString() },
-  { id: "5", full_name: "Abena Mensah", fellowship: "Youth Ablaze", room_type: "Wise as Serpents", room_number: "W-05", key_bearer: "Abena Mensah", room_id: "room-w05", phone_number: "0550076503", created_at: new Date().toISOString() },
-  { id: "6", full_name: "Kofi Annan", fellowship: "Men of Honor", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000004", created_at: new Date().toISOString() },
-  { id: "7", full_name: "Esi Owusu", fellowship: "Women of Valor", room_type: "Villa", room_number: "V-205", key_bearer: "Esi Owusu", room_id: "room-v205", phone_number: "0240000005", created_at: new Date().toISOString() },
-  { id: "8", full_name: "Prince Boakye", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", created_at: new Date().toISOString() },
-  { id: "9", full_name: "Samuel Osei", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", created_at: new Date().toISOString() },
-  { id: "10", full_name: "Grace Appiah", fellowship: "Women of Valor", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000008", created_at: new Date().toISOString() },
-  { id: "11", full_name: "Emmanuel Tetteh", fellowship: "Men of Honor", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000010", created_at: new Date().toISOString() },
-  { id: "12", full_name: "Ruth Antwi", fellowship: "Youth Ablaze", room_type: "Wise as Serpents", room_number: "W-05", key_bearer: "Abena Mensah", room_id: "room-w05", phone_number: "0550076503", created_at: new Date().toISOString() },
-  { id: "unassigned-1", full_name: "Nana Yaa Asante", fellowship: "Women of Valor", room_type: "", room_number: "", key_bearer: "", room_id: undefined, phone_number: "0240000099", created_at: new Date().toISOString() },
-  { id: "unassigned-2", full_name: "David Opoku", fellowship: "Men of Honor", room_type: "", room_number: "", key_bearer: "", room_id: undefined, phone_number: "0200000099", created_at: new Date().toISOString() },
+  // PFCC 1 – Youth Ablaze (Villa V-102)
+  { id: "1", full_name: "Kwame Mensah", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076503", pfcc: "PFCC 1", gender: "Male", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  { id: "2", full_name: "Prince Boakye", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076504", pfcc: "PFCC 1", gender: "Male", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  { id: "3", full_name: "Samuel Osei", fellowship: "Youth Ablaze", room_type: "Villa", room_number: "V-102", key_bearer: "Kwame Mensah", room_id: "room-v102", phone_number: "0550076505", pfcc: "PFCC 1", gender: "Male", day_of_arrival: "Thursday", created_at: new Date().toISOString() },
+  // PFCC 1 – Increase (Villa V-205)
+  { id: "4", full_name: "Abena Mensah", fellowship: "Increase", room_type: "Villa", room_number: "V-205", key_bearer: "Abena Mensah", room_id: "room-v205", phone_number: "0240000010", pfcc: "PFCC 1", gender: "Female", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  { id: "5", full_name: "Esi Owusu", fellowship: "Increase", room_type: "Villa", room_number: "V-205", key_bearer: "Abena Mensah", room_id: "room-v205", phone_number: "0240000011", pfcc: "PFCC 1", gender: "Female", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  // PFCC 2 – Higher Achievers (Hostel H-304)
+  { id: "6", full_name: "Ama Serwaa", fellowship: "Higher Achievers", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000020", pfcc: "PFCC 2", gender: "Female", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  { id: "7", full_name: "Akosua Osei", fellowship: "Higher Achievers", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000021", pfcc: "PFCC 2", gender: "Female", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  { id: "8", full_name: "Grace Appiah", fellowship: "Higher Achievers", room_type: "Hostel", room_number: "H-304", key_bearer: "Akosua Osei", room_id: "room-h304", phone_number: "0240000022", pfcc: "PFCC 2", gender: "Female", day_of_arrival: "Thursday", created_at: new Date().toISOString() },
+  // PFCC 2 – Qadash (Dormitory D-01)
+  { id: "9", full_name: "Yaw Osei", fellowship: "Qadash", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000030", pfcc: "PFCC 2", gender: "Male", day_of_arrival: "Thursday", created_at: new Date().toISOString() },
+  { id: "10", full_name: "Kofi Annan", fellowship: "Qadash", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000031", pfcc: "PFCC 2", gender: "Male", day_of_arrival: "Friday", created_at: new Date().toISOString() },
+  { id: "11", full_name: "Emmanuel Tetteh", fellowship: "Qadash", room_type: "Dormitory", room_number: "D-01", key_bearer: "Kofi Annan", room_id: "room-d01", phone_number: "0200000032", pfcc: "PFCC 2", gender: "Male", day_of_arrival: "Thursday", created_at: new Date().toISOString() },
+  // Unassigned
+  { id: "unassigned-1", full_name: "Nana Yaa Asante", fellowship: "Increase", room_type: "", room_number: "", key_bearer: "", room_id: undefined, phone_number: "0240000099", pfcc: "PFCC 1", gender: "Female", day_of_arrival: "Saturday", created_at: new Date().toISOString() },
+  { id: "unassigned-2", full_name: "David Opoku", fellowship: "Higher Achievers", room_type: "", room_number: "", key_bearer: "", room_id: undefined, phone_number: "0200000099", pfcc: "PFCC 2", gender: "Male", day_of_arrival: "Friday", created_at: new Date().toISOString() },
 ];
 
 let LOCAL_ROOMS_STORE: Room[] = [
   { id: "room-v102", camp_id: "camp-meeting-2026", room_number: "V-102", room_type: "Villa", key_bearer_id: "1", created_at: new Date().toISOString() },
-  { id: "room-h304", camp_id: "camp-meeting-2026", room_number: "H-304", room_type: "Hostel", key_bearer_id: "3", created_at: new Date().toISOString() },
-  { id: "room-d01", camp_id: "camp-meeting-2026", room_number: "D-01", room_type: "Dormitory", key_bearer_id: "6", created_at: new Date().toISOString() },
-  { id: "room-v205", camp_id: "camp-meeting-2026", room_number: "V-205", room_type: "Villa", key_bearer_id: "7", created_at: new Date().toISOString() },
-  { id: "room-w05", camp_id: "camp-meeting-2026", room_number: "W-05", room_type: "Wise as Serpents", key_bearer_id: "5", created_at: new Date().toISOString() },
+  { id: "room-v205", camp_id: "camp-meeting-2026", room_number: "V-205", room_type: "Villa", key_bearer_id: "4", created_at: new Date().toISOString() },
+  { id: "room-h304", camp_id: "camp-meeting-2026", room_number: "H-304", room_type: "Hostel", key_bearer_id: "7", created_at: new Date().toISOString() },
+  { id: "room-d01", camp_id: "camp-meeting-2026", room_number: "D-01", room_type: "Dormitory", key_bearer_id: "10", created_at: new Date().toISOString() },
+  { id: "room-w05", camp_id: "camp-meeting-2026", room_number: "W-05", room_type: "Wise as Serpents", key_bearer_id: "", created_at: new Date().toISOString() },
 ];
 
 let LOCAL_COORDINATORS_STORE: Coordinator[] = [
@@ -297,12 +301,13 @@ export async function importRealCSVAction(
     day_of_arrival?: string;
     pfcc?: string;
     room_number?: string;
-  }>
+  }>,
+  detectedRoomType?: string
 ): Promise<{ success: boolean; peopleCreated: number; roomsCreated: number; error?: string }> {
   let peopleCreated = 0;
   let roomsCreated = 0;
 
-  // Auto-create rooms for unique room numbers
+  // Auto-create rooms for unique room numbers that are provided
   const existingRooms = LOCAL_ROOMS_STORE.filter(r => r.camp_id === campId);
   const uniqueRooms = [...new Set(rows.map(r => r.room_number).filter(Boolean))];
 
@@ -314,31 +319,30 @@ export async function importRealCSVAction(
         id: `room_${Date.now()}_${roomNum?.replace(/\s/g, '')}_${Math.random().toString(36).substring(2, 4)}`,
         camp_id: campId,
         room_number: roomNum!,
-        room_type: "General",
+        room_type: detectedRoomType || "General",
         created_at: new Date().toISOString(),
       };
       LOCAL_ROOMS_STORE.push(newRoom);
       roomsCreated++;
-      // Try Supabase
-      try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNum, room_type: "General" }]); } catch {}
+      try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNum, room_type: detectedRoomType || "General" }]); } catch {}
     }
   }
 
   for (const row of rows) {
-    const room = LOCAL_ROOMS_STORE.find(r => r.camp_id === campId && r.room_number === row.room_number);
+    // Only link to room if a room number was provided in the CSV
+    const room = row.room_number ? LOCAL_ROOMS_STORE.find(r => r.camp_id === campId && r.room_number === row.room_number) : undefined;
     const res = await addAttendeeAction({
       campId,
       fullName: row.full_name,
       fellowship: row.fellowship || "General",
       roomNumber: row.room_number || "",
-      roomType: room?.room_type || "",
+      roomType: room?.room_type || detectedRoomType || "",
       phoneNumber: row.phone_number || "",
       pfcc: row.pfcc || "",
       gender: row.gender || "",
       dayOfArrival: row.day_of_arrival || "",
     });
     if (res.success) {
-      // Link person to room in local store
       if (room && res.id) {
         LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
           a.id === res.id ? { ...a, room_id: room.id } : a
@@ -349,6 +353,16 @@ export async function importRealCSVAction(
   }
 
   return { success: true, peopleCreated, roomsCreated };
+}
+
+export async function clearCampAttendeesAndRoomsAction(campId: string): Promise<{ success: boolean }> {
+  LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.camp_id && a.camp_id !== campId);
+  LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.filter(r => r.camp_id !== campId);
+  try {
+    await supabaseAdmin.from("attendees").delete().eq("camp_id", campId);
+    await supabaseAdmin.from("rooms").delete().eq("camp_id", campId);
+  } catch {}
+  return { success: true };
 }
 
 export async function deleteAttendeeAction(id: string): Promise<{ success: boolean; error?: string }> {
