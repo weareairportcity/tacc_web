@@ -240,7 +240,7 @@ export default function RoomsPage() {
             <div className="flex-1 min-w-[140px]">
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#78716c] mb-1">Room Number *</label>
               <input type="text" value={newNumber} onChange={e => setNewNumber(e.target.value)} placeholder="e.g. V-103"
-                className="w-full px-3 py-2 font-mono bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
+                className="w-full px-3 py-2 bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
             </div>
             <div className="flex-1 min-w-[160px]">
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#78716c] mb-1">Room Type *</label>

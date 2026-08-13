@@ -452,11 +452,11 @@ function GroupCard({
           <div key={m.id} className="text-[11px] flex items-center justify-between gap-1">
             <span className="text-[#0c0a09] font-medium truncate">{m.full_name}</span>
             {m.room_number ? (
-              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-semibold shrink-0">
+              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
                 {m.room_number}
               </span>
             ) : (
-              <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded shrink-0">
+              <span className="text-[9px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
                 Unassigned
               </span>
             )}
@@ -631,11 +631,11 @@ function GroupDetailSidebar({
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-[#0c0a09]">{m.full_name}</span>
                       {m.room_number ? (
-                        <span className="text-[10px] font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <Home size={9} /> {m.room_number}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                           Unassigned
                         </span>
                       )}
@@ -646,7 +646,7 @@ function GroupDetailSidebar({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#78716c]">
                     {(m as any).pfcc && (
-                      <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/25 border border-[#3ba6f1]/20 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/30 border border-[#3ba6f1]/30 px-2 py-0.5 rounded-full">
                         {(m as any).pfcc}
                       </span>
                     )}

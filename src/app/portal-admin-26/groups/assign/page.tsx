@@ -156,7 +156,7 @@ export default function AssignGroupsPage() {
                           <CheckCircle2 size={12} className="text-emerald-600" />
                           Group {group.group_number}
                         </div>
-                        <div className="text-[11px] text-emerald-700 font-mono font-semibold">{room?.room_number}</div>
+                        <div className="text-[11px] text-emerald-700 font-medium">{room?.room_number}</div>
                       </div>
                       <button onClick={() => handleUnassign(group.id)} title="Unassign"
                         className="p-1.5 text-[#a8a29e] hover:text-amber-600 rounded cursor-pointer">

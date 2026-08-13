@@ -464,7 +464,7 @@ export default function PeoplePage() {
                       <td className="p-3 pl-5 font-medium text-sm text-[#0c0a09] hover:text-[#3ba6f1] transition-colors">{att.full_name}</td>
                       <td className="p-3 text-[#78716c] text-[11px]">
                         {(att as any).pfcc ? (
-                          <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/25 border border-[#3ba6f1]/20 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/30 border border-[#3ba6f1]/30 px-2 py-0.5 rounded-full">
                             {(att as any).pfcc}
                           </span>
                         ) : "—"}
@@ -472,7 +472,7 @@ export default function PeoplePage() {
                       <td className="p-3 text-[#78716c]">{att.fellowship}</td>
                       <td className="p-3">
                         {att.room_number
-                          ? <span className="font-mono font-semibold text-emerald-700">{att.room_number} <span className="font-normal text-[#a8a29e] ml-1">{att.room_type}</span></span>
+                          ? <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[11px] font-medium">{att.room_number} <span className="font-normal text-emerald-600 ml-1">({att.room_type})</span></span>
                           : <span className="text-amber-600 text-[11px] font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Unassigned</span>}
                       </td>
                       <td className="p-3 pr-5 text-right">
@@ -554,7 +554,7 @@ function PersonDetailSidebar({
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs text-[#78716c]">{person.fellowship || "General"}</span>
                 {(person as any).pfcc && (
-                  <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/25 border border-[#3ba6f1]/20 px-1.5 py-0.2 rounded">
+                  <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/30 border border-[#3ba6f1]/30 px-2 py-0.5 rounded-full">
                     {(person as any).pfcc}
                   </span>
                 )}
@@ -578,8 +578,8 @@ function PersonDetailSidebar({
               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3.5 rounded-[8px]">
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Assigned Room</div>
-                  <div className="font-mono font-semibold text-lg text-emerald-950">
-                    Room {person.room_number} <span className="text-xs font-normal text-emerald-700">({person.room_type})</span>
+                  <div className="font-display font-normal text-xl text-[#0c0a09] tracking-tight">
+                    Room {person.room_number} <span className="text-xs font-normal text-[#78716c]">({person.room_type})</span>
                   </div>
                   {person.key_bearer && (
                     <div className="text-[11px] text-emerald-700 mt-1 flex items-center gap-1">
@@ -631,7 +631,7 @@ function PersonDetailSidebar({
               </div>
               <div className="p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] col-span-2">
                 <div className="text-[10px] text-[#a8a29e] uppercase font-semibold">Contact Phone</div>
-                <div className="text-xs font-mono font-medium text-[#0c0a09] mt-0.5">{person.phone_number || "No phone number"}</div>
+                <div className="text-xs font-medium text-[#0c0a09] mt-0.5">{person.phone_number || "No phone number"}</div>
               </div>
             </div>
           </div>
