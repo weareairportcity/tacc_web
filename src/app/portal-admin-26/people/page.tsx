@@ -179,7 +179,20 @@ function CsvModal({ onClose, onUploaded, campId, roomTypes }: {
       if (nameIdx === -1) { setParseError("Found header row but could not locate NAME column."); return; }
 
       // Step 3: Parse data rows, skip blanks/sub-headers
-      const SKIP_LABELS = new Set(["PAIRINGS", "FEMALE", "MALE", "SECTION", ""]);
+      const SKIP_LABELS = new Set([
+        "PAIRINGS", "PAIRING", "FEMALE", "FEMALES", "MALE", "MALES",
+        "SECTION", "UNASSIGNED", "ASSIGNED", "NAME", "FULL NAME", "FULLNAME",
+        "TOTAL", "NO", "NO.", "CONTACT", "FELLOWSHIP", "PFCC", "GENDER",
+        "DAY OF ARRIVAL", "ROOM NUMBER", "ROOM", ""
+      ]);
+
+      const isHeaderOrSection = (str: string) => {
+        const u = str.trim().toUpperCase();
+        if (!u || SKIP_LABELS.has(u)) return true;
+        if (u.includes("IN A ROOM") || u.includes("GHC") || u.startsWith("MID YEAR") || u.startsWith("TACC")) return true;
+        return false;
+      };
+
       const rows: any[] = [];
       let groupCounter = 0;
       let prevNo = 0;
@@ -190,7 +203,7 @@ function CsvModal({ onClose, onUploaded, campId, roomTypes }: {
 
         const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
         const name = cols[nameIdx]?.trim() || "";
-        if (!name || SKIP_LABELS.has(name.toUpperCase())) continue;
+        if (isHeaderOrSection(name)) continue;
 
         const currentNo = noIdx >= 0 ? parseInt(cols[noIdx]) || 0 : 0;
         if (currentNo === 1 || (prevNo > 0 && currentNo <= prevNo && currentNo !== 0)) groupCounter++;
@@ -230,113 +243,83 @@ function CsvModal({ onClose, onUploaded, campId, roomTypes }: {
     reader.readAsText(file);
   };
 
-  const handleUpload = () => {
+  const handleImport = () => {
     if (!preview.length) return;
     startTransition(async () => {
       const res = await importRealCSVAction(campId, preview, detectedRoomType || undefined);
-      if (res.success) {
-        setResult({ peopleCreated: res.peopleCreated, roomsCreated: res.roomsCreated });
-        onUploaded();
-      } else {
-        setParseError(res.error || "Upload failed.");
-      }
+      setResult({ peopleCreated: res.peopleCreated, roomsCreated: res.roomsCreated });
+      onUploaded();
     });
   };
 
-  const uniquePFCCs = [...new Set(preview.map(r => r.pfcc).filter(Boolean))];
-  const uniqueRooms = [...new Set(preview.map(r => r.room_number).filter(Boolean))];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 backdrop-blur-xs">
-      <div className="bg-white border border-[#e8e6e5] rounded-[10px] shadow-[rgba(17,12,46,0.12)_0px_12px_45px_0px] w-full max-w-[560px]">
+      <div className="bg-white border border-[#e8e6e5] rounded-[10px] shadow-[rgba(17,12,46,0.12)_0px_12px_45px_0px] w-full max-w-[500px]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#e8e6e5] bg-[#fafaf9] rounded-t-[10px]">
-          <h2 className="font-display font-medium text-base text-[#0c0a09]">Import Attendees CSV</h2>
+          <h2 className="font-display font-medium text-base text-[#0c0a09]">Import People CSV</h2>
           <button onClick={onClose} className="text-[#a8a29e] hover:text-[#0c0a09] cursor-pointer"><X size={16} /></button>
         </div>
-        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+
+        <div className="p-5 space-y-4">
+          {parseError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 p-3 rounded">{parseError}</p>
+          )}
+
           {result ? (
             <div className="py-6 flex flex-col items-center text-center gap-3">
               <CheckCircle2 size={32} className="text-emerald-500" />
               <div>
                 <div className="text-sm font-medium text-[#0c0a09]">Import Complete</div>
                 <div className="text-xs text-[#78716c] mt-1">
-                  {result.peopleCreated} people added · {result.roomsCreated} rooms auto-created
+                  {result.peopleCreated} people imported · {result.roomsCreated} rooms auto-created
                 </div>
               </div>
-              <button onClick={onClose} className="px-5 py-2 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer hover:bg-[#3398e1] transition-colors">
+              <button onClick={onClose} className="px-5 py-2 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer mt-2 hover:bg-[#3398e1] transition-colors">
                 Done
               </button>
             </div>
           ) : (
             <>
-              {/* Expected format */}
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1.5">Expected columns</div>
-                <div className="text-[10px] font-mono bg-[#fafaf9] border border-[#e8e6e5] p-2.5 rounded text-[#78716c] leading-relaxed">
-                  NO. · NAME · CONTACT · FELLOWSHIP · GENDER · DAY OF ARRIVAL · PFCC · ROOM NUMBER
-                </div>
-              </div>
-
-              {/* File picker */}
-              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-2">CSV File</label>
                 <label className="flex items-center gap-3 p-3 bg-[#fafaf9] border border-dashed border-[#d6d3d1] rounded-[8px] cursor-pointer hover:border-[#3ba6f1] transition-colors group">
                   <div className="w-9 h-9 rounded bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0">
                     <Upload size={15} className="text-[#a8a29e] group-hover:text-[#3ba6f1] transition-colors" />
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-[#0c0a09]">{fileName || "Click to choose a CSV file"}</div>
-                    {!fileName && <div className="text-[10px] text-[#a8a29e]">Supports .csv and .txt formats</div>}
+                    {!fileName && <div className="text-[10px] text-[#a8a29e]">Filename can contain room type (e.g. "HOSTEL 4 IN A ROOM.csv")</div>}
                   </div>
                   <input type="file" accept=".csv,.txt,text/csv" className="hidden" onChange={handleFile} />
                 </label>
               </div>
 
-              {/* Detected room type from filename */}
               {detectedRoomType && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-[#c1e1f7]/30 border border-[#3ba6f1]/30 rounded-[8px]">
-                  <span className="text-[10px] text-[#3398e1] uppercase tracking-wider font-semibold shrink-0">Detected from filename</span>
-                  <span className="text-xs font-medium text-[#0c0a09]">{detectedRoomType}</span>
-                  <span className="text-[10px] text-[#78716c] ml-auto">Rooms will be created as this type</span>
+                <div className="p-2.5 bg-[#c1e1f7]/20 border border-[#3ba6f1]/30 rounded-[6px] text-xs text-[#3398e1]">
+                  Detected room type <strong>"{detectedRoomType}"</strong> from filename.
                 </div>
               )}
 
-              {/* Preview */}
               {preview.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-[11px] font-medium text-[#0c0a09] px-2 py-1 bg-[#fafaf9] border border-[#e8e6e5] rounded-full">
-                      {preview.length} people
-                    </span>
-                    {uniquePFCCs.length > 0 && (
-                      <span className="text-[11px] text-[#78716c] px-2 py-1 bg-[#fafaf9] border border-[#e8e6e5] rounded-full">
-                        {uniquePFCCs.length} PFCCs
-                      </span>
-                    )}
-                    {uniqueRooms.length > 0 && (
-                      <span className="text-[11px] text-emerald-700 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
-                        {uniqueRooms.length} rooms {detectedRoomType ? `(${detectedRoomType})` : ""} will be created
-                      </span>
-                    )}
-                  </div>
-                  <div className="max-h-44 overflow-y-auto border border-[#e8e6e5] rounded-[8px] divide-y divide-[#fafaf9]">
-                    {preview.map((r, i) => (
-                      <div key={i} className="px-3 py-2 grid grid-cols-3 gap-2 text-[11px]">
-                        <span className="font-medium text-[#0c0a09] truncate">{r.full_name}</span>
-                        <span className="text-[#78716c] truncate">{r.pfcc} · {r.fellowship}</span>
-                        <span className="text-[#a8a29e] text-right">{r.room_number || "—"}</span>
+                <div className="bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] p-3 space-y-2">
+                  <div className="text-xs font-medium text-[#0c0a09]">Found {preview.length} people</div>
+                  <div className="max-h-36 overflow-y-auto divide-y divide-[#e8e6e5]">
+                    {preview.slice(0, 10).map((row, i) => (
+                      <div key={i} className="py-1.5 text-[11px] flex items-center justify-between">
+                        <span className="font-medium text-[#0c0a09]">{row.full_name}</span>
+                        <span className="text-[#78716c]">{row.fellowship} {row.room_number ? `· Room ${row.room_number}` : ""}</span>
                       </div>
                     ))}
+                    {preview.length > 10 && <div className="py-1 text-[10px] text-[#a8a29e]">+{preview.length - 10} more...</div>}
                   </div>
                 </div>
               )}
-
-              {parseError && <p className="text-xs text-red-600 bg-red-50 border border-red-100 p-2 rounded">{parseError}</p>}
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[#e8e6e5]">
                 <button type="button" onClick={onClose} className="px-4 py-1.5 text-xs font-medium text-[#78716c] bg-[#fafaf9] border border-[#e8e6e5] rounded-full cursor-pointer">Cancel</button>
-                <button type="button" disabled={!preview.length || isPending} onClick={handleUpload}
-                  className="px-5 py-1.5 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer disabled:opacity-50 hover:bg-[#3398e1] transition-colors flex items-center gap-1.5">
-                  {isPending ? <><Loader2 size={12} className="animate-spin" /> Importing…</> : `Import ${preview.length} People`}
+                <button type="button" onClick={handleImport} disabled={isPending || preview.length === 0}
+                  className="px-5 py-1.5 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer disabled:opacity-50 hover:bg-[#3398e1]">
+                  {isPending ? "Importing..." : "Import"}
                 </button>
               </div>
             </>
@@ -357,6 +340,7 @@ export default function PeoplePage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showCsv, setShowCsv] = useState(false);
+  const [selectedPerson, setSelectedPerson] = useState<AttendeeAdmin | null>(null);
   const [roomTypes, setRoomTypes] = useState<string[]>([]);
   const [smsMap, setSmsMap] = useState<Record<string, "sending" | "sent" | "error">>({});
   const [isPending, startTransition] = useTransition();
@@ -372,9 +356,21 @@ export default function PeoplePage() {
 
   useEffect(() => { load(); }, [campId]);
 
+  // Keep selectedPerson synced after load reloads
+  useEffect(() => {
+    if (selectedPerson) {
+      const updated = attendees.find(a => a.id === selectedPerson.id);
+      if (updated) setSelectedPerson(updated);
+    }
+  }, [attendees]);
+
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Remove ${name}?`)) return;
-    startTransition(async () => { await deleteAttendeeAction(id); await load(); });
+    startTransition(async () => {
+      await deleteAttendeeAction(id);
+      if (selectedPerson?.id === id) setSelectedPerson(null);
+      await load();
+    });
   };
 
   const handleSMS = (att: AttendeeAdmin) => {
@@ -398,6 +394,7 @@ export default function PeoplePage() {
         <div>
           <div className="text-xs uppercase tracking-wider text-[#a8a29e] font-semibold mb-1">Directory</div>
           <h1 className="font-display font-normal text-[28px] text-[#0c0a09] tracking-tight">People</h1>
+          <p className="text-xs text-[#78716c] mt-1">Click any row to open person details and view room status.</p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <button onClick={() => setShowCsv(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-transparent border border-[#d6d3d1] text-[#0c0a09] text-xs font-medium rounded-full hover:bg-white transition-colors cursor-pointer">
@@ -455,21 +452,31 @@ export default function PeoplePage() {
               </thead>
               <tbody className="divide-y divide-[#fafaf9]">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={4} className="py-10 text-center text-xs text-[#a8a29e]">No people found.</td></tr>
+                  <tr><td colSpan={5} className="py-10 text-center text-xs text-[#a8a29e]">No people found.</td></tr>
                 ) : filtered.map(att => {
                   const sms = smsMap[att.id];
                   return (
-                    <tr key={att.id} className="hover:bg-[#fafaf9] transition-colors text-[#0c0a09]">
-                      <td className="p-3 pl-5 font-medium text-sm">{att.full_name}</td>
-                      <td className="p-3 text-[#78716c] text-[11px]">{(att as any).pfcc || "—"}</td>
+                    <tr
+                      key={att.id}
+                      onClick={() => setSelectedPerson(att)}
+                      className="hover:bg-[#fafaf9] cursor-pointer transition-colors text-[#0c0a09]"
+                    >
+                      <td className="p-3 pl-5 font-medium text-sm text-[#0c0a09] hover:text-[#3ba6f1] transition-colors">{att.full_name}</td>
+                      <td className="p-3 text-[#78716c] text-[11px]">
+                        {(att as any).pfcc ? (
+                          <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/25 border border-[#3ba6f1]/20 px-1.5 py-0.5 rounded">
+                            {(att as any).pfcc}
+                          </span>
+                        ) : "—"}
+                      </td>
                       <td className="p-3 text-[#78716c]">{att.fellowship}</td>
                       <td className="p-3">
                         {att.room_number
-                          ? <span className="font-mono font-semibold">{att.room_number} <span className="font-normal text-[#a8a29e] ml-1">{att.room_type}</span></span>
+                          ? <span className="font-mono font-semibold text-emerald-700">{att.room_number} <span className="font-normal text-[#a8a29e] ml-1">{att.room_type}</span></span>
                           : <span className="text-amber-600 text-[11px] font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Unassigned</span>}
                       </td>
                       <td className="p-3 pr-5 text-right">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex items-center gap-2" onClick={e => e.stopPropagation()}>
                           {att.room_number && (
                             <button onClick={() => handleSMS(att)} disabled={sms === "sending"}
                               className={`inline-flex items-center gap-1 px-3 py-1 text-[11px] font-medium rounded-full transition-colors cursor-pointer ${sms === "sent" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : sms === "error" ? "bg-red-50 text-red-600 border border-red-200" : "bg-[#3ba6f1] text-white hover:bg-[#3398e1]"}`}>
@@ -497,6 +504,154 @@ export default function PeoplePage() {
 
       {showAdd && <AddPersonModal onClose={() => setShowAdd(false)} onAdded={load} campId={campId} fellowships={fellowships} />}
       {showCsv && <CsvModal onClose={() => setShowCsv(false)} onUploaded={load} campId={campId} roomTypes={roomTypes} />}
+      {selectedPerson && (
+        <PersonDetailSidebar
+          person={selectedPerson}
+          onClose={() => setSelectedPerson(null)}
+          onDeleted={() => handleDelete(selectedPerson.id, selectedPerson.full_name)}
+          smsMap={smsMap}
+          onSendSMS={handleSMS}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Person Details Slide-Over Sidebar ─────────────────────────────────────────
+function PersonDetailSidebar({
+  person,
+  onClose,
+  onDeleted,
+  smsMap,
+  onSendSMS,
+}: {
+  person: AttendeeAdmin;
+  onClose: () => void;
+  onDeleted: () => void;
+  smsMap: Record<string, "sending" | "sent" | "error">;
+  onSendSMS: (att: AttendeeAdmin) => void;
+}) {
+  const sms = smsMap[person.id];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40 transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Slide-over Panel */}
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[440px] bg-white shadow-[-16px_0px_50px_rgba(0,0,0,0.15)] flex flex-col transform transition-transform duration-300 ease-in-out">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-[#e8e6e5] bg-[#fafaf9] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0 shadow-xs font-display font-medium text-lg text-[#3ba6f1]">
+              {person.full_name.substring(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <h2 className="font-display font-normal text-2xl text-[#0c0a09]">{person.full_name}</h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-[#78716c]">{person.fellowship || "General"}</span>
+                {(person as any).pfcc && (
+                  <span className="text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/25 border border-[#3ba6f1]/20 px-1.5 py-0.2 rounded">
+                    {(person as any).pfcc}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full border border-[#e8e6e5] bg-white flex items-center justify-center text-[#78716c] hover:text-[#0c0a09] hover:border-[#d6d3d1] cursor-pointer transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Room Assignment Status Card */}
+          <div className="p-4 rounded-[10px] border bg-[#fafaf9] border-[#e8e6e5] space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[#78716c]">Room Assignment</div>
+            {person.room_number ? (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3.5 rounded-[8px]">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Assigned Room</div>
+                  <div className="font-mono font-semibold text-lg text-emerald-950">
+                    Room {person.room_number} <span className="text-xs font-normal text-emerald-700">({person.room_type})</span>
+                  </div>
+                  {person.key_bearer && (
+                    <div className="text-[11px] text-emerald-700 mt-1 flex items-center gap-1">
+                      Key Holder: <span className="font-medium">{person.key_bearer}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => onSendSMS(person)}
+                  disabled={sms === "sending"}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+                    sms === "sent"
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                      : sms === "error"
+                      ? "bg-red-50 text-red-600 border border-red-200"
+                      : "bg-[#3ba6f1] text-white hover:bg-[#3398e1]"
+                  }`}
+                >
+                  {sms === "sending" ? <Loader2 size={12} className="animate-spin" /> : sms === "sent" ? <CheckCircle2 size={12} /> : <Send size={12} />}
+                  {sms === "sending" ? "Sending..." : sms === "sent" ? "SMS Sent" : "Send SMS"}
+                </button>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-[8px] text-xs text-amber-800 font-medium">
+                Not assigned to a room yet. Assign rooms from the Rooms page or Groups page.
+              </div>
+            )}
+          </div>
+
+          {/* Member Details */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#78716c]">Personal Details</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px]">
+                <div className="text-[10px] text-[#a8a29e] uppercase font-semibold">PFCC</div>
+                <div className="text-xs font-medium text-[#0c0a09] mt-0.5">{(person as any).pfcc || "None"}</div>
+              </div>
+              <div className="p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px]">
+                <div className="text-[10px] text-[#a8a29e] uppercase font-semibold">Fellowship</div>
+                <div className="text-xs font-medium text-[#0c0a09] mt-0.5">{person.fellowship || "General"}</div>
+              </div>
+              <div className="p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px]">
+                <div className="text-[10px] text-[#a8a29e] uppercase font-semibold">Gender</div>
+                <div className="text-xs font-medium text-[#0c0a09] mt-0.5">{(person as any).gender || "—"}</div>
+              </div>
+              <div className="p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px]">
+                <div className="text-[10px] text-[#a8a29e] uppercase font-semibold">Arrival Day</div>
+                <div className="text-xs font-medium text-[#0c0a09] mt-0.5">{(person as any).day_of_arrival || "—"}</div>
+              </div>
+              <div className="p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] col-span-2">
+                <div className="text-[10px] text-[#a8a29e] uppercase font-semibold">Contact Phone</div>
+                <div className="text-xs font-mono font-medium text-[#0c0a09] mt-0.5">{person.phone_number || "No phone number"}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Delete Action */}
+          <div className="pt-4 border-t border-[#e8e6e5]">
+            <button
+              onClick={() => {
+                if (confirm(`Remove ${person.full_name}?`)) {
+                  onDeleted();
+                  onClose();
+                }
+              }}
+              className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-medium rounded-full transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Trash2 size={13} /> Remove Person
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

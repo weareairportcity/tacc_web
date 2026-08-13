@@ -18,6 +18,7 @@ function RoomPanel({ room, campId, roomTypes, onClose, onChanged }: {
 }) {
   const [occupants, setOccupants] = useState<AttendeeAdmin[]>([]);
   const [allPeople, setAllPeople] = useState<AttendeeAdmin[]>([]);
+  const [keyBearerId, setKeyBearerId] = useState<string | undefined>(room.key_bearer_id);
   const [addSearch, setAddSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [smsMap, setSmsMap] = useState<Record<string, "sending" | "sent">>({});
@@ -29,7 +30,10 @@ function RoomPanel({ room, campId, roomTypes, onClose, onChanged }: {
     setAllPeople(all);
   };
 
-  useEffect(() => { load(); }, [room.id]);
+  useEffect(() => {
+    load();
+    setKeyBearerId(room.key_bearer_id);
+  }, [room.id, room.key_bearer_id]);
 
   const unassigned = allPeople.filter(p => !p.room_id && !p.room_number);
   const searchResults = unassigned.filter(p => p.full_name.toLowerCase().includes(addSearch.toLowerCase()));
@@ -51,6 +55,7 @@ function RoomPanel({ room, campId, roomTypes, onClose, onChanged }: {
   const handleSetKeyBearer = (personId: string) => {
     startTransition(async () => {
       await setKeyBearerAction(room.id, personId);
+      setKeyBearerId(personId);
       await load(); onChanged();
     });
   };
@@ -113,7 +118,7 @@ function RoomPanel({ room, campId, roomTypes, onClose, onChanged }: {
             {occupants.length === 0
               ? <p className="text-xs text-[#a8a29e] py-2">No one assigned yet.</p>
               : occupants.map(occ => {
-                const isKeyHolder = room.key_bearer_id === occ.id;
+                const isKeyHolder = keyBearerId === occ.id;
                 return (
                   <div key={occ.id} className="mb-2 bg-white border border-[#e8e6e5] rounded-[8px] p-3 flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -121,12 +126,11 @@ function RoomPanel({ room, campId, roomTypes, onClose, onChanged }: {
                       <div className="text-[11px] text-[#a8a29e]">{occ.fellowship}</div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {isKeyHolder && (
+                      {isKeyHolder ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#3398e1] bg-[#c1e1f7]/50 px-2 py-0.5 rounded-full">
                           <Key size={9} /> Key
                         </span>
-                      )}
-                      {!isKeyHolder && (
+                      ) : (
                         <button onClick={() => handleSetKeyBearer(occ.id)} title="Set as Key Bearer"
                           className="p-1.5 text-[#a8a29e] hover:text-[#3ba6f1] rounded hover:bg-[#fafaf9] transition-colors cursor-pointer">
                           <Key size={12} />

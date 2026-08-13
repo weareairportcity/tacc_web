@@ -65,7 +65,20 @@ function CsvImportModal({ onClose, onImported, campId, roomTypes }: {
       if (nameIdx === -1) { setParseError("Found header row but could not locate NAME column."); return; }
 
       // Step 3: Parse rows — detect pairings by NO. resetting to 1
-      const SKIP_LABELS = new Set(["PAIRINGS", "FEMALE", "MALE", "SECTION", ""]);
+      const SKIP_LABELS = new Set([
+        "PAIRINGS", "PAIRING", "FEMALE", "FEMALES", "MALE", "MALES",
+        "SECTION", "UNASSIGNED", "ASSIGNED", "NAME", "FULL NAME", "FULLNAME",
+        "TOTAL", "NO", "NO.", "CONTACT", "FELLOWSHIP", "PFCC", "GENDER",
+        "DAY OF ARRIVAL", "ROOM NUMBER", "ROOM", ""
+      ]);
+
+      const isHeaderOrSection = (str: string) => {
+        const u = str.trim().toUpperCase();
+        if (!u || SKIP_LABELS.has(u)) return true;
+        if (u.includes("IN A ROOM") || u.includes("GHC") || u.startsWith("MID YEAR") || u.startsWith("TACC")) return true;
+        return false;
+      };
+
       const parsed: any[] = [];
       let groupCounter = 0;
       let prevNo = 0;
@@ -76,7 +89,7 @@ function CsvImportModal({ onClose, onImported, campId, roomTypes }: {
 
         const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
         const name = cols[nameIdx]?.trim() || "";
-        if (!name || SKIP_LABELS.has(name.toUpperCase())) continue;
+        if (isHeaderOrSection(name)) continue;
 
         const currentNo = noIdx >= 0 ? parseInt(cols[noIdx]) || 0 : 0;
         // New pairing group when NO. resets to 1
