@@ -3,23 +3,13 @@
 import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { Layers, Upload, Trash2, Loader2, X, Users, ArrowRight, CheckCircle2 } from "lucide-react";
-import { getGroupsAction, importGroupsFromCSVAction, deleteGroupAction, Group } from "../../camp/actions";
+import { getGroupsAction, importGroupsFromCSVAction, deleteGroupAction, getCampsList, Group } from "../../camp/actions";
 import { useAdminCtx } from "../AdminShell";
 
-// ─── Room type detection from filename ────────────────────────────────────────
-const KNOWN_ROOM_TYPES = ["Villa", "Hostel", "Dormitory", "Wise as Serpents"];
-
-function detectRoomTypeFromFilename(name: string): string {
-  const lower = name.toLowerCase().replace(/[_\-\.]/g, " ");
-  for (const rt of KNOWN_ROOM_TYPES) {
-    if (lower.includes(rt.toLowerCase())) return rt;
-  }
-  return "";
-}
 
 // ─── CSV Import Modal ─────────────────────────────────────────────────────────
-function CsvImportModal({ onClose, onImported, campId }: {
-  onClose: () => void; onImported: () => void; campId: string;
+function CsvImportModal({ onClose, onImported, campId, roomTypes }: {
+  onClose: () => void; onImported: () => void; campId: string; roomTypes: string[];
 }) {
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<any[]>([]);
@@ -33,39 +23,80 @@ function CsvImportModal({ onClose, onImported, campId }: {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-    const detected = detectRoomTypeFromFilename(file.name);
+    setParseError("");
+    setRows([]);
+
+    // Detect room type from filename using the camp's actual room types
+    const detected = roomTypes.find(rt => file.name.toLowerCase().includes(rt.toLowerCase())) || "";
     setDetectedType(detected);
     setRoomType(detected);
-    setParseError("");
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.trim().split("\n");
-      if (lines.length < 2) { setParseError("CSV must have a header row and at least one data row."); return; }
-      const header = lines[0].split(",").map(h => h.trim().toLowerCase());
-      const nameIdx = header.findIndex(h => h.includes("name"));
-      const fellowshipIdx = header.findIndex(h => h.includes("fellowship") || h.includes("group_name") || h.includes("church"));
-      const groupIdx = header.findIndex(h => h.includes("group_id") || h.includes("group id") || h.includes("pair") || h.includes("group"));
-      const phoneIdx = header.findIndex(h => h.includes("phone") || h.includes("tel") || h.includes("mobile"));
+      const rawLines = text.split("\n");
 
-      if (nameIdx === -1) { setParseError("Could not find a 'name' column."); return; }
-      if (groupIdx === -1) { setParseError("Could not find a 'group_id' column."); return; }
+      // Step 1: Find real header row — scan up to 30 rows for one containing NAME
+      let headerRowIdx = -1;
+      for (let i = 0; i < Math.min(rawLines.length, 30); i++) {
+        const cols = rawLines[i].split(",").map(c => c.trim().replace(/^"|"$/g, "").toUpperCase());
+        if (cols.includes("NAME")) { headerRowIdx = i; break; }
+      }
+      if (headerRowIdx === -1) { setParseError("Could not find a header row with a NAME column in the first 30 rows."); return; }
 
+      // Step 2: Map column indices
+      const hdr = rawLines[headerRowIdx].split(",").map(c => c.trim().replace(/^"|"$/g, "").toUpperCase());
+      const col = (name: string, ...aliases: string[]) => {
+        for (const a of [name, ...aliases]) { const i = hdr.findIndex(h => h === a || h.replace(/\s+/g, "") === a.replace(/\s+/g, "")); if (i >= 0) return i; }
+        return -1;
+      };
+      const noIdx      = col("NO.", "NO", "#");
+      const nameIdx    = col("NAME", "FULL NAME", "FULLNAME");
+      const contactIdx = col("CONTACT", "PHONE", "MOBILE", "TEL");
+      const fellowIdx  = col("FELLOWSHIP", "CHURCH", "PCF");
+      const pfccIdx    = col("PFCC");
+      const genderIdx  = col("GENDER", "SEX");
+      const arrivalIdx = col("DAY OF ARRIVAL", "DAYOFARRIVAL", "ARRIVAL");
+
+      if (nameIdx === -1) { setParseError("Found header row but could not locate NAME column."); return; }
+
+      // Step 3: Parse rows — detect pairings by NO. resetting to 1
+      const SKIP_LABELS = new Set(["PAIRINGS", "FEMALE", "MALE", "SECTION", ""]);
       const parsed: any[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(",").map(c => c.trim());
-        if (!cols[nameIdx]) continue;
+      let groupCounter = 0;
+      let prevNo = 0;
+
+      for (let i = headerRowIdx + 1; i < rawLines.length; i++) {
+        const line = rawLines[i].trim();
+        if (!line) { prevNo = 0; continue; } // blank line = section separator
+
+        const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+        const name = cols[nameIdx]?.trim() || "";
+        if (!name || SKIP_LABELS.has(name.toUpperCase())) continue;
+
+        const currentNo = noIdx >= 0 ? parseInt(cols[noIdx]) || 0 : 0;
+        // New pairing group when NO. resets to 1
+        if (currentNo === 1 || (prevNo > 0 && currentNo <= prevNo && currentNo !== 0)) groupCounter++;
+        else if (groupCounter === 0) groupCounter = 1;
+        prevNo = currentNo;
+
         parsed.push({
-          full_name: cols[nameIdx],
-          fellowship: fellowshipIdx >= 0 ? cols[fellowshipIdx] : "General",
-          group_id: cols[groupIdx] || String(i),
-          phone_number: phoneIdx >= 0 ? cols[phoneIdx] : "",
+          full_name: name,
+          fellowship: fellowIdx >= 0 ? cols[fellowIdx]?.trim() || "General" : "General",
+          phone_number: contactIdx >= 0 ? cols[contactIdx]?.trim() || "" : "",
+          pfcc: pfccIdx >= 0 ? cols[pfccIdx]?.trim() || "" : "",
+          gender: genderIdx >= 0 ? cols[genderIdx]?.trim() || "" : "",
+          day_of_arrival: arrivalIdx >= 0 ? cols[arrivalIdx]?.trim() || "" : "",
+          group_id: String(groupCounter), // derived from NO. column reset
         });
       }
+
+      if (parsed.length === 0) { setParseError("No valid data rows found after the header."); return; }
       setRows(parsed);
     };
     reader.readAsText(file);
   };
+
 
   const handleImport = () => {
     if (!rows.length) return;
@@ -109,8 +140,8 @@ function CsvImportModal({ onClose, onImported, campId }: {
               {/* File picker */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-2">CSV File</label>
-                <div className="text-[10px] font-mono bg-[#fafaf9] border border-[#e8e6e5] p-2 rounded mb-2 text-[#78716c]">
-                  full_name, fellowship, group_id, phone_number
+                <div className="text-[10px] font-mono bg-[#fafaf9] border border-[#e8e6e5] p-2 rounded mb-2 text-[#78716c] leading-relaxed">
+                  NO. · NAME · CONTACT · FELLOWSHIP · GENDER · DAY OF ARRIVAL · PFCC
                 </div>
                 <label className="flex items-center gap-3 p-3 bg-[#fafaf9] border border-dashed border-[#d6d3d1] rounded-[8px] cursor-pointer hover:border-[#3ba6f1] transition-colors group">
                   <div className="w-9 h-9 rounded bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0">
@@ -118,9 +149,9 @@ function CsvImportModal({ onClose, onImported, campId }: {
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-[#0c0a09]">{fileName || "Click to choose a CSV file"}</div>
-                    {!fileName && <div className="text-[10px] text-[#a8a29e]">The filename can contain the room type (e.g. "Villa_groups.csv")</div>}
+                    {!fileName && <div className="text-[10px] text-[#a8a29e]">Filename can contain room type (e.g. "Hostel 4 IN A ROOM.csv")</div>}
                   </div>
-                  <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
+                  <input type="file" accept=".csv,.txt,text/csv" className="hidden" onChange={handleFile} />
                 </label>
               </div>
 
@@ -128,12 +159,12 @@ function CsvImportModal({ onClose, onImported, campId }: {
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1.5">Room Type for this Group</label>
                 {detectedType && (
-                  <p className="text-[10px] text-[#3398e1] mb-1.5">
+                  <p className="text-[10px] text-[#3398e1] mb-1.5 font-medium">
                     ✓ Detected <strong>{detectedType}</strong> from filename
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  {KNOWN_ROOM_TYPES.map(t => (
+                  {roomTypes.map(t => (
                     <button key={t} type="button" onClick={() => setRoomType(t)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors cursor-pointer ${roomType === t ? "bg-[#0c0a09] text-white border-[#0c0a09]" : "bg-white text-[#78716c] border-[#e8e6e5] hover:border-[#d6d3d1]"}`}>
                       {t}
@@ -147,22 +178,37 @@ function CsvImportModal({ onClose, onImported, campId }: {
 
               {/* Preview */}
               {rows.length > 0 && (
-                <div className="bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] p-3">
-                  <div className="text-xs font-medium text-[#0c0a09] mb-2">
-                    {uniqueGroups.length} groups · {rows.length} people
+                <div className="bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] p-3 space-y-3">
+                  {/* Pairing Stats counter */}
+                  <div className="grid grid-cols-3 gap-2 bg-white border border-[#e8e6e5] p-2.5 rounded-[6px] text-center">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[#a8a29e] font-semibold">Pairings</div>
+                      <div className="font-display font-normal text-xl text-[#3ba6f1]">{uniqueGroups.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[#a8a29e] font-semibold">Total People</div>
+                      <div className="font-display font-normal text-xl text-[#0c0a09]">{rows.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[#a8a29e] font-semibold">Avg / Room</div>
+                      <div className="font-display font-normal text-xl text-[#78716c]">
+                        {uniqueGroups.length ? (rows.length / uniqueGroups.length).toFixed(1) : 0}
+                      </div>
+                    </div>
                   </div>
+
                   <div className="max-h-36 overflow-y-auto divide-y divide-[#e8e6e5]">
                     {uniqueGroups.slice(0, 8).map(gid => {
                       const members = rows.filter(r => r.group_id === gid);
                       return (
                         <div key={gid} className="py-1.5 flex items-center justify-between">
-                          <div className="text-[11px] font-mono text-[#a8a29e]">Group {gid}</div>
-                          <div className="text-[11px] text-[#0c0a09]">{members.map((m: any) => m.full_name).join(", ")}</div>
+                          <div className="text-[11px] font-mono text-[#3ba6f1] font-medium">Pairing #{gid} ({members.length})</div>
+                          <div className="text-[11px] text-[#0c0a09] truncate max-w-[280px]">{members.map((m: any) => m.full_name).join(", ")}</div>
                         </div>
                       );
                     })}
                     {uniqueGroups.length > 8 && (
-                      <div className="py-1.5 text-[11px] text-[#a8a29e]">+{uniqueGroups.length - 8} more groups…</div>
+                      <div className="py-1.5 text-[11px] text-[#a8a29e]">+{uniqueGroups.length - 8} more pairings…</div>
                     )}
                   </div>
                 </div>
@@ -189,13 +235,16 @@ function CsvImportModal({ onClose, onImported, campId }: {
 export default function GroupsPage() {
   const { campId } = useAdminCtx();
   const [groups, setGroups] = useState<Group[]>([]);
+  const [roomTypes, setRoomTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const load = async () => {
-    const g = await getGroupsAction(campId);
+    const [g, camps] = await Promise.all([getGroupsAction(campId), getCampsList()]);
     setGroups(g);
+    const currentCamp = camps.find(c => c.id === campId);
+    if (currentCamp?.room_types) setRoomTypes(currentCamp.room_types);
     setLoading(false);
   };
 
@@ -300,7 +349,7 @@ export default function GroupsPage() {
         </div>
       )}
 
-      {showImport && <CsvImportModal onClose={() => setShowImport(false)} onImported={load} campId={campId} />}
+      {showImport && <CsvImportModal onClose={() => setShowImport(false)} onImported={load} campId={campId} roomTypes={roomTypes} />}
     </div>
   );
 }
