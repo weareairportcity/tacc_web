@@ -798,6 +798,7 @@ export async function importGroupsFromCSVAction(
     }
   }
 
+  saveStoreToFile();
   return { success: true, groupsCreated, peopleCreated };
 }
 
