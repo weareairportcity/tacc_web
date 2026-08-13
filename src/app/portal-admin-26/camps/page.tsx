@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Map, Plus, Users, Calendar, ArrowRight, Loader2, X, ChevronRight } from "lucide-react";
+import { Map, Plus, Users, Calendar, ArrowRight, Loader2, X, ChevronRight, Upload } from "lucide-react";
 import { getCampsList, createCampAction, CampDetails } from "../../camp/actions";
 import { useAdminCtx } from "../AdminShell";
 
@@ -12,10 +12,24 @@ function CreateCampModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [logoFileName, setLogoFileName] = useState("");
   const [roomTypes, setRoomTypes] = useState(["Villa", "Hostel", "Dormitory"]);
   const [newType, setNewType] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setLogoUrl(ev.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +60,35 @@ function CreateCampModal({ onClose, onCreated }: { onClose: () => void; onCreate
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1">Logo URL (optional)</label>
-            <input type="url" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..."
-              className="w-full px-3 py-2 bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1.5">Camp Logo (Optional)</label>
+            {logoUrl ? (
+              <div className="flex items-center gap-3 p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px]">
+                <img src={logoUrl} alt="Camp logo preview" className="w-10 h-10 object-contain rounded border border-[#e8e6e5] bg-white" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-[#0c0a09] truncate">{logoFileName || "Uploaded Logo"}</div>
+                  <div className="text-[10px] text-emerald-600 font-medium">✓ Logo ready</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setLogoUrl(""); setLogoFileName(""); }}
+                  className="p-1 text-[#a8a29e] hover:text-red-500 rounded cursor-pointer"
+                  title="Remove Logo"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-3 p-3.5 bg-[#fafaf9] border border-dashed border-[#d6d3d1] rounded-[8px] cursor-pointer hover:border-[#3ba6f1] transition-colors group">
+                <div className="w-9 h-9 rounded bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0">
+                  <Upload size={15} className="text-[#a8a29e] group-hover:text-[#3ba6f1] transition-colors" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-[#0c0a09]">Click to upload logo image</div>
+                  <div className="text-[10px] text-[#a8a29e]">PNG, JPG, SVG, WebP up to 5MB</div>
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
+              </label>
+            )}
           </div>
 
           <div>

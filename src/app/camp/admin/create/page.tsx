@@ -128,18 +128,52 @@ export default function CreateCampPage() {
             />
           </div>
 
-          {/* Logo URL */}
+          {/* Camp Logo File Upload */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1.5">
-              Camp Logo URL (Optional)
+              Camp Logo (Optional)
             </label>
-            <input
-              type="url"
-              placeholder="https://example.com/logo.png"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-[#d6d3d1] rounded-[6px] text-sm text-[#0c0a09] focus:outline-none focus:ring-2 focus:ring-[#3ba6f1]"
-            />
+            {logoUrl ? (
+              <div className="flex items-center gap-3 p-3 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px]">
+                <img src={logoUrl} alt="Camp logo preview" className="w-10 h-10 object-contain rounded border border-[#e8e6e5] bg-white" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-[#0c0a09] truncate">Camp Logo Loaded</div>
+                  <div className="text-[10px] text-emerald-600 font-medium">✓ Image ready</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLogoUrl("")}
+                  className="p-1 text-[#a8a29e] hover:text-red-500 rounded cursor-pointer"
+                  title="Remove Logo"
+                >
+                  <Upload size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-3 p-3.5 bg-[#fafaf9] border border-dashed border-[#d6d3d1] rounded-[8px] cursor-pointer hover:border-[#3ba6f1] transition-colors group">
+                <div className="w-9 h-9 rounded bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0">
+                  <Upload size={15} className="text-[#a8a29e] group-hover:text-[#3ba6f1] transition-colors" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-[#0c0a09]">Click to upload logo image</div>
+                  <div className="text-[10px] text-[#a8a29e]">PNG, JPG, SVG, WebP up to 5MB</div>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      if (ev.target?.result) setLogoUrl(ev.target.result as string);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+            )}
           </div>
 
           {/* Room Types Customization */}
