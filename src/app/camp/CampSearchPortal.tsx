@@ -137,8 +137,10 @@ export function CampSearchPortal({ camp }: Props) {
                           <div className="font-medium text-[14px] text-[#0c0a09]">{p.full_name}</div>
                           <div className="text-[12px] text-[#a8a29e]">{p.fellowship}</div>
                         </div>
-                        {p.room_number && (
+                        {p.room_number && p.room_number.toUpperCase() !== "TBD" && p.room_number.toUpperCase() !== "NOT ASSIGNED" ? (
                           <span className="font-mono text-[13px] font-semibold text-[#0c0a09] bg-[#fafaf9] border border-[#e8e6e5] px-2 py-1 rounded">{p.room_number}</span>
+                        ) : (
+                          <span className="text-[11px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">Not Assigned</span>
                         )}
                       </button>
                     ))
@@ -165,9 +167,17 @@ export function CampSearchPortal({ camp }: Props) {
               {/* Room number hero */}
               <div className="bg-[#0c0a09] px-8 py-10 text-center">
                 <div className="text-[#a8a29e] text-[12px] uppercase tracking-[0.12em] mb-2 font-medium">Your Room</div>
-                <div className="font-display font-normal text-[80px] sm:text-[96px] text-white leading-none tracking-tight">
-                  {selectedPerson.room_number || "TBD"}
-                </div>
+                {selectedPerson.room_number &&
+                 selectedPerson.room_number.toUpperCase() !== "TBD" &&
+                 selectedPerson.room_number.toUpperCase() !== "NOT ASSIGNED" ? (
+                  <div className="font-display font-normal text-[72px] sm:text-[96px] text-white leading-none tracking-tight">
+                    {selectedPerson.room_number}
+                  </div>
+                ) : (
+                  <div className="font-display font-normal text-[36px] sm:text-[48px] text-amber-300 leading-tight tracking-tight">
+                    Not Assigned
+                  </div>
+                )}
                 {selectedPerson.room_type && (
                   <div className="text-[#a8a29e] text-[14px] mt-3">{selectedPerson.room_type}</div>
                 )}

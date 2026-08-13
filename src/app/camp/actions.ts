@@ -146,7 +146,7 @@ export async function getRoomAssignmentDetails(personId: string, campId?: string
       .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("id", personId).maybeSingle();
     if (!error && personData) {
       const roomNum = personData.room_number?.trim();
-      const hasRoom = roomNum && roomNum.toUpperCase() !== "TBD";
+      const hasRoom = roomNum && roomNum.toUpperCase() !== "TBD" && roomNum.toUpperCase() !== "NOT ASSIGNED";
       const { data: mates } = hasRoom
         ? await supabaseAdmin
             .from("attendees").select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer").eq("room_number", roomNum).neq("id", personData.id)
@@ -158,7 +158,7 @@ export async function getRoomAssignmentDetails(personId: string, campId?: string
   const p = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
   if (!p) return { person: null, roommates: [] };
   const roomNum = p.room_number?.trim();
-  const hasRoom = roomNum && roomNum.toUpperCase() !== "TBD";
+  const hasRoom = roomNum && roomNum.toUpperCase() !== "TBD" && roomNum.toUpperCase() !== "NOT ASSIGNED";
   const mates = hasRoom
     ? LOCAL_ATTENDEES_STORE.filter(a => a.room_number?.trim() === roomNum && a.id !== p.id)
     : [];
