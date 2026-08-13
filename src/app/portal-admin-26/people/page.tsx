@@ -143,38 +143,85 @@ function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUplo
     if (!file) return;
     setFileName(file.name);
     setParseError("");
+    setPreview([]);
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.trim().split("\n").filter(l => l.trim());
-      if (lines.length < 2) { setParseError("File must have a header row and at least one data row."); return; }
+      // Split into lines, keep blanks for group-break detection
+      const rawLines = text.split("\n");
 
-      const raw = lines[0].split(",").map(h => h.trim());
-      const nameIdx     = findCol(raw, "NAME", "FULL NAME", "FULLNAME");
-      const contactIdx  = findCol(raw, "CONTACT", "PHONE", "MOBILE", "TEL");
-      const fellowship  = findCol(raw, "FELLOWSHIP", "CHURCH", "PCF");
-      const genderIdx   = findCol(raw, "GENDER", "SEX");
-      const arrivalIdx  = findCol(raw, "DAY OF ARRIVAL", "DAYOFARRIVAL", "ARRIVAL", "ARRIVE");
-      const pfccIdx     = findCol(raw, "PFCC");
-      const roomIdx     = findCol(raw, "ROOM NUMBER", "ROOMNUMBER", "ROOM", "ROOM NO");
+      // ── Step 1: Find the real header row by scanning for a row containing "NAME" ──
+      let headerRowIdx = -1;
+      for (let i = 0; i < Math.min(rawLines.length, 30); i++) {
+        const cols = rawLines[i].split(",").map(c => c.trim().replace(/^"|"$/g, "").toUpperCase());
+        if (cols.includes("NAME")) { headerRowIdx = i; break; }
+      }
+      if (headerRowIdx === -1) {
+        setParseError("Could not find a header row with a NAME column in the first 30 rows.");
+        return;
+      }
 
-      if (nameIdx === -1) { setParseError("Could not find a NAME column in this CSV."); return; }
+      // ── Step 2: Build column index map from the header ──
+      const hdr = rawLines[headerRowIdx].split(",").map(c => c.trim().replace(/^"|"$/g, "").toUpperCase());
+      const col = (name: string, ...aliases: string[]) => {
+        const all = [name, ...aliases];
+        for (const a of all) { const i = hdr.findIndex(h => h === a || h.replace(/\s+/g, "") === a.replace(/\s+/g, "")); if (i >= 0) return i; }
+        return -1;
+      };
+      const noIdx       = col("NO.", "NO", "#");
+      const nameIdx     = col("NAME", "FULL NAME", "FULLNAME");
+      const contactIdx  = col("CONTACT", "PHONE", "MOBILE", "TEL");
+      const fellowIdx   = col("FELLOWSHIP", "CHURCH", "PCF");
+      const genderIdx   = col("GENDER", "SEX");
+      const arrivalIdx  = col("DAY OF ARRIVAL", "DAYOFARRIVAL", "ARRIVAL");
+      const pfccIdx     = col("PFCC");
+      const roomIdx     = col("ROOM NUMBER", "ROOMNUMBER", "ROOM NO", "ROOM");
 
+      if (nameIdx === -1) { setParseError("Found header row but could not locate NAME column."); return; }
+
+      // ── Step 3: Parse data rows, skip blanks/sub-headers, group by NO. reset ──
+      // Section labels like "PAIRINGS", "FEMALE", "MALE" appear in the name column
+      const SKIP_LABELS = new Set(["PAIRINGS", "FEMALE", "MALE", "SECTION", ""]);
       const rows: any[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g, ""));
-        const name = nameIdx >= 0 ? cols[nameIdx] : "";
-        if (!name) continue;
+      let groupCounter = 0;
+      let prevNo = 0;
+
+      for (let i = headerRowIdx + 1; i < rawLines.length; i++) {
+        const line = rawLines[i].trim();
+        // Blank line = section separator (reset tracking but don't force new group yet)
+        if (!line) { prevNo = 0; continue; }
+
+        const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+        const name = nameIdx >= 0 ? cols[nameIdx]?.trim() : "";
+
+        // Skip sub-header / section label rows
+        if (!name || SKIP_LABELS.has(name.toUpperCase())) continue;
+
+        // Detect group break: NO. resets to 1 (or is ≤ prevNo after a non-zero prevNo)
+        const currentNo = noIdx >= 0 ? parseInt(cols[noIdx]) || 0 : 0;
+        if (currentNo === 1 || (prevNo > 0 && currentNo <= prevNo && currentNo !== 0)) {
+          groupCounter++;
+        } else if (groupCounter === 0) {
+          groupCounter = 1; // first person
+        }
+        prevNo = currentNo;
+
+        const rawRoom = roomIdx >= 0 ? cols[roomIdx]?.trim() : "";
         rows.push({
           full_name: name,
-          fellowship: fellowship >= 0 ? cols[fellowship] : "General",
-          phone_number: contactIdx >= 0 ? cols[contactIdx] : "",
-          gender: genderIdx >= 0 ? cols[genderIdx] : "",
-          day_of_arrival: arrivalIdx >= 0 ? cols[arrivalIdx] : "",
-          pfcc: pfccIdx >= 0 ? cols[pfccIdx] : "",
-          room_number: roomIdx >= 0 ? cols[roomIdx] : "",
+          fellowship: fellowIdx >= 0 ? cols[fellowIdx]?.trim() || "General" : "General",
+          phone_number: contactIdx >= 0 ? cols[contactIdx]?.trim() || "" : "",
+          gender: genderIdx >= 0 ? cols[genderIdx]?.trim() || "" : "",
+          day_of_arrival: arrivalIdx >= 0 ? cols[arrivalIdx]?.trim() || "" : "",
+          pfcc: pfccIdx >= 0 ? cols[pfccIdx]?.trim() || "" : "",
+          // Use CSV room number if available, otherwise auto-generate from group
+          room_number: rawRoom || `G${groupCounter}`,
+          _group: groupCounter,
         });
       }
+
+      if (rows.length === 0) { setParseError("No valid data rows found after the header."); return; }
       setPreview(rows);
     };
     reader.readAsText(file);
