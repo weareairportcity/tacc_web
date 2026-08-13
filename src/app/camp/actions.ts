@@ -158,8 +158,33 @@ let LOCAL_CAMPS_STORE: CampDetails[] = [
   },
 ];
 
-// Initialize store from file
-loadStoreFromFile();
+// Helper to resolve string IDs or slugs to valid Supabase camp UUIDs
+async function resolveCampUuid(campIdOrSlug?: string): Promise<string | null> {
+  if (!campIdOrSlug) {
+    try {
+      const { data } = await supabaseAdmin.from("camps").select("id").limit(1).maybeSingle();
+      if (data?.id) return data.id;
+    } catch {}
+    return null;
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campIdOrSlug)) {
+    return campIdOrSlug;
+  }
+  try {
+    const { data } = await supabaseAdmin
+      .from("camps")
+      .select("id")
+      .or(`id.eq.${campIdOrSlug},slug.eq.${campIdOrSlug}`)
+      .limit(1)
+      .maybeSingle();
+    if (data?.id) return data.id;
+  } catch {}
+  try {
+    const { data: firstCamp } = await supabaseAdmin.from("camps").select("id").limit(1).maybeSingle();
+    if (firstCamp?.id) return firstCamp.id;
+  } catch {}
+  return null;
+}
 
 // ─── Public Actions ───────────────────────────────────────────────────────────
 
@@ -170,11 +195,13 @@ export async function searchCampAttendees(query: string, campId?: string): Promi
   const q = query.trim().toLowerCase();
   loadStoreFromFile();
 
+  const realCampUuid = await resolveCampUuid(campId);
+
   try {
     let dbQuery = supabaseAdmin
       .from("attendees")
       .select("id, camp_id, full_name, fellowship, room_type, room_number, key_bearer");
-    if (campId) dbQuery = dbQuery.eq("camp_id", campId);
+    if (realCampUuid) dbQuery = dbQuery.eq("camp_id", realCampUuid);
     const { data, error } = await dbQuery.ilike("full_name", `%${q}%`).limit(10);
     if (!error && data && data.length > 0) return { results: data as AttendeePublic[] };
   } catch {}
@@ -704,6 +731,8 @@ export async function importGroupsFromCSVAction(
   }>,
   roomTypePreference: string
 ): Promise<{ success: boolean; groupsCreated: number; peopleCreated: number; error?: string }> {
+  const realCampUuid = await resolveCampUuid(campId);
+
   // Pre-pass: Map non-empty PFCC for each group_id so missing PFCC values in a group inherit it
   const groupPfccMap = new Map<string, string>();
   for (const row of rows) {
@@ -745,14 +774,16 @@ export async function importGroupsFromCSVAction(
 
     let dbGroupId = groupId;
     try {
-      const { data: groupDb } = await supabaseAdmin.from("groups").insert([{
-        camp_id: campId,
-        group_number: newGroup.group_number,
-        room_type_preference: roomTypePreference,
-      }]).select().single();
-      if (groupDb?.id) {
-        dbGroupId = groupDb.id;
-        newGroup.id = dbGroupId;
+      if (realCampUuid) {
+        const { data: groupDb } = await supabaseAdmin.from("groups").insert([{
+          camp_id: realCampUuid,
+          group_number: newGroup.group_number,
+          room_type_preference: roomTypePreference,
+        }]).select().single();
+        if (groupDb?.id) {
+          dbGroupId = groupDb.id;
+          newGroup.id = dbGroupId;
+        }
       }
     } catch (err) {
       console.error("Supabase groups insert error:", err);
@@ -778,29 +809,31 @@ export async function importGroupsFromCSVAction(
       };
       LOCAL_ATTENDEES_STORE.unshift(newAttendee);
 
-      const attPayload: any = {
-        camp_id: campId,
-        full_name: member.full_name.trim(),
-        fellowship: member.fellowship?.trim() || "General",
-        room_type: "",
-        room_number: "",
-        key_bearer: "",
-        pfcc: member.pfcc || "",
-        gender: member.gender || "",
-        day_of_arrival: member.day_of_arrival || "",
-      };
-      if (dbGroupId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dbGroupId)) {
-        attPayload.group_id = dbGroupId;
-      }
-
-      try {
-        const { error: insertErr } = await supabaseAdmin.from("attendees").insert([attPayload]);
-        if (insertErr && (insertErr.code === 'PGRST204' || insertErr.message?.includes('group_id'))) {
-          delete attPayload.group_id;
-          await supabaseAdmin.from("attendees").insert([attPayload]);
+      if (realCampUuid) {
+        const attPayload: any = {
+          camp_id: realCampUuid,
+          full_name: member.full_name.trim(),
+          fellowship: member.fellowship?.trim() || "General",
+          room_type: "",
+          room_number: "",
+          key_bearer: "",
+          pfcc: member.pfcc || "",
+          gender: member.gender || "",
+          day_of_arrival: member.day_of_arrival || "",
+        };
+        if (dbGroupId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dbGroupId)) {
+          attPayload.group_id = dbGroupId;
         }
-      } catch (err) {
-        console.error("Supabase attendees insert error:", err);
+
+        try {
+          const { error: insertErr } = await supabaseAdmin.from("attendees").insert([attPayload]);
+          if (insertErr && (insertErr.code === 'PGRST204' || insertErr.message?.includes('group_id'))) {
+            delete attPayload.group_id;
+            await supabaseAdmin.from("attendees").insert([attPayload]);
+          }
+        } catch (err) {
+          console.error("Supabase attendees insert error:", err);
+        }
       }
       peopleCreated++;
     }
