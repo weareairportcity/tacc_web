@@ -414,21 +414,57 @@ export async function assignPersonToRoomAction(personId: string, roomId: string)
   const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
   if (!room) return { success: false, error: "Room not found" };
 
+  const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
+  const groupId = (person as any)?.group_id;
+
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
     a.id === personId
       ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
       : a
   );
+
+  if (groupId) {
+    // Update group's room_id so group shows as assigned on Groups page
+    LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
+      g.id === groupId ? { ...g, room_id: roomId } : g
+    );
+    // Sync all members of the group to the room
+    LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+      (a as any).group_id === groupId
+        ? { ...a, room_id: roomId, room_number: room.room_number, room_type: room.room_type }
+        : a
+    );
+  }
+
   try {
     await supabaseAdmin.from("attendees").update({ room_number: room.room_number, room_type: room.room_type }).eq("id", personId);
+    if (groupId) {
+      await supabaseAdmin.from("groups").update({ room_id: roomId }).eq("id", groupId);
+    }
   } catch {}
   return { success: true };
 }
 
 export async function removePersonFromRoomAction(personId: string): Promise<{ success: boolean; error?: string }> {
+  const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
+  const groupId = (person as any)?.group_id;
+
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
     a.id === personId ? { ...a, room_id: undefined, room_number: "", room_type: "", key_bearer: "" } : a
   );
+
+  if (groupId) {
+    const remainingInRoom = LOCAL_ATTENDEES_STORE.filter(
+      a => (a as any).group_id === groupId && a.room_id
+    );
+    if (remainingInRoom.length === 0) {
+      LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
+        g.id === groupId ? { ...g, room_id: undefined } : g
+      );
+      try { await supabaseAdmin.from("groups").update({ room_id: null }).eq("id", groupId); } catch {}
+    }
+  }
+
   try { await supabaseAdmin.from("attendees").update({ room_number: "", room_type: "", key_bearer: "" }).eq("id", personId); } catch {}
   return { success: true };
 }
@@ -561,17 +597,30 @@ export async function getGroupsAction(campId: string): Promise<Group[]> {
     if (!error && data && data.length > 0) {
       // Attach members
       const attendees = await getAdminAttendees(campId);
-      return data.map((g: any) => ({
-        ...g,
-        members: attendees.filter(a => (a as any).group_id === g.id),
-      }));
+      return data.map((g: any) => {
+        const members = attendees.filter(a => (a as any).group_id === g.id);
+        const memberRoomId = members.find(m => m.room_id)?.room_id;
+        return {
+          ...g,
+          room_id: g.room_id || memberRoomId,
+          members,
+        };
+      });
     }
   } catch {}
 
   const attendees = LOCAL_ATTENDEES_STORE.filter(a => a.camp_id === campId || !a.camp_id);
   return LOCAL_GROUPS_STORE
     .filter(g => g.camp_id === campId)
-    .map(g => ({ ...g, members: attendees.filter(a => (a as any).group_id === g.id) }));
+    .map(g => {
+      const members = attendees.filter(a => (a as any).group_id === g.id);
+      const memberRoomId = members.find(m => m.room_id)?.room_id;
+      return {
+        ...g,
+        room_id: g.room_id || memberRoomId,
+        members,
+      };
+    });
 }
 
 export async function importGroupsFromCSVAction(

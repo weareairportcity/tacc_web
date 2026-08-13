@@ -461,10 +461,11 @@ function GroupDetailSidebar({
   campId: string;
   roomTypes: string[];
   onClose: () => void;
-  onUpdated: () => void;
+  onUpdated: () => Promise<void> | void;
 }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
+  const [currentRoomId, setCurrentRoomId] = useState<string | undefined>(group.room_id);
   const [roomFilter, setRoomFilter] = useState("");
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [newRoomNumber, setNewRoomNumber] = useState("");
@@ -483,16 +484,19 @@ function GroupDetailSidebar({
 
   useEffect(() => {
     fetchRooms();
-  }, [campId, group.id]);
+    setCurrentRoomId(group.room_id);
+  }, [campId, group.id, group.room_id]);
 
-  const assignedRoom = rooms.find(r => r.id === group.room_id);
+  const assignedRoom = rooms.find(r => r.id === currentRoomId);
 
   const handleAssignExistingRoom = (roomId: string) => {
     setErrorMsg("");
     startTransition(async () => {
       const res = await assignGroupToRoomAction(group.id, roomId);
       if (res.success) {
-        onUpdated();
+        setCurrentRoomId(roomId);
+        await fetchRooms();
+        await onUpdated();
       } else {
         setErrorMsg(res.error || "Failed to assign room.");
       }
@@ -503,7 +507,9 @@ function GroupDetailSidebar({
     setErrorMsg("");
     startTransition(async () => {
       await unassignGroupFromRoomAction(group.id);
-      onUpdated();
+      setCurrentRoomId(undefined);
+      await fetchRooms();
+      await onUpdated();
     });
   };
 
@@ -521,9 +527,11 @@ function GroupDetailSidebar({
       }
       const assignRes = await assignGroupToRoomAction(group.id, addRes.room.id);
       if (assignRes.success) {
+        setCurrentRoomId(addRes.room.id);
         setShowAddRoom(false);
         setNewRoomNumber("");
-        onUpdated();
+        await fetchRooms();
+        await onUpdated();
       } else {
         setErrorMsg(assignRes.error || "Room created but failed to assign.");
       }
