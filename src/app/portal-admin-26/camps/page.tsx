@@ -48,6 +48,7 @@ function compressImageFile(file: File, maxWidth = 512, maxHeight = 512): Promise
 function CreateCampModal({ onClose, onCreated }: { onClose: () => void; onCreated: (camp: CampDetails) => void }) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [isSlugEdited, setIsSlugEdited] = useState(false);
   const [logoUrl, setLogoUrl] = useState("");
   const [logoFileName, setLogoFileName] = useState("");
   const [roomTypes, setRoomTypes] = useState(["Villa", "Hostel", "Dormitory"]);
@@ -64,12 +65,30 @@ function CreateCampModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setLogoUrl(compressed);
   };
 
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (!isSlugEdited) {
+      const generated = val.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      setSlug(generated);
+    }
+  };
+
+  const handleSlugChange = (val: string) => {
+    setIsSlugEdited(true);
+    setSlug(val.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError("Camp name is required."); return; }
+    const finalSlug = slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!finalSlug || finalSlug.length < 2) {
+      setError("Please provide a valid URL slug (at least 2 characters).");
+      return;
+    }
     setError("");
     startTransition(async () => {
-      const res = await createCampAction({ name: name.trim(), slug: slug.trim() || name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-"), logoUrl, roomTypes });
+      const res = await createCampAction({ name: name.trim(), slug: finalSlug, logoUrl, roomTypes });
       if (res.success && res.camp) onCreated(res.camp);
       else setError(res.error || "Failed to create camp.");
     });
@@ -87,9 +106,25 @@ function CreateCampModal({ onClose, onCreated }: { onClose: () => void; onCreate
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1">Camp Name *</label>
             <input type="text" required value={name}
-              onChange={e => { setName(e.target.value); if (!slug) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-")); }}
+              onChange={e => handleNameChange(e.target.value)}
               placeholder="e.g. TACC Youth Camp 2027"
               className="w-full px-3 py-2 bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1">Public URL Slug *</label>
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-[#fafaf9] border border-[#d6d3d1] rounded-[6px]">
+              <span className="text-xs text-[#a8a29e] shrink-0 font-medium">/camp/</span>
+              <input
+                type="text"
+                required
+                value={slug}
+                onChange={e => handleSlugChange(e.target.value)}
+                placeholder="tacc-youth-camp-2027"
+                className="w-full bg-transparent text-xs text-[#0c0a09] font-medium focus:outline-none"
+              />
+            </div>
+            <p className="text-[10px] text-[#a8a29e] mt-1">Public search portal link: <span className="text-[#3398e1] font-medium">/camp/{slug || "your-camp-slug"}</span></p>
           </div>
 
           <div>

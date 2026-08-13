@@ -141,10 +141,9 @@ export default function CreateCampPage() {
               placeholder="e.g. TACC Youth Camp 2026"
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
-                if (!slug) {
-                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-"));
-                }
+                const val = e.target.value;
+                setName(val);
+                setSlug(val.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
               }}
               className="w-full px-3.5 py-2.5 bg-white border border-[#d6d3d1] rounded-[6px] text-sm text-[#0c0a09] focus:outline-none focus:ring-2 focus:ring-[#3ba6f1]"
             />
@@ -155,14 +154,17 @@ export default function CreateCampPage() {
             <label className="block text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1.5">
               URL Slug *
             </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. tacc-youth-2026"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-[#d6d3d1] rounded-[6px] text-sm font-mono text-[#0c0a09] focus:outline-none focus:ring-2 focus:ring-[#3ba6f1]"
-            />
+            <div className="flex items-center gap-2 px-3.5 py-2.5 bg-[#fafaf9] border border-[#d6d3d1] rounded-[6px]">
+              <span className="text-sm text-[#a8a29e] shrink-0 font-medium">/camp/</span>
+              <input
+                type="text"
+                required
+                placeholder="e.g. tacc-youth-2026"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                className="w-full bg-transparent text-sm font-medium text-[#0c0a09] focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Camp Logo File Upload */}
