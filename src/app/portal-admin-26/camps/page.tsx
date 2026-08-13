@@ -239,7 +239,7 @@ function PublicUrlBadge({ slug }: { slug: string }) {
 
 // ─── Camps Page ───────────────────────────────────────────────────────────────
 export default function CampsPage() {
-  const { isSuperAdmin, campId } = useAdminCtx();
+  const { isSuperAdmin, campId, switchCamp } = useAdminCtx();
   const [camps, setCamps] = useState<CampDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -253,13 +253,11 @@ export default function CampsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const handleCreated = (camp: CampDetails) => {
+  const handleCreated = async (camp: CampDetails) => {
     setShowCreate(false);
-    load();
-    // Navigate to the new camp's admin portal
-    if (camp.admin_token) {
-      router.push(`/camp/admin/${camp.admin_token}`);
-    }
+    await load();
+    // Automatically switch active camp to newly created camp
+    switchCamp(camp.id);
   };
 
   return (
@@ -287,47 +285,59 @@ export default function CampsPage() {
             const isCurrent = camp.id === campId;
             return (
               <div key={camp.id}
-                className={`bg-white border rounded-[10px] p-5 shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] transition-colors ${isCurrent ? "border-[#3ba6f1]" : "border-[#e8e6e5] hover:border-[#d6d3d1]"}`}>
+                className={`bg-white border rounded-[10px] p-5 shadow-[rgba(0,0,0,0.05)_0px_4px_16px_0px] transition-colors flex flex-col justify-between ${isCurrent ? "border-[#3ba6f1] ring-1 ring-[#3ba6f1]" : "border-[#e8e6e5] hover:border-[#d6d3d1]"}`}>
 
-                {/* Camp Logo or icon */}
-                <div className="flex items-center gap-3 mb-4">
-                  {camp.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={camp.logo_url} alt="Camp logo" className="w-10 h-10 rounded object-cover border border-[#e8e6e5]" onError={e => (e.currentTarget.style.display = "none")} />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#fafaf9] border border-[#e8e6e5] flex items-center justify-center text-[#3ba6f1]">
-                      <Map size={16} />
+                <div>
+                  {/* Camp Logo or icon */}
+                  <div className="flex items-center gap-3 mb-4">
+                    {camp.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={camp.logo_url} alt="Camp logo" className="w-10 h-10 rounded object-cover border border-[#e8e6e5]" onError={e => (e.currentTarget.style.display = "none")} />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#fafaf9] border border-[#e8e6e5] flex items-center justify-center text-[#3ba6f1]">
+                        <Map size={16} />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-[#0c0a09] truncate">{camp.name}</div>
+                      {isCurrent ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#3ba6f1] uppercase tracking-wider">
+                          Active Camp ●
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-[#a8a29e]">Camp Meeting</span>
+                      )}
                     </div>
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-[#0c0a09] truncate">{camp.name}</div>
-                    {isCurrent && (
-                      <span className="text-[10px] font-semibold text-[#3ba6f1] uppercase tracking-wider">Current</span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(camp.room_types || []).slice(0, 3).map(t => (
+                      <span key={t} className="text-[10px] px-2 py-0.5 bg-[#fafaf9] border border-[#e8e6e5] rounded-full text-[#78716c]">{t}</span>
+                    ))}
+                    {(camp.room_types || []).length > 3 && (
+                      <span className="text-[10px] px-2 py-0.5 text-[#a8a29e]">+{camp.room_types.length - 3} more</span>
                     )}
                   </div>
+
+                  {/* Unique public URL */}
+                  <PublicUrlBadge slug={camp.slug} />
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {(camp.room_types || []).slice(0, 3).map(t => (
-                    <span key={t} className="text-[10px] px-2 py-0.5 bg-[#fafaf9] border border-[#e8e6e5] rounded-full text-[#78716c]">{t}</span>
-                  ))}
-                  {(camp.room_types || []).length > 3 && (
-                    <span className="text-[10px] px-2 py-0.5 text-[#a8a29e]">+{camp.room_types.length - 3} more</span>
+                <div className="pt-2">
+                  {isCurrent ? (
+                    <div className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-medium rounded-full bg-[#c1e1f7]/30 border border-[#3ba6f1]/30 text-[#3398e1]">
+                      <Check size={13} /> Active Camp
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => switchCamp(camp.id)}
+                      className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-medium rounded-full bg-[#3ba6f1] hover:bg-[#3398e1] text-white transition-colors cursor-pointer"
+                    >
+                      Switch to this Camp
+                    </button>
                   )}
                 </div>
-
-                {/* Unique public URL */}
-                <PublicUrlBadge slug={camp.slug} />
-
-                <Link
-                  href={`/camp/admin/${camp.admin_token}`}
-                  className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-medium rounded-full border transition-colors cursor-pointer
-                    border-[#e8e6e5] text-[#78716c] hover:text-[#0c0a09] hover:border-[#d6d3d1] hover:bg-[#fafaf9]"
-                >
-                  Manage Camp <ChevronRight size={12} />
-                </Link>
               </div>
-
             );
           })}
 
