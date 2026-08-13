@@ -371,12 +371,26 @@ export async function addAttendeeAction(data: {
 
   const realCampUuid = await resolveCampUuid(data.campId);
   if (realCampUuid) {
+    const corePayload: any = {
+      camp_id: realCampUuid,
+      full_name: data.fullName,
+      fellowship: data.fellowship,
+      room_type: data.roomType || "",
+      room_number: data.roomNumber || "",
+      key_bearer: "",
+    };
+    const fullPayload: any = {
+      ...corePayload,
+      pfcc: data.pfcc || "",
+      gender: data.gender || "",
+      day_of_arrival: data.dayOfArrival || "",
+    };
+
     try {
-      await supabaseAdmin.from("attendees").insert([{
-        camp_id: realCampUuid, full_name: data.fullName, fellowship: data.fellowship,
-        room_type: data.roomType || "", room_number: data.roomNumber || "", key_bearer: "",
-        pfcc: data.pfcc || "", gender: data.gender || "", day_of_arrival: data.dayOfArrival || "",
-      }]);
+      const { error: err1 } = await supabaseAdmin.from("attendees").insert([fullPayload]);
+      if (err1) {
+        await supabaseAdmin.from("attendees").insert([corePayload]);
+      }
     } catch {}
   }
   return { success: true, id: newId };
@@ -835,26 +849,35 @@ export async function importGroupsFromCSVAction(
       LOCAL_ATTENDEES_STORE.unshift(newAttendee);
 
       if (realCampUuid) {
-        const attPayload: any = {
+        const corePayload: any = {
           camp_id: realCampUuid,
           full_name: member.full_name.trim(),
           fellowship: member.fellowship?.trim() || "General",
           room_type: "",
           room_number: "",
           key_bearer: "",
+        };
+
+        const fullPayload: any = {
+          ...corePayload,
           pfcc: member.pfcc || "",
           gender: member.gender || "",
           day_of_arrival: member.day_of_arrival || "",
         };
+
         if (dbGroupId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dbGroupId)) {
-          attPayload.group_id = dbGroupId;
+          fullPayload.group_id = dbGroupId;
+          corePayload.group_id = dbGroupId;
         }
 
         try {
-          const { error: insertErr } = await supabaseAdmin.from("attendees").insert([attPayload]);
-          if (insertErr && (insertErr.code === 'PGRST204' || insertErr.message?.includes('group_id'))) {
-            delete attPayload.group_id;
-            await supabaseAdmin.from("attendees").insert([attPayload]);
+          const { error: insertErr } = await supabaseAdmin.from("attendees").insert([fullPayload]);
+          if (insertErr) {
+            const { error: coreErr } = await supabaseAdmin.from("attendees").insert([corePayload]);
+            if (coreErr && corePayload.group_id) {
+              delete corePayload.group_id;
+              await supabaseAdmin.from("attendees").insert([corePayload]);
+            }
           }
         } catch (err) {
           console.error("Supabase attendees insert error:", err);
