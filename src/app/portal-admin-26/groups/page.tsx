@@ -434,15 +434,28 @@ function GroupCard({
       <div className="text-[11px] text-[#78716c] flex items-center gap-1 mb-2">
         <Users size={11} /> {group.members?.length || 0} {(group.members?.length || 0) === 1 ? "person" : "people"}
       </div>
-      {group.members && group.members.slice(0, 3).map(m => (
-        <div key={m.id} className="text-[11px] text-[#a8a29e] truncate">{m.full_name}</div>
-      ))}
-      {(group.members?.length || 0) > 3 && (
-        <div className="text-[10px] text-[#a8a29e]">+{(group.members?.length || 0) - 3} more</div>
-      )}
+      <div className="space-y-1 my-2">
+        {group.members && group.members.slice(0, 4).map(m => (
+          <div key={m.id} className="text-[11px] flex items-center justify-between gap-1">
+            <span className="text-[#0c0a09] font-medium truncate">{m.full_name}</span>
+            {m.room_number ? (
+              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-semibold shrink-0">
+                {m.room_number}
+              </span>
+            ) : (
+              <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded shrink-0">
+                Unassigned
+              </span>
+            )}
+          </div>
+        ))}
+        {(group.members?.length || 0) > 4 && (
+          <div className="text-[10px] text-[#a8a29e]">+{(group.members?.length || 0) - 4} more</div>
+        )}
+      </div>
       {group.room_id && (
-        <div className="mt-2 pt-2 border-t border-[#e8e6e5] flex items-center gap-1 text-[11px] text-emerald-700">
-          <CheckCircle2 size={11} /> Assigned
+        <div className="mt-2 pt-2 border-t border-[#e8e6e5] flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+          <CheckCircle2 size={11} /> Group Assigned
         </div>
       )}
     </div>
@@ -602,7 +615,18 @@ function GroupDetailSidebar({
               {group.members?.map(m => (
                 <div key={m.id} className="p-3.5 bg-[#fafaf9] border border-[#e8e6e5] rounded-[10px] space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm text-[#0c0a09]">{m.full_name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-[#0c0a09]">{m.full_name}</span>
+                      {m.room_number ? (
+                        <span className="text-[10px] font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Home size={9} /> {m.room_number}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                          Unassigned
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] font-medium text-[#78716c] bg-white border border-[#e8e6e5] px-2 py-0.5 rounded-full">
                       {m.fellowship || "General"}
                     </span>
