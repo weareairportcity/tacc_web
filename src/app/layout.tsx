@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist, Geist_Mono, Plus_Jakarta_Sans, Inter, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import { AudioPlayerProvider } from "@/context/AudioPlayerContext";
 import GlobalAudioPlayer from "@/components/GlobalAudioPlayer";
@@ -20,6 +20,18 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const interTight = Inter_Tight({
+  variable: "--font-roobert",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
 export const metadata: Metadata = {
   title: "The Airport City Church | Discover Peace through Christ",
   description: "Book time with the Pastor or explore our guided programs like Scripture Study and Community Prayer.",
@@ -33,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${plusJakartaSans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${plusJakartaSans.variable} ${inter.variable} ${interTight.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AudioPlayerProvider>

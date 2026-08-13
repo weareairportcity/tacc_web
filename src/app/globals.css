@@ -52,8 +52,10 @@
   --color-paper: #f9f9f9;
   --color-fog: #f2f2f2;
   --color-snow: #ffffff;
-  --color-hairline: #dee0e3;
-
+  --font-roobert: var(--font-roobert), 'Inter Tight', 'Satoshi', ui-sans-serif, system-ui, sans-serif;
+  --font-inter: var(--font-inter), 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-roobert), 'Inter Tight', 'Satoshi', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-euclid-circular-a: var(--font-euclid-circular-a), 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   --radius-cards: 10px;
