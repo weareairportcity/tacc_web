@@ -29,10 +29,13 @@ CREATE TABLE IF NOT EXISTS attendees (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   camp_id UUID NOT NULL REFERENCES camps(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL,
-  fellowship TEXT NOT NULL,
-  room_type TEXT NOT NULL,
-  room_number TEXT NOT NULL,
-  key_bearer TEXT NOT NULL,
+  fellowship TEXT NOT NULL DEFAULT '',
+  room_type TEXT NOT NULL DEFAULT '',
+  room_number TEXT NOT NULL DEFAULT '',
+  key_bearer TEXT NOT NULL DEFAULT '',
+  pfcc TEXT,                     -- e.g. "PFCC 1", "PFCC 2"
+  gender TEXT,                   -- "Male" | "Female"
+  day_of_arrival TEXT,           -- e.g. "Friday", "Thursday"
   encrypted_phone BYTEA,
   room_id UUID,  -- FK to rooms, assigned via the Admin Rooms page
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -14,6 +14,9 @@ export type AttendeePublic = {
   room_number: string;
   key_bearer: string;
   room_id?: string;
+  pfcc?: string;
+  gender?: string;
+  day_of_arrival?: string;
 };
 
 export type AttendeeAdmin = AttendeePublic & {
@@ -241,9 +244,10 @@ export async function getAdminAttendees(campId: string): Promise<AttendeeAdmin[]
 export async function addAttendeeAction(data: {
   campId: string; fullName: string; fellowship: string;
   roomType?: string; roomNumber?: string; phoneNumber?: string;
+  pfcc?: string; gender?: string; dayOfArrival?: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
   const newId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
-  const newItem: AttendeeAdmin = {
+  const newItem: any = {
     id: newId,
     camp_id: data.campId,
     full_name: data.fullName,
@@ -253,6 +257,9 @@ export async function addAttendeeAction(data: {
     key_bearer: "",
     room_id: undefined,
     phone_number: data.phoneNumber || "",
+    pfcc: data.pfcc || "",
+    gender: data.gender || "",
+    day_of_arrival: data.dayOfArrival || "",
     created_at: new Date().toISOString(),
   };
   LOCAL_ATTENDEES_STORE.unshift(newItem);
@@ -260,6 +267,7 @@ export async function addAttendeeAction(data: {
     await supabaseAdmin.from("attendees").insert([{
       camp_id: data.campId, full_name: data.fullName, fellowship: data.fellowship,
       room_type: data.roomType || "", room_number: data.roomNumber || "", key_bearer: "",
+      pfcc: data.pfcc || "", gender: data.gender || "", day_of_arrival: data.dayOfArrival || "",
     }]);
   } catch {}
   return { success: true, id: newId };
@@ -267,14 +275,80 @@ export async function addAttendeeAction(data: {
 
 export async function bulkUploadAttendeesAction(
   campId: string,
-  list: Array<{ full_name: string; fellowship: string; room_type?: string; room_number?: string; key_bearer?: string; phone_number?: string }>,
+  list: Array<{ full_name: string; fellowship: string; room_type?: string; room_number?: string; key_bearer?: string; phone_number?: string; pfcc?: string; gender?: string; day_of_arrival?: string }>,
 ): Promise<{ success: boolean; count?: number; error?: string }> {
   let count = 0;
   for (const item of list) {
-    const res = await addAttendeeAction({ campId, fullName: item.full_name, fellowship: item.fellowship, roomType: item.room_type, roomNumber: item.room_number, phoneNumber: item.phone_number });
+    const res = await addAttendeeAction({ campId, fullName: item.full_name, fellowship: item.fellowship, roomType: item.room_type, roomNumber: item.room_number, phoneNumber: item.phone_number, pfcc: item.pfcc, gender: item.gender, dayOfArrival: item.day_of_arrival });
     if (res.success) count++;
   }
   return { success: true, count };
+}
+
+// ─── Import Real CSV (NO. / NAME / CONTACT / FELLOWSHIP / GENDER / DAY OF ARRIVAL / PFCC / ROOM NUMBER) ─
+
+export async function importRealCSVAction(
+  campId: string,
+  rows: Array<{
+    full_name: string;
+    fellowship: string;
+    phone_number?: string;
+    gender?: string;
+    day_of_arrival?: string;
+    pfcc?: string;
+    room_number?: string;
+  }>
+): Promise<{ success: boolean; peopleCreated: number; roomsCreated: number; error?: string }> {
+  let peopleCreated = 0;
+  let roomsCreated = 0;
+
+  // Auto-create rooms for unique room numbers
+  const existingRooms = LOCAL_ROOMS_STORE.filter(r => r.camp_id === campId);
+  const uniqueRooms = [...new Set(rows.map(r => r.room_number).filter(Boolean))];
+
+  for (const roomNum of uniqueRooms) {
+    if (!roomNum) continue;
+    const exists = existingRooms.find(r => r.room_number === roomNum);
+    if (!exists) {
+      const newRoom: Room = {
+        id: `room_${Date.now()}_${roomNum?.replace(/\s/g, '')}_${Math.random().toString(36).substring(2, 4)}`,
+        camp_id: campId,
+        room_number: roomNum!,
+        room_type: "General",
+        created_at: new Date().toISOString(),
+      };
+      LOCAL_ROOMS_STORE.push(newRoom);
+      roomsCreated++;
+      // Try Supabase
+      try { await supabaseAdmin.from("rooms").insert([{ camp_id: campId, room_number: roomNum, room_type: "General" }]); } catch {}
+    }
+  }
+
+  for (const row of rows) {
+    const room = LOCAL_ROOMS_STORE.find(r => r.camp_id === campId && r.room_number === row.room_number);
+    const res = await addAttendeeAction({
+      campId,
+      fullName: row.full_name,
+      fellowship: row.fellowship || "General",
+      roomNumber: row.room_number || "",
+      roomType: room?.room_type || "",
+      phoneNumber: row.phone_number || "",
+      pfcc: row.pfcc || "",
+      gender: row.gender || "",
+      dayOfArrival: row.day_of_arrival || "",
+    });
+    if (res.success) {
+      // Link person to room in local store
+      if (room && res.id) {
+        LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.map(a =>
+          a.id === res.id ? { ...a, room_id: room.id } : a
+        );
+      }
+      peopleCreated++;
+    }
+  }
+
+  return { success: true, peopleCreated, roomsCreated };
 }
 
 export async function deleteAttendeeAction(id: string): Promise<{ success: boolean; error?: string }> {
@@ -358,19 +432,55 @@ export async function getRoomOccupants(roomId: string): Promise<AttendeeAdmin[]>
 
 // ─── Admin — Fellowships ──────────────────────────────────────────────────────
 
+export type PFCCGroup = {
+  name: string;
+  fellowships: FellowshipGroup[];
+  totalMembers: number;
+  assignedMembers: number;
+};
+
 export async function getFellowshipsAction(campId: string): Promise<FellowshipGroup[]> {
-  const all = await getAdminAttendees(campId);
-  const map = new Map<string, AttendeeAdmin[]>();
-  for (const att of all) {
-    const key = att.fellowship || "Unassigned";
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(att);
+  const attendees = await getAdminAttendees(campId);
+  const grouped = new Map<string, AttendeeAdmin[]>();
+  for (const a of attendees) {
+    const key = a.fellowship || "General";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(a);
   }
-  return Array.from(map.entries()).map(([name, members]) => ({
+  return Array.from(grouped.entries()).map(([name, members]) => ({
     name,
     members,
-    unassigned: members.filter(m => !m.room_id && !m.room_number),
-  }));
+    unassigned: members.filter(m => !m.room_number),
+  })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getPFCCGroupsAction(campId: string): Promise<PFCCGroup[]> {
+  const fellowships = await getFellowshipsAction(campId);
+  const attendees = await getAdminAttendees(campId);
+
+  // Group fellowships by PFCC
+  const pfccMap = new Map<string, FellowshipGroup[]>();
+  const allPFCCs = [...new Set(attendees.map(a => (a as any).pfcc || "Unassigned"))];
+  for (const pfcc of allPFCCs) {
+    const pfccAttendees = attendees.filter(a => ((a as any).pfcc || "Unassigned") === pfcc);
+    const pfccFellowships = new Map<string, AttendeeAdmin[]>();
+    for (const a of pfccAttendees) {
+      const key = a.fellowship || "General";
+      if (!pfccFellowships.has(key)) pfccFellowships.set(key, []);
+      pfccFellowships.get(key)!.push(a);
+    }
+    pfccMap.set(pfcc, Array.from(pfccFellowships.entries()).map(([name, members]) => ({
+      name,
+      members,
+      unassigned: members.filter(m => !m.room_number),
+    })));
+  }
+
+  return Array.from(pfccMap.entries()).map(([name, pfccFellowships]) => {
+    const totalMembers = pfccFellowships.reduce((s, f) => s + f.members.length, 0);
+    const assignedMembers = pfccFellowships.reduce((s, f) => s + f.members.filter(m => m.room_number).length, 0);
+    return { name, fellowships: pfccFellowships, totalMembers, assignedMembers };
+  }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getFellowshipNames(campId: string): Promise<string[]> {

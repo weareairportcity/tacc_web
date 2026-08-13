@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   getAdminAttendees, addAttendeeAction, deleteAttendeeAction,
-  bulkUploadAttendeesAction, sendRoomAssignmentSMSAction,
+  importRealCSVAction, sendRoomAssignmentSMSAction,
   getFellowshipNames, AttendeeAdmin
 } from "../../camp/actions";
 import { useAdminCtx } from "../AdminShell";
@@ -121,64 +121,167 @@ function AddPersonModal({ onClose, onAdded, campId, fellowships }: { onClose: ()
 
 // ─── CSV Upload Modal ─────────────────────────────────────────────────────────
 function CsvModal({ onClose, onUploaded, campId }: { onClose: () => void; onUploaded: () => void; campId: string }) {
-  const [csvText, setCsvText] = useState("");
+  const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<any[]>([]);
+  const [parseError, setParseError] = useState("");
+  const [result, setResult] = useState<{ peopleCreated: number; roomsCreated: number } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const parse = (text: string) => {
-    setCsvText(text);
-    const lines = text.trim().split("\n");
-    if (lines.length < 2) { setPreview([]); return; }
-    const rows: any[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map(c => c.trim());
-      if (cols[0]) rows.push({ full_name: cols[0], fellowship: cols[1] || "General", room_type: cols[2], room_number: cols[3], phone_number: cols[4] });
+  // Column name normaliser
+  const normalise = (h: string) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const findCol = (headers: string[], ...candidates: string[]) => {
+    for (const c of candidates) {
+      const idx = headers.findIndex(h => normalise(h) === normalise(c));
+      if (idx >= 0) return idx;
     }
-    setPreview(rows);
+    return -1;
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setParseError("");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.trim().split("\n").filter(l => l.trim());
+      if (lines.length < 2) { setParseError("File must have a header row and at least one data row."); return; }
+
+      const raw = lines[0].split(",").map(h => h.trim());
+      const nameIdx     = findCol(raw, "NAME", "FULL NAME", "FULLNAME");
+      const contactIdx  = findCol(raw, "CONTACT", "PHONE", "MOBILE", "TEL");
+      const fellowship  = findCol(raw, "FELLOWSHIP", "CHURCH", "PCF");
+      const genderIdx   = findCol(raw, "GENDER", "SEX");
+      const arrivalIdx  = findCol(raw, "DAY OF ARRIVAL", "DAYOFARRIVAL", "ARRIVAL", "ARRIVE");
+      const pfccIdx     = findCol(raw, "PFCC");
+      const roomIdx     = findCol(raw, "ROOM NUMBER", "ROOMNUMBER", "ROOM", "ROOM NO");
+
+      if (nameIdx === -1) { setParseError("Could not find a NAME column in this CSV."); return; }
+
+      const rows: any[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+        const name = nameIdx >= 0 ? cols[nameIdx] : "";
+        if (!name) continue;
+        rows.push({
+          full_name: name,
+          fellowship: fellowship >= 0 ? cols[fellowship] : "General",
+          phone_number: contactIdx >= 0 ? cols[contactIdx] : "",
+          gender: genderIdx >= 0 ? cols[genderIdx] : "",
+          day_of_arrival: arrivalIdx >= 0 ? cols[arrivalIdx] : "",
+          pfcc: pfccIdx >= 0 ? cols[pfccIdx] : "",
+          room_number: roomIdx >= 0 ? cols[roomIdx] : "",
+        });
+      }
+      setPreview(rows);
+    };
+    reader.readAsText(file);
   };
 
   const handleUpload = () => {
     if (!preview.length) return;
     startTransition(async () => {
-      await bulkUploadAttendeesAction(campId, preview);
-      onUploaded(); onClose();
+      const res = await importRealCSVAction(campId, preview);
+      if (res.success) {
+        setResult({ peopleCreated: res.peopleCreated, roomsCreated: res.roomsCreated });
+        onUploaded();
+      } else {
+        setParseError(res.error || "Upload failed.");
+      }
     });
   };
+
+  const uniquePFCCs = [...new Set(preview.map(r => r.pfcc).filter(Boolean))];
+  const uniqueRooms = [...new Set(preview.map(r => r.room_number).filter(Boolean))];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 backdrop-blur-xs">
       <div className="bg-white border border-[#e8e6e5] rounded-[10px] shadow-[rgba(17,12,46,0.12)_0px_12px_45px_0px] w-full max-w-[560px]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#e8e6e5] bg-[#fafaf9] rounded-t-[10px]">
-          <h2 className="font-display font-medium text-base text-[#0c0a09]">Upload CSV</h2>
+          <h2 className="font-display font-medium text-base text-[#0c0a09]">Import Attendees CSV</h2>
           <button onClick={onClose} className="text-[#a8a29e] hover:text-[#0c0a09] cursor-pointer"><X size={16} /></button>
         </div>
-        <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
-          <div className="text-[11px] font-mono bg-[#fafaf9] border border-[#e8e6e5] p-2.5 rounded text-[#78716c]">
-            full_name, fellowship, room_type, room_number, phone_number
-          </div>
-          <textarea rows={5} value={csvText} onChange={e => parse(e.target.value)}
-            placeholder={"Kwame Mensah,Youth Ablaze,Villa,V-102,0550076503"}
-            className="w-full px-3 py-2 font-mono bg-white border border-[#d6d3d1] rounded-[6px] text-xs text-[#0c0a09] focus:ring-1 focus:ring-[#3ba6f1] focus:outline-none" />
-          {preview.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold text-[#0c0a09] mb-1">{preview.length} rows detected</div>
-              <div className="max-h-36 overflow-y-auto border border-[#e8e6e5] rounded divide-y divide-[#fafaf9]">
-                {preview.map((r, i) => (
-                  <div key={i} className="px-3 py-1.5 flex justify-between text-[11px]">
-                    <span className="font-medium text-[#0c0a09]">{r.full_name}</span>
-                    <span className="text-[#78716c]">{r.fellowship} {r.room_number && `· ${r.room_number}`}</span>
-                  </div>
-                ))}
+        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          {result ? (
+            <div className="py-6 flex flex-col items-center text-center gap-3">
+              <CheckCircle2 size={32} className="text-emerald-500" />
+              <div>
+                <div className="text-sm font-medium text-[#0c0a09]">Import Complete</div>
+                <div className="text-xs text-[#78716c] mt-1">
+                  {result.peopleCreated} people added · {result.roomsCreated} rooms auto-created
+                </div>
               </div>
+              <button onClick={onClose} className="px-5 py-2 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer hover:bg-[#3398e1] transition-colors">
+                Done
+              </button>
             </div>
+          ) : (
+            <>
+              {/* Expected format */}
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-[#78716c] mb-1.5">Expected columns</div>
+                <div className="text-[10px] font-mono bg-[#fafaf9] border border-[#e8e6e5] p-2.5 rounded text-[#78716c] leading-relaxed">
+                  NO. · NAME · CONTACT · FELLOWSHIP · GENDER · DAY OF ARRIVAL · PFCC · ROOM NUMBER
+                </div>
+              </div>
+
+              {/* File picker */}
+              <div>
+                <label className="flex items-center gap-3 p-3 bg-[#fafaf9] border border-dashed border-[#d6d3d1] rounded-[8px] cursor-pointer hover:border-[#3ba6f1] transition-colors group">
+                  <div className="w-9 h-9 rounded bg-white border border-[#e8e6e5] flex items-center justify-center shrink-0">
+                    <Upload size={15} className="text-[#a8a29e] group-hover:text-[#3ba6f1] transition-colors" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-[#0c0a09]">{fileName || "Click to choose a CSV file"}</div>
+                    {!fileName && <div className="text-[10px] text-[#a8a29e]">Supports .csv and .txt formats</div>}
+                  </div>
+                  <input type="file" accept=".csv,.txt,text/csv" className="hidden" onChange={handleFile} />
+                </label>
+              </div>
+
+              {/* Preview */}
+              {preview.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-[11px] font-medium text-[#0c0a09] px-2 py-1 bg-[#fafaf9] border border-[#e8e6e5] rounded-full">
+                      {preview.length} people
+                    </span>
+                    {uniquePFCCs.length > 0 && (
+                      <span className="text-[11px] text-[#78716c] px-2 py-1 bg-[#fafaf9] border border-[#e8e6e5] rounded-full">
+                        {uniquePFCCs.length} PFCCs
+                      </span>
+                    )}
+                    {uniqueRooms.length > 0 && (
+                      <span className="text-[11px] text-emerald-700 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
+                        {uniqueRooms.length} rooms (auto-created)
+                      </span>
+                    )}
+                  </div>
+                  <div className="max-h-44 overflow-y-auto border border-[#e8e6e5] rounded-[8px] divide-y divide-[#fafaf9]">
+                    {preview.map((r, i) => (
+                      <div key={i} className="px-3 py-2 grid grid-cols-3 gap-2 text-[11px]">
+                        <span className="font-medium text-[#0c0a09] truncate">{r.full_name}</span>
+                        <span className="text-[#78716c] truncate">{r.pfcc} · {r.fellowship}</span>
+                        <span className="text-[#a8a29e] text-right">{r.room_number || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {parseError && <p className="text-xs text-red-600 bg-red-50 border border-red-100 p-2 rounded">{parseError}</p>}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#e8e6e5]">
+                <button type="button" onClick={onClose} className="px-4 py-1.5 text-xs font-medium text-[#78716c] bg-[#fafaf9] border border-[#e8e6e5] rounded-full cursor-pointer">Cancel</button>
+                <button type="button" disabled={!preview.length || isPending} onClick={handleUpload}
+                  className="px-5 py-1.5 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer disabled:opacity-50 hover:bg-[#3398e1] transition-colors flex items-center gap-1.5">
+                  {isPending ? <><Loader2 size={12} className="animate-spin" /> Importing…</> : `Import ${preview.length} People`}
+                </button>
+              </div>
+            </>
           )}
-          <div className="flex justify-end gap-2 pt-2 border-t border-[#e8e6e5]">
-            <button type="button" onClick={onClose} className="px-4 py-1.5 text-xs font-medium text-[#78716c] bg-[#fafaf9] border border-[#e8e6e5] rounded-full cursor-pointer">Cancel</button>
-            <button type="button" disabled={!preview.length || isPending} onClick={handleUpload}
-              className="px-5 py-1.5 bg-[#3ba6f1] text-white text-xs font-medium rounded-full cursor-pointer disabled:opacity-50">
-              {isPending ? "Uploading..." : `Upload ${preview.length} People`}
-            </button>
-          </div>
         </div>
       </div>
     </div>
