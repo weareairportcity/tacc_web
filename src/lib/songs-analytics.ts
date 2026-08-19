@@ -10,20 +10,34 @@ export type SongAnalytics = {
 };
 
 export async function getSongAnalytics(songId?: string): Promise<Record<string, SongAnalytics>> {
-  let query = supabaseAdmin.from("sotw_analytics_events").select("*");
+  let events: any[] = [];
+  let pageIndex = 0;
+  const pageSize = 1000;
+  let hasMore = true;
 
-  if (songId) {
-    query = query.eq("song_id", songId);
+  while (hasMore) {
+    let query = supabaseAdmin
+      .from("sotw_analytics_events")
+      .select("*")
+      .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
+
+    if (songId) {
+      query = query.eq("song_id", songId);
+    }
+
+    const { data, error } = await query;
+
+    if (error || !data || data.length === 0) {
+      hasMore = false;
+    } else {
+      events = events.concat(data);
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        pageIndex++;
+      }
+    }
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.warn("Error fetching analytics events:", error.message);
-    return {};
-  }
-
-  const events = data || [];
   const map: Record<string, {
     views: number;
     visitors: Set<string>;

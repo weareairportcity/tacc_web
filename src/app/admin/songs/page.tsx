@@ -90,38 +90,55 @@ export default function AdminSongs() {
       if (fetchError) throw fetchError;
       setSongs(data || []);
 
-      // Fetch analytics events if table exists
-      const { data: eventsData, error: eventsError } = await supabase
-        .from("sotw_analytics_events")
-        .select("id, created_at, song_id, event_type, visitor_id");
+      // Fetch all analytics events using paginated chunks (bypassing 1000 row Supabase query cap)
+      let allEventsData: RawAnalyticsEvent[] = [];
+      let pageIndex = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (!eventsError && eventsData) {
-        setRawEvents(eventsData as RawAnalyticsEvent[]);
-        const stats: Record<string, { views: number; visitors: Set<string>; plays: number; listeners: Set<string> }> = {};
-        eventsData.forEach((ev: any) => {
-          if (!stats[ev.song_id]) {
-            stats[ev.song_id] = { views: 0, visitors: new Set(), plays: 0, listeners: new Set() };
-          }
-          if (ev.event_type === "view") {
-            stats[ev.song_id].views += 1;
-            stats[ev.song_id].visitors.add(ev.visitor_id);
-          } else if (ev.event_type === "play") {
-            stats[ev.song_id].plays += 1;
-            stats[ev.song_id].listeners.add(ev.visitor_id);
-          }
-        });
+      while (hasMore) {
+        const { data: chunk, error: eventsError } = await supabase
+          .from("sotw_analytics_events")
+          .select("id, created_at, song_id, event_type, visitor_id")
+          .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
 
-        const formatted: Record<string, { views: number; visitors: number; plays: number; listeners: number }> = {};
-        Object.keys(stats).forEach((sid) => {
-          formatted[sid] = {
-            views: stats[sid].views,
-            visitors: stats[sid].visitors.size,
-            plays: stats[sid].plays,
-            listeners: stats[sid].listeners.size,
-          };
-        });
-        setAnalyticsMap(formatted);
+        if (eventsError || !chunk || chunk.length === 0) {
+          hasMore = false;
+        } else {
+          allEventsData = allEventsData.concat(chunk as RawAnalyticsEvent[]);
+          if (chunk.length < pageSize) {
+            hasMore = false;
+          } else {
+            pageIndex++;
+          }
+        }
       }
+
+      setRawEvents(allEventsData);
+      const stats: Record<string, { views: number; visitors: Set<string>; plays: number; listeners: Set<string> }> = {};
+      allEventsData.forEach((ev: any) => {
+        if (!stats[ev.song_id]) {
+          stats[ev.song_id] = { views: 0, visitors: new Set(), plays: 0, listeners: new Set() };
+        }
+        if (ev.event_type === "view") {
+          stats[ev.song_id].views += 1;
+          stats[ev.song_id].visitors.add(ev.visitor_id);
+        } else if (ev.event_type === "play") {
+          stats[ev.song_id].plays += 1;
+          stats[ev.song_id].listeners.add(ev.visitor_id);
+        }
+      });
+
+      const formatted: Record<string, { views: number; visitors: number; plays: number; listeners: number }> = {};
+      Object.keys(stats).forEach((sid) => {
+        formatted[sid] = {
+          views: stats[sid].views,
+          visitors: stats[sid].visitors.size,
+          plays: stats[sid].plays,
+          listeners: stats[sid].listeners.size,
+        };
+      });
+      setAnalyticsMap(formatted);
     } catch (err: any) {
       setError(err.message);
     } finally {
