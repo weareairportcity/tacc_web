@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Music, Play, Pause, Volume2, VolumeX, ArrowLeft, ExternalLink } from "lucide-react";
+import { 
+  Music, Play, Pause, Volume2, VolumeX, ArrowLeft, ExternalLink,
+  Repeat, Repeat1, Shuffle, SkipBack, SkipForward 
+} from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 import { trackSongEvent } from "@/lib/analytics-client";
 
@@ -33,16 +36,39 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
     duration: globalDuration,
     volume: globalVolume,
     isMuted: isGlobalMuted,
+    repeatMode,
+    isShuffle,
     playTrack,
     seek,
     setVolume,
     toggleMute,
+    toggleRepeatMode,
+    toggleShuffle,
+    playNextTrack,
+    playPreviousTrack,
+    setPlaylist,
   } = useAudioPlayer();
+
+  const allSongsList = [song, ...otherSongs];
 
   useEffect(() => {
     if (song?.id) {
       trackSongEvent(song.id, "view");
     }
+
+    // Populate context playlist with current song and all other weekly songs in order
+    const formattedPlaylist = allSongsList
+      .filter((s) => s.audio_url)
+      .map((s) => ({
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        audioUrl: s.audio_url || "",
+        coverImageUrl: s.cover_image_url,
+        weekLabel: s.week_label,
+      }));
+
+    setPlaylist(formattedPlaylist);
   }, [song?.id]);
 
   const isCurrentSong = currentTrack?.id === song.id;
@@ -54,14 +80,28 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
 
   const handlePlayClick = () => {
     if (song.audio_url) {
-      playTrack({
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        audioUrl: song.audio_url,
-        coverImageUrl: song.cover_image_url,
-        weekLabel: song.week_label,
-      });
+      const formattedPlaylist = allSongsList
+        .filter((s) => s.audio_url)
+        .map((s) => ({
+          id: s.id,
+          title: s.title,
+          artist: s.artist,
+          audioUrl: s.audio_url || "",
+          coverImageUrl: s.cover_image_url,
+          weekLabel: s.week_label,
+        }));
+
+      playTrack(
+        {
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          audioUrl: song.audio_url,
+          coverImageUrl: song.cover_image_url,
+          weekLabel: song.week_label,
+        },
+        formattedPlaylist
+      );
     }
   };
 
@@ -78,7 +118,6 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00";
     const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
@@ -178,7 +217,7 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
           {/* LEFT COLUMN: Floating Studio Cover Art & Audio Player Card */}
           <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-[88px]">
             
-            {/* Seline Floating Hero Preview Frame (deep 45px blur shadow) */}
+            {/* Seline Floating Hero Preview Frame */}
             <div className="bg-[#ffffff] rounded-[16px] p-2 border border-[#e8e6e5] shadow-[0_12px_45px_rgba(17,12,46,0.12)]">
               <div className="relative w-full aspect-square rounded-[12px] overflow-hidden bg-[#fafaf9] border border-[#e8e6e5] flex items-center justify-center">
                 {song.cover_image_url ? (
@@ -229,9 +268,32 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                     </div>
                   </div>
 
-                  {/* Play Button & Volume */}
-                  <div className="flex items-center justify-between gap-4 pt-1">
-                    {/* Cyan Signal Primary Play Button */}
+                  {/* Extended Controls: Shuffle, Prev, Play, Next, Repeat */}
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    
+                    {/* Shuffle Toggle */}
+                    <button
+                      onClick={toggleShuffle}
+                      className={`p-2 rounded-full transition-colors ${
+                        isShuffle 
+                          ? "text-[#3ba6f1] bg-[#c1e1f7]/40" 
+                          : "text-[#78716c] hover:text-[#0c0a09] hover:bg-[#fafaf9]"
+                      }`}
+                      title={isShuffle ? "Shuffle On" : "Shuffle Off"}
+                    >
+                      <Shuffle className="w-4 h-4" />
+                    </button>
+
+                    {/* Previous Track */}
+                    <button
+                      onClick={playPreviousTrack}
+                      className="p-2 text-[#78716c] hover:text-[#0c0a09] hover:bg-[#fafaf9] rounded-full transition-colors"
+                      title="Previous Track"
+                    >
+                      <SkipBack className="w-4.5 h-4.5 fill-current" />
+                    </button>
+
+                    {/* Primary Play/Pause Button */}
                     <button 
                       onClick={handlePlayClick}
                       className="w-11 h-11 rounded-full bg-[#3ba6f1] text-white border border-[#3398e1] hover:bg-[#3398e1] active:scale-95 shadow-sm flex items-center justify-center transition-all"
@@ -244,25 +306,59 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                       )}
                     </button>
 
-                    {/* Mute and Volume Control */}
-                    <div className="flex items-center gap-2 bg-[#fafaf9] border border-[#e8e6e5] px-3 py-1.5 rounded-full flex-grow max-w-[180px]">
-                      <button onClick={toggleMute} className="text-[#78716c] hover:text-[#0c0a09] transition-colors">
-                        {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                      </button>
-                      <input 
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={isMuted ? 0 : volume}
-                        onChange={handleVolumeChange}
-                        className="w-full h-1 bg-[#e8e6e5] rounded-full appearance-none cursor-pointer accent-[#3ba6f1] focus:outline-none"
-                        style={{
-                          background: `linear-gradient(to right, #3ba6f1 0%, #3ba6f1 ${(isMuted ? 0 : volume) * 100}%, #e8e6e5 ${(isMuted ? 0 : volume) * 100}%, #e8e6e5 100%)`
-                        }}
-                      />
-                    </div>
+                    {/* Next Track */}
+                    <button
+                      onClick={playNextTrack}
+                      className="p-2 text-[#78716c] hover:text-[#0c0a09] hover:bg-[#fafaf9] rounded-full transition-colors"
+                      title="Next Track"
+                    >
+                      <SkipForward className="w-4.5 h-4.5 fill-current" />
+                    </button>
+
+                    {/* Repeat Mode Toggle (Single [Default], All, Off) */}
+                    <button
+                      onClick={toggleRepeatMode}
+                      className={`p-2 rounded-full transition-colors ${
+                        repeatMode !== "off" 
+                          ? "text-[#3ba6f1] bg-[#c1e1f7]/40" 
+                          : "text-[#78716c] hover:text-[#0c0a09] hover:bg-[#fafaf9]"
+                      }`}
+                      title={
+                        repeatMode === "single" 
+                          ? "Repeat Single (Active)" 
+                          : repeatMode === "all" 
+                          ? "Repeat All Weeks (Active)" 
+                          : "Repeat Off"
+                      }
+                    >
+                      {repeatMode === "single" ? (
+                        <Repeat1 className="w-4 h-4" />
+                      ) : (
+                        <Repeat className="w-4 h-4" />
+                      )}
+                    </button>
+
                   </div>
+
+                  {/* Volume Control */}
+                  <div className="flex items-center gap-2 bg-[#fafaf9] border border-[#e8e6e5] px-3 py-1.5 rounded-full w-full mt-2">
+                    <button onClick={toggleMute} className="text-[#78716c] hover:text-[#0c0a09] transition-colors">
+                      {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    </button>
+                    <input 
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={isMuted ? 0 : volume}
+                      onChange={handleVolumeChange}
+                      className="w-full h-1 bg-[#e8e6e5] rounded-full appearance-none cursor-pointer accent-[#3ba6f1] focus:outline-none"
+                      style={{
+                        background: `linear-gradient(to right, #3ba6f1 0%, #3ba6f1 ${(isMuted ? 0 : volume) * 100}%, #e8e6e5 ${(isMuted ? 0 : volume) * 100}%, #e8e6e5 100%)`
+                      }}
+                    />
+                  </div>
+
                 </div>
               ) : (
                 <div className="p-3 bg-[#fafaf9] rounded-[8px] border border-[#e8e6e5] text-xs text-[#78716c] flex items-center gap-2">

@@ -38,14 +38,28 @@ export default function CatalogGrid({ songs }: { songs: Song[] }) {
           e.preventDefault();
           e.stopPropagation();
           if (song.audio_url) {
-            playTrack({
-              id: song.id,
-              title: song.title,
-              artist: song.artist,
-              audioUrl: song.audio_url,
-              coverImageUrl: song.cover_image_url,
-              weekLabel: song.week_label,
-            });
+            const formattedPlaylist = songs
+              .filter((s) => s.audio_url)
+              .map((s) => ({
+                id: s.id,
+                title: s.title,
+                artist: s.artist,
+                audioUrl: s.audio_url || "",
+                coverImageUrl: s.cover_image_url,
+                weekLabel: s.week_label,
+              }));
+
+            playTrack(
+              {
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                audioUrl: song.audio_url,
+                coverImageUrl: song.cover_image_url,
+                weekLabel: song.week_label,
+              },
+              formattedPlaylist
+            );
           }
         };
 

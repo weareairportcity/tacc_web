@@ -2,7 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, X, Music, ChevronDown } from "lucide-react";
+import { 
+  Play, Pause, Volume2, VolumeX, X, Music, ChevronDown, 
+  Repeat, Repeat1, Shuffle, SkipBack, SkipForward 
+} from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 
 export default function GlobalAudioPlayer() {
@@ -13,10 +16,16 @@ export default function GlobalAudioPlayer() {
     duration,
     volume,
     isMuted,
+    repeatMode,
+    isShuffle,
     togglePlayPause,
     seek,
     setVolume,
     toggleMute,
+    toggleRepeatMode,
+    toggleShuffle,
+    playNextTrack,
+    playPreviousTrack,
     closePlayer,
   } = useAudioPlayer();
 
@@ -37,10 +46,6 @@ export default function GlobalAudioPlayer() {
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));
-  };
-
-  const skipSeconds = (secs: number) => {
-    seek(Math.min(Math.max(currentTime + secs, 0), duration));
   };
 
   return (
@@ -112,15 +117,31 @@ export default function GlobalAudioPlayer() {
               </div>
 
               {/* Playback Controls (Center) */}
-              <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                
+                {/* Shuffle Button */}
                 <button
-                  onClick={() => skipSeconds(-10)}
-                  className="p-1.5 text-[#a8a29e] hover:text-white transition-colors hidden sm:block"
-                  title="Rewind 10s"
+                  onClick={toggleShuffle}
+                  className={`p-1.5 rounded-full transition-colors ${
+                    isShuffle 
+                      ? "text-[#3ba6f1] bg-[#3ba6f1]/15" 
+                      : "text-[#a8a29e] hover:text-white"
+                  }`}
+                  title={isShuffle ? "Shuffle On" : "Shuffle Off"}
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <Shuffle className="w-4 h-4" />
                 </button>
 
+                {/* Previous Track */}
+                <button
+                  onClick={playPreviousTrack}
+                  className="p-1.5 text-[#a8a29e] hover:text-white transition-colors"
+                  title="Previous Track"
+                >
+                  <SkipBack className="w-4.5 h-4.5 fill-current" />
+                </button>
+
+                {/* Main Play / Pause Button */}
                 <button
                   onClick={togglePlayPause}
                   className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#3ba6f1] text-white hover:bg-[#3398e1] active:scale-95 flex items-center justify-center shadow-sm transition-all"
@@ -133,15 +154,39 @@ export default function GlobalAudioPlayer() {
                   )}
                 </button>
 
+                {/* Next Track */}
                 <button
-                  onClick={() => skipSeconds(10)}
-                  className="p-1.5 text-[#a8a29e] hover:text-white transition-colors hidden sm:block"
-                  title="Forward 10s"
+                  onClick={playNextTrack}
+                  className="p-1.5 text-[#a8a29e] hover:text-white transition-colors"
+                  title="Next Track"
                 >
-                  <RotateCw className="w-4 h-4" />
+                  <SkipForward className="w-4.5 h-4.5 fill-current" />
                 </button>
 
-                <div className="text-[11px] font-mono text-[#a8a29e] min-w-[70px] text-center hidden md:block">
+                {/* Repeat Mode Button (Single [Default], All, Off) */}
+                <button
+                  onClick={toggleRepeatMode}
+                  className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                    repeatMode !== "off" 
+                      ? "text-[#3ba6f1] bg-[#3ba6f1]/15" 
+                      : "text-[#a8a29e] hover:text-white"
+                  }`}
+                  title={
+                    repeatMode === "single" 
+                      ? "Repeat Single (Active)" 
+                      : repeatMode === "all" 
+                      ? "Repeat All Weeks (Active)" 
+                      : "Repeat Off"
+                  }
+                >
+                  {repeatMode === "single" ? (
+                    <Repeat1 className="w-4 h-4" />
+                  ) : (
+                    <Repeat className="w-4 h-4" />
+                  )}
+                </button>
+
+                <div className="text-[11px] font-mono text-[#a8a29e] min-w-[70px] text-center hidden md:block ml-1">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </div>
               </div>
