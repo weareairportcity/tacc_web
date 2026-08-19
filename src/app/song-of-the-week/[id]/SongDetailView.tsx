@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Music, Play, Pause, Volume2, VolumeX, ArrowLeft, ExternalLink } from "lucide-react";
+import { useAudioPlayer } from "@/context/AudioPlayerContext";
+import { trackSongEvent } from "@/lib/analytics-client";
 
 type Song = {
   id: string;
@@ -23,16 +25,6 @@ type SongDetailViewProps = {
   otherSongs: Song[];
 };
 
-// Fallback covers matching the brand blue
-const COVERS = [
-  "linear-gradient(135deg, rgba(60, 194, 207, 0.18) 0%, rgba(60, 194, 207, 0.06) 100%)",
-  "linear-gradient(135deg, rgba(60, 194, 207, 0.12) 0%, rgba(96, 165, 250, 0.12) 100%)",
-  "linear-gradient(135deg, rgba(60, 194, 207, 0.15) 0%, rgba(242, 242, 242, 0.6) 100%)",
-];
-
-import { useAudioPlayer } from "@/context/AudioPlayerContext";
-import { trackSongEvent } from "@/lib/analytics-client";
-
 export default function SongDetailView({ song, otherSongs }: SongDetailViewProps) {
   const {
     currentTrack,
@@ -42,7 +34,6 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
     volume: globalVolume,
     isMuted: isGlobalMuted,
     playTrack,
-    togglePlayPause,
     seek,
     setVolume,
     toggleMute,
@@ -87,8 +78,9 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00";
     const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+    const seconds = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Parse lyrics text into headings and body text segments
@@ -105,8 +97,8 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
       if (lines[0] && (lines[0].startsWith("[") && lines[0].endsWith("]"))) {
         heading = lines[0].substring(1, lines[0].length - 1);
         bodyLines = lines.slice(1);
-      } else if (lines[0] && (lines[0].endsWith(":") && lines[0].length < 20)) {
-        heading = lines[0].substring(0, lines[0].length - 1);
+      } else if (lines[0] && (lines[0].endsWith(":") || lines[0].length < 20) && (lines[0].toLowerCase().includes("verse") || lines[0].toLowerCase().includes("chorus") || lines[0].toLowerCase().includes("bridge") || lines[0].toLowerCase().includes("outro") || lines[0].toLowerCase().includes("refrain") || lines[0].toLowerCase().includes("pre-chorus"))) {
+        heading = lines[0].replace(":", "").trim();
         bodyLines = lines.slice(1);
       }
 
@@ -126,42 +118,44 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
   });
 
   return (
-    <div className="min-h-screen bg-paper font-euclid-circular-a text-ink-black antialiased flex flex-col relative selection:bg-brand-blue selection:text-white">
+    <div className="min-h-screen bg-[#fafaf9] font-inter text-[#0c0a09] antialiased flex flex-col relative selection:bg-[#c1e1f7] selection:text-[#0c0a09]">
       
-
-
-      {/* Sticky Header Nav */}
-      <header className="sticky top-0 z-40 bg-snow rounded-b-[10px] border-b border-hairline shadow-subtle px-4 sm:px-6 h-[64px] flex items-center justify-between">
+      {/* Seline Minimal Top Nav Header */}
+      <header className="sticky top-0 z-40 bg-[#ffffff] border-b border-[#e8e6e5] shadow-[0_1px_2px_rgba(0,0,0,0.05)] px-4 sm:px-6 h-[64px] flex items-center justify-between">
         <div className="max-w-[1200px] mx-auto w-full flex items-center justify-between gap-4">
-          <Link href="/song-of-the-week" className="flex items-center gap-2">
+          <Link href="/song-of-the-week" className="flex items-center gap-3">
             <Image 
               src="/logo.png" 
               alt="Airport City Church Logo" 
-              width={100} 
-              height={32} 
+              width={105} 
+              height={34} 
               className="object-contain" 
             />
+            <span className="h-4 w-[1px] bg-[#e8e6e5]" />
+            <span className="text-xs font-medium text-[#78716c] font-roobert tracking-tight">Hymns & Lyrics</span>
           </Link>
-          <div className="flex items-center gap-6 text-xs sm:text-sm font-semibold">
-            <Link href="/song-of-the-week" className="hover:text-brand-blue transition-colors flex items-center gap-1">
+
+          <div className="flex items-center gap-4 text-xs font-normal">
+            <Link href="/song-of-the-week" className="text-[#78716c] hover:text-[#0c0a09] transition-colors flex items-center gap-1.5 py-1 px-3 rounded-full hover:bg-[#fafaf9] border border-transparent hover:border-[#e8e6e5]">
               <ArrowLeft className="w-3.5 h-3.5" /> Back to Catalog
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Main Details Panel */}
-      <main className="flex-grow max-w-[1200px] mx-auto w-full px-4 sm:px-6 py-12 md:py-16 flex flex-col gap-10">
+      {/* Main Content Area */}
+      <main className="flex-grow max-w-[1200px] mx-auto w-full px-4 sm:px-6 py-10 md:py-14 flex flex-col gap-10">
         
-        {/* Editorial Heading Section */}
-        <div className="border-b border-hairline pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        {/* Seline Editorial Headline Block */}
+        <div className="border-b border-[#e8e6e5] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ash-gray">
-              <span className="text-brand-blue">{song.week_label}</span>
-              <span className="h-3 w-[1px] bg-hairline" />
+            <div className="flex items-center gap-2 text-xs font-medium text-[#78716c] tracking-normal mb-2">
+              <span className="text-[#3398e1] font-medium bg-[#c1e1f7]/50 px-2 py-0.5 rounded-full text-[11px]">{song.week_label}</span>
+              <span className="h-3 w-[1px] bg-[#e8e6e5]" />
               <span>Published {formattedPublishDate}</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-[-1.08px] text-ink-black uppercase mt-1">
+            
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-roobert font-normal tracking-[-0.025em] text-[#0c0a09] leading-tight">
               {song.title}
             </h1>
           </div>
@@ -170,23 +164,23 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
             <a 
               href={song.audio_url}
               download
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-snow border border-hairline rounded-buttons text-xs font-bold hover:border-graphite shadow-subtle transition-all"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#3ba6f1] text-white border border-[#3398e1] rounded-full text-xs font-medium hover:bg-[#3398e1] shadow-sm transition-all"
             >
               <span>Download MP3</span>
-              <ExternalLink className="w-3 h-3 text-graphite" />
+              <ExternalLink className="w-3.5 h-3.5 opacity-90" />
             </a>
           )}
         </div>
 
-        {/* Responsive Content Grid */}
+        {/* 2-Column Seline Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           
-          {/* LEFT Column: Cover Art and Interactive Custom Audio Player */}
+          {/* LEFT COLUMN: Floating Studio Cover Art & Audio Player Card */}
           <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-[88px]">
             
-            {/* Cover Frame (10px card radius, 16px image radius) */}
-            <div className="bg-snow rounded-cards p-4 border border-hairline shadow-subtle-4">
-              <div className="relative w-full aspect-square rounded-logo-cards overflow-hidden bg-fog border border-hairline flex items-center justify-center shadow-sm">
+            {/* Seline Floating Hero Preview Frame (deep 45px blur shadow) */}
+            <div className="bg-[#ffffff] rounded-[16px] p-2 border border-[#e8e6e5] shadow-[0_12px_45px_rgba(17,12,46,0.12)]">
+              <div className="relative w-full aspect-square rounded-[12px] overflow-hidden bg-[#fafaf9] border border-[#e8e6e5] flex items-center justify-center">
                 {song.cover_image_url ? (
                   <img 
                     src={song.cover_image_url} 
@@ -194,24 +188,21 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                     className="object-cover w-full h-full"
                   />
                 ) : (
-                  <div 
-                    className="w-full h-full flex flex-col items-center justify-center p-4 text-ink-black"
-                    style={{ background: COVERS[parseInt(song.id.replace(/\D/g, "") || "0") % COVERS.length] }}
-                  >
-                    <Music className="w-12 h-12 text-slate-ink stroke-[1.5]" />
+                  <div className="w-full h-full flex flex-col items-center justify-center p-4 text-[#78716c] bg-[#fafaf9]">
+                    <Music className="w-12 h-12 text-[#a8a29e] stroke-[1.5]" />
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Song Meta Information */}
-            <div className="bg-snow rounded-cards p-5 border border-hairline shadow-subtle-4 space-y-6">
+            {/* Seline Audio Player Card */}
+            <div className="bg-[#ffffff] rounded-[10px] p-5 border border-[#e8e6e5] shadow-[0_4px_16px_rgba(0,0,0,0.05)] space-y-5">
               <div>
-                <h2 className="text-2xl font-bold tracking-[-0.48px] text-ink-black uppercase leading-tight">
+                <h2 className="text-xl font-roobert font-normal tracking-[-0.021em] text-[#0c0a09] leading-snug">
                   {song.title}
                 </h2>
-                <p className="text-xs text-graphite font-semibold mt-1">
-                  Artiste: {song.artist}
+                <p className="text-xs text-[#78716c] font-normal mt-1">
+                  Artiste: <span className="text-[#0c0a09]">{song.artist}</span>
                 </p>
               </div>
 
@@ -219,43 +210,43 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
               {song.audio_url ? (
                 <div className="space-y-4">
                   
-                  {/* Seeker Input Timeline */}
-                  <div className="space-y-2">
+                  {/* Timeline Scrubber */}
+                  <div className="space-y-1.5">
                     <input 
                       type="range"
                       min={0}
                       max={duration || 100}
                       value={currentTime}
                       onChange={handleSeek}
-                      className="w-full h-1 bg-fog rounded-full appearance-none cursor-pointer accent-brand-blue focus:outline-none"
+                      className="w-full h-1 bg-[#e8e6e5] rounded-full appearance-none cursor-pointer accent-[#3ba6f1] focus:outline-none"
                       style={{
-                        background: `linear-gradient(to right, #3cc2cf 0%, #3cc2cf ${(currentTime / (duration || 1)) * 100}%, #dee0e3 ${(currentTime / (duration || 1)) * 100}%, #dee0e3 100%)`
+                        background: `linear-gradient(to right, #3ba6f1 0%, #3ba6f1 ${(currentTime / (duration || 1)) * 100}%, #e8e6e5 ${(currentTime / (duration || 1)) * 100}%, #e8e6e5 100%)`
                       }}
                     />
-                    <div className="flex justify-between text-[11px] font-bold text-ash-gray">
+                    <div className="flex justify-between text-[11px] font-normal text-[#a8a29e]">
                       <span>{formatTime(currentTime)}</span>
                       <span>{formatTime(duration)}</span>
                     </div>
                   </div>
 
-                  {/* Play circle and Volume scrubber */}
+                  {/* Play Button & Volume */}
                   <div className="flex items-center justify-between gap-4 pt-1">
-                    {/* Brand Blue brand action circle */}
+                    {/* Cyan Signal Primary Play Button */}
                     <button 
                       onClick={handlePlayClick}
-                      className="w-12 h-12 rounded-full bg-brand-blue text-white border border-brand-blue hover:opacity-90 active:scale-95 shadow-subtle flex items-center justify-center transition-all"
+                      className="w-11 h-11 rounded-full bg-[#3ba6f1] text-white border border-[#3398e1] hover:bg-[#3398e1] active:scale-95 shadow-sm flex items-center justify-center transition-all"
                       title={isPlaying ? "Pause" : "Play"}
                     >
                       {isPlaying ? (
-                        <Pause className="w-5 h-5 fill-current stroke-[1.5]" />
+                        <Pause className="w-4 h-4 fill-current stroke-[1.5]" />
                       ) : (
-                        <Play className="w-5 h-5 fill-current stroke-[1.5] translate-x-0.5" />
+                        <Play className="w-4 h-4 fill-current stroke-[1.5] translate-x-0.5" />
                       )}
                     </button>
 
-                    {/* Mute and volume slider in Snow Card */}
-                    <div className="flex items-center gap-2 bg-fog border border-hairline px-3 py-1.5 rounded-[10px] flex-grow max-w-[180px]">
-                      <button onClick={toggleMute} className="text-graphite hover:text-ink-black transition-colors">
+                    {/* Mute and Volume Control */}
+                    <div className="flex items-center gap-2 bg-[#fafaf9] border border-[#e8e6e5] px-3 py-1.5 rounded-full flex-grow max-w-[180px]">
+                      <button onClick={toggleMute} className="text-[#78716c] hover:text-[#0c0a09] transition-colors">
                         {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                       </button>
                       <input 
@@ -265,77 +256,74 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                         step={0.05}
                         value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
-                        className="w-full h-1 bg-hairline rounded-full appearance-none cursor-pointer accent-brand-blue focus:outline-none"
+                        className="w-full h-1 bg-[#e8e6e5] rounded-full appearance-none cursor-pointer accent-[#3ba6f1] focus:outline-none"
                         style={{
-                          background: `linear-gradient(to right, #3cc2cf 0%, #3cc2cf ${(isMuted ? 0 : volume) * 100}%, #dee0e3 ${(isMuted ? 0 : volume) * 100}%, #dee0e3 100%)`
+                          background: `linear-gradient(to right, #3ba6f1 0%, #3ba6f1 ${(isMuted ? 0 : volume) * 100}%, #e8e6e5 ${(isMuted ? 0 : volume) * 100}%, #e8e6e5 100%)`
                         }}
                       />
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 bg-fog rounded-cards border border-hairline text-xs text-graphite flex items-center gap-2">
-                  <Music className="w-4 h-4 text-ash-gray" />
-                  <span>No audio file linked. Read the official lyrics below.</span>
+                <div className="p-3 bg-[#fafaf9] rounded-[8px] border border-[#e8e6e5] text-xs text-[#78716c] flex items-center gap-2">
+                  <Music className="w-4 h-4 text-[#a8a29e]" />
+                  <span>No audio track attached.</span>
                 </div>
               )}
             </div>
 
           </div>
 
-          {/* RIGHT Column: Lyrics Container */}
-          <div className="lg:col-span-7 bg-snow rounded-cards p-6 sm:p-10 border border-hairline shadow-subtle-4">
-            <h2 className="text-lg sm:text-xl font-bold tracking-[-0.32px] text-ink-black uppercase border-b border-hairline pb-3 mb-6">
-              Lyrics
-            </h2>
+          {/* RIGHT COLUMN: Seline Pure White Lyrics Card */}
+          <div className="lg:col-span-7 bg-[#ffffff] rounded-[10px] p-6 sm:p-10 border border-[#e8e6e5] shadow-[0_4px_16px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center justify-between border-b border-[#e8e6e5] pb-4 mb-8">
+              <h2 className="text-xl font-roobert font-normal tracking-[-0.021em] text-[#0c0a09]">
+                Official Lyrics
+              </h2>
+              <span className="text-xs text-[#78716c] font-normal">SOTW Edition</span>
+            </div>
 
             {lyricSections.length === 0 ? (
-              <p className="text-graphite text-sm italic">Lyrics not available.</p>
+              <p className="text-[#78716c] text-sm italic">Lyrics not available.</p>
             ) : (
-              <div className="space-y-6">
-                {lyricSections.map((section, idx) => {
-                  // Highlights lyrics sections in Brand Blue
-                  const headingColor = "text-brand-blue";
-                  
-                  return (
-                    <div key={idx} className="space-y-2.5">
-                      {section.heading && (
-                        <h3 className={`text-[11px] font-bold uppercase tracking-wider ${headingColor}`}>
-                          {section.heading}
-                        </h3>
-                      )}
-                      <div className="space-y-1">
-                        {section.lines.map((line, lidx) => (
-                          <p key={lidx} className="text-sm sm:text-base tracking-[-0.11px] text-ink-black leading-relaxed font-medium">
-                            {line}
-                          </p>
-                        ))}
-                      </div>
+              <div className="space-y-7">
+                {lyricSections.map((section, idx) => (
+                  <div key={idx} className="space-y-2">
+                    {section.heading && (
+                      <h3 className="text-[11px] font-medium uppercase tracking-wider text-[#3398e1]">
+                        {section.heading}
+                      </h3>
+                    )}
+                    <div className="space-y-1.5">
+                      {section.lines.map((line, lidx) => (
+                        <p key={lidx} className="text-sm sm:text-[15px] text-[#0c0a09] leading-[1.64] font-normal">
+                          {line}
+                        </p>
+                      ))}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
         </div>
 
-        {/* Listen to More Row */}
+        {/* Explore More Hymns */}
         {otherSongs.length > 0 && (
-          <div className="border-t border-hairline pt-12 mt-4">
-            <h3 className="text-base sm:text-lg font-bold tracking-[-0.32px] text-ink-black uppercase mb-6">
+          <div className="border-t border-[#e8e6e5] pt-10 mt-4">
+            <h3 className="text-lg font-roobert font-normal tracking-[-0.017em] text-[#0c0a09] mb-5">
               Explore More Hymns
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {otherSongs.map((otherSong, oidx) => (
+              {otherSongs.map((otherSong) => (
                 <Link 
                   key={otherSong.id} 
                   href={`/song-of-the-week/${otherSong.id}`}
-                  className="group flex gap-3 bg-snow rounded-[10px] p-3 border border-hairline shadow-subtle hover:border-graphite hover:shadow-subtle-3 transition-all duration-200"
+                  className="group flex gap-3 bg-[#ffffff] rounded-[10px] p-3 border border-[#e8e6e5] shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:border-[#d6d3d1] transition-all duration-200"
                 >
-                  {/* Small Cover Frame */}
-                  <div className="relative w-12 h-12 rounded-[8px] overflow-hidden bg-fog border border-hairline flex items-center justify-center flex-shrink-0">
+                  <div className="relative w-12 h-12 rounded-[6px] overflow-hidden bg-[#fafaf9] border border-[#e8e6e5] flex-shrink-0 flex items-center justify-center">
                     {otherSong.cover_image_url ? (
                       <img 
                         src={otherSong.cover_image_url} 
@@ -343,25 +331,19 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      <div 
-                        className="w-full h-full flex items-center justify-center text-ink-black"
-                        style={{ background: COVERS[oidx % COVERS.length] }}
-                      >
-                        <Music className="w-4 h-4 text-slate-ink" />
-                      </div>
+                      <Music className="w-4 h-4 text-[#a8a29e]" />
                     )}
                   </div>
                   
-                  {/* Details */}
                   <div className="min-w-0 flex-grow flex flex-col justify-center">
-                    <span className="text-[9px] font-bold text-brand-blue uppercase tracking-wider block">
+                    <span className="text-[10px] font-normal text-[#3398e1] uppercase tracking-wide block">
                       {otherSong.week_label}
                     </span>
-                    <h4 className="text-xs font-bold text-ink-black uppercase group-hover:text-brand-blue transition-colors truncate mt-0.5">
+                    <h4 className="text-xs font-medium text-[#0c0a09] font-roobert group-hover:text-[#3398e1] transition-colors truncate mt-0.5">
                       {otherSong.title}
                     </h4>
-                    <p className="text-[10px] text-graphite truncate mt-0.5">
-                      by {otherSong.artist}
+                    <p className="text-[11px] text-[#78716c] truncate mt-0.5">
+                      {otherSong.artist}
                     </p>
                   </div>
                 </Link>
@@ -372,23 +354,23 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
 
       </main>
 
-      {/* Footer */}
-      <footer className="bg-obsidian text-ash-gray border-t border-hairline py-10 px-6 mt-16">
-        <div className="max-w-[1200px] mx-auto w-full flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex flex-col items-center md:items-start gap-1.5">
+      {/* Seline Minimal Footer */}
+      <footer className="bg-[#ffffff] text-[#78716c] border-t border-[#e8e6e5] py-8 px-6 mt-16">
+        <div className="max-w-[1200px] mx-auto w-full flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-normal">
+          <div className="flex flex-col items-center md:items-start gap-1">
             <Image 
               src="/logo.png" 
               alt="TACC Logo" 
               width={90} 
               height={26} 
-              className="object-contain brightness-0 invert" 
+              className="object-contain opacity-80" 
             />
-            <p className="text-[9px] text-ash-gray">© {new Date().getFullYear()} The Airport City Church. All rights reserved.</p>
+            <p className="text-[11px] text-[#a8a29e]">© {new Date().getFullYear()} The Airport City Church</p>
           </div>
-          <div className="flex gap-4 text-[11px] text-ash-gray font-semibold">
-            <Link href="/" className="hover:text-snow transition-colors">Home</Link>
-            <Link href="/timewithpastor" className="hover:text-snow transition-colors">Bookings</Link>
-            <Link href="/song-of-the-week" className="hover:text-snow transition-colors">Songs Portal</Link>
+          <div className="flex gap-4 text-xs text-[#78716c]">
+            <Link href="/" className="hover:text-[#0c0a09] transition-colors">Home</Link>
+            <Link href="/timewithpastor" className="hover:text-[#0c0a09] transition-colors">Bookings</Link>
+            <Link href="/song-of-the-week" className="hover:text-[#0c0a09] transition-colors">Songs Portal</Link>
           </div>
         </div>
       </footer>

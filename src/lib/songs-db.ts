@@ -100,6 +100,102 @@ const SUPABASE_STORAGE_BASE = "https://nsiaryznabnexpwuokzv.supabase.co/storage/
 
 const DEFAULT_SONGS = [
   {
+    week_label: "WEEK FOUR",
+    publish_date: "2026-08-16",
+    title: "Sweet Holy Spirit",
+    artist: "Simeon Rich, Maya & Loveworld Singers",
+    lyrics: `Verse 1
+
+Sweet Holy Spirit, You are here
+Life-giver and strengthener, You are
+The great comforter and our helper, You are
+Sweet Holy Spirit, we adore You
+
+Heaven's dew on us, You are
+The Teacher within us, You are
+Our great guide in the path of life, You are
+Sweet Holy Spirit, we adore You
+
+
+Chorus
+
+Hallelujah to You, Lord
+Hallelujah, great God
+You're the Angel of His presence
+So gentle yet all-powerful
+
+Hallelujah to You, Lord
+Hallelujah, great God
+Sweet Holy Spirit, we adore You
+
+Hallelujah to You, Lord
+Hallelujah, great God
+You're the Angel of His presence
+So gentle, yet all-powerful
+
+Hallelujah to You, Lord
+Hallelujah, great God
+Sweet Holy Spirit, we adore You
+
+
+Verse 2
+
+You are pure and holy
+Your presence here is glorious
+Your power is mighty
+And great in our midst
+Sweet Holy Spirit, we adore You
+
+Your presence has filled our lives
+With boundless grace, we are strengthened
+With Your might from within
+Mightily helped by You
+Sweet Holy Spirit, we adore You
+
+
+Chorus
+
+Hallelujah to You, Lord
+Hallelujah, great God
+You're the Angel of His presence
+So gentle, yet all-powerful
+
+Hallelujah to You, Lord
+Hallelujah, great God
+Sweet Holy Spirit, we adore You
+
+
+Bridge
+
+Sweet Spirit of God
+You're the holy and gracious One
+You answer when we called the name of Jesus
+
+Blessed with Your power
+Blessed with Your glory
+Blessed with all that You are
+All that You are
+
+
+Outro
+
+Hallelujah to You, Lord
+Hallelujah, great God
+You're the Angel of His presence
+So gentle, yet all-powerful
+
+Hallelujah to You, Lord
+Hallelujah, great God
+Sweet Holy Spirit, we adore You
+
+You're the Angel of His presence
+So gentle, yet all-powerful
+Sweet Holy Spirit, we adore You`,
+    audio_url: "https://loveworldlyrics.com/wp-content/uploads/2025/03/SWEET-HOLY-SPIRIT-SIMEON-RICH-AND-MAYA.mp3",
+    cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ae/49/7a/ae497a24-2564-a067-5abb-528b1e8c6953/7300344067473.jpg/600x600bb.jpg",
+    is_published: true,
+  },
+  {
     week_label: "WEEK THREE",
     publish_date: "2026-08-09",
     title: "The King",
@@ -184,7 +280,7 @@ We raise our hands in praise
 Too much for words for us
 Is your love`,
     audio_url: `${SUPABASE_STORAGE_BASE}/the-king.mp3`,
-    cover_image_url: `${SUPABASE_STORAGE_BASE}/the-king.jpeg`,
+    cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/df/89/d5/df89d530-d7e2-996b-03cb-9e0fc6eb623f/7300343705253.jpg/600x600bb.jpg",
     is_published: true,
   },
   {
@@ -278,7 +374,7 @@ Nor kingdoms of men
 For Your decree shall rule the nations
 Almighty God`,
     audio_url: `${SUPABASE_STORAGE_BASE}/your-dominion-is-for-eternity.mp3`,
-    cover_image_url: `${SUPABASE_STORAGE_BASE}/your-dominion-is-for-eternity.jpeg`,
+    cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/29/b6/db/29b6dbc9-164a-c02b-0077-1506eb415826/7300342869666.jpg/600x600bb.jpg",
     is_published: true,
   },
   {
@@ -346,7 +442,7 @@ You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
     audio_url: `${SUPABASE_STORAGE_BASE}/the-center-of-your-love.mp3`,
-    cover_image_url: `${SUPABASE_STORAGE_BASE}/the-center-of-your-love.jpeg`,
+    cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/19/17/d1/1917d12d-82ff-31a1-368c-c2817ef3b65c/7300346224256.jpg/600x600bb.jpg",
     is_published: true,
   },
   {
@@ -398,7 +494,7 @@ Your thoughts of me
 Are so great
 You’re my All`,
     audio_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.mp3`,
-    cover_image_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.jpeg`,
+    cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ae/49/7a/ae497a24-2564-a067-5abb-528b1e8c6953/7300344067473.jpg/600x600bb.jpg",
     is_published: true,
   }
 ];

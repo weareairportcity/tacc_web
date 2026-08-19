@@ -36,7 +36,7 @@ export function generateAvailableDays(numDays: number = 30): Date[] {
   const currentAccraTime = getAccraTime();
   const today = startOfDay(currentAccraTime);
   const days: Date[] = [];
-  
+
   for (let i = 0; i < numDays; i++) {
     const d = addDays(today, i);
     if (isBookableDay(d, currentAccraTime)) {
