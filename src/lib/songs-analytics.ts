@@ -6,6 +6,8 @@ export type SongAnalytics = {
   unique_visitors: number;
   total_plays: number;
   unique_listeners: number;
+  total_repeats: number;
+  unique_repeaters: number;
   engagement_rate: number; // percentage of unique visitors who played audio
 };
 
@@ -38,11 +40,14 @@ export async function getSongAnalytics(songId?: string): Promise<Record<string, 
       }
     }
   }
+
   const map: Record<string, {
     views: number;
     visitors: Set<string>;
     plays: number;
     listeners: Set<string>;
+    repeats: number;
+    repeaters: Set<string>;
   }> = {};
 
   for (const ev of events) {
@@ -52,6 +57,8 @@ export async function getSongAnalytics(songId?: string): Promise<Record<string, 
         visitors: new Set(),
         plays: 0,
         listeners: new Set(),
+        repeats: 0,
+        repeaters: new Set(),
       };
     }
 
@@ -62,6 +69,9 @@ export async function getSongAnalytics(songId?: string): Promise<Record<string, 
     } else if (ev.event_type === "play") {
       entry.plays += 1;
       entry.listeners.add(ev.visitor_id);
+    } else if (ev.event_type === "repeat") {
+      entry.repeats += 1;
+      entry.repeaters.add(ev.visitor_id);
     }
   }
 
@@ -72,6 +82,8 @@ export async function getSongAnalytics(songId?: string): Promise<Record<string, 
     const uniqueVisitors = stats.visitors.size;
     const totalPlays = stats.plays;
     const uniqueListeners = stats.listeners.size;
+    const totalRepeats = stats.repeats;
+    const uniqueRepeaters = stats.repeaters.size;
     const engagementRate = uniqueVisitors > 0 ? Math.min(100, Math.round((uniqueListeners / uniqueVisitors) * 100)) : 0;
 
     result[id] = {
@@ -80,6 +92,8 @@ export async function getSongAnalytics(songId?: string): Promise<Record<string, 
       unique_visitors: uniqueVisitors,
       total_plays: totalPlays,
       unique_listeners: uniqueListeners,
+      total_repeats: totalRepeats,
+      unique_repeaters: uniqueRepeaters,
       engagement_rate: engagementRate,
     };
   }

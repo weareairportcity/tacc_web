@@ -3,14 +3,14 @@
 import React, { useState, useMemo } from "react";
 import { 
   TrendingUp, Users, Play, Eye, Calendar, 
-  BarChart3, Activity, Award, ArrowUpRight, Flame, Layers 
+  BarChart3, Activity, Award, ArrowUpRight, Flame, Layers, Repeat1 
 } from "lucide-react";
 
 export type RawAnalyticsEvent = {
   id: string;
   created_at: string;
   song_id: string;
-  event_type: "view" | "play";
+  event_type: "view" | "play" | "repeat";
   visitor_id: string;
 };
 
@@ -61,8 +61,10 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
   const metrics = useMemo(() => {
     let viewCount = 0;
     let playCount = 0;
+    let repeatCount = 0;
     const viewVisitors = new Set<string>();
     const playListeners = new Set<string>();
+    const repeaters = new Set<string>();
 
     filteredEvents.forEach((ev) => {
       if (ev.event_type === "view") {
@@ -71,19 +73,25 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
       } else if (ev.event_type === "play") {
         playCount++;
         playListeners.add(ev.visitor_id);
+      } else if (ev.event_type === "repeat") {
+        repeatCount++;
+        repeaters.add(ev.visitor_id);
       }
     });
 
     const uniqueVisitors = viewVisitors.size;
     const uniqueListeners = playListeners.size;
+    const uniqueRepeaters = repeaters.size;
     const conversionRate = uniqueVisitors > 0 ? Math.min(100, Math.round((uniqueListeners / uniqueVisitors) * 100)) : 0;
     const replayFactor = uniqueListeners > 0 ? (playCount / uniqueListeners).toFixed(1) : "0.0";
 
     return {
       viewCount,
       playCount,
+      repeatCount,
       uniqueVisitors,
       uniqueListeners,
+      uniqueRepeaters,
       conversionRate,
       replayFactor,
     };
@@ -98,6 +106,8 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
         visitors: Set<string>;
         plays: number;
         listeners: Set<string>;
+        repeats: number;
+        repeaters: Set<string>;
         lastActive?: string;
       }
     > = {};
@@ -109,6 +119,8 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
           visitors: new Set(),
           plays: 0,
           listeners: new Set(),
+          repeats: 0,
+          repeaters: new Set(),
         };
       }
       const entry = map[ev.song_id];
@@ -118,6 +130,9 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
       } else if (ev.event_type === "play") {
         entry.plays++;
         entry.listeners.add(ev.visitor_id);
+      } else if (ev.event_type === "repeat") {
+        entry.repeats++;
+        entry.repeaters.add(ev.visitor_id);
       }
       entry.lastActive = ev.created_at;
     });
@@ -168,7 +183,7 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
             <Activity className="w-5 h-5 text-indigo-600" />
             Executive Analytics Overview
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">Real-time listener conversion, engagement trends, and weekly performance metrics.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Real-time listener conversion, song repeats, and weekly performance metrics.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -217,7 +232,7 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
         {/* Card 1: Total Views */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
@@ -237,7 +252,7 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
         {/* Card 2: Audio Listens */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Audio Listens (5s+)</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Audio Listens</span>
             <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
               <Play className="w-4 h-4" />
             </div>
@@ -249,7 +264,22 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
           </div>
         </div>
 
-        {/* Card 3: Listener Conversion % */}
+        {/* Card 3: Song Repeats */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Song Repeats</span>
+            <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100">
+              <Repeat1 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-slate-900 mt-3 tracking-tight">{metrics.repeatCount}</div>
+          <div className="flex items-center justify-between text-xs text-slate-500 mt-2 border-t border-slate-100 pt-2 font-medium">
+            <span>Unique Repeaters</span>
+            <span className="font-bold text-slate-900">{metrics.uniqueRepeaters}</span>
+          </div>
+        </div>
+
+        {/* Card 4: Listener Conversion % */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Listener Conversion</span>
@@ -264,7 +294,7 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
           </div>
         </div>
 
-        {/* Card 4: Replay Frequency Factor */}
+        {/* Card 5: Replay Frequency Factor */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Replay Factor</span>
@@ -302,66 +332,63 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
           </div>
         </div>
 
-        {/* Custom SVG Bar Chart */}
-        <div className="pt-4">
-          <div className="h-48 w-full flex items-end justify-between gap-2 sm:gap-4 px-2 pb-6 border-b border-slate-100 relative">
-            {timeSeriesData.map((d, idx) => {
-              const viewHeightPct = Math.round((d.views / maxChartVal) * 100);
-              const playHeightPct = Math.round((d.plays / maxChartVal) * 100);
+        {/* SVG Chart */}
+        <div className="h-[220px] w-full relative flex items-end justify-between pt-6 gap-2 sm:gap-4">
+          {timeSeriesData.map((pt, idx) => {
+            const viewHeightPct = maxChartVal > 0 ? (pt.views / maxChartVal) * 100 : 0;
+            const playHeightPct = maxChartVal > 0 ? (pt.plays / maxChartVal) * 100 : 0;
 
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-                  
-                  {/* Tooltip on Hover */}
-                  <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2.5 rounded-lg shadow-xl z-20 whitespace-nowrap pointer-events-none">
-                    <div className="font-bold border-b border-slate-700 pb-0.5 mb-0.5">{d.label}</div>
-                    <div className="text-blue-300">Views: {d.views}</div>
-                    <div className="text-purple-300">Plays: {d.plays}</div>
-                  </div>
-
-                  {/* Dual Bar Pair */}
-                  <div className="w-full flex items-end justify-center gap-1 h-full">
-                    {/* View Bar */}
-                    <div 
-                      className="w-2.5 sm:w-4 bg-blue-500 rounded-t-sm transition-all duration-300 group-hover:bg-blue-600"
-                      style={{ height: `${Math.max(viewHeightPct, 4)}%` }}
-                    />
-                    {/* Play Bar */}
-                    <div 
-                      className="w-2.5 sm:w-4 bg-purple-500 rounded-t-sm transition-all duration-300 group-hover:bg-purple-600"
-                      style={{ height: `${Math.max(playHeightPct, 4)}%` }}
-                    />
-                  </div>
-
-                  <span className="absolute -bottom-6 text-[10px] text-slate-400 font-semibold truncate max-w-[40px]">
-                    {d.label}
-                  </span>
+            return (
+              <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
+                
+                {/* Tooltip */}
+                <div className="absolute -top-12 bg-slate-900 text-white text-[10px] py-1 px-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap">
+                  <div className="font-bold">{pt.label}</div>
+                  <div>Views: {pt.views} | Plays: {pt.plays}</div>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Bars */}
+                <div className="w-full flex items-end justify-center gap-1 h-[160px] relative">
+                  <div 
+                    className="w-2.5 sm:w-4 bg-blue-500/90 group-hover:bg-blue-600 rounded-t-sm transition-all duration-300"
+                    style={{ height: `${Math.max(viewHeightPct, 4)}%` }}
+                  />
+                  <div 
+                    className="w-2.5 sm:w-4 bg-purple-500/90 group-hover:bg-purple-600 rounded-t-sm transition-all duration-300"
+                    style={{ height: `${Math.max(playHeightPct, 4)}%` }}
+                  />
+                </div>
+
+                {/* Date Label */}
+                <span className="text-[10px] text-slate-400 font-semibold mt-2 truncate max-w-full">
+                  {pt.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Per-Week Performance Comparison Breakdown Table */}
+      {/* Song Performance Breakdown Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
-              Weekly Song Analytics Breakdown
+              <Award className="w-4 h-4 text-amber-500" />
+              Detailed Song Performance Matrix
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Individual song conversion rates, listener counts, and performance rankings.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Per-hymn breakdown of views, plays, repeats, and engagement conversion.</p>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left whitespace-nowrap bg-white">
+          <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-3.5 font-bold">Week & Song</th>
                 <th className="px-6 py-3.5 font-bold">Page Views</th>
                 <th className="px-6 py-3.5 font-bold">Audio Listens</th>
+                <th className="px-6 py-3.5 font-bold">Repeats</th>
                 <th className="px-6 py-3.5 font-bold">Conversion Funnel</th>
                 <th className="px-6 py-3.5 font-bold">Replay Index</th>
                 <th className="px-6 py-3.5 font-bold text-right">Engagement</th>
@@ -369,11 +396,13 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
             </thead>
             <tbody className="divide-y divide-slate-100">
               {songs.map((song) => {
-                const sStats = songAnalyticsMap[song.id] || { views: 0, visitors: new Set(), plays: 0, listeners: new Set() };
+                const sStats = songAnalyticsMap[song.id] || { views: 0, visitors: new Set(), plays: 0, listeners: new Set(), repeats: 0, repeaters: new Set() };
                 const sViews = sStats.views;
                 const sVisitors = sStats.visitors.size;
                 const sPlays = sStats.plays;
                 const sListeners = sStats.listeners.size;
+                const sRepeats = sStats.repeats;
+                const sRepeaters = sStats.repeaters.size;
                 const sConversion = sVisitors > 0 ? Math.min(100, Math.round((sListeners / sVisitors) * 100)) : 0;
                 const sReplay = sListeners > 0 ? (sPlays / sListeners).toFixed(1) : "0.0";
 
@@ -399,6 +428,11 @@ export default function AnalyticsDashboard({ songs, events }: AnalyticsDashboard
                     <td className="px-6 py-4">
                       <div className="font-bold text-purple-700 text-sm">{sPlays}</div>
                       <div className="text-xs text-slate-400">{sListeners} unique listeners</div>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-[#3ba6f1] text-sm">{sRepeats}</div>
+                      <div className="text-xs text-slate-400">{sRepeaters} unique repeaters</div>
                     </td>
 
                     <td className="px-6 py-4 min-w-[180px]">

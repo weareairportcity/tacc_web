@@ -11,7 +11,7 @@ export function getOrCreateVisitorId(): string {
   return visitorId;
 }
 
-export function trackSongEvent(songId: string, eventType: "view" | "play") {
+export function trackSongEvent(songId: string, eventType: "view" | "play" | "repeat") {
   if (typeof window === "undefined" || !songId) return;
 
   const visitorId = getOrCreateVisitorId();

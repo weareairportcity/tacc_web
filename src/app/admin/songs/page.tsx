@@ -43,7 +43,7 @@ export default function AdminSongs() {
 
   const [songs, setSongs] = useState<Song[]>([]);
   const [rawEvents, setRawEvents] = useState<RawAnalyticsEvent[]>([]);
-  const [analyticsMap, setAnalyticsMap] = useState<Record<string, { views: number; visitors: number; plays: number; listeners: number }>>({});
+  const [analyticsMap, setAnalyticsMap] = useState<Record<string, { views: number; visitors: number; plays: number; listeners: number; repeats: number; repeaters: number }>>({});
   const [activeTab, setActiveTab] = useState<"catalog" | "analytics">("catalog");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,10 +115,10 @@ export default function AdminSongs() {
       }
 
       setRawEvents(allEventsData);
-      const stats: Record<string, { views: number; visitors: Set<string>; plays: number; listeners: Set<string> }> = {};
+      const stats: Record<string, { views: number; visitors: Set<string>; plays: number; listeners: Set<string>; repeats: number; repeaters: Set<string> }> = {};
       allEventsData.forEach((ev: any) => {
         if (!stats[ev.song_id]) {
-          stats[ev.song_id] = { views: 0, visitors: new Set(), plays: 0, listeners: new Set() };
+          stats[ev.song_id] = { views: 0, visitors: new Set(), plays: 0, listeners: new Set(), repeats: 0, repeaters: new Set() };
         }
         if (ev.event_type === "view") {
           stats[ev.song_id].views += 1;
@@ -126,16 +126,21 @@ export default function AdminSongs() {
         } else if (ev.event_type === "play") {
           stats[ev.song_id].plays += 1;
           stats[ev.song_id].listeners.add(ev.visitor_id);
+        } else if (ev.event_type === "repeat") {
+          stats[ev.song_id].repeats += 1;
+          stats[ev.song_id].repeaters.add(ev.visitor_id);
         }
       });
 
-      const formatted: Record<string, { views: number; visitors: number; plays: number; listeners: number }> = {};
+      const formatted: Record<string, { views: number; visitors: number; plays: number; listeners: number; repeats: number; repeaters: number }> = {};
       Object.keys(stats).forEach((sid) => {
         formatted[sid] = {
           views: stats[sid].views,
           visitors: stats[sid].visitors.size,
           plays: stats[sid].plays,
           listeners: stats[sid].listeners.size,
+          repeats: stats[sid].repeats,
+          repeaters: stats[sid].repeaters.size,
         };
       });
       setAnalyticsMap(formatted);
@@ -376,13 +381,14 @@ export default function AdminSongs() {
                     <th className="px-6 py-4 font-semibold">Song Info</th>
                     <th className="px-6 py-4 font-semibold">Page Views</th>
                     <th className="px-6 py-4 font-semibold">Audio Listens</th>
+                    <th className="px-6 py-4 font-semibold">Song Repeats</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {songs.map((song) => {
-                    const stats = analyticsMap[song.id] || { views: 0, visitors: 0, plays: 0, listeners: 0 };
+                    const stats = analyticsMap[song.id] || { views: 0, visitors: 0, plays: 0, listeners: 0, repeats: 0, repeaters: 0 };
 
                     return (
                       <tr 
@@ -423,6 +429,10 @@ export default function AdminSongs() {
                         <td className="px-6 py-4">
                           <div className="font-semibold text-slate-900 text-xs">{stats.plays} plays</div>
                           <div className="text-[11px] text-slate-400">{stats.listeners} unique listeners</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-[#3ba6f1] text-xs">{stats.repeats || 0} repeats</div>
+                          <div className="text-[11px] text-slate-400">{stats.repeaters || 0} unique repeaters</div>
                         </td>
                         <td className="px-6 py-4">
                           <button

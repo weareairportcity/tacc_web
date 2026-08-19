@@ -130,6 +130,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
       // 1. Repeat Single (Default): replay current track
       if (mode === "single") {
+        if (current?.id) {
+          trackSongEvent(current.id, "repeat");
+        }
         if (audioRef.current) {
           audioRef.current.currentTime = 0;
           audioRef.current
@@ -152,6 +155,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         const nextTrack = available.length > 0
           ? available[Math.floor(Math.random() * available.length)]
           : current;
+        if (nextTrack.id === current.id) {
+          trackSongEvent(current.id, "repeat");
+        }
         playTrackInternal(nextTrack);
         return;
       }
@@ -161,7 +167,11 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
       if (mode === "all") {
         const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % list.length : 0;
-        playTrackInternal(list[nextIndex]);
+        const nextTrack = list[nextIndex];
+        if (nextTrack && nextTrack.id === current.id) {
+          trackSongEvent(current.id, "repeat");
+        }
+        playTrackInternal(nextTrack);
       } else if (mode === "off") {
         if (currentIndex >= 0 && currentIndex < list.length - 1) {
           playTrackInternal(list[currentIndex + 1]);

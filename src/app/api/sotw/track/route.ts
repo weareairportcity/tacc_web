@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (event_type !== "view" && event_type !== "play") {
+    if (event_type !== "view" && event_type !== "play" && event_type !== "repeat") {
       return NextResponse.json({ error: "Invalid event_type" }, { status: 400 });
     }
 
