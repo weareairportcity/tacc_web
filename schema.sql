@@ -107,3 +107,30 @@ TO public
 USING (true);
 
 
+-- Admin Roles Table (for role-based admin portal routing)
+CREATE TABLE public.admin_roles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('bookings', 'songs', 'both')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+ALTER TABLE public.admin_roles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can read their own role"
+ON public.admin_roles FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+CREATE POLICY "Service role can manage all roles"
+ON public.admin_roles FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+-- Example: Assign role for Songs Admin
+-- INSERT INTO public.admin_roles (user_id, email, role)
+-- SELECT id, email, 'songs' FROM auth.users WHERE email = 'choir@theairportcitychurch.com'
+-- ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;
