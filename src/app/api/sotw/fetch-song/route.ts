@@ -65,22 +65,58 @@ export async function POST(request: Request) {
     // Fix common patterns like "Eli-j" → "Eli-J"
     artist = artist.replace(/-([a-z])/g, (_, c) => `-${c.toUpperCase()}`);
 
-    // Extract lyrics from <p class="wp-block-paragraph"> elements
-    const lyricBlocks: string[] = [];
-    const pRegex =
-      /<p class="wp-block-paragraph">([\s\S]*?)<\/p>/gi;
-    let pMatch;
-    while ((pMatch = pRegex.exec(html)) !== null) {
-      const block = pMatch[1]
-        .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/&#8217;/g, "'")
+    // Extract lyrics from entry-content area
+    function decodeHtmlEntities(str: string): string {
+      return str
+        .replace(/&amp;/g, "&")
+        .replace(/&#038;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
         .replace(/&#8216;/g, "'")
+        .replace(/&#8217;/g, "'")
         .replace(/&#8220;/g, '"')
         .replace(/&#8221;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/<[^>]+>/g, "")
-        .trim();
-      if (block) lyricBlocks.push(block);
+        .replace(/&#8230;/g, "...")
+        .replace(/&hellip;/g, "...")
+        .replace(/&#8211;/g, "-")
+        .replace(/&#8212;/g, "—")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&#160;/g, " ")
+        .replace(/&#(\d+);/g, (_, code) => {
+          const n = Number(code);
+          return !isNaN(n) ? String.fromCharCode(n) : "";
+        });
+    }
+
+    const entryContentMatch =
+      html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<!--\s*\.entry-content/i) ||
+      html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    const contentArea = entryContentMatch ? entryContentMatch[1] : html;
+
+    const lyricBlocks: string[] = [];
+    const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+    let pMatch;
+    while ((pMatch = pRegex.exec(contentArea)) !== null) {
+      let block = pMatch[1]
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<[^>]+>/g, "");
+      block = decodeHtmlEntities(block).trim();
+
+      const lower = block.toLowerCase().trim();
+      // Filter out unwanted blocks, loading placeholders, download buttons
+      if (
+        !block ||
+        lower.startsWith("loading") ||
+        lower === "loading..." ||
+        lower === "loading…" ||
+        lower.startsWith("donwload") ||
+        lower.startsWith("download") ||
+        lower.startsWith("more from")
+      ) {
+        continue;
+      }
+      lyricBlocks.push(block);
     }
     const lyrics = lyricBlocks.join("\n\n");
 

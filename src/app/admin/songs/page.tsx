@@ -38,6 +38,37 @@ const DEFAULT_SONG_FORM = {
   is_published: true,
 };
 
+const NUMBER_WORDS = [
+  "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN",
+  "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN", "TWENTY",
+  "TWENTY-ONE", "TWENTY-TWO", "TWENTY-THREE", "TWENTY-FOUR", "TWENTY-FIVE", "TWENTY-SIX", "TWENTY-SEVEN", "TWENTY-EIGHT", "TWENTY-NINE", "THIRTY"
+];
+
+function getNextWeekLabel(songList: Song[]): string {
+  let maxWeek = 0;
+  for (const s of songList) {
+    if (!s.week_label) continue;
+    const match = s.week_label.match(/WEEK\s+([A-Z0-9-]+)/i);
+    if (match) {
+      const val = match[1].toUpperCase().trim();
+      const idx = NUMBER_WORDS.indexOf(val);
+      if (idx !== -1) {
+        maxWeek = Math.max(maxWeek, idx + 1);
+      } else {
+        const num = parseInt(val, 10);
+        if (!isNaN(num)) {
+          maxWeek = Math.max(maxWeek, num);
+        }
+      }
+    }
+  }
+  const nextNum = maxWeek > 0 ? maxWeek + 1 : (songList.length + 1);
+  if (nextNum <= NUMBER_WORDS.length) {
+    return `WEEK ${NUMBER_WORDS[nextNum - 1]}`;
+  }
+  return `WEEK ${nextNum}`;
+}
+
 type UploadMode = "auto" | "manual";
 
 type FetchStep = {
@@ -194,7 +225,11 @@ export default function AdminSongs() {
 
   const resetModal = useCallback(() => {
     setEditingSong(null);
-    setFormData({ ...DEFAULT_SONG_FORM, publish_date: new Date().toISOString().split("T")[0] });
+    setFormData({
+      ...DEFAULT_SONG_FORM,
+      week_label: getNextWeekLabel(songs),
+      publish_date: new Date().toISOString().split("T")[0],
+    });
     setUploadMode("auto");
     setFetchUrl("");
     setIsFetching(false);
@@ -206,10 +241,26 @@ export default function AdminSongs() {
       audioRef.current.pause();
       audioRef.current = null;
     }
-  }, []);
+  }, [songs]);
 
   const handleOpenAddModal = () => {
-    resetModal();
+    setEditingSong(null);
+    setFormData({
+      ...DEFAULT_SONG_FORM,
+      week_label: getNextWeekLabel(songs),
+      publish_date: new Date().toISOString().split("T")[0],
+    });
+    setUploadMode("auto");
+    setFetchUrl("");
+    setIsFetching(false);
+    setFetchSteps([]);
+    setFetchError("");
+    setShowReview(false);
+    setIsPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
     setIsModalOpen(true);
   };
 
@@ -308,6 +359,7 @@ export default function AdminSongs() {
 
       setFormData((prev) => ({
         ...prev,
+        week_label: prev.week_label || getNextWeekLabel(songs),
         title: data.title || "",
         artist: data.artist || "",
         lyrics: data.lyrics || "",
