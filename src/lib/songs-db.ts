@@ -100,6 +100,79 @@ const SUPABASE_STORAGE_BASE = "https://nsiaryznabnexpwuokzv.supabase.co/storage/
 
 const DEFAULT_SONGS = [
   {
+    week_label: "WEEK FIVE",
+    publish_date: "2026-08-23",
+    title: "What You Say Is Final",
+    artist: "Eli-J & Loveworld Singers",
+    lyrics: `Verse 1
+
+You're the truth the scholars scribed
+As from a place that has no death nor night
+
+You're the Word of truth, undefined
+Outclassing time and state
+
+Lord, our Rock,
+Your Words are just
+All who know You are wise and just
+
+There's no name that does like Yours
+Reversing time and state
+
+
+Chorus
+
+Great Lord, your name
+Wields all power in the universe
+You told the sun
+When to rise and where to reside
+
+Lord, we rejoice in You
+You are God of the living, not the dead
+
+Lord, Your Word is sovereign
+What You say is final
+
+
+Verse 2
+
+Who can stand against the Lord's decree?
+None will be, You didn't call to be
+While You showed us the way of peace
+You trained our mouths for war
+
+When we walk the world, they say
+behold the children of the great I AM
+
+The battles we see are pieces
+from the war we've already won
+
+
+Chorus
+
+Great Lord, your name
+Wields all power in the universe
+You told the sun
+When to rise and where to reside
+
+Lord, we rejoice in You
+You are God of the living, not the dead
+
+Lord, Your Word is sovereign
+What You say is final
+
+
+Outro
+
+Lord, Your Word is sovereign
+Lord, Your Word is sovereign
+Lord, Your Word is sovereign
+What You say is final`,
+    audio_url: "https://loveworldlyrics.com/wp-content/uploads/2024/06/WHAT-YOU-SAY-IS-FINAL-ELI-J.mp3",
+    cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ee/86/6c/ee866c7c-feeb-87a5-9b99-0879bb02ce8e/7300341490854.jpg/600x600bb.jpg",
+    is_published: true,
+  },
+  {
     week_label: "WEEK FOUR",
     publish_date: "2026-08-16",
     title: "Sweet Holy Spirit",
