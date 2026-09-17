@@ -485,6 +485,11 @@ USING (public.is_sw_admin());
 -- browser and a non-admin calling one directly gets nothing.
 --
 -- Hours are hours of the day in Africa/Accra, since this is a single-day event.
+--
+-- Each is dropped before being recreated: CREATE OR REPLACE cannot change a
+-- function's OUT parameters, so adding a column to one of these would otherwise
+-- fail on a re-run with "cannot change return type of existing function". The
+-- GRANTs at the end of this section are reapplied for the same reason.
 -- =====================================================================
 
 CREATE OR REPLACE FUNCTION public.sw_require_admin()
@@ -500,6 +505,7 @@ END;
 $$;
 
 -- Headline numbers for the current filter.
+DROP FUNCTION IF EXISTS public.sw_admin_overview(UUID, SMALLINT, SMALLINT);
 CREATE OR REPLACE FUNCTION public.sw_admin_overview(
   p_campaign_id UUID,
   p_hour_from SMALLINT DEFAULT NULL,
@@ -541,6 +547,7 @@ $$;
 
 -- Rankings by fellowship, PFCC or individual entrant, with the secondary
 -- rates the plan asks for alongside the raw count.
+DROP FUNCTION IF EXISTS public.sw_leaderboard(UUID, TEXT, SMALLINT, SMALLINT, INTEGER);
 CREATE OR REPLACE FUNCTION public.sw_leaderboard(
   p_campaign_id UUID,
   p_dimension TEXT,
@@ -596,6 +603,7 @@ END;
 $$;
 
 -- Souls per hour of the day, with the running total and the rates over time.
+DROP FUNCTION IF EXISTS public.sw_hourly_stats(UUID);
 CREATE OR REPLACE FUNCTION public.sw_hourly_stats(p_campaign_id UUID)
 RETURNS TABLE (
   hour SMALLINT,
@@ -636,6 +644,7 @@ END;
 $$;
 
 -- The review queue: each flagged entry paired with the entry it matched.
+DROP FUNCTION IF EXISTS public.sw_duplicate_queue(UUID);
 CREATE OR REPLACE FUNCTION public.sw_duplicate_queue(p_campaign_id UUID)
 RETURNS TABLE (
   id UUID,
@@ -679,6 +688,7 @@ $$;
 
 -- Map pins. Deliberately returns no soul name or phone: the admin map is a
 -- shared screen (plan §10).
+DROP FUNCTION IF EXISTS public.sw_map_points(UUID);
 CREATE OR REPLACE FUNCTION public.sw_map_points(p_campaign_id UUID)
 RETURNS TABLE (
   id UUID,
