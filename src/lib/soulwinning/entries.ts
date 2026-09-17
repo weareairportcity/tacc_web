@@ -1,5 +1,6 @@
 import { newId } from "./id";
 import { ENTRIES_STORE, putRecord, type LocalEntry } from "./local-db";
+import { photoPath } from "./photo";
 
 export type Coords = { latitude: number; longitude: number } | null;
 
@@ -8,6 +9,8 @@ export type SoulDraft = {
   phone: string;
   spoke_in_tongues: boolean;
   coming_to_church: boolean;
+  /** Optional — already compressed by the time it gets here. */
+  photo: Blob | null;
 };
 
 /**
@@ -72,8 +75,10 @@ export async function saveSoulGroup(args: {
   const groupId = newId();
   const now = new Date().toISOString();
 
-  const entries: LocalEntry[] = args.souls.map((soul) => ({
-    id: newId(),
+  const entries: LocalEntry[] = args.souls.map((soul) => {
+    const id = newId();
+    return {
+    id,
     campaign_id: args.campaignId,
     entrant_id: args.entrantId,
     group_id: groupId,
@@ -84,11 +89,15 @@ export async function saveSoulGroup(args: {
     spoke_in_tongues: soul.spoke_in_tongues,
     coming_to_church: soul.coming_to_church,
     created_at: now,
+    photo: soul.photo,
+    photo_path: soul.photo ? photoPath(args.campaignId, id) : null,
+    photo_uploaded: false,
     synced: 0,
     attempts: 0,
     next_attempt_at: 0,
     last_error: null,
-  }));
+    };
+  });
 
   for (const entry of entries) {
     await putRecord(ENTRIES_STORE, entry);

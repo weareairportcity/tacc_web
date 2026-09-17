@@ -40,6 +40,10 @@ export type LocalEntry = {
   spoke_in_tongues: boolean;
   coming_to_church: boolean;
   created_at: string;
+  /** The compressed image, held on the device until it reaches storage. */
+  photo: Blob | null;
+  photo_path: string | null;
+  photo_uploaded: boolean;
   synced: SyncFlag;
   attempts: number;
   next_attempt_at: number;

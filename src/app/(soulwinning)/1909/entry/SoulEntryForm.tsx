@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { Loader2, MapPin, MapPinOff, Plus, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Camera, Loader2, MapPin, MapPinOff, Plus, X } from "lucide-react";
 import { getCurrentCoords, saveSoulGroup, type Coords, type SoulDraft } from "@/lib/soulwinning/entries";
+import { compressPhoto } from "@/lib/soulwinning/photo";
 
 const emptySoul = (): SoulDraft => ({
   soul_name: "",
   phone: "",
   spoke_in_tongues: false,
   coming_to_church: false,
+  photo: null,
 });
 
 interface Props {
@@ -113,6 +115,12 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
             className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none placeholder:text-[#d6d3d1] focus:border-[#3ba6f1]"
           />
 
+          <PhotoField
+            photo={soul.photo}
+            onChange={(photo) => update(index, { photo })}
+            index={index}
+          />
+
           <Toggle
             label="Spoke in tongues"
             checked={soul.spoke_in_tongues}
@@ -189,6 +197,74 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
             : "Save soul"}
       </button>
     </form>
+  );
+}
+
+/** Optional photo. The camera opens directly on a phone; the image is
+ *  compressed on-device before it joins the offline queue. */
+function PhotoField({
+  photo,
+  onChange,
+  index,
+}: {
+  photo: Blob | null;
+  onChange: (photo: Blob | null) => void;
+  index: number;
+}) {
+  const [isBusy, setIsBusy] = useState(false);
+
+  // Derived from the blob during render rather than mirrored into state, and
+  // revoked when the blob changes — an effect that set state here would cost a
+  // second render on every photo.
+  const preview = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsBusy(true);
+    try {
+      onChange(await compressPhoto(file));
+    } finally {
+      setIsBusy(false);
+      event.target.value = "";
+    }
+  };
+
+  if (preview) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg bg-[#fafaf9] p-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={preview} alt="" className="h-14 w-14 rounded-md object-cover" />
+        <span className="flex-1 text-sm text-[#78716c]">Photo added</span>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="px-2 text-xs font-medium text-[#f54911]"
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-4 py-3 text-sm font-medium text-[#78716c]">
+      {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+      {isBusy ? "Preparing…" : "Add a photo (optional)"}
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFile}
+        className="hidden"
+        aria-label={`Photo for soul ${index + 1}`}
+      />
+    </label>
   );
 }
 

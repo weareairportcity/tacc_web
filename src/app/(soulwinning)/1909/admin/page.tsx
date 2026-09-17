@@ -4,11 +4,9 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import {
-  downloadCsv,
-  exportRawEntries,
   fetchCampaigns,
   fetchDuplicates,
   fetchHourly,
@@ -24,6 +22,8 @@ import {
 import type { SwCampaign } from "@/lib/soulwinning/types";
 import { CumulativeChart, RatesChart, SoulsPerHourChart } from "./Charts";
 import { DuplicateQueue } from "./DuplicateQueue";
+import { EntriesTable } from "./EntriesTable";
+import { ExportPanel } from "./ExportPanel";
 import { Leaderboards } from "./Leaderboards";
 import { SmsPanel } from "./SmsPanel";
 
@@ -33,11 +33,13 @@ const SoulMap = dynamic(() => import("./SoulMap").then((mod) => mod.SoulMap), {
   loading: () => <p className="p-5 text-sm text-[#a8a29e]">Loading map…</p>,
 });
 
-type Tab = "overview" | "map" | "duplicates" | "sms";
+type Tab = "overview" | "entries" | "map" | "exports" | "duplicates" | "sms";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "entries", label: "Entries" },
   { key: "map", label: "Map" },
+  { key: "exports", label: "Exports" },
   { key: "duplicates", label: "Duplicates" },
   { key: "sms", label: "SMS" },
 ];
@@ -64,7 +66,6 @@ export default function SoulWinningAdmin() {
   const [hourly, setHourly] = useState<HourlyRow[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const campaign = campaigns.find((row) => row.id === campaignId) ?? null;
@@ -233,26 +234,8 @@ export default function SoulWinningAdmin() {
             </button>
           )}
 
-          <div className="ml-auto">
-            <button
-              type="button"
-              disabled={!campaign || isExporting}
-              onClick={async () => {
-                if (!campaign) return;
-                setIsExporting(true);
-                try {
-                  downloadCsv(`${campaign.slug}-entries.csv`, await exportRawEntries(campaign.id));
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Export failed");
-                } finally {
-                  setIsExporting(false);
-                }
-              }}
-              className="flex items-center gap-1.5 rounded-lg bg-[#0c0a09] px-3 py-2.5 text-xs font-medium text-white disabled:opacity-40"
-            >
-              {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              Raw entries CSV
-            </button>
+          <div className="ml-auto text-xs text-[#a8a29e]">
+            Exports moved to their own tab
           </div>
         </div>
 
@@ -296,7 +279,7 @@ export default function SoulWinningAdmin() {
                 value={overview?.church_count ?? 0}
                 share={overview ? pct(overview.church_count, overview.total_souls) : 0}
               />
-              <Tile label="Volunteers entering" value={overview?.entrant_count ?? 0} />
+              <Tile label="Members entering" value={overview?.entrant_count ?? 0} />
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
@@ -314,7 +297,11 @@ export default function SoulWinningAdmin() {
           </div>
         )}
 
+        {tab === "entries" && campaign && <EntriesTable campaignId={campaign.id} />}
+
         {tab === "map" && campaign && <SoulMap campaignId={campaign.id} />}
+
+        {tab === "exports" && campaign && <ExportPanel campaign={campaign} />}
 
         {tab === "duplicates" && <DuplicateQueue rows={duplicates} onResolved={() => void load()} />}
 

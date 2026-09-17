@@ -55,6 +55,8 @@ export type SwCounts = {
   last_entry_id: string | null;
   /** Last few first names, newest first — the "recently won" strip. */
   recent_names: string[];
+  /** Storage path of the newest soul's photo, if one was taken. */
+  last_photo_path: string | null;
   updated_at: string;
 };
 

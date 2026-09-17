@@ -3,30 +3,42 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { burstConfetti } from "@/lib/soulwinning/confetti";
+import { SoulCard } from "./SoulCard";
 import { useCampaignCounts } from "@/lib/soulwinning/use-counts";
 import type { SwCampaign, SwCounts } from "@/lib/soulwinning/types";
 import { Odometer } from "./Odometer";
 
-type FloatingSoul = { key: number; name: string; lane: number };
+type FloatingSoul = {
+  key: number;
+  name: string;
+  photoPath: string | null;
+  lane: number;
+  /** Seconds to cross the screen. */
+  duration: number;
+  delay: number;
+  scale: number;
+  /** Some cards pass in front of the count, some behind it. */
+  inFront: boolean;
+};
+
+type QueuedSoul = { name: string; photoPath: string | null };
 
 /** Lanes deliberately avoid the middle of the screen — that band belongs to
  *  the total, and a name drifting across it is unreadable on a projector. */
-const LANES = [10, 18, 26, 72, 80, 88];
+// Widely spaced, and ordered so consecutive releases land far apart: a
+// group's cards are ~200px tall and adjacent lanes would stack them.
+const LANES = [4, 44, 24, 64, 14, 54, 34, 70];
 
 /** Names are queued rather than all shown at once — a burst of entries during a
  *  rally would otherwise paint the whole screen at the same instant. The queue
  *  drains faster as it grows, so the celebration never falls minutes behind the
  *  counter, and it is capped: during a rush the newest souls are the ones worth
  *  showing. */
-const TICK_MS = 150;
-const FLOAT_MS = 7000;
-const MAX_QUEUE = 24;
+const TICK_MS = 700;
+const MAX_QUEUE = 18;
+const MAX_ON_SCREEN = 14;
+const LONGEST_FLOAT_MS = 16_000;
 
-function releaseEveryTicks(queued: number): number {
-  if (queued > 12) return 1; // ~150ms apart
-  if (queued > 5) return 3; // ~450ms
-  return 6; // ~900ms
-}
 
 interface Props {
   campaign: SwCampaign;
@@ -39,7 +51,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [floating, setFloating] = useState<FloatingSoul[]>([]);
 
-  const queueRef = useRef<string[]>([]);
+  const queueRef = useRef<QueuedSoul[]>([]);
   const lastEntryRef = useRef<string | null>(initialCounts?.last_entry_id ?? null);
   const laneRef = useRef(0);
   const keyRef = useRef(0);
@@ -48,7 +60,6 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   const total = counts?.total_souls ?? 0;
   const tongues = counts?.tongues_count ?? 0;
   const church = counts?.church_count ?? 0;
-  const recent = counts?.recent_names ?? [];
   const goal = campaign.goal_total ?? null;
   const progress = goal ? Math.min((total / goal) * 100, 100) : 0;
 
@@ -60,7 +71,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   // The number takes whatever vertical room is left once the header, caption,
   // tallies and feed have theirs — a plain vh fraction can't know that, and
   // either wastes space or pushes the page into a scroll.
-  const heightBudget = isProjector ? "calc(100svh - 500px)" : "calc(100svh - 470px)";
+  const heightBudget = isProjector ? "calc(100svh - 430px)" : "calc(100svh - 430px)";
   const totalFontSize = isProjector
     ? `max(6rem, min(52vw, ${heightBudget}, ${perCharVw}vw, 60rem))`
     : `max(3.25rem, min(46vw, ${heightBudget}, ${perCharVw}vw, 32rem))`;
@@ -69,34 +80,46 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
     const entryId = counts?.last_entry_id ?? null;
     if (!entryId || entryId === lastEntryRef.current) return;
     lastEntryRef.current = entryId;
-    queueRef.current.push(counts?.last_soul_name || "A soul");
+    queueRef.current.push({
+      name: counts?.last_soul_name || "A soul",
+      photoPath: counts?.last_photo_path ?? null,
+    });
     if (queueRef.current.length > MAX_QUEUE) {
       queueRef.current = queueRef.current.slice(-MAX_QUEUE);
     }
-  }, [counts?.last_entry_id, counts?.last_soul_name]);
+  }, [counts?.last_entry_id, counts?.last_soul_name, counts?.last_photo_path]);
 
+  // Release everything waiting in one go, so a group of souls crosses the
+  // screen together and the burst is sized to how many arrived.
   useEffect(() => {
-    let tick = 0;
-
     const timer = setInterval(() => {
-      tick += 1;
-      if (tick % releaseEveryTicks(queueRef.current.length) !== 0) return;
+      const batch = queueRef.current.splice(0, queueRef.current.length);
+      if (batch.length === 0) return;
 
-      const name = queueRef.current.shift();
-      if (!name) return;
-
-      const soul: FloatingSoul = {
+      const released: FloatingSoul[] = batch.map((item) => ({
         key: (keyRef.current += 1),
-        name,
+        name: item.name,
+        photoPath: item.photoPath,
         lane: LANES[(laneRef.current += 1) % LANES.length],
-      };
+        // Randomised so no two crossings look alike.
+        duration: 9 + Math.random() * 7,
+        // A stagger so souls released together do not move as one block.
+        delay: Math.random() * 1.6,
+        scale: 0.78 + Math.random() * 0.45,
+        inFront: Math.random() < 0.5,
+      }));
 
-      setFloating((prev) => [...prev, soul]);
-      if (canvasRef.current) burstConfetti(canvasRef.current, isProjector ? 110 : 70);
+      setFloating((prev) => [...prev, ...released].slice(-MAX_ON_SCREEN));
 
+      if (canvasRef.current) {
+        const perSoul = isProjector ? 70 : 45;
+        burstConfetti(canvasRef.current, Math.min(perSoul * released.length, 420));
+      }
+
+      const keys = new Set(released.map((soul) => soul.key));
       setTimeout(() => {
-        setFloating((prev) => prev.filter((item) => item.key !== soul.key));
-      }, FLOAT_MS);
+        setFloating((prev) => prev.filter((item) => !keys.has(item.key)));
+      }, LONGEST_FLOAT_MS);
     }, TICK_MS);
 
     return () => clearInterval(timer);
@@ -104,25 +127,24 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
 
   return (
     <main className="relative flex h-[100svh] w-full flex-col overflow-hidden bg-[#fafaf9] px-5 py-6 font-sans sm:px-8 sm:py-8">
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-20 h-full w-full" />
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
 
       {floating.map((soul) => (
         <div
           key={soul.key}
-          className="sw-float pointer-events-none absolute z-10 whitespace-nowrap font-roobert"
-          style={{ top: `${soul.lane}%` }}
+          className={`sw-float pointer-events-none absolute ${soul.inFront ? "z-20" : "z-0"}`}
+          style={{
+            top: `${soul.lane}%`,
+            animationDuration: `${soul.duration}s`,
+            animationDelay: `${soul.delay}s`,
+          }}
         >
-          <span
-            className="tracking-[-0.03em] text-[#0c0a09]"
-            style={{
-              fontSize: isProjector ? "clamp(1.75rem, 3.6vw, 4.5rem)" : "clamp(1.05rem, 4.5vw, 1.75rem)",
-            }}
-          >
-            {soul.name}{" "}
-            <span className="rounded-md bg-[#c1e1f7] px-2 py-0.5 text-[#3398e1] sm:px-3">
-              for Christ
-            </span>
-          </span>
+          <SoulCard
+            name={soul.name}
+            photoPath={soul.photoPath}
+            scale={soul.scale}
+            isProjector={isProjector}
+          />
         </div>
       ))}
 
@@ -165,7 +187,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
       </header>
 
       {/* The count */}
-      <div className="relative z-0 flex min-h-0 flex-1 flex-col items-center justify-center py-4 text-center sm:py-6">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center py-4 text-center sm:py-6">
         <Odometer
           value={total}
           digitWidth="0.54em"
@@ -211,41 +233,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
         </div>
       </div>
 
-      {/* Recently won — fills the base of the page and grows through the day */}
-      <footer className="relative z-10 shrink-0 border-t border-[#e8e6e5] pt-4">
-        <p
-          className="mb-2 font-medium uppercase tracking-[0.18em] text-[#a8a29e]"
-          style={{ fontSize: isProjector ? "clamp(0.75rem, 1.1vw, 1.25rem)" : "0.625rem" }}
-        >
-          Recently won
-        </p>
-        {recent.length === 0 ? (
-          <p
-            className="text-[#d6d3d1]"
-            style={{ fontSize: isProjector ? "clamp(1rem, 1.6vw, 1.75rem)" : "0.8125rem" }}
-          >
-            The first souls of the day will appear here.
-          </p>
-        ) : (
-          <ul className="flex flex-nowrap items-center gap-2 overflow-hidden">
-            {recent.map((name, index) => (
-              <li
-                key={`${name}-${index}`}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 ${
-                  index === 0
-                    ? "bg-[#c1e1f7] text-[#3398e1]"
-                    : "border border-[#e8e6e5] bg-white text-[#78716c]"
-                }`}
-                style={{
-                  fontSize: isProjector ? "clamp(1rem, 1.5vw, 1.75rem)" : "0.8125rem",
-                }}
-              >
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
-      </footer>
+
     </main>
   );
 }

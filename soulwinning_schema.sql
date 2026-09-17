@@ -117,6 +117,10 @@ CREATE TABLE IF NOT EXISTS public.sw_soul_entries (
   coming_to_church BOOLEAN NOT NULL DEFAULT false,
   -- Duplicate safety net (§11): always saved, but held out of the official
   -- count until an admin reviews it.
+  -- Optional photo, stored in the private sw-photos bucket. Only the object
+  -- path lives here; the image itself is served through short-lived signed
+  -- URLs minted server-side, never a permanent public address.
+  photo_path TEXT,
   duplicate_status TEXT NOT NULL DEFAULT 'none'
     CHECK (duplicate_status IN ('none', 'pending', 'unique', 'merged')),
   duplicate_of UUID REFERENCES public.sw_soul_entries(id) ON DELETE SET NULL,
@@ -137,6 +141,8 @@ CREATE INDEX IF NOT EXISTS sw_soul_entries_group_idx
 DROP INDEX IF EXISTS public.sw_soul_entries_dedupe_idx;
 CREATE INDEX sw_soul_entries_dedupe_idx
   ON public.sw_soul_entries (campaign_id, public.sw_normalize_name(soul_name), public.sw_normalize_phone(phone));
+ALTER TABLE public.sw_soul_entries ADD COLUMN IF NOT EXISTS photo_path TEXT;
+
 CREATE INDEX IF NOT EXISTS sw_soul_entries_pending_idx
   ON public.sw_soul_entries (campaign_id) WHERE duplicate_status = 'pending';
 
@@ -163,12 +169,14 @@ CREATE TABLE IF NOT EXISTS public.sw_counts (
   -- first. Kept here so a page opened mid-event has something to show
   -- immediately, without ever querying sw_soul_entries.
   recent_names TEXT[] NOT NULL DEFAULT '{}',
+  last_photo_path TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS last_soul_name TEXT;
 ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS last_entry_id UUID;
 ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS recent_names TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS last_photo_path TEXT;
 
 -- Every campaign gets its counts row up front.
 CREATE OR REPLACE FUNCTION public.sw_seed_counts()
@@ -248,11 +256,13 @@ DECLARE
   target UUID := coalesce(NEW.campaign_id, OLD.campaign_id);
   new_name TEXT := NULL;
   new_entry UUID := NULL;
+  new_photo TEXT := NULL;
 BEGIN
   -- Only a newly counted soul announces itself on the counter page.
   IF TG_OP = 'INSERT' AND NEW.counted THEN
     new_name := split_part(btrim(regexp_replace(NEW.soul_name, '\s+', ' ', 'g')), ' ', 1);
     new_entry := NEW.id;
+    new_photo := NEW.photo_path;
   END IF;
 
   IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.counted THEN
@@ -290,10 +300,12 @@ BEGIN
     WHERE campaign_id = target;
   ELSE
     INSERT INTO public.sw_counts AS c (campaign_id, total_souls, tongues_count, church_count,
-                                      pending_duplicates, last_soul_name, last_entry_id, recent_names)
+                                      pending_duplicates, last_soul_name, last_entry_id, recent_names,
+                                      last_photo_path)
     VALUES (target, greatest(d_total, 0), greatest(d_tongues, 0), greatest(d_church, 0),
             greatest(d_pending, 0), new_name, new_entry,
-            CASE WHEN new_name IS NULL THEN '{}' ELSE ARRAY[new_name] END)
+            CASE WHEN new_name IS NULL THEN '{}' ELSE ARRAY[new_name] END,
+            new_photo)
     ON CONFLICT (campaign_id) DO UPDATE SET
       total_souls = c.total_souls + d_total,
       tongues_count = c.tongues_count + d_tongues,
@@ -301,6 +313,7 @@ BEGIN
       pending_duplicates = c.pending_duplicates + d_pending,
       last_soul_name = coalesce(new_name, c.last_soul_name),
       last_entry_id = coalesce(new_entry, c.last_entry_id),
+      last_photo_path = CASE WHEN new_entry IS NULL THEN c.last_photo_path ELSE new_photo END,
       -- newest first, capped at 10
       recent_names = CASE
         WHEN new_name IS NULL THEN c.recent_names
@@ -705,6 +718,33 @@ GRANT EXECUTE ON FUNCTION public.sw_leaderboard(UUID, TEXT, SMALLINT, SMALLINT, 
 GRANT EXECUTE ON FUNCTION public.sw_hourly_stats(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sw_duplicate_queue(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sw_map_points(UUID) TO authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 9c. Storage policies for the sw-photos bucket
+--
+-- The bucket itself is private and created outside this file. Volunteers are
+-- not logged in, so anon may INSERT (upload) but may NOT read: the counter
+-- page gets short-lived signed URLs minted server-side instead, so no image
+-- ever has a permanent, guessable address.
+-- ---------------------------------------------------------------------
+DROP POLICY IF EXISTS "Anyone can upload a soul photo" ON storage.objects;
+CREATE POLICY "Anyone can upload a soul photo"
+ON storage.objects FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'sw-photos');
+
+DROP POLICY IF EXISTS "SW admins can read soul photos" ON storage.objects;
+CREATE POLICY "SW admins can read soul photos"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (bucket_id = 'sw-photos' AND public.is_sw_admin());
+
+DROP POLICY IF EXISTS "SW admins can remove soul photos" ON storage.objects;
+CREATE POLICY "SW admins can remove soul photos"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'sw-photos' AND public.is_sw_admin());
 
 
 -- ---------------------------------------------------------------------

@@ -8,6 +8,7 @@
  */
 
 import { createClient } from "@/utils/supabase/client";
+import { openDb, ENTRIES_STORE as ENTRIES } from "./local-db";
 import {
   ENTRANTS_STORE,
   ENTRIES_STORE,
@@ -131,11 +132,64 @@ async function pushEntrants(): Promise<boolean> {
   return allOk;
 }
 
+/**
+ * Pushes a queued photo to storage and marks it done locally.
+ *
+ * Photos go up before their row so that by the time the entry lands, the
+ * counter can already show the picture. A failed upload never blocks the
+ * entry: the soul is recorded either way and the photo retries on the next
+ * pass.
+ */
+async function uploadPhoto(entry: LocalEntry): Promise<boolean> {
+  if (!entry.photo_path) return true;
+  if (entry.photo_uploaded) return true;
+  if (!entry.photo) {
+    // A path with no blob means the image was lost locally (storage cleared
+    // mid-queue). Nothing to upload, and retrying forever would wedge the
+    // entry, so let it through — the soul still counts, just without a photo.
+    return true;
+  }
+
+  const supabase = createClient();
+  const { error } = await supabase.storage
+    .from("sw-photos")
+    .upload(entry.photo_path, entry.photo, { contentType: "image/jpeg", upsert: true });
+
+  // "already exists" means a previous attempt actually succeeded.
+  const ok = !error || /exists|duplicate/i.test(error.message);
+  if (!ok) {
+    emit({ lastError: `photo: ${error?.message ?? "upload failed"}` });
+    return false;
+  }
+
+  const db = await openDb();
+  await new Promise<void>((resolve) => {
+    const tx = db.transaction(ENTRIES, "readwrite");
+    const store = tx.objectStore(ENTRIES);
+    const get = store.get(entry.id);
+    get.onsuccess = () => {
+      const record = get.result;
+      if (record) {
+        record.photo_uploaded = true;
+        record.photo = null; // free the blob once it is safely in storage
+        store.put(record);
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+
+  return true;
+}
+
 async function pushEntries(): Promise<void> {
   const pending = ready(await getUnsynced<LocalEntry>(ENTRIES_STORE));
   if (pending.length === 0) return;
 
   for (const batch of chunk(pending, CHUNK_SIZE)) {
+    // Photos first, so the counter has the picture the moment the row lands.
+    const photoResults = await Promise.all(batch.map((entry) => uploadPhoto(entry)));
+
     const rows = batch.map((entry) => ({
       id: entry.id,
       campaign_id: entry.campaign_id,
@@ -147,6 +201,7 @@ async function pushEntries(): Promise<void> {
       longitude: entry.longitude,
       spoke_in_tongues: entry.spoke_in_tongues,
       coming_to_church: entry.coming_to_church,
+      photo_path: entry.photo_path,
       // created_at is the device's clock (so a late sync still lands in the
       // right hour); synced_at is left to the server default, which is the
       // only trustworthy record of when the row actually arrived.
@@ -155,11 +210,21 @@ async function pushEntries(): Promise<void> {
 
     const { ok, error } = await insertRows("sw_soul_entries", rows);
 
-    if (ok) {
-      await markSynced(ENTRIES_STORE, batch.map((entry) => entry.id));
-    } else {
+    if (!ok) {
       await markFailed(ENTRIES_STORE, batch.map((entry) => entry.id), error ?? "insert failed");
       emit({ lastError: error });
+      continue;
+    }
+
+    // An entry counts as synced only once its row AND its photo are up. The
+    // row insert is idempotent, so leaving a photo-only failure unsynced
+    // simply retries the photo on the next pass instead of losing it.
+    const done = batch.filter((_, index) => photoResults[index]);
+    const photoPending = batch.filter((_, index) => !photoResults[index]);
+
+    await markSynced(ENTRIES_STORE, done.map((entry) => entry.id));
+    if (photoPending.length > 0) {
+      await markFailed(ENTRIES_STORE, photoPending.map((entry) => entry.id), "photo upload failed");
     }
   }
 }
