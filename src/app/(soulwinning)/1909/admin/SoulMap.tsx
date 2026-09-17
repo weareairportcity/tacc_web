@@ -214,15 +214,23 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
         zoomControl={false}
         className="sw-map h-full w-full bg-[#fafaf9]"
       >
-        {/* Terrain and water only — no labels baked in. */}
+        {/* Terrain and water only, left in its own grey — no labels baked in. */}
         <TileLayer
           attribution="Tiles &copy; Esri"
           url="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
           maxZoom={16}
           className="sw-map-base"
         />
-        {/* Labels as their own layer: countries, cities and major landmarks,
-            kept above the tint so the names stay legible. */}
+        {/* Roads on their own transparent layer, which is the only way to
+            colour the streets without washing the whole map: a filter over a
+            raster tile hits every pixel in it. */}
+        <TileLayer
+          url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={16}
+          className="sw-map-roads"
+        />
+        {/* Labels last: countries, cities and major landmarks, untouched so the
+            names stay legible. */}
         <TileLayer
           url="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
           maxZoom={16}

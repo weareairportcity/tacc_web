@@ -168,12 +168,19 @@ body {
   }
 }
 
-/* Soul Winning map — the grey base is held back to a pale wash with only a hint
-   of the church blue, so the pins are the only thing with real colour on it.
-   The wash applies to the terrain layer only: the label layer above keeps its
-   own contrast so place names stay readable. */
+/* Soul Winning map — the basemap keeps its own grey; only the streets carry the
+   church blue. That needs three separate tile layers, because a CSS filter over
+   a raster tile recolours every pixel in it: terrain untouched, a transparent
+   roads layer tinted blue, and labels on top left alone so they stay legible. */
 .sw-map .sw-map-base {
-  filter: sepia(1) saturate(2.2) hue-rotate(163deg) brightness(1.06) opacity(0.55);
+  filter: grayscale(1) brightness(1.02);
+}
+
+.sw-map .sw-map-roads {
+  /* The source roads are drawn orange, so this is a straight half-turn of the
+     hue wheel onto blue rather than a sepia-then-rotate. */
+  filter: hue-rotate(185deg) saturate(1.9) brightness(0.95);
+  opacity: 0.9;
 }
 
 .sw-map .sw-map-labels {
