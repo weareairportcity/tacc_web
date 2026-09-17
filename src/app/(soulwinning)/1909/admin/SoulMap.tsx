@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
@@ -24,25 +24,28 @@ import { fetchMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
  * the soul's name or phone, so a shared screen cannot leak them.
  */
 
-const BLUE = "#3ba6f1";
 const BLUE_EDGE = "#3398e1";
+const INK = "#0c0a09";
 const ACCRA: [number, number] = [5.6037, -0.187];
 
+/** An open ring rather than a filled dot: on a pale map every soul reads as its
+ *  own mark, and overlapping rings stay countable instead of merging into a
+ *  blob the way solid pins do. */
 const pin = L.divIcon({
   className: "",
-  html: `<span style="display:block;width:13px;height:13px;border-radius:9999px;background:${BLUE};border:2px solid #fff;box-shadow:0 0 0 1px ${BLUE_EDGE}55,0 2px 6px rgba(12,10,9,.28)"></span>`,
-  iconSize: [13, 13],
-  iconAnchor: [6, 6],
+  html: `<span style="display:block;width:15px;height:15px;border-radius:9999px;background:rgba(255,255,255,.55);border:2px solid ${BLUE_EDGE};box-shadow:0 1px 3px rgba(12,10,9,.18)"></span>`,
+  iconSize: [15, 15],
+  iconAnchor: [7, 7],
 });
 
 function clusterIcon(cluster: { getChildCount: () => number }) {
   const count = cluster.getChildCount();
-  const size = count < 10 ? 34 : count < 100 ? 44 : 56;
+  const size = count < 10 ? 32 : count < 100 ? 40 : 52;
   return L.divIcon({
     className: "",
-    html: `<div style="display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:rgba(59,166,241,.9);border:2px solid #fff;color:#fff;font:500 ${
+    html: `<div style="display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:rgba(255,255,255,.72);border:2px solid ${BLUE_EDGE};color:${INK};font:500 ${
       count < 100 ? 13 : 12
-    }px/1 ui-sans-serif,system-ui;box-shadow:0 2px 10px rgba(51,152,225,.45)">${count}</div>`,
+    }px/1 ui-sans-serif,system-ui;box-shadow:0 1px 4px rgba(12,10,9,.18)">${count}</div>`,
     iconSize: [size, size],
   });
 }
@@ -56,11 +59,11 @@ function MapController({
   target: { lat: number; lng: number; zoom: number } | null;
 }) {
   const map = useMap();
-  const framedRef = useRef(false);
 
+  // Reframes on load and again whenever a filter narrows the set, so the
+  // remaining souls always fill the view.
   useEffect(() => {
-    if (framedRef.current || points.length === 0) return;
-    framedRef.current = true;
+    if (points.length === 0) return;
     map.fitBounds(L.latLngBounds(points.map((p) => [p.latitude, p.longitude])), {
       padding: [70, 70],
       maxZoom: 16,
@@ -83,6 +86,8 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [target, setTarget] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  const [fellowship, setFellowship] = useState("all");
+  const [pfcc, setPfcc] = useState("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -94,13 +99,30 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
     };
   }, [campaignId]);
 
+  const fellowships = useMemo(
+    () => [...new Set((points ?? []).map((p) => p.fellowship))].sort(),
+    [points]
+  );
+  const pfccs = useMemo(
+    () => [...new Set((points ?? []).map((p) => p.pfcc ?? "Not given"))].sort(),
+    [points]
+  );
+
+  const visible = useMemo(() => {
+    return (points ?? []).filter(
+      (point) =>
+        (fellowship === "all" || point.fellowship === fellowship) &&
+        (pfcc === "all" || (point.pfcc ?? "Not given") === pfcc)
+    );
+  }, [points, fellowship, pfcc]);
+
   const center = useMemo<[number, number]>(() => {
-    if (!points?.length) return ACCRA;
+    if (!visible.length) return ACCRA;
     return [
-      points.reduce((sum, p) => sum + p.latitude, 0) / points.length,
-      points.reduce((sum, p) => sum + p.longitude, 0) / points.length,
+      visible.reduce((sum, p) => sum + p.latitude, 0) / visible.length,
+      visible.reduce((sum, p) => sum + p.longitude, 0) / visible.length,
     ];
-  }, [points]);
+  }, [visible]);
 
   /** Souls and members first — they are why you opened the map — then places. */
   const runSearch = useCallback(async () => {
@@ -207,16 +229,19 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
           className="sw-map-labels"
         />
         <MarkerClusterGroup
+          key={`${fellowship}|${pfcc}`}
           chunkedLoading
-          maxClusterRadius={55}
+          maxClusterRadius={34}
+          disableClusteringAtZoom={17}
           spiderfyOnMaxZoom
           showCoverageOnHover={false}
           iconCreateFunction={clusterIcon}
         >
-          {points.map((point) => (
+          {visible.map((point) => (
             <Marker key={point.id} position={[point.latitude, point.longitude]} icon={pin}>
               <Popup>
                 <span className="block text-sm font-medium text-[#0c0a09]">{point.fellowship}</span>
+                {point.pfcc && <span className="block text-xs text-[#78716c]">{point.pfcc}</span>}
                 <span className="block text-xs text-[#78716c]">Logged by {point.entrant_name}</span>
                 <span className="block text-xs text-[#a8a29e]">
                   {new Date(point.created_at).toLocaleString("en-GB", {
@@ -230,7 +255,7 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
             </Marker>
           ))}
         </MarkerClusterGroup>
-        <MapController points={points} target={target} />
+        <MapController points={visible} target={target} />
       </MapContainer>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-3 sm:p-4">
@@ -247,6 +272,47 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
           {query && !isSearching && (
             <button type="button" onClick={() => { setQuery(""); setHits(null); }} aria-label="Clear search">
               <X className="h-4 w-4 text-[#a8a29e]" />
+            </button>
+          )}
+        </div>
+
+        <div className="pointer-events-auto flex flex-wrap gap-2">
+          <select
+            value={fellowship}
+            onChange={(event) => setFellowship(event.target.value)}
+            className="rounded-full border border-[#e8e6e5] bg-white/95 px-3 py-1.5 text-xs text-[#0c0a09] shadow-sm outline-none"
+          >
+            <option value="all">All fellowships</option>
+            {fellowships.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={pfcc}
+            onChange={(event) => setPfcc(event.target.value)}
+            className="rounded-full border border-[#e8e6e5] bg-white/95 px-3 py-1.5 text-xs text-[#0c0a09] shadow-sm outline-none"
+          >
+            <option value="all">All PFCCs</option>
+            {pfccs.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+
+          {(fellowship !== "all" || pfcc !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setFellowship("all");
+                setPfcc("all");
+              }}
+              className="rounded-full bg-[#0c0a09] px-3 py-1.5 text-xs font-medium text-white shadow-sm"
+            >
+              Clear
             </button>
           )}
         </div>
@@ -276,8 +342,9 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
       </div>
 
       <p className="pointer-events-none absolute bottom-2 left-3 z-[1000] text-[11px] text-[#78716c]">
-        {points.length.toLocaleString()} {points.length === 1 ? "soul" : "souls"} located · pins show
-        fellowship, member and time only
+        {visible.length.toLocaleString()} of {points.length.toLocaleString()} located
+        {fellowship !== "all" || pfcc !== "all" ? " (filtered)" : ""} · pins show fellowship, PFCC,
+        member and time only
       </p>
     </div>
   );

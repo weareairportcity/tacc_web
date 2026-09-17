@@ -54,6 +54,8 @@ export type MapPoint = {
   latitude: number;
   longitude: number;
   fellowship: string;
+  /** Optional so the map still works against an older sw_map_points. */
+  pfcc?: string;
   entrant_name: string;
   created_at: string;
 };

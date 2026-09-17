@@ -685,6 +685,7 @@ RETURNS TABLE (
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
   fellowship TEXT,
+  pfcc TEXT,
   entrant_name TEXT,
   created_at TIMESTAMPTZ
 )
@@ -697,7 +698,9 @@ BEGIN
 
   RETURN QUERY
   SELECT e.id, e.latitude, e.longitude,
-         coalesce(nullif(btrim(n.fellowship), ''), 'Not given'), n.name, e.created_at
+         coalesce(nullif(btrim(n.fellowship), ''), 'Not given'),
+         coalesce(nullif(btrim(n.pfcc), ''), 'Not given'),
+         n.name, e.created_at
   FROM public.sw_soul_entries e
   JOIN public.sw_entrants n ON n.id = e.entrant_id
   WHERE e.campaign_id = p_campaign_id
