@@ -168,11 +168,12 @@ body {
   }
 }
 
-/* Soul Winning map — the grey base is tinted toward the church blue. The tint
-   is applied to the terrain layer only: the label layer above it keeps its own
-   contrast so place names stay readable, and the pins keep their true colour. */
+/* Soul Winning map — the grey base is held back to a pale wash with only a hint
+   of the church blue, so the pins are the only thing with real colour on it.
+   The wash applies to the terrain layer only: the label layer above keeps its
+   own contrast so place names stay readable. */
 .sw-map .sw-map-base {
-  filter: sepia(1) saturate(2.1) hue-rotate(168deg) brightness(1.07) contrast(0.94);
+  filter: sepia(1) saturate(2.2) hue-rotate(163deg) brightness(1.06) opacity(0.55);
 }
 
 .sw-map .sw-map-labels {
