@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Calendar, Music } from "lucide-react";
+import { Loader2, Calendar, Music, HeartHandshake } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 
-type AdminRole = "bookings" | "songs" | "both";
+type AdminRole = "bookings" | "songs" | "both" | "soulwinning";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -57,6 +57,9 @@ export default function AdminLogin() {
         router.refresh();
       } else if (role === "songs") {
         router.push("/admin/songs");
+        router.refresh();
+      } else if (role === "soulwinning") {
+        router.push("/1909/admin");
         router.refresh();
       } else {
         // role === "both"
@@ -111,6 +114,23 @@ export default function AdminLogin() {
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Appointments, blackout dates & calendar
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigateTo("/1909/admin")}
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left"
+            >
+              <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors">
+                <HeartHandshake className="w-6 h-6 text-sky-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  Soul Winning
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  1909 outreach analytics, map & SMS
                 </p>
               </div>
             </button>

@@ -21,11 +21,9 @@ export async function proxy(request: NextRequest) {
       pathname !== '/sw.js' &&
       pathname !== '/manifest.json'
     ) {
-      const target = new URL(
-        `/1909${pathname === '/' ? '' : pathname}${search}`,
-        request.url
-      )
-      return NextResponse.rewrite(target)
+      const url = request.nextUrl.clone()
+      url.pathname = `/1909${pathname === '/' ? '' : pathname}`
+      return NextResponse.rewrite(url)
     }
   }
 

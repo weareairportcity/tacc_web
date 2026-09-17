@@ -1,0 +1,25 @@
+{
+  "name": "1909 Soul Winning — Log a Soul",
+  "short_name": "1909",
+  "description": "Log every soul won during the outreach.",
+  "start_url": "/1909/entry",
+  "scope": "/1909",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafaf9",
+  "theme_color": "#3ba6f1",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

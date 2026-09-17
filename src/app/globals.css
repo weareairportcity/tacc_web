@@ -129,3 +129,37 @@ body {
   }
 }
 
+/* Soul Winning counter — a name drifting across the celebration screen. */
+@keyframes sw-float-across {
+  0% {
+    transform: translateX(-40%);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(105vw);
+    opacity: 0;
+  }
+}
+
+.sw-float {
+  animation: sw-float-across 7s linear forwards;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-float {
+    animation: sw-float-across 7s linear forwards;
+    animation-name: sw-fade-only;
+  }
+
+  @keyframes sw-fade-only {
+    0%, 100% { opacity: 0; }
+    15%, 85% { opacity: 1; }
+  }
+}
