@@ -1,0 +1,39 @@
+name: Soul Winning hourly SMS
+
+# Vercel's Hobby plan caps cron jobs at one run per day, which is no use for an
+# hourly outreach update. This fires the same endpoint from GitHub instead.
+#
+# Running this alongside a Vercel cron or a Supabase cron is safe: the route
+# only sends one message per campaign per clock hour, so whichever trigger
+# arrives first wins and the others find the send already logged.
+#
+# Setup: add a repository secret CRON_SECRET matching the Vercel env var, and a
+# repository variable SITE_URL (e.g. https://www.theairportcitychurch.com).
+
+on:
+  schedule:
+    # Every hour, on the hour (UTC — the route decides what is in range using
+    # the campaign's own Africa/Accra window, and Accra is UTC+0 year round).
+    - cron: "0 * * * *"
+  workflow_dispatch: # so it can be fired by hand on the day
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the hourly SMS endpoint
+        run: |
+          set -euo pipefail
+          response=$(curl -sS -w '\n%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.SITE_URL }}/api/cron/soulwinning-sms")
+          body=$(echo "$response" | sed '$d')
+          status=$(echo "$response" | tail -n1)
+          echo "HTTP $status"
+          echo "$body"
+          # A skip is a normal outcome (not an event day, outside the window,
+          # already sent); only a transport or server error should fail the run.
+          if [ "$status" -ge 400 ]; then
+            echo "::error::Endpoint returned $status"
+            exit 1
+          fi

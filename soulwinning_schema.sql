@@ -781,3 +781,34 @@ $$;
 INSERT INTO public.sw_campaigns (name, slug, event_date, active, sms_start_hour, sms_end_hour)
 VALUES ('1909 — Sep 2026', '1909', '2026-09-19', true, 0, 23)
 ON CONFLICT (slug) DO NOTHING;
+
+-- =====================================================================
+-- 12. Optional: run the hourly SMS from inside Postgres
+--
+-- An alternative to Vercel Cron, whose Hobby plan only allows one run per day.
+-- Safe to run alongside any other trigger: the route sends at most one message
+-- per campaign per clock hour, so a second trigger finds the send already
+-- logged and does nothing.
+--
+-- Requires the pg_cron and pg_net extensions (Database -> Extensions in the
+-- Supabase dashboard). Replace the URL and the secret before running, and note
+-- the job definition is readable by database owners — treat it as you would any
+-- other stored credential.
+-- =====================================================================
+
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- CREATE EXTENSION IF NOT EXISTS pg_net;
+--
+-- SELECT cron.schedule(
+--   'soulwinning-hourly-sms',
+--   '0 * * * *',
+--   $$
+--     SELECT net.http_get(
+--       url := 'https://www.theairportcitychurch.com/api/cron/soulwinning-sms',
+--       headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET')
+--     );
+--   $$
+-- );
+--
+-- To stop it again:
+-- SELECT cron.unschedule('soulwinning-hourly-sms');
