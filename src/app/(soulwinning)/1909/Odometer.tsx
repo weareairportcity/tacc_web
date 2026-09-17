@@ -15,6 +15,11 @@ import { useEffect, useRef, useState } from "react";
 const LOAD_MS = 1600;
 const TICK_MS = 550;
 
+/** Wide enough for every digit in the display face at any size, so the
+ *  clipping window only ever cuts vertically (which is the point of an
+ *  odometer) and never shaves the side of a glyph. */
+const BOX_WIDTH = "0.72em";
+
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
 }
@@ -71,8 +76,8 @@ interface Props {
   style?: React.CSSProperties;
   /** Digits below this are dimmed to nothing, so 0,042 reads as 42. */
   accentClassName?: string;
-  /** Width of one digit cell — this is what sets the spacing between digits,
-   *  since letter-spacing does not apply between flex items. */
+  /** Advance between digits. The clipping box is always wider than this; the
+   *  tightening comes from a negative margin, so a glyph is never sliced. */
   digitWidth?: string;
 }
 
@@ -116,10 +121,12 @@ export function Odometer({
         className="relative inline-block overflow-hidden align-top transition-all duration-300"
         style={{
           height: "1.3em",
-          // A hidden leading digit collapses to no width as well as no ink;
-          // reserving its space would leave the number sitting off-centre for
-          // the whole count-up.
-          width: isVisible ? digitWidth : "0em",
+          // The box is the glyph's full advance so nothing is ever sliced;
+          // tighter spacing is pulled in with a negative margin instead.
+          // A hidden leading digit collapses to no width as well as no ink, so
+          // the number does not sit off-centre for the whole count-up.
+          width: isVisible ? BOX_WIDTH : "0em",
+          marginRight: isVisible ? `calc(${digitWidth} - ${BOX_WIDTH})` : "0em",
           opacity: isVisible ? 1 : 0,
         }}
         aria-hidden
@@ -152,7 +159,7 @@ export function Odometer({
           style={{
             height: "1.3em",
             lineHeight: "1.3em",
-            width: place < significant ? "0.26em" : "0em",
+            width: place < significant ? "0.3em" : "0em",
             opacity: place < significant ? 1 : 0,
           }}
           aria-hidden

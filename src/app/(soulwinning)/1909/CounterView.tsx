@@ -190,7 +190,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
       <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center py-4 text-center sm:py-6">
         <Odometer
           value={total}
-          digitWidth="0.54em"
+          digitWidth="0.62em"
           className="font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
           style={{ fontSize: totalFontSize }}
         />
@@ -251,7 +251,7 @@ function Tally({
     <div className="rounded-xl border border-[#e8e6e5] bg-white px-3 py-3 sm:px-5 sm:py-4">
       <Odometer
         value={value}
-        digitWidth="0.55em"
+        digitWidth="0.6em"
         className="font-roobert font-medium leading-none tracking-[-0.02em] text-[#3398e1]"
         style={{
           fontSize: isProjector ? "clamp(1.75rem, 3vw, 4rem)" : "clamp(1.375rem, 6.5vw, 2rem)",

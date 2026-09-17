@@ -168,12 +168,15 @@ body {
   }
 }
 
-/* Soul Winning map — raster tiles cannot be restyled per layer, so the basemap
-   is desaturated and pulled toward the church blue, keeping the pins the only
-   saturated thing on screen. The filter is applied to tiles only, so the pins,
-   clusters and popups above keep their true colours. */
-.sw-map .leaflet-tile-pane {
-  filter: saturate(0.32) hue-rotate(170deg) brightness(1.08) contrast(0.92);
+/* Soul Winning map — the grey base is tinted toward the church blue. The tint
+   is applied to the terrain layer only: the label layer above it keeps its own
+   contrast so place names stay readable, and the pins keep their true colour. */
+.sw-map .sw-map-base {
+  filter: sepia(1) saturate(2.1) hue-rotate(168deg) brightness(1.07) contrast(0.94);
+}
+
+.sw-map .sw-map-labels {
+  filter: contrast(1.15) brightness(0.92);
 }
 
 .sw-map .leaflet-container {

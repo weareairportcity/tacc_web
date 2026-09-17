@@ -12,10 +12,13 @@ import { fetchMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
 /**
  * Full-bleed light map in the church's colours.
  *
- * OpenStreetMap raster tiles — free, no API key, no account (CARTO now wants
- * one). Raster tiles cannot be restyled per-layer, so the basemap is pulled
- * toward the church blue with a CSS filter and held back to a pale wash, which
- * leaves the pins as the only saturated thing on screen.
+ * Esri's Light Gray canvas, which ships the terrain and the labels as two
+ * separate tile layers. Taking the base plus only the reference layer gives a
+ * quiet map carrying country, city and major landmark names and little else —
+ * standard OpenStreetMap tiles are far too busy for a wall display, and their
+ * labels cannot be filtered out because raster tiles bake them in.
+ *
+ * Free, no API key, no account (CARTO now wants one).
  *
  * Pins carry fellowship, member and time only — sw_map_points does not return
  * the soul's name or phone, so a shared screen cannot leak them.
@@ -189,10 +192,19 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
         zoomControl={false}
         className="sw-map h-full w-full bg-[#fafaf9]"
       >
+        {/* Terrain and water only — no labels baked in. */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
+          attribution="Tiles &copy; Esri"
+          url="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={16}
+          className="sw-map-base"
+        />
+        {/* Labels as their own layer: countries, cities and major landmarks,
+            kept above the tint so the names stay legible. */}
+        <TileLayer
+          url="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={16}
+          className="sw-map-labels"
         />
         <MarkerClusterGroup
           chunkedLoading
