@@ -2,6 +2,34 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
+  // ── Subdomain routing ──────────────────────────────────────────────
+  // soulwinning.theairportcitychurch.com/* → /1909/*
+  const host = request.headers.get('host') ?? ''
+  const hostname = host.split(':')[0] // strip port for local dev
+  const isSoulwinning =
+    hostname === 'soulwinning.theairportcitychurch.com' ||
+    hostname === 'soulwinning.localhost'
+
+  if (isSoulwinning) {
+    const { pathname, search } = request.nextUrl
+
+    // Already under /1909 or a framework/static path — don't rewrite
+    if (
+      !pathname.startsWith('/1909') &&
+      !pathname.startsWith('/_next') &&
+      !pathname.startsWith('/api') &&
+      pathname !== '/sw.js' &&
+      pathname !== '/manifest.json'
+    ) {
+      const target = new URL(
+        `/1909${pathname === '/' ? '' : pathname}${search}`,
+        request.url
+      )
+      return NextResponse.rewrite(target)
+    }
+  }
+
+  // ── Supabase session refresh & admin auth ─────────────────────────
   let supabaseResponse = NextResponse.next({
     request,
   })
