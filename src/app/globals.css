@@ -168,25 +168,8 @@ body {
   }
 }
 
-/* Soul Winning map — the basemap keeps its own grey; only the streets carry the
-   church blue. That needs three separate tile layers, because a CSS filter over
-   a raster tile recolours every pixel in it: terrain untouched, a transparent
-   roads layer tinted blue, and labels on top left alone so they stay legible. */
-.sw-map .sw-map-base {
-  filter: grayscale(1) brightness(1.02);
-}
-
-.sw-map .sw-map-roads {
-  /* The source roads are drawn orange, so this is a straight half-turn of the
-     hue wheel onto blue rather than a sepia-then-rotate. */
-  filter: hue-rotate(185deg) saturate(1.9) brightness(0.95);
-  opacity: 0.9;
-}
-
-.sw-map .sw-map-labels {
-  filter: contrast(1.15) brightness(0.92);
-}
-
+/* Soul Winning map — Esri's Light Gray canvas is left exactly as it ships. No
+   filters: the pins are the only coloured thing on it, which is the point. */
 .sw-map .leaflet-container {
   background: #fafaf9;
 }

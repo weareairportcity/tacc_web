@@ -214,27 +214,18 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
         zoomControl={false}
         className="sw-map h-full w-full bg-[#fafaf9]"
       >
-        {/* Terrain and water only, left in its own grey — no labels baked in. */}
+        {/* Esri's Light Gray canvas as it ships: terrain and water with no
+            labels baked in, so the map stays quiet under the pins. */}
         <TileLayer
           attribution="Tiles &copy; Esri"
           url="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
           maxZoom={16}
-          className="sw-map-base"
         />
-        {/* Roads on their own transparent layer, which is the only way to
-            colour the streets without washing the whole map: a filter over a
-            raster tile hits every pixel in it. */}
-        <TileLayer
-          url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
-          maxZoom={16}
-          className="sw-map-roads"
-        />
-        {/* Labels last: countries, cities and major landmarks, untouched so the
-            names stay legible. */}
+        {/* Its matching reference layer: countries, cities and major landmarks
+            only — no street names. */}
         <TileLayer
           url="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
           maxZoom={16}
-          className="sw-map-labels"
         />
         <MarkerClusterGroup
           key={`${fellowship}|${pfcc}`}
