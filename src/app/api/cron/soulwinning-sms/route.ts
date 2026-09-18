@@ -8,10 +8,10 @@ import { getAccraTime } from "@/lib/date-utils";
 /**
  * Hourly outreach-day SMS.
  *
- * Vercel Cron cannot be scoped to a single date, so it fires hourly all year and
- * this route decides whether today is an event day. Everything it needs —
- * recipients, the message template, the hour window — is read from the database,
- * so any of it can change mid-event without a redeploy.
+ * GitHub Actions fires this hourly (Vercel Hobby only allows one cron a day).
+ * The schedule cannot be scoped to a single date, so this route decides whether
+ * today is an event day. Recipients, the message template, and the hour window
+ * are read from the database so any of it can change mid-event without a redeploy.
  *
  * Every outcome is written to sw_sms_log, including the ones where nothing was
  * sent: on the day, "why didn't it text me?" needs an answer that isn't a guess.

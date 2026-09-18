@@ -1,11 +1,11 @@
 name: Soul Winning hourly SMS
 
-# Vercel's Hobby plan caps cron jobs at one run per day, which is no use for an
-# hourly outreach update. This fires the same endpoint from GitHub instead.
+# Vercel Hobby only allows one cron a day, so vercel.json must not declare an
+# hourly job or deploys fail. This workflow is the hourly trigger instead.
 #
-# Running this alongside a Vercel cron or a Supabase cron is safe: the route
-# only sends one message per campaign per clock hour, so whichever trigger
-# arrives first wins and the others find the send already logged.
+# A second trigger (another GitHub workflow, a Pro-plan Vercel cron, or
+# Supabase) is safe: the route only sends one message per campaign per clock
+# hour, so whichever arrives first wins and the others find the send logged.
 #
 # Setup: add a repository secret CRON_SECRET matching the Vercel env var, and a
 # repository variable SITE_URL (e.g. https://www.theairportcitychurch.com).
