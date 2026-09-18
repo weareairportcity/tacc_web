@@ -799,10 +799,10 @@ $$;
 -- 11. Seed the 1909 campaign
 --     Change event_date before running if the date has moved.
 -- ---------------------------------------------------------------------
--- Event day runs midnight to midnight, so the SMS window is the full day.
+-- Hourly SMS starts at 6am Accra time on event day.
 INSERT INTO public.sw_campaigns (name, slug, event_date, active, sms_start_hour, sms_end_hour, goal_total)
-VALUES ('1909 — Sep 2026', '1909', '2026-09-19', true, 0, 23, 1909)
-ON CONFLICT (slug) DO UPDATE SET goal_total = 1909;
+VALUES ('1909 — Sep 2026', '1909', '2026-09-19', true, 6, 23, 1909)
+ON CONFLICT (slug) DO UPDATE SET goal_total = 1909, sms_start_hour = 6;
 
 -- =====================================================================
 -- 12. Optional: run the hourly SMS from inside Postgres

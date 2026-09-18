@@ -181,10 +181,15 @@ body {
 }
 
 .sw-vignette {
+  /* Heavy wash behind the count so grey captions stay readable over faces. */
   background:
-    radial-gradient(ellipse 70% 62% at 50% 46%, rgba(250, 250, 249, 0.22) 0%, rgba(250, 250, 249, 0.58) 46%, rgba(250, 250, 249, 0.94) 100%),
+    radial-gradient(ellipse 78% 64% at 50% 48%, rgba(250, 250, 249, 0.88) 0%, rgba(250, 250, 249, 0.72) 36%, rgba(250, 250, 249, 0.42) 62%, rgba(250, 250, 249, 0.96) 100%),
     linear-gradient(to right, #fafaf9 0%, transparent 9%, transparent 91%, #fafaf9 100%),
     linear-gradient(to bottom, #fafaf9 0%, transparent 11%, transparent 89%, #fafaf9 100%);
+}
+
+.sw-on-marquee {
+  text-shadow: 0 0 18px #fafaf9, 0 0 10px #fafaf9, 0 1px 0 #fafaf9;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -65,7 +65,7 @@ function MarqueeTile({ path }: { path: string }) {
           src={url}
           alt=""
           draggable={false}
-          className="h-full w-full object-cover opacity-[0.72]"
+          className="h-full w-full object-cover opacity-50"
           onLoad={(event) => {
             const image = event.currentTarget;
             setLandscape(image.naturalWidth > image.naturalHeight);

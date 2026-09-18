@@ -252,7 +252,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
           1909
         </h1>
         <p
-          className="mt-1 text-[#78716c]"
+          className="sw-on-marquee mt-1 text-[#44403c]"
           style={{ fontSize: isProjector ? "clamp(0.8rem, 1.1vw, 1.25rem)" : "clamp(0.8rem, 3.2vw, 1rem)" }}
         >
           Soul Winning · The Airport City Church
@@ -268,34 +268,44 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
           style={{ fontSize: totalFontSize }}
         />
 
-        <p
-          className="mt-4 text-balance tracking-[0.048px] text-[#78716c]"
-          style={{
-            fontSize: isProjector ? "clamp(1.1rem, 2.2vw, 2.75rem)" : "clamp(0.9rem, 3.5vw, 1.25rem)",
-          }}
-        >
-          {total === 1 ? "soul won for Christ" : "souls won for Christ"}
-        </p>
-
-        {goal && (
+        <div className="relative isolate mt-4 w-full">
           <div
-            className="mt-7 w-full"
-            style={{ maxWidth: isProjector ? "60rem" : "28rem" }}
+            className="pointer-events-none absolute -inset-x-10 -inset-y-4 -z-10 sm:-inset-x-16"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, rgba(250,250,249,0.96) 0%, rgba(250,250,249,0.82) 48%, rgba(250,250,249,0) 74%)",
+            }}
+            aria-hidden
+          />
+          <p
+            className="sw-on-marquee text-balance tracking-[0.048px] text-[#292524]"
+            style={{
+              fontSize: isProjector ? "clamp(1.1rem, 2.2vw, 2.75rem)" : "clamp(0.9rem, 3.5vw, 1.25rem)",
+            }}
           >
-            <div className="h-2 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2.5">
-              <div
-                className="h-full rounded-full bg-[#3ba6f1] transition-[width] duration-700 ease-out"
-                style={{ width: `${barWidth}%` }}
-              />
-            </div>
-            <p
-              className="mt-2 text-[#a8a29e]"
-              style={{ fontSize: isProjector ? "clamp(0.9rem, 1.4vw, 1.6rem)" : "0.75rem" }}
+            {total === 1 ? "soul won for Christ" : "souls won for Christ"}
+          </p>
+
+          {goal && (
+            <div
+              className="mt-7 w-full"
+              style={{ maxWidth: isProjector ? "60rem" : "28rem", marginInline: "auto" }}
             >
-              {Math.round(progressPct).toLocaleString()}% of {goal.toLocaleString()} goal
-            </p>
-          </div>
-        )}
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2.5">
+                <div
+                  className="h-full rounded-full bg-[#3ba6f1] transition-[width] duration-700 ease-out"
+                  style={{ width: `${barWidth}%` }}
+                />
+              </div>
+              <p
+                className="sw-on-marquee mt-2 text-[#44403c]"
+                style={{ fontSize: isProjector ? "clamp(0.9rem, 1.4vw, 1.6rem)" : "0.75rem" }}
+              >
+                {Math.round(progressPct).toLocaleString()}% of {goal.toLocaleString()} goal
+              </p>
+            </div>
+          )}
+        </div>
 
         <div
           className="mt-8 grid w-full grid-cols-2 gap-3 sm:gap-4"
