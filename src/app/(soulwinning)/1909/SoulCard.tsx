@@ -35,12 +35,22 @@ export function SoulCard({ name, photoPath, scale, isProjector }: Props) {
 
     void (async () => {
       try {
-        const response = await fetch(`/api/soulwinning/photo?path=${encodeURIComponent(photoPath)}`);
-        if (!response.ok) return;
-        const { url } = (await response.json()) as { url: string };
+        const isDirect =
+          photoPath.startsWith("/") ||
+          photoPath.startsWith("blob:") ||
+          photoPath.startsWith("http://") ||
+          photoPath.startsWith("https://");
+
+        let url = photoPath;
+        if (!isDirect) {
+          const response = await fetch(`/api/soulwinning/photo?path=${encodeURIComponent(photoPath)}`);
+          if (!response.ok) return;
+          const signed = (await response.json()) as { url: string };
+          url = signed.url;
+        }
 
         const image = new Image();
-        image.crossOrigin = "anonymous";
+        if (!isDirect) image.crossOrigin = "anonymous";
         image.onload = () => {
           if (cancelled) return;
           const canvas = canvasRef.current;

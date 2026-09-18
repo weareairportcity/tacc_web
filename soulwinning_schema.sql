@@ -84,7 +84,7 @@ CREATE INDEX IF NOT EXISTS sw_campaigns_active_idx ON public.sw_campaigns (activ
 
 
 -- ---------------------------------------------------------------------
--- 2. sw_entrants — the volunteer doing the entering (no login)
+-- 2. sw_entrants — the member doing the entering (no login)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.sw_entrants (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -93,8 +93,12 @@ CREATE TABLE IF NOT EXISTS public.sw_entrants (
   fellowship TEXT,
   phone TEXT,
   pfcc TEXT,
+  login_code TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.sw_entrants ADD COLUMN IF NOT EXISTS login_code TEXT;
+CREATE INDEX IF NOT EXISTS sw_entrants_login_code_idx ON public.sw_entrants (login_code);
 
 CREATE INDEX IF NOT EXISTS sw_entrants_device_id_idx ON public.sw_entrants (device_id);
 
@@ -170,6 +174,9 @@ CREATE TABLE IF NOT EXISTS public.sw_counts (
   -- immediately, without ever querying sw_soul_entries.
   recent_names TEXT[] NOT NULL DEFAULT '{}',
   last_photo_path TEXT,
+  -- Storage paths only (no names) so the public counter can fill a photo
+  -- marquee without ever reading sw_soul_entries.
+  recent_photo_paths TEXT[] NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -177,6 +184,7 @@ ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS last_soul_name TEXT;
 ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS last_entry_id UUID;
 ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS recent_names TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS last_photo_path TEXT;
+ALTER TABLE public.sw_counts ADD COLUMN IF NOT EXISTS recent_photo_paths TEXT[] NOT NULL DEFAULT '{}';
 
 -- Every campaign gets its counts row up front.
 CREATE OR REPLACE FUNCTION public.sw_seed_counts()
@@ -301,11 +309,12 @@ BEGIN
   ELSE
     INSERT INTO public.sw_counts AS c (campaign_id, total_souls, tongues_count, church_count,
                                       pending_duplicates, last_soul_name, last_entry_id, recent_names,
-                                      last_photo_path)
+                                      last_photo_path, recent_photo_paths)
     VALUES (target, greatest(d_total, 0), greatest(d_tongues, 0), greatest(d_church, 0),
             greatest(d_pending, 0), new_name, new_entry,
             CASE WHEN new_name IS NULL THEN '{}' ELSE ARRAY[new_name] END,
-            new_photo)
+            new_photo,
+            CASE WHEN new_photo IS NULL THEN '{}' ELSE ARRAY[new_photo] END)
     ON CONFLICT (campaign_id) DO UPDATE SET
       total_souls = c.total_souls + d_total,
       tongues_count = c.tongues_count + d_tongues,
@@ -318,6 +327,11 @@ BEGIN
       recent_names = CASE
         WHEN new_name IS NULL THEN c.recent_names
         ELSE (array_prepend(new_name, c.recent_names))[1:10]
+      END,
+      -- newest first, capped at 36, duplicates of the same path dropped
+      recent_photo_paths = CASE
+        WHEN new_photo IS NULL THEN c.recent_photo_paths
+        ELSE (array_prepend(new_photo, array_remove(c.recent_photo_paths, new_photo)))[1:36]
       END,
       updated_at = now();
   END IF;
@@ -391,7 +405,7 @@ CREATE INDEX IF NOT EXISTS sw_sms_log_campaign_sent_idx
 -- =====================================================================
 -- 9. Row Level Security
 --
---   sw_soul_entries / sw_entrants : public INSERT (volunteers have no
+--   sw_soul_entries / sw_entrants : public INSERT (members have no
 --       login), and SELECT/UPDATE/DELETE for soul-winning admins only.
 --   sw_campaigns / sw_counts      : public SELECT (no personal data),
 --       admin writes.
@@ -686,17 +700,22 @@ BEGIN
 END;
 $$;
 
--- Map pins. Deliberately returns no soul name or phone: the admin map is a
--- shared screen (plan §10).
+-- Map pins for the admin map. Names, phones and photo paths are included:
+-- this function is admin-only (sw_require_admin), matching Entries and Wall.
 DROP FUNCTION IF EXISTS public.sw_map_points(UUID);
 CREATE OR REPLACE FUNCTION public.sw_map_points(p_campaign_id UUID)
 RETURNS TABLE (
   id UUID,
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
+  soul_name TEXT,
+  phone TEXT,
+  photo_path TEXT,
   fellowship TEXT,
   pfcc TEXT,
   entrant_name TEXT,
+  spoke_in_tongues BOOLEAN,
+  coming_to_church BOOLEAN,
   created_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
@@ -708,9 +727,12 @@ BEGIN
 
   RETURN QUERY
   SELECT e.id, e.latitude, e.longitude,
+         e.soul_name, e.phone, e.photo_path,
          coalesce(nullif(btrim(n.fellowship), ''), 'Not given'),
          coalesce(nullif(btrim(n.pfcc), ''), 'Not given'),
-         n.name, e.created_at
+         n.name,
+         e.spoke_in_tongues, e.coming_to_church,
+         e.created_at
   FROM public.sw_soul_entries e
   JOIN public.sw_entrants n ON n.id = e.entrant_id
   WHERE e.campaign_id = p_campaign_id
@@ -736,7 +758,7 @@ GRANT EXECUTE ON FUNCTION public.sw_map_points(UUID) TO authenticated;
 -- ---------------------------------------------------------------------
 -- 9c. Storage policies for the sw-photos bucket
 --
--- The bucket itself is private and created outside this file. Volunteers are
+-- The bucket itself is private and created outside this file. Members are
 -- not logged in, so anon may INSERT (upload) but may NOT read: the counter
 -- page gets short-lived signed URLs minted server-side instead, so no image
 -- ever has a permanent, guessable address.
@@ -778,9 +800,9 @@ $$;
 --     Change event_date before running if the date has moved.
 -- ---------------------------------------------------------------------
 -- Event day runs midnight to midnight, so the SMS window is the full day.
-INSERT INTO public.sw_campaigns (name, slug, event_date, active, sms_start_hour, sms_end_hour)
-VALUES ('1909 — Sep 2026', '1909', '2026-09-19', true, 0, 23)
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO public.sw_campaigns (name, slug, event_date, active, sms_start_hour, sms_end_hour, goal_total)
+VALUES ('1909 — Sep 2026', '1909', '2026-09-19', true, 0, 23, 1909)
+ON CONFLICT (slug) DO UPDATE SET goal_total = 1909;
 
 -- =====================================================================
 -- 12. Optional: run the hourly SMS from inside Postgres

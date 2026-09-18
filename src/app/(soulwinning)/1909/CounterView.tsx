@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { burstConfetti } from "@/lib/soulwinning/confetti";
 import { SoulCard } from "./SoulCard";
+import { PhotoMarquee } from "./PhotoMarquee";
 import { useCampaignCounts } from "@/lib/soulwinning/use-counts";
 import type { SwCampaign, SwCounts } from "@/lib/soulwinning/types";
 import { Odometer } from "./Odometer";
@@ -21,7 +22,25 @@ type FloatingSoul = {
   inFront: boolean;
 };
 
-type QueuedSoul = { name: string; photoPath: string | null };
+export type EnqueuedSoul = {
+  name: string;
+  photoPath: string | null;
+  duration?: number;
+  delay?: number;
+  lane?: number;
+  scale?: number;
+  inFront?: boolean;
+  spokeInTongues?: boolean;
+  comingToChurch?: boolean;
+};
+
+type QueuedSoul = EnqueuedSoul;
+
+declare global {
+  interface Window {
+    __swEnqueueSoul?: (soul: EnqueuedSoul) => void;
+  }
+}
 
 /** Lanes deliberately avoid the middle of the screen — that band belongs to
  *  the total, and a name drifting across it is unreadable on a projector. */
@@ -50,18 +69,34 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   const { counts, isLive } = useCampaignCounts(campaign.id, initialCounts);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [floating, setFloating] = useState<FloatingSoul[]>([]);
+  const [shotBump, setShotBump] = useState({ total: 0, tongues: 0, church: 0 });
 
   const queueRef = useRef<QueuedSoul[]>([]);
   const lastEntryRef = useRef<string | null>(initialCounts?.last_entry_id ?? null);
   const laneRef = useRef(0);
   const keyRef = useRef(0);
 
+  const pushMarqueePhoto = (path: string | null | undefined) => {
+    if (!path) return;
+    setMarqueePaths((prev) => {
+      if (prev[0] === path) return prev;
+      return [path, ...prev.filter((item) => item !== path)].slice(0, 36);
+    });
+  };
+
   const isProjector = variant === "projector";
-  const total = counts?.total_souls ?? 0;
-  const tongues = counts?.tongues_count ?? 0;
-  const church = counts?.church_count ?? 0;
+  const [marqueePaths, setMarqueePaths] = useState<string[]>(() => {
+    const recent = initialCounts?.recent_photo_paths ?? [];
+    const last = initialCounts?.last_photo_path;
+    const paths = last && !recent.includes(last) ? [last, ...recent] : recent;
+    return paths.filter(Boolean).slice(0, 36);
+  });
+  const total = (counts?.total_souls ?? 0) + shotBump.total;
+  const tongues = (counts?.tongues_count ?? 0) + shotBump.tongues;
+  const church = (counts?.church_count ?? 0) + shotBump.church;
   const goal = campaign.goal_total ?? null;
-  const progress = goal ? Math.min((total / goal) * 100, 100) : 0;
+  const progressPct = goal && goal > 0 ? (total / goal) * 100 : 0;
+  const barWidth = Math.min(progressPct, 100);
 
   // The total has to stay huge at "14" and still fit at "1,234" on a phone.
   // Each tabular digit is about 0.62em wide, so the width budget per character
@@ -84,10 +119,19 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
       name: counts?.last_soul_name || "A soul",
       photoPath: counts?.last_photo_path ?? null,
     });
+    pushMarqueePhoto(counts?.last_photo_path);
     if (queueRef.current.length > MAX_QUEUE) {
       queueRef.current = queueRef.current.slice(-MAX_QUEUE);
     }
   }, [counts?.last_entry_id, counts?.last_soul_name, counts?.last_photo_path]);
+
+  useEffect(() => {
+    const recent = counts?.recent_photo_paths ?? [];
+    const last = counts?.last_photo_path;
+    if (marqueePaths.length > 0) return;
+    const paths = last && !recent.includes(last) ? [last, ...recent] : recent;
+    if (paths.length) setMarqueePaths(paths.filter(Boolean).slice(0, 36));
+  }, [counts?.recent_photo_paths, counts?.last_photo_path, marqueePaths.length]);
 
   // Release everything waiting in one go, so a group of souls crosses the
   // screen together and the burst is sized to how many arrived.
@@ -100,13 +144,13 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
         key: (keyRef.current += 1),
         name: item.name,
         photoPath: item.photoPath,
-        lane: LANES[(laneRef.current += 1) % LANES.length],
+        lane: item.lane ?? LANES[(laneRef.current += 1) % LANES.length],
         // Randomised so no two crossings look alike.
-        duration: 9 + Math.random() * 7,
+        duration: item.duration ?? 9 + Math.random() * 7,
         // A stagger so souls released together do not move as one block.
-        delay: Math.random() * 1.6,
-        scale: 0.78 + Math.random() * 0.45,
-        inFront: Math.random() < 0.5,
+        delay: item.delay ?? Math.random() * 1.6,
+        scale: item.scale ?? 0.78 + Math.random() * 0.45,
+        inFront: item.inFront ?? Math.random() < 0.5,
       }));
 
       setFloating((prev) => [...prev, ...released].slice(-MAX_ON_SCREEN));
@@ -125,14 +169,43 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
     return () => clearInterval(timer);
   }, [isProjector]);
 
+  // Shot pages only — Playwright uses the same float queue a live entry would.
+  useEffect(() => {
+    if (!window.location.pathname.includes("/shots/")) return;
+
+    const enqueue = (soul: EnqueuedSoul) => {
+      queueRef.current.push(soul);
+      pushMarqueePhoto(soul.photoPath);
+      setShotBump((prev) => ({
+        total: prev.total + 1,
+        tongues: prev.tongues + (soul.spokeInTongues ? 1 : 0),
+        church: prev.church + (soul.comingToChurch ? 1 : 0),
+      }));
+    };
+
+    window.__swEnqueueSoul = enqueue;
+    const onEvent = (event: Event) => {
+      const detail = (event as CustomEvent<EnqueuedSoul>).detail;
+      if (detail?.name) enqueue(detail);
+    };
+    window.addEventListener("sw:enqueue-soul", onEvent);
+    return () => {
+      delete window.__swEnqueueSoul;
+      window.removeEventListener("sw:enqueue-soul", onEvent);
+    };
+  }, []);
+
   return (
     <main className="relative flex h-[100svh] w-full flex-col overflow-hidden bg-[#fafaf9] px-5 py-6 font-sans sm:px-8 sm:py-8">
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
+      <PhotoMarquee paths={marqueePaths} />
 
       {floating.map((soul) => (
         <div
           key={soul.key}
-          className={`sw-float pointer-events-none absolute ${soul.inFront ? "z-20" : "z-0"}`}
+          className={`sw-float pointer-events-none absolute ${soul.inFront ? "z-20" : "z-[2]"}`}
+          data-soul-name={soul.name}
+          data-has-photo={soul.photoPath ? "true" : "false"}
           style={{
             top: `${soul.lane}%`,
             animationDuration: `${soul.duration}s`,
@@ -191,7 +264,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
         <Odometer
           value={total}
           digitWidth="0.62em"
-          className="font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
+          className="font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09] [text-shadow:0_0_28px_#fafaf9,0_0_8px_#fafaf9]"
           style={{ fontSize: totalFontSize }}
         />
 
@@ -212,14 +285,14 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
             <div className="h-2 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2.5">
               <div
                 className="h-full rounded-full bg-[#3ba6f1] transition-[width] duration-700 ease-out"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${barWidth}%` }}
               />
             </div>
             <p
               className="mt-2 text-[#a8a29e]"
               style={{ fontSize: isProjector ? "clamp(0.9rem, 1.4vw, 1.6rem)" : "0.75rem" }}
             >
-              {Math.round(progress)}% of {goal.toLocaleString()} goal
+              {Math.round(progressPct).toLocaleString()}% of {goal.toLocaleString()} goal
             </p>
           </div>
         )}

@@ -115,6 +115,7 @@ async function pushEntrants(): Promise<boolean> {
       fellowship: entrant.fellowship || null,
       phone: entrant.phone || null,
       pfcc: entrant.pfcc || null,
+      login_code: entrant.login_code || null,
       created_at: entrant.created_at,
     }));
 

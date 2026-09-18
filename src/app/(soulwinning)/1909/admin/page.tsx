@@ -25,6 +25,7 @@ import { DuplicateQueue } from "./DuplicateQueue";
 import { EntriesTable } from "./EntriesTable";
 import { ExportPanel } from "./ExportPanel";
 import { Leaderboards } from "./Leaderboards";
+import { PhotoWall } from "./PhotoWall";
 import { SmsPanel } from "./SmsPanel";
 
 // Leaflet touches window on import, so the map only loads in the browser.
@@ -33,10 +34,11 @@ const SoulMap = dynamic(() => import("./SoulMap").then((mod) => mod.SoulMap), {
   loading: () => <p className="p-5 text-sm text-[#a8a29e]">Loading map…</p>,
 });
 
-type Tab = "overview" | "entries" | "map" | "exports" | "duplicates" | "sms";
+type Tab = "overview" | "wall" | "entries" | "map" | "exports" | "duplicates" | "sms";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "wall", label: "Wall" },
   { key: "entries", label: "Entries" },
   { key: "map", label: "Map" },
   { key: "exports", label: "Exports" },
@@ -145,7 +147,7 @@ export default function SoulWinningAdmin() {
 
   return (
     <main className="min-h-screen bg-[#fafaf9] px-4 py-6 font-sans sm:px-6 sm:py-8">
-      <div className="mx-auto w-full max-w-6xl">
+      <div className={`mx-auto w-full ${tab === "wall" ? "max-w-[92rem]" : "max-w-6xl"}`}>
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="" width={140} height={49} className="h-8 w-auto object-contain" />
@@ -297,7 +299,15 @@ export default function SoulWinningAdmin() {
           </div>
         )}
 
-        {tab === "entries" && campaign && <EntriesTable campaignId={campaign.id} />}
+        {tab === "wall" && campaign && <PhotoWall campaignId={campaign.id} />}
+
+        {tab === "entries" && campaign && (
+          <EntriesTable
+            campaignId={campaign.id}
+            campaignName={campaign.name}
+            onCleared={() => void load()}
+          />
+        )}
 
         {tab === "map" && campaign && <SoulMap campaignId={campaign.id} />}
 

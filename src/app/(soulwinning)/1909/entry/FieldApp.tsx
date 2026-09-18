@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, PartyPopper } from "lucide-react";
+import { ChevronRight, PartyPopper } from "lucide-react";
 import type { SwCampaign } from "@/lib/soulwinning/types";
 import {
   getActiveEntrant,
@@ -13,8 +13,9 @@ import { hasLocationPermission } from "@/lib/soulwinning/entries";
 import { refreshPendingCount, startSync, syncNow } from "@/lib/soulwinning/sync";
 import { EntrantSwitcher } from "./EntrantSwitcher";
 import { LocationPrompt } from "./LocationPrompt";
-import { OnboardingForm } from "./OnboardingForm";
+import { MySoulsList } from "./MySoulsList";
 import { SoulEntryForm } from "./SoulEntryForm";
+import { StartScreen } from "./StartScreen";
 import { SyncIndicator } from "./SyncIndicator";
 
 const MILESTONE_EVERY = 10;
@@ -29,15 +30,21 @@ export function FieldApp({ campaign }: Props) {
   const [entrant, setEntrant] = useState<LocalEntrant | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
+  const [tab, setTab] = useState<"log" | "mine">("log");
   const [myTotal, setMyTotal] = useState(0);
   const [locationAllowed, setLocationAllowed] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; milestone: boolean } | null>(null);
 
-  // Load this device's entrants, then start the background queue. Whatever
-  // happens, the screen must end up showing something: a volunteer staring at a
+  // Load this device's members, then start the background queue. Whatever
+  // happens, the screen must end up showing something: a member staring at a
   // blank phone mid-outreach is the worst outcome there is.
   useEffect(() => {
+    let cancelled = false;
+    const failSafe = setTimeout(() => {
+      if (!cancelled) setIsReady(true);
+    }, 2500);
+
     void (async () => {
       try {
         const [all, active, allowed] = await Promise.all([
@@ -45,41 +52,29 @@ export function FieldApp({ campaign }: Props) {
           getActiveEntrant(),
           hasLocationPermission(),
         ]);
+        if (cancelled) return;
         setEntrants(all);
         setEntrant(active);
         setLocationAllowed(allowed);
+        setIsReady(true);
         if (active) setMyTotal(await countEntriesByEntrant(active.id, campaign.id));
         await refreshPendingCount();
       } catch (error) {
+        if (cancelled) return;
         setStartupError(error instanceof Error ? error.message : "Could not open this device's storage");
-      } finally {
         setIsReady(true);
+      } finally {
+        clearTimeout(failSafe);
       }
     })();
 
-    return startSync();
+    const stopSync = startSync();
+    return () => {
+      cancelled = true;
+      clearTimeout(failSafe);
+      stopSync();
+    };
   }, [campaign.id]);
-
-  // Scoped to /1909 — this worker can never intercept the rest of the site.
-  // Production only: in dev, /_next/static chunks are not content-hashed, so
-  // the worker's cache-first rule would keep serving stale code after an edit.
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-
-    if (process.env.NODE_ENV !== "production") {
-      void navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          if (registration.scope.includes("/1909")) void registration.unregister();
-        }
-      });
-      void caches.keys().then((keys) => {
-        for (const key of keys) if (key.startsWith("sw1909-")) void caches.delete(key);
-      });
-      return;
-    }
-
-    void navigator.serviceWorker.register("/1909/sw.js", { scope: "/1909", updateViaCache: "none" });
-  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -154,11 +149,7 @@ export function FieldApp({ campaign }: Props) {
     return (
       <main className="mx-auto w-full max-w-md px-5 py-10">
         <Header campaign={campaign} />
-        <OnboardingForm
-          title="Before you start"
-          subtitle="Just once on this phone — so every soul you log is credited to you."
-          onDone={selectEntrant}
-        />
+        <StartScreen onDone={selectEntrant} />
       </main>
     );
   }
@@ -178,24 +169,58 @@ export function FieldApp({ campaign }: Props) {
     <main className="mx-auto w-full max-w-md px-5 pb-16 pt-8">
       <Header campaign={campaign} />
 
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-5 space-y-2">
+        <div className="flex justify-end">
+          <SyncIndicator />
+        </div>
         <button
           type="button"
           onClick={() => setIsSwitching(true)}
-          className="flex items-center gap-1.5 text-left"
+          className="flex w-full items-center gap-3 rounded-lg border border-[#e8e6e5] bg-white px-3.5 py-3 text-left"
         >
-          <span className="text-base font-semibold text-[#0c0a09]">{entrant.name}</span>
-          <ChevronDown className="h-4 w-4 text-[#a8a29e]" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0c0a09] text-sm font-medium text-white">
+            {entrant.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] text-[#a8a29e]">Logging as</span>
+            <span className="block truncate text-base font-semibold text-[#0c0a09]">{entrant.name}</span>
+            {entrant.fellowship && (
+              <span className="block truncate text-xs text-[#78716c]">{entrant.fellowship}</span>
+            )}
+          </span>
+          <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-[#3ba6f1]">
+            Switch
+            <ChevronRight className="h-3.5 w-3.5" />
+          </span>
         </button>
-        <SyncIndicator />
       </div>
 
-      <div className="mb-5 rounded-lg border border-[#e8e6e5] bg-white px-5 py-4">
-        <p className="text-3xl font-semibold tabular-nums text-[#0c0a09]">{myTotal}</p>
-        <p className="text-xs text-[#a8a29e]">souls you&apos;ve logged today</p>
+      <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-[#f2f2f2] p-1">
+        <button
+          type="button"
+          onClick={() => setTab("log")}
+          className={`rounded-md px-3 py-2 text-sm font-medium ${
+            tab === "log" ? "bg-white text-[#0c0a09] shadow-sm" : "text-[#78716c]"
+          }`}
+        >
+          Log a soul
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("mine")}
+          className={`rounded-md px-3 py-2 text-sm font-medium ${
+            tab === "mine" ? "bg-white text-[#0c0a09] shadow-sm" : "text-[#78716c]"
+          }`}
+        >
+          My souls{myTotal > 0 ? ` · ${myTotal}` : ""}
+        </button>
       </div>
 
-      <SoulEntryForm campaignId={campaign.id} entrantId={entrant.id} onSaved={handleSaved} />
+      {tab === "log" ? (
+        <SoulEntryForm campaignId={campaign.id} entrantId={entrant.id} onSaved={handleSaved} />
+      ) : (
+        <MySoulsList campaignId={campaign.id} entrantId={entrant.id} revision={myTotal} />
+      )}
 
       {isSwitching && !isAddingPerson && (
         <EntrantSwitcher
@@ -210,9 +235,8 @@ export function FieldApp({ campaign }: Props) {
       {isAddingPerson && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[#fafaf9] px-5 py-10">
           <div className="mx-auto w-full max-w-md">
-            <OnboardingForm
-              title="New person"
-              subtitle="Their details are kept on this phone, so switching back is one tap."
+            <StartScreen
+              adding
               onDone={selectEntrant}
               onCancel={() => {
                 setIsAddingPerson(false);

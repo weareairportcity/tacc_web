@@ -19,6 +19,7 @@ export type SwEntrant = {
   fellowship: string | null;
   phone: string | null;
   pfcc: string | null;
+  login_code: string | null;
   created_at: string;
 };
 
@@ -57,6 +58,8 @@ export type SwCounts = {
   recent_names: string[];
   /** Storage path of the newest soul's photo, if one was taken. */
   last_photo_path: string | null;
+  /** Newest photo paths for the counter marquee. Public page never reads entries. */
+  recent_photo_paths: string[];
   updated_at: string;
 };
 

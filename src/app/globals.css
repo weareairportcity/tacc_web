@@ -168,8 +168,58 @@ body {
   }
 }
 
+@keyframes sw-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.sw-marquee-track {
+  animation-name: sw-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.sw-vignette {
+  background:
+    radial-gradient(ellipse 70% 62% at 50% 46%, rgba(250, 250, 249, 0.22) 0%, rgba(250, 250, 249, 0.58) 46%, rgba(250, 250, 249, 0.94) 100%),
+    linear-gradient(to right, #fafaf9 0%, transparent 9%, transparent 91%, #fafaf9 100%),
+    linear-gradient(to bottom, #fafaf9 0%, transparent 11%, transparent 89%, #fafaf9 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-marquee-track {
+    animation-play-state: paused;
+  }
+}
+
 /* Soul Winning map — Esri's Light Gray canvas is left exactly as it ships. No
    filters: the pins are the only coloured thing on it, which is the point. */
 .sw-map .leaflet-container {
   background: #fafaf9;
+}
+
+.sw-map .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 22px 50px -18px rgba(12, 10, 9, 0.45);
+}
+
+.sw-map .leaflet-popup-content {
+  margin: 0;
+  min-width: 220px;
+}
+
+.sw-map .leaflet-popup-close-button {
+  top: 8px !important;
+  right: 8px !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #78716c !important;
+  font-size: 18px !important;
+  line-height: 20px !important;
+  box-shadow: 0 1px 3px rgba(12, 10, 9, 0.16);
 }

@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "shots:soulwinning": "playwright test soulwinning.shots",
+    "tutorial:entry": "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}\" playwright test soulwinning.tutorial",
+    "tutorial:admin": "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}\" playwright test soulwinning.admin-tutorial"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",
@@ -34,6 +37,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^20",

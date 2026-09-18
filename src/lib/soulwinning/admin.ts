@@ -53,10 +53,14 @@ export type MapPoint = {
   id: string;
   latitude: number;
   longitude: number;
+  soul_name: string;
+  phone: string | null;
+  photo_path: string | null;
   fellowship: string;
-  /** Optional so the map still works against an older sw_map_points. */
   pfcc?: string;
   entrant_name: string;
+  spoke_in_tongues?: boolean;
+  coming_to_church?: boolean;
   created_at: string;
 };
 
@@ -70,7 +74,9 @@ export async function fetchCampaigns(): Promise<SwCampaign[]> {
     .from("sw_campaigns")
     .select("*")
     .order("event_date", { ascending: false });
-  return (data as SwCampaign[]) ?? [];
+  return ((data as SwCampaign[]) ?? []).map((row) =>
+    row.slug === "1909" ? { ...row, goal_total: 1909 } : row
+  );
 }
 
 export async function fetchOverview(campaignId: string, hours: HourFilter): Promise<Overview | null> {
@@ -118,9 +124,126 @@ export async function fetchDuplicates(campaignId: string): Promise<DuplicateRow[
 
 export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("sw_map_points", { p_campaign_id: campaignId });
+  const { data, error } = await supabase
+    .from("sw_soul_entries")
+    .select(
+      "id, soul_name, phone, photo_path, latitude, longitude, spoke_in_tongues, coming_to_church, created_at, sw_entrants(name, fellowship, pfcc)"
+    )
+    .eq("campaign_id", campaignId)
+    .eq("counted", true)
+    .not("latitude", "is", null)
+    .not("longitude", "is", null)
+    .limit(5000);
+
   if (error) throw error;
-  return (data as MapPoint[]) ?? [];
+
+  type Raw = {
+    id: string;
+    soul_name: string;
+    phone: string | null;
+    photo_path: string | null;
+    latitude: number;
+    longitude: number;
+    spoke_in_tongues: boolean;
+    coming_to_church: boolean;
+    created_at: string;
+    sw_entrants: { name: string; fellowship: string | null; pfcc: string | null } | null;
+  };
+
+  return ((data as unknown as Raw[]) ?? []).map((row) => ({
+    id: row.id,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    soul_name: row.soul_name,
+    phone: row.phone,
+    photo_path: row.photo_path,
+    fellowship: row.sw_entrants?.fellowship?.trim() || "Not given",
+    pfcc: row.sw_entrants?.pfcc?.trim() || "Not given",
+    entrant_name: row.sw_entrants?.name ?? "—",
+    spoke_in_tongues: row.spoke_in_tongues,
+    coming_to_church: row.coming_to_church,
+    created_at: row.created_at,
+  }));
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Permanently wipe every soul for a campaign: rows, photos, and the public
+ * counter. Members are left in place so phones do not have to onboard again.
+ * Already-synced devices will not re-upload; unsynced phones still might.
+ */
+export async function clearCampaignEntries(campaignId: string): Promise<number> {
+  if (!UUID.test(campaignId)) throw new Error("Invalid campaign");
+
+  const supabase = createClient();
+
+  const { count, error: countError } = await supabase
+    .from("sw_soul_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId);
+  if (countError) throw countError;
+
+  const { data: photoRows, error: photoError } = await supabase
+    .from("sw_soul_entries")
+    .select("photo_path")
+    .eq("campaign_id", campaignId)
+    .not("photo_path", "is", null);
+  if (photoError) throw photoError;
+
+  const paths = new Set(
+    (photoRows ?? [])
+      .map((row) => row.photo_path)
+      .filter((path): path is string => Boolean(path))
+  );
+
+  for (let offset = 0; ; offset += 1000) {
+    const { data: files, error: listError } = await supabase.storage
+      .from("sw-photos")
+      .list(campaignId, { limit: 1000, offset });
+    if (listError || !files || files.length === 0) break;
+    for (const file of files) {
+      if (file.name) paths.add(`${campaignId}/${file.name}`);
+    }
+    if (files.length < 1000) break;
+  }
+
+  const { error: unlinkError } = await supabase
+    .from("sw_soul_entries")
+    .update({ duplicate_of: null })
+    .eq("campaign_id", campaignId);
+  if (unlinkError) throw unlinkError;
+
+  const { error: deleteError } = await supabase
+    .from("sw_soul_entries")
+    .delete()
+    .eq("campaign_id", campaignId);
+  if (deleteError) throw deleteError;
+
+  const { error: resetError } = await supabase
+    .from("sw_counts")
+    .update({
+      total_souls: 0,
+      tongues_count: 0,
+      church_count: 0,
+      pending_duplicates: 0,
+      last_soul_name: null,
+      last_entry_id: null,
+      recent_names: [],
+      last_photo_path: null,
+      recent_photo_paths: [],
+      updated_at: new Date().toISOString(),
+    })
+    .eq("campaign_id", campaignId);
+  if (resetError) throw resetError;
+
+  const list = [...paths];
+  for (let i = 0; i < list.length; i += 100) {
+    const { error: removeError } = await supabase.storage.from("sw-photos").remove(list.slice(i, i + 100));
+    if (removeError) throw removeError;
+  }
+
+  return count ?? 0;
 }
 
 /** Confirm a flagged entry as a real, separate soul, or fold it into the original. */

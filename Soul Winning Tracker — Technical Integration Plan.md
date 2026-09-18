@@ -4,16 +4,16 @@
 
 ## 1. Overview & Goals
 
-A field-usable app for `soulwinning.theairportcitychurch.com/1909` that lets volunteers log every soul won during a day-long outreach event — name, phone, precise device location, whether the person spoke in tongues, and whether they're coming to church — with a public, celebratory live counter, and an admin side with analytics, rankings and a map.
+A field-usable app for `soulwinning.theairportcitychurch.com/1909` that lets members log every soul won during a day-long outreach event — name, phone, precise device location, whether the person spoke in tongues, and whether they're coming to church — with a public, celebratory live counter, and an admin side with analytics, rankings and a map.
 
 **Scale & conditions this design assumes:**
 
-- Thousands of entries in a single day, from many volunteers simultaneously.
+- Thousands of entries in a single day, from many members simultaneously.
 - Entry happens outdoors, on phones, fast-paced, often on weak or no mobile signal.
 - Volunteers already have the consent of the person they're entering — no in-app consent step needed.
-- No login system for volunteers — lightweight on-device identification only.
+- No login system for members — lightweight on-device identification only.
 
-**Non-negotiables driving the design below:** it must never lose an entry to a dropped connection, it must never make a volunteer wait on a spinner in the field, and the admin side must handle sustained high-volume writes without falling over.
+**Non-negotiables driving the design below:** it must never lose an entry to a dropped connection, it must never make a member wait on a spinner in the field, and the admin side must handle sustained high-volume writes without falling over.
 
 ## 2. System Architecture
 
@@ -32,7 +32,7 @@ flowchart TD
     G --> J[Leaflet + OpenStreetMap]
 ```
 
-**Why Supabase Realtime for the counter:** since many volunteers are entering souls at once and the counter page needs to feel alive (confetti, floating names), subscribing the counter page to Postgres changes via Supabase Realtime is simpler and cheaper than polling, and it's already in your stack.
+**Why Supabase Realtime for the counter:** since many members are entering souls at once and the counter page needs to feel alive (confetti, floating names), subscribing the counter page to Postgres changes via Supabase Realtime is simpler and cheaper than polling, and it's already in your stack.
 
 **Why Vercel Cron for SMS:** you already use it; a scheduled function running hourly during the event window queries the day's totals and calls mNotify — no new infrastructure.
 
@@ -53,18 +53,18 @@ Described as tables and fields here — actual SQL/migrations come at build time
 | Table | Key fields | Notes |
 | --- | --- | --- |
 | `sw_campaigns` | id, name, event\_date, active | One row per outreach event (e.g. "1909 — Sep 2026"); lets you reuse the same app for future events without mixing data |
-| `sw_entrants` | id, device\_id, name, fellowship, phone, pfcc, created\_at | The volunteer entering data. `device_id` is a locally-generated UUID stored in the browser — this is the "no login" identity |
+| `sw_entrants` | id, device\_id, name, fellowship, phone, pfcc, created\_at | The member entering data. `device_id` is a locally-generated UUID stored in the browser — this is the "no login" identity |
 | `sw_soul_entries` | id, campaign\_id, entrant\_id, group\_id, soul\_name, phone, latitude, longitude, spoke\_in\_tongues (bool), coming\_to\_church (bool), created\_at, synced\_at | One row per soul. `group_id` links souls entered together in one sitting (see §6) so they share a location |
 | `sw_sms_config` | id, campaign\_id, phone\_number, enabled | The configurable number(s) that get the hourly SMS |
 | `sw_sms_log` | id, sent\_at, message, campaign\_id | Audit trail of what was actually sent, useful for debugging mNotify issues mid-event |
 
-**RLS:** `sw_soul_entries` and `sw_entrants` allow public **insert** (no auth needed — volunteers aren't logged in) but restrict **select/update/delete** to the existing `admin_roles` table you already use elsewhere in `tacc_web`. The public counter page reads only aggregate counts via a Postgres function/view, never raw rows, so no personal data is exposed client-side on the big screen.
+**RLS:** `sw_soul_entries` and `sw_entrants` allow public **insert** (no auth needed — members aren't logged in) but restrict **select/update/delete** to the existing `admin_roles` table you already use elsewhere in `tacc_web`. The public counter page reads only aggregate counts via a Postgres function/view, never raw rows, so no personal data is exposed client-side on the big screen.
 
 ## 5. Field App: Onboarding & Switch-User
 
 **First visit on a device:** a one-time short form — Name, Fellowship, Number, PFCC — saved to `localStorage` (not a login, just "remember this device's current entrant"). This entrant's `device_id` is generated once and reused for every entry from that device.
 
-**Switching who's entering:** a small "Not you?" control (e.g. a tap on the entrant's name shown at the top of the screen) opens a pick-list of everyone who has entered on *that device* before, plus "+ New person." Picking a name swaps the active entrant instantly — no re-typing their details, matching your answer that switching shouldn't require re-entry. "+ New person" runs the same short form once, then adds them to that device's list.
+**Switching who's entering:** a small "Not you?" control (e.g. a tap on the member's name shown at the top of the screen) opens a pick-list of everyone who has entered on *that device* before, plus "+ New member." Picking a name swaps the active member instantly — no re-typing their details, matching your answer that switching shouldn't require re-entry. "+ New member" runs the same short form once, then adds them to that device's list.
 
 This keeps the whole thing device-scoped rather than account-scoped: fast, no passwords, but still lets you attribute every soul to a specific person for the leaderboard in §9.
 
@@ -79,19 +79,19 @@ This keeps the whole thing device-scoped rather than account-scoped: fast, no pa
 
 **"Add another soul" (multi-soul entries):** at the bottom of the entry form, "+ Add another soul" appends a new soul block to the *same submission group* (`group_id`). Only Name, Phone, tongues, and church-attendance are asked for each additional soul; all souls in that group inherit the **first soul's location**, exactly as you specified. Volunteers can add as many as needed before submitting the group.
 
-**Milestone congratulations:** after every 10th soul entered by a given entrant (checked against `sw_soul_entries` count per `entrant_id`), a small congratulatory banner/toast shows on the entry screen ("🎉 You've led 10 souls today!"). This is separate from the public counter's confetti — one is per-entry celebration for everyone to see, the other is a personal milestone for the volunteer.
+**Milestone congratulations:** after every 10th soul entered by a given entrant (checked against `sw_soul_entries` count per `entrant_id`), a small congratulatory banner/toast shows on the entry screen ("🎉 You've led 10 souls today!"). This is separate from the public counter's confetti — one is per-entry celebration for everyone to see, the other is a personal milestone for the member.
 
 ## 7. Offline-First & Reliability Strategy
 
 This is the section that determines whether the app "crashes" (or, more realistically, silently loses entries) in the field. Recommended approach:
 
 - **Build the entry form as a PWA** with a service worker (Workbox via `next-pwa` or a hand-rolled worker) so the app shell loads even with zero signal.
-- **Write every entry to IndexedDB first**, immediately, regardless of connection. The UI reflects that write instantly (optimistic counter increment, confetti) — the volunteer never waits on the network.
-- **A background sync queue** pushes queued entries to Supabase whenever connectivity is available, retrying with backoff on failure. `synced_at` on `sw_soul_entries` stays null until confirmed; a small "X pending sync" indicator (not blocking) tells volunteers if their device is behind.
+- **Write every entry to IndexedDB first**, immediately, regardless of connection. The UI reflects that write instantly (optimistic counter increment, confetti) — the member never waits on the network.
+- **A background sync queue** pushes queued entries to Supabase whenever connectivity is available, retrying with backoff on failure. `synced_at` on `sw_soul_entries` stays null until confirmed; a small "X pending sync" indicator (not blocking) tells members if their device is behind.
 - **Idempotent inserts:** generate the entry's UUID client-side (not server-side) so a retry after a flaky connection never creates a duplicate row.
 - **Separate deployment (§2)** means this app's traffic and any bug in it can't take down bookings or the main site.
 - **Load handling on the counter page:** since many devices write concurrently, the public counter should read from a lightweight aggregate (a Postgres materialized view or a `counts` table updated by trigger) rather than counting all rows live on every page load — keeps it fast even at thousands of entries.
-- **Graceful degradation:** if geolocation permission is denied or GPS can't get a fix in time, don't block the submission — queue it with a null location and let the volunteer continue; a background job can prompt for a retry later, or the entry simply won't appear on the map, which is far better than losing the soul-count itself.
+- **Graceful degradation:** if geolocation permission is denied or GPS can't get a fix in time, don't block the submission — queue it with a null location and let the member continue; a background job can prompt for a retry later, or the entry simply won't appear on the map, which is far better than losing the soul-count itself.
 - **Load-test before the event:** simulate a burst of a few hundred concurrent submissions the week before, on both the API route and the Supabase Realtime channel, so the actual event day isn't the first time it's tested at scale.
 
 ## 8. SMS Alerts (mNotify)
@@ -133,8 +133,8 @@ Built with **Leaflet + OpenStreetMap tiles** (via `react-leaflet`), per your pre
 
 **Additional features confirmed for build:**
 
-- **Big-screen mode:** a separate, unauthenticated projector view of the counter — bigger fonts, no entry form — for display on a venue screen, distinct from the volunteer's own phone view.
-- **Duplicate-name safety net:** if a name + phone combo matches an entry already logged today, the new entry is still **accepted and saved** (never blocked, so a volunteer is never turned away), but it's **flagged as a possible duplicate and excluded from today's official count** until an admin reviews and confirms/merges it from the dashboard. This keeps the public counter accurate without risking a lost entry.
+- **Big-screen mode:** a separate, unauthenticated projector view of the counter — bigger fonts, no entry form — for display on a venue screen, distinct from the member's own phone view.
+- **Duplicate-name safety net:** if a name + phone combo matches an entry already logged today, the new entry is still **accepted and saved** (never blocked, so a member is never turned away), but it's **flagged as a possible duplicate and excluded from today's official count** until an admin reviews and confirms/merges it from the dashboard. This keeps the public counter accurate without risking a lost entry.
 
 ## 12. Build Plan
 

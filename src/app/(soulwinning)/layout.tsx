@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
+import { SoulWinningSw } from "./SoulWinningSw";
 
 export const metadata: Metadata = {
   title: "Soul Winning Tracker — The Airport City Church",
@@ -21,6 +22,7 @@ export default function SoulWinningLayout({
 }) {
   return (
     <div className="min-h-screen w-full bg-[#fafaf9] text-[#78716c] font-sans antialiased selection:bg-[#c1e1f7] selection:text-[#3398e1]">
+      <SoulWinningSw />
       {children}
     </div>
   );

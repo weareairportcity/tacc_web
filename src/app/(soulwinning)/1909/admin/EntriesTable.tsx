@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { ClearEntriesControl } from "./ClearEntriesControl";
 
 /** Every entry, searchable — the raw record behind all the aggregates. */
 
-type Entry = {
+export type Entry = {
   id: string;
   soul_name: string;
   phone: string | null;
@@ -21,13 +22,28 @@ type Entry = {
 
 const PAGE = 100;
 
-export function EntriesTable({ campaignId }: { campaignId: string }) {
-  const [rows, setRows] = useState<Entry[] | null>(null);
+export function EntriesTable({
+  campaignId,
+  campaignName,
+  previewRows,
+  onCleared,
+}: {
+  campaignId: string;
+  campaignName?: string;
+  previewRows?: Entry[];
+  onCleared?: () => void;
+}) {
+  const [rows, setRows] = useState<Entry[] | null>(previewRows ?? null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(PAGE);
 
   useEffect(() => {
+    if (previewRows) {
+      setRows(previewRows);
+      return;
+    }
+
     let cancelled = false;
 
     void (async () => {
@@ -50,7 +66,7 @@ export function EntriesTable({ campaignId }: { campaignId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [campaignId]);
+  }, [campaignId, previewRows]);
 
   const filtered = useMemo(() => {
     if (!rows) return [];
@@ -154,6 +170,20 @@ export function EntriesTable({ campaignId }: { campaignId: string }) {
         >
           Show {Math.min(PAGE, filtered.length - limit)} more
         </button>
+      )}
+
+      {campaignName && !previewRows && (
+        <ClearEntriesControl
+          campaignId={campaignId}
+          campaignName={campaignName}
+          entryCount={rows.length}
+          onCleared={() => {
+            setRows([]);
+            setQuery("");
+            setLimit(PAGE);
+            onCleared?.();
+          }}
+        />
       )}
     </section>
   );

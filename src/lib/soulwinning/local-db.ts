@@ -22,6 +22,7 @@ export type LocalEntrant = {
   fellowship: string;
   phone: string;
   pfcc: string;
+  login_code: string;
   created_at: string;
   synced: SyncFlag;
   attempts: number;
@@ -146,12 +147,20 @@ export async function countUnsynced(store: string): Promise<number> {
 
 /** How many souls this entrant has logged on this device for a campaign — drives the milestone toast. */
 export async function countEntriesByEntrant(entrantId: string, campaignId: string): Promise<number> {
+  const rows = await listEntriesByEntrant(entrantId, campaignId);
+  return rows.length;
+}
+
+/** Souls this member logged on this phone, newest first. */
+export async function listEntriesByEntrant(entrantId: string, campaignId: string): Promise<LocalEntry[]> {
   const rows = await run<LocalEntry[]>(
     ENTRIES_STORE,
     "readonly",
     (s) => s.index("entrant_id").getAll(entrantId) as IDBRequest<LocalEntry[]>
   );
-  return rows.filter((row) => row.campaign_id === campaignId).length;
+  return rows
+    .filter((row) => row.campaign_id === campaignId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export async function markSynced(store: string, ids: string[]): Promise<void> {

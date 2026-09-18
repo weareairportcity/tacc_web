@@ -1,6 +1,6 @@
 /**
  * Photos are compressed on the device before they ever touch the queue: a
- * modern phone camera produces 3-5MB files, and a volunteer on a weak signal
+ * modern phone camera produces 3-5MB files, and a member on a weak signal
  * cannot afford to push that. Long edge 1024px at JPEG 0.65 lands around
  * 100-160KB: roughly 7,000 photos inside a free-tier Supabase bucket, still
  * sharp on a projector card, and quick to push over a weak connection.

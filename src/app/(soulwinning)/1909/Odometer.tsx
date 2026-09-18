@@ -105,15 +105,13 @@ export function Odometer({
     // rolls through 9 into 0. That matters because a wheel mapped continuously
     // parks between two digits at rest — a settled "12" would show the tens
     // wheel a fifth of the way past the 1.
-    let position: number;
-    if (place === 0) {
-      position = value % 10;
-    } else {
-      const digit = Math.floor(value / magnitude) % 10;
-      const below = (value % magnitude) / magnitude; // 0 → 1 across this wheel's step
-      const carry = below > 0.9 ? (below - 0.9) * 10 : 0;
-      position = digit + carry;
-    }
+    // Higher wheels stay on their digit until the last 1.0 of this place —
+    // 399 must sit on a flat 3, not 90% of the way to 4 (which is what a
+    // "start turning at .9" rule did, and why 199/299/399 looked staggered).
+    const remainder = value % magnitude;
+    const digit = Math.floor(value / magnitude) % 10;
+    const carry = Math.max(0, remainder - (magnitude - 1));
+    const position = digit + carry;
 
     cells.push(
       <span
@@ -172,7 +170,7 @@ export function Odometer({
 
   return (
     <span
-      className={`inline-flex items-start tabular-nums transition-transform duration-300 ${
+      className={`inline-flex items-center tabular-nums transition-transform duration-300 ${
         bumped ? "scale-[1.06]" : "scale-100"
       } ${className ?? ""} ${accentClassName ?? ""}`}
       style={style}

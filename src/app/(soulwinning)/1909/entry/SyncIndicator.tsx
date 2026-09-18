@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CloudOff, Loader2, RefreshCw } from "lucide-react";
 import { subscribeToSync, syncNow, type SyncState } from "@/lib/soulwinning/sync";
 
-/** Non-blocking: it reports, it never stands between a volunteer and a save. */
+/** Non-blocking: it reports, it never stands between a member and a save. */
 export function SyncIndicator() {
   const [state, setState] = useState<SyncState | null>(null);
 

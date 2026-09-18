@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, Loader2, MapPin, MapPinOff, Plus, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, ImagePlus, Loader2, MapPin, MapPinOff, Plus, X } from "lucide-react";
 import { getCurrentCoords, saveSoulGroup, type Coords, type SoulDraft } from "@/lib/soulwinning/entries";
 import { compressPhoto } from "@/lib/soulwinning/photo";
 
@@ -200,8 +200,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   );
 }
 
-/** Optional photo. The camera opens directly on a phone; the image is
- *  compressed on-device before it joins the offline queue. */
+/** Optional photo. Take one with the camera or pick one already on the phone. */
 function PhotoField({
   photo,
   onChange,
@@ -212,10 +211,9 @@ function PhotoField({
   index: number;
 }) {
   const [isBusy, setIsBusy] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
 
-  // Derived from the blob during render rather than mirrored into state, and
-  // revoked when the blob changes — an effect that set state here would cost a
-  // second render on every photo.
   const preview = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
   useEffect(() => {
     return () => {
@@ -253,18 +251,43 @@ function PhotoField({
   }
 
   return (
-    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-4 py-3 text-sm font-medium text-[#78716c]">
-      {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-      {isBusy ? "Preparing…" : "Add a photo (optional)"}
+    <div className="grid grid-cols-2 gap-2">
       <input
+        ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
         onChange={handleFile}
         className="hidden"
-        aria-label={`Photo for soul ${index + 1}`}
+        aria-label={`Take photo for soul ${index + 1}`}
       />
-    </label>
+      <input
+        ref={uploadRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFile}
+        className="hidden"
+        aria-label={`Upload photo for soul ${index + 1}`}
+      />
+      <button
+        type="button"
+        disabled={isBusy}
+        onClick={() => cameraRef.current?.click()}
+        className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-3 py-3 text-sm font-medium text-[#78716c] disabled:opacity-50"
+      >
+        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+        Take photo
+      </button>
+      <button
+        type="button"
+        disabled={isBusy}
+        onClick={() => uploadRef.current?.click()}
+        className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-3 py-3 text-sm font-medium text-[#78716c] disabled:opacity-50"
+      >
+        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+        Upload photo
+      </button>
+    </div>
   );
 }
 

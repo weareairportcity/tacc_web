@@ -8,6 +8,7 @@ import "leaflet/dist/leaflet.css";
 import { Loader2, Search, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { fetchMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
+import { useSoulPhoto } from "@/lib/soulwinning/use-soul-photo";
 
 /**
  * Full-bleed light map in the church's colours.
@@ -20,13 +21,20 @@ import { fetchMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
  *
  * Free, no API key, no account (CARTO now wants one).
  *
- * Pins carry fellowship, member and time only — sw_map_points does not return
- * the soul's name or phone, so a shared screen cannot leak them.
+ * Clicking a pin opens the same print as the Wall: photo, name, phone, who
+ * won them, fellowship and PFCC. Admin-only.
  */
 
 const BLUE_EDGE = "#3398e1";
 const INK = "#0c0a09";
 const ACCRA: [number, number] = [5.6037, -0.187];
+
+declare global {
+  interface Window {
+    __swLeafletMap?: L.Map;
+    __swLeafletFitAll?: () => void;
+  }
+}
 
 /** An open ring rather than a filled dot: on a pale map every soul reads as its
  *  own mark, and overlapping rings stay countable instead of merging into a
@@ -59,16 +67,48 @@ function MapController({
   target: { lat: number; lng: number; zoom: number } | null;
 }) {
   const map = useMap();
+  const ids = points.map((point) => point.id).join();
 
-  // Reframes on load and again whenever a filter narrows the set, so the
-  // remaining souls always fill the view.
+  // Reframes on load and again whenever a filter changes the set — never
+  // while the viewer is just zooming — so the default view always contains
+  // every remaining pin.
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points.map((p) => [p.latitude, p.longitude])), {
-      padding: [70, 70],
-      maxZoom: 16,
-    });
-  }, [map, points]);
+    const bounds = L.latLngBounds(points.map((point) => [point.latitude, point.longitude]));
+    if (!bounds.isValid()) return;
+
+    const frameAll = () => {
+      map.invalidateSize();
+      map.fitBounds(bounds, {
+        padding: [120, 120],
+        maxZoom: 12,
+        animate: false,
+      });
+    };
+
+    frameAll();
+    const frame = requestAnimationFrame(frameAll);
+    const timer = window.setTimeout(frameAll, 350);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [map, ids]);
+
+  useEffect(() => {
+    window.__swLeafletMap = map;
+    window.__swLeafletFitAll = () => {
+      if (points.length === 0) return;
+      const bounds = L.latLngBounds(points.map((point) => [point.latitude, point.longitude]));
+      if (!bounds.isValid()) return;
+      map.invalidateSize();
+      map.fitBounds(bounds, { padding: [120, 120], maxZoom: 12, animate: true, duration: 0.9 });
+    };
+    return () => {
+      if (window.__swLeafletMap === map) delete window.__swLeafletMap;
+      delete window.__swLeafletFitAll;
+    };
+  }, [map, ids, points]);
 
   useEffect(() => {
     if (target) map.flyTo([target.lat, target.lng], target.zoom, { duration: 1.1 });
@@ -79,7 +119,13 @@ function MapController({
 
 type SearchHit = { label: string; sublabel: string; lat: number; lng: number; zoom: number };
 
-export function SoulMap({ campaignId }: { campaignId: string }) {
+export function SoulMap({
+  campaignId,
+  previewPoints,
+}: {
+  campaignId: string;
+  previewPoints?: MapPoint[];
+}) {
   const [points, setPoints] = useState<MapPoint[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -90,6 +136,11 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
   const [pfcc, setPfcc] = useState("all");
 
   useEffect(() => {
+    if (previewPoints) {
+      setPoints(previewPoints);
+      return;
+    }
+
     let cancelled = false;
     fetchMapPoints(campaignId)
       .then((rows) => !cancelled && setPoints(rows))
@@ -97,7 +148,7 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [campaignId]);
+  }, [campaignId, previewPoints]);
 
   const fellowships = useMemo(
     () => [...new Set((points ?? []).map((p) => p.fellowship))].sort(),
@@ -207,10 +258,10 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
   }
 
   return (
-    <div className="relative -mx-4 h-[calc(100svh-150px)] overflow-hidden sm:-mx-6 lg:-mx-[max(0px,calc((100vw-72rem)/2))]">
+    <div className="relative -mx-4 h-[calc(100svh-150px)] overflow-hidden sm:-mx-6 lg:-mx-[max(0px,calc((100vw-72rem)/2))]" data-soul-map>
       <MapContainer
         center={center}
-        zoom={13}
+        zoom={11}
         zoomControl={false}
         className="sw-map h-full w-full bg-[#fafaf9]"
       >
@@ -237,21 +288,7 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
           iconCreateFunction={clusterIcon}
         >
           {visible.map((point) => (
-            <Marker key={point.id} position={[point.latitude, point.longitude]} icon={pin}>
-              <Popup>
-                <span className="block text-sm font-medium text-[#0c0a09]">{point.fellowship}</span>
-                {point.pfcc && <span className="block text-xs text-[#78716c]">{point.pfcc}</span>}
-                <span className="block text-xs text-[#78716c]">Logged by {point.entrant_name}</span>
-                <span className="block text-xs text-[#a8a29e]">
-                  {new Date(point.created_at).toLocaleString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </Popup>
-            </Marker>
+            <SoulMarker key={point.id} point={point} />
           ))}
         </MarkerClusterGroup>
         <MapController points={visible} target={target} />
@@ -342,9 +379,82 @@ export function SoulMap({ campaignId }: { campaignId: string }) {
 
       <p className="pointer-events-none absolute bottom-2 left-3 z-[1000] text-[11px] text-[#78716c]">
         {visible.length.toLocaleString()} of {points.length.toLocaleString()} located
-        {fellowship !== "all" || pfcc !== "all" ? " (filtered)" : ""} · pins show fellowship, PFCC,
-        member and time only
+        {fellowship !== "all" || pfcc !== "all" ? " (filtered)" : ""}
       </p>
     </div>
+  );
+}
+
+function photoIcon(url: string) {
+  const src = url.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  return L.divIcon({
+    className: "",
+    html: `<span style="display:block;width:40px;height:40px;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 10px rgba(12,10,9,.28);background:#eceae8"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false" /></span>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -22],
+  });
+}
+
+function SoulMarker({ point }: { point: MapPoint }) {
+  const url = useSoulPhoto(point.photo_path);
+  const icon = useMemo(() => (url ? photoIcon(url) : pin), [url]);
+
+  return (
+    <Marker key={`${point.id}-${url ?? "ring"}`} position={[point.latitude, point.longitude]} icon={icon}>
+      <Popup
+        className="sw-map-popup"
+        maxWidth={240}
+        minWidth={220}
+        autoPan
+        keepInView
+        autoPanPadding={[100, 80]}
+      >
+        <MapPrint point={point} photoUrl={url} />
+      </Popup>
+    </Marker>
+  );
+}
+
+function MapPrint({ point, photoUrl }: { point: MapPoint; photoUrl: string | null }) {
+  const when = new Date(point.created_at).toLocaleString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <article data-map-popup className="w-full min-w-[220px] bg-white">
+      {photoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt="" draggable={false} className="block h-36 w-full object-cover" />
+      )}
+      <div className="px-3 pb-3.5 pt-3">
+        <h2 className="font-roobert text-[1.35rem] leading-none tracking-[-0.03em] text-[#0c0a09]">
+          {point.soul_name}
+        </h2>
+        <p className="mt-1.5 text-[13px] leading-snug text-[#57534e]">
+          Won by {point.entrant_name}
+          {point.fellowship ? ` · ${point.fellowship}` : ""}
+          {point.pfcc ? ` · ${point.pfcc}` : ""}
+        </p>
+        {point.phone && <p className="mt-1 text-[13px] tabular-nums text-[#78716c]">{point.phone}</p>}
+        <p className="mt-1 text-[11px] text-[#a8a29e]">{when}</p>
+        <div className="mt-2 flex flex-wrap gap-1">
+          {point.spoke_in_tongues && (
+            <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+              Spoke in tongues
+            </span>
+          )}
+          {point.coming_to_church && (
+            <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+              Coming to church
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }

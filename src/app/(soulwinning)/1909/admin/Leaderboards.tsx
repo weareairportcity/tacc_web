@@ -6,7 +6,7 @@ import { downloadCsv, rankingsCsv, type Dimension, type LeaderboardRow } from "@
 const TABS: { key: Dimension; label: string }[] = [
   { key: "fellowship", label: "Fellowships" },
   { key: "pfcc", label: "PFCCs" },
-  { key: "entrant", label: "Individuals" },
+  { key: "entrant", label: "Members" },
 ];
 
 interface Props {
