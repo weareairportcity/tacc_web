@@ -246,6 +246,52 @@ export async function clearCampaignEntries(campaignId: string): Promise<number> 
   return count ?? 0;
 }
 
+const DELETE_CHUNK = 100;
+
+/** Remove specific souls. Relies on admin RLS; the hall counter trigger runs on DELETE. */
+export async function deleteSoulEntries(ids: string[]): Promise<number> {
+  const unique = [...new Set(ids.filter((id) => UUID.test(id)))];
+  if (unique.length === 0) return 0;
+
+  const supabase = createClient();
+  const paths = new Set<string>();
+
+  for (let i = 0; i < unique.length; i += DELETE_CHUNK) {
+    const batch = unique.slice(i, i + DELETE_CHUNK);
+    const { data, error } = await supabase
+      .from("sw_soul_entries")
+      .select("photo_path")
+      .in("id", batch);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      if (row.photo_path) paths.add(row.photo_path);
+    }
+  }
+
+  for (let i = 0; i < unique.length; i += DELETE_CHUNK) {
+    const batch = unique.slice(i, i + DELETE_CHUNK);
+    const { error } = await supabase
+      .from("sw_soul_entries")
+      .update({ duplicate_of: null })
+      .in("duplicate_of", batch);
+    if (error) throw error;
+  }
+
+  for (let i = 0; i < unique.length; i += DELETE_CHUNK) {
+    const batch = unique.slice(i, i + DELETE_CHUNK);
+    const { error } = await supabase.from("sw_soul_entries").delete().in("id", batch);
+    if (error) throw error;
+  }
+
+  const list = [...paths];
+  for (let i = 0; i < list.length; i += DELETE_CHUNK) {
+    const { error } = await supabase.storage.from("sw-photos").remove(list.slice(i, i + DELETE_CHUNK));
+    if (error) throw error;
+  }
+
+  return unique.length;
+}
+
 /** Confirm a flagged entry as a real, separate soul, or fold it into the original. */
 export async function resolveDuplicate(id: string, status: "unique" | "merged"): Promise<void> {
   const supabase = createClient();

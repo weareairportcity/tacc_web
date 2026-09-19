@@ -99,7 +99,7 @@ export function FieldApp({ campaign }: Props) {
   );
 
   const handleSaved = useCallback(
-    async ({ names }: { names: string[] }) => {
+    async ({ names, soulsAdded }: { names: string[]; soulsAdded: number }) => {
       if (!entrant) return;
 
       const previous = myTotal;
@@ -113,6 +113,7 @@ export function FieldApp({ campaign }: Props) {
 
       setConfirm({
         names,
+        soulsAdded,
         milestone: crossed ? milestone : null,
       });
     },
@@ -220,7 +221,14 @@ export function FieldApp({ campaign }: Props) {
       {tab === "log" ? (
         <SoulEntryForm campaignId={campaign.id} entrantId={entrant.id} onSaved={handleSaved} />
       ) : (
-        <MySoulsList campaignId={campaign.id} entrantId={entrant.id} revision={myTotal} />
+        <MySoulsList
+          campaignId={campaign.id}
+          entrantId={entrant.id}
+          revision={myTotal}
+          onChanged={() => {
+            void countEntriesByEntrant(entrant.id, campaign.id).then(setMyTotal);
+          }}
+        />
       )}
 
       {isSwitching && !isAddingPerson && (

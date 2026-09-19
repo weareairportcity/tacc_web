@@ -1,16 +1,74 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { deleteLocalEntries } from "@/lib/soulwinning/entries";
 import { listEntriesByEntrant, type LocalEntry } from "@/lib/soulwinning/local-db";
+
+type Listed = {
+  key: string;
+  ids: string[];
+  name: string;
+  phone: string;
+  created_at: string;
+  photo: Blob | null;
+  bulk: boolean;
+  souls: number;
+  tongues: number;
+  church: number;
+};
+
+function collapse(rows: LocalEntry[]): Listed[] {
+  const seen = new Set<string>();
+  const out: Listed[] = [];
+
+  for (const row of rows) {
+    if (row.bulk && row.group_id) {
+      if (seen.has(row.group_id)) continue;
+      seen.add(row.group_id);
+      const members = rows.filter((item) => item.group_id === row.group_id);
+      const lead = members.find((item) => item.phone) ?? members[0];
+      out.push({
+        key: row.group_id,
+        ids: members.map((item) => item.id),
+        name: lead.soul_name,
+        phone: lead.phone,
+        created_at: lead.created_at,
+        photo: members.find((item) => item.photo)?.photo ?? null,
+        bulk: true,
+        souls: members.length,
+        tongues: members.filter((item) => item.spoke_in_tongues).length,
+        church: members.filter((item) => item.coming_to_church).length,
+      });
+      continue;
+    }
+
+    out.push({
+      key: row.id,
+      ids: [row.id],
+      name: row.soul_name,
+      phone: row.phone,
+      created_at: row.created_at,
+      photo: row.photo,
+      bulk: false,
+      souls: 1,
+      tongues: row.spoke_in_tongues ? 1 : 0,
+      church: row.coming_to_church ? 1 : 0,
+    });
+  }
+
+  return out;
+}
 
 export function MySoulsList({
   campaignId,
   entrantId,
   revision,
+  onChanged,
 }: {
   campaignId: string;
   entrantId: string;
   revision: number;
+  onChanged?: () => void;
 }) {
   const [rows, setRows] = useState<LocalEntry[] | null>(null);
 
@@ -37,54 +95,133 @@ export function MySoulsList({
     );
   }
 
+  const listed = collapse(rows);
+
   return (
     <div className="space-y-2">
-      {rows.map((row) => (
-        <SoulRow key={row.id} row={row} />
+      {listed.map((item) => (
+        <SoulRow
+          key={item.key}
+          item={item}
+          onDeleted={(ids) => {
+            setRows((prev) => (prev ?? []).filter((row) => !ids.includes(row.id)));
+            onChanged?.();
+          }}
+        />
       ))}
     </div>
   );
 }
 
-function SoulRow({ row }: { row: LocalEntry }) {
-  const preview = useMemo(() => (row.photo ? URL.createObjectURL(row.photo) : null), [row.photo]);
+function SoulRow({
+  item,
+  onDeleted,
+}: {
+  item: Listed;
+  onDeleted: (ids: string[]) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const preview = useMemo(() => (item.photo ? URL.createObjectURL(item.photo) : null), [item.photo]);
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
 
-  const time = new Date(row.created_at).toLocaleString("en-GB", {
+  const time = new Date(item.created_at).toLocaleString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     day: "numeric",
     month: "short",
   });
 
+  const handleDelete = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteLocalEntries(item.ids);
+      onDeleted(item.ids);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not delete");
+      setBusy(false);
+      setConfirming(false);
+    }
+  };
+
   return (
-    <div className="flex gap-3 rounded-lg border border-[#e8e6e5] bg-white px-3 py-3">
-      {preview ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={preview} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
-      ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#f2f2f2] text-sm font-medium text-[#a8a29e]">
-          {row.soul_name.slice(0, 1).toUpperCase()}
+    <div className="rounded-lg border border-[#e8e6e5] bg-white px-3 py-3">
+      <div className="flex gap-3">
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+        ) : (
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#f2f2f2] text-sm font-medium text-[#a8a29e]">
+            {item.name.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-[#0c0a09]">{item.name}</p>
+          <p className="text-xs text-[#a8a29e]">
+            {item.bulk ? `${item.souls} souls` : item.phone || "No phone"} · {time}
+          </p>
+          <p className="mt-1 flex flex-wrap gap-1">
+            {item.bulk && (
+              <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                group
+              </span>
+            )}
+            {item.tongues > 0 && (
+              <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                {item.bulk ? `${item.tongues} tongues` : "tongues"}
+              </span>
+            )}
+            {item.church > 0 && (
+              <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                {item.bulk ? `${item.church} church` : "church"}
+              </span>
+            )}
+          </p>
+        </div>
+        {!confirming && (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="self-start text-xs font-medium text-[#f54911]"
+          >
+            Delete
+          </button>
+        )}
+      </div>
+      {confirming && (
+        <div className="mt-3 space-y-2 rounded-md bg-[#f54911]/5 p-3">
+          <p className="text-sm text-[#0c0a09]">
+            {item.bulk
+              ? `Remove all ${item.souls} souls in this group?`
+              : `Remove ${item.name}?`}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+              className="rounded-lg border border-[#e8e6e5] bg-white py-2 text-sm font-medium text-[#78716c]"
+            >
+              Keep
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleDelete()}
+              className="rounded-lg bg-[#f54911] py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              {busy ? "Removing…" : "Delete"}
+            </button>
+          </div>
         </div>
       )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-[#0c0a09]">{row.soul_name}</p>
-        <p className="text-xs text-[#a8a29e]">
-          {row.phone || "No phone"} · {time}
-        </p>
-        <p className="mt-1 flex flex-wrap gap-1">
-          {row.spoke_in_tongues && (
-            <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">tongues</span>
-          )}
-          {row.coming_to_church && (
-            <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">church</span>
-          )}
-        </p>
-      </div>
+      {error && <p className="mt-2 text-xs text-[#f54911]">{error}</p>}
     </div>
   );
 }

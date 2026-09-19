@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2, MapPin, MapPinOff, Plus, X } from "lucide-react";
-import { getCurrentCoords, saveSoulGroup, type Coords, type SoulDraft } from "@/lib/soulwinning/entries";
+import { getCurrentCoords, saveGroupParty, saveSoulGroup, type Coords, type SoulDraft } from "@/lib/soulwinning/entries";
 import { compressPhoto } from "@/lib/soulwinning/photo";
 
 const emptySoul = (): SoulDraft => ({
@@ -16,11 +16,18 @@ const emptySoul = (): SoulDraft => ({
 interface Props {
   campaignId: string;
   entrantId: string;
-  onSaved: (detail: { names: string[] }) => void;
+  onSaved: (detail: { names: string[]; soulsAdded: number }) => void;
 }
 
 export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   const [souls, setSouls] = useState<SoulDraft[]>([emptySoul()]);
+  const [mode, setMode] = useState<"person" | "group">("person");
+  const [groupName, setGroupName] = useState("");
+  const [groupContact, setGroupContact] = useState("");
+  const [groupSouls, setGroupSouls] = useState("");
+  const [groupTongues, setGroupTongues] = useState("0");
+  const [groupChurch, setGroupChurch] = useState("0");
+  const [groupPhoto, setGroupPhoto] = useState<Blob | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [locationState, setLocationState] = useState<"pending" | "found" | "unavailable">("pending");
 
@@ -51,21 +58,57 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
     setSouls((prev) => prev.map((soul, i) => (i === index ? { ...soul, ...patch } : soul)));
 
   const named = souls.filter((soul) => soul.soul_name.trim());
+  const partySize = Math.max(0, Math.floor(Number(groupSouls)));
+  const tonguesN = Math.max(0, Math.floor(Number(groupTongues)));
+  const churchN = Math.max(0, Math.floor(Number(groupChurch)));
+  const groupReady =
+    groupName.trim().length > 0 &&
+    partySize >= 1 &&
+    partySize <= 500 &&
+    tonguesN <= partySize &&
+    churchN <= partySize;
 
-  const canSave = named.length > 0 && coords !== null && !isSaving;
-  // The override never fires on its own: it only appears once a fix has
-  // actually failed, and only a deliberate tap on it saves without one.
-  const canSaveWithoutLocation = named.length > 0 && locationState === "unavailable" && !isSaving;
+  const canSavePerson = named.length > 0 && coords !== null && !isSaving;
+  const canSaveGroup = groupReady && coords !== null && !isSaving;
+  const canSave = mode === "person" ? canSavePerson : canSaveGroup;
+  const canSavePersonWithoutLocation = named.length > 0 && locationState === "unavailable" && !isSaving;
+  const canSaveGroupWithoutLocation = groupReady && locationState === "unavailable" && !isSaving;
+  const canSaveWithoutLocation =
+    mode === "person" ? canSavePersonWithoutLocation : canSaveGroupWithoutLocation;
 
   const save = async (withCoords: Coords) => {
     setIsSaving(true);
-    await saveSoulGroup({ campaignId, entrantId, souls: named, coords: withCoords });
+    if (mode === "group") {
+      const entries = await saveGroupParty({
+        campaignId,
+        entrantId,
+        draft: {
+          name: groupName,
+          contact: groupContact,
+          souls: partySize,
+          tongues: tonguesN,
+          church: churchN,
+          photo: groupPhoto,
+        },
+        coords: withCoords,
+      });
+      setGroupName("");
+      setGroupContact("");
+      setGroupSouls("");
+      setGroupTongues("0");
+      setGroupChurch("0");
+      setGroupPhoto(null);
+      setIsSaving(false);
+      onSaved({ names: [groupName.trim()], soulsAdded: entries.length });
+    } else {
+      await saveSoulGroup({ campaignId, entrantId, souls: named, coords: withCoords });
+      const names = named.map((soul) => soul.soul_name.trim());
+      setSouls([emptySoul()]);
+      setIsSaving(false);
+      onSaved({ names, soulsAdded: names.length });
+    }
 
-    setSouls([emptySoul()]);
-    setIsSaving(false);
-    onSaved({ names: named.map((soul) => soul.soul_name.trim()) });
-
-    requestLocation(); // next group, next fix
+    requestLocation();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,67 +124,162 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {souls.map((soul, index) => (
-        <div key={index} className="space-y-3 rounded-lg border border-[#e8e6e5] bg-white p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a8a29e]">
-              Soul {index + 1}
-            </span>
-            {souls.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setSouls((prev) => prev.filter((_, i) => i !== index))}
-                className="text-[#a8a29e]"
-                aria-label={`Remove soul ${index + 1}`}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f2f2f2] p-1">
+        <button
+          type="button"
+          onClick={() => setMode("person")}
+          className={`rounded-md py-2 text-sm font-medium ${
+            mode === "person" ? "bg-white text-[#0c0a09] shadow-sm" : "text-[#78716c]"
+          }`}
+        >
+          One person
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("group")}
+          className={`rounded-md py-2 text-sm font-medium ${
+            mode === "group" ? "bg-white text-[#0c0a09] shadow-sm" : "text-[#78716c]"
+          }`}
+        >
+          A group
+        </button>
+      </div>
 
+      {mode === "person" ? (
+        <>
+          {souls.map((soul, index) => (
+            <div key={index} className="space-y-3 rounded-lg border border-[#e8e6e5] bg-white p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a8a29e]">
+                  Soul {index + 1}
+                </span>
+                {souls.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSouls((prev) => prev.filter((_, i) => i !== index))}
+                    className="text-[#a8a29e]"
+                    aria-label={`Remove soul ${index + 1}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              <input
+                value={soul.soul_name}
+                onChange={(e) => update(index, { soul_name: e.target.value })}
+                placeholder="Name"
+                autoFocus={index === souls.length - 1 && index > 0}
+                className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none placeholder:text-[#d6d3d1] focus:border-[#3ba6f1]"
+              />
+              <input
+                value={soul.phone}
+                onChange={(e) => update(index, { phone: e.target.value })}
+                placeholder="Phone"
+                type="tel"
+                inputMode="tel"
+                className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none placeholder:text-[#d6d3d1] focus:border-[#3ba6f1]"
+              />
+
+              <PhotoField
+                photo={soul.photo}
+                onChange={(photo) => update(index, { photo })}
+                index={index}
+              />
+
+              <Toggle
+                label="Spoke in tongues"
+                checked={soul.spoke_in_tongues}
+                onChange={(value) => update(index, { spoke_in_tongues: value })}
+              />
+              <Toggle
+                label="Coming to church"
+                checked={soul.coming_to_church}
+                onChange={(value) => update(index, { coming_to_church: value })}
+              />
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setSouls((prev) => [...prev, emptySoul()])}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-4 py-3 text-sm font-medium text-[#78716c]"
+          >
+            <Plus className="h-4 w-4" />
+            Add another soul
+          </button>
+        </>
+      ) : (
+        <div className="space-y-3 rounded-lg border border-[#e8e6e5] bg-white p-4">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#a8a29e]">
+            Group
+          </p>
+          <p className="text-sm text-[#78716c]">
+            One class, one crowd, one altar call. The number of souls won is what moves the
+            hall.
+          </p>
           <input
-            value={soul.soul_name}
-            onChange={(e) => update(index, { soul_name: e.target.value })}
-            placeholder="Name"
-            autoFocus={index === souls.length - 1 && index > 0}
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            placeholder="Group name"
             className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none placeholder:text-[#d6d3d1] focus:border-[#3ba6f1]"
           />
           <input
-            value={soul.phone}
-            onChange={(e) => update(index, { phone: e.target.value })}
-            placeholder="Phone"
+            value={groupContact}
+            onChange={(e) => setGroupContact(e.target.value)}
+            placeholder="Contact (phone)"
             type="tel"
             inputMode="tel"
             className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none placeholder:text-[#d6d3d1] focus:border-[#3ba6f1]"
           />
-
-          <PhotoField
-            photo={soul.photo}
-            onChange={(photo) => update(index, { photo })}
-            index={index}
-          />
-
-          <Toggle
-            label="Spoke in tongues"
-            checked={soul.spoke_in_tongues}
-            onChange={(value) => update(index, { spoke_in_tongues: value })}
-          />
-          <Toggle
-            label="Coming to church"
-            checked={soul.coming_to_church}
-            onChange={(value) => update(index, { coming_to_church: value })}
-          />
+          <label className="block space-y-1" htmlFor="sw-group-souls">
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a8a29e]">
+              Souls won
+            </span>
+            <input
+              id="sw-group-souls"
+              value={groupSouls}
+              onChange={(e) => setGroupSouls(e.target.value)}
+              inputMode="numeric"
+              type="number"
+              min={1}
+              max={500}
+              className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none focus:border-[#3ba6f1]"
+            />
+          </label>
+          <label className="block space-y-1" htmlFor="sw-group-tongues">
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a8a29e]">
+              Spoke in tongues
+            </span>
+            <input
+              id="sw-group-tongues"
+              value={groupTongues}
+              onChange={(e) => setGroupTongues(e.target.value)}
+              inputMode="numeric"
+              type="number"
+              min={0}
+              max={500}
+              className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none focus:border-[#3ba6f1]"
+            />
+          </label>
+          <label className="block space-y-1" htmlFor="sw-group-church">
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a8a29e]">
+              Coming to church
+            </span>
+            <input
+              id="sw-group-church"
+              value={groupChurch}
+              onChange={(e) => setGroupChurch(e.target.value)}
+              inputMode="numeric"
+              type="number"
+              min={0}
+              max={500}
+              className="w-full rounded-lg border border-[#e8e6e5] px-4 py-3.5 text-base text-[#0c0a09] outline-none focus:border-[#3ba6f1]"
+            />
+          </label>
+          <PhotoField photo={groupPhoto} onChange={setGroupPhoto} index={0} />
         </div>
-      ))}
-
-      <button
-        type="button"
-        onClick={() => setSouls((prev) => [...prev, emptySoul()])}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-4 py-3 text-sm font-medium text-[#78716c]"
-      >
-        <Plus className="h-4 w-4" />
-        Add another soul
-      </button>
+      )}
 
       <div className="flex items-center gap-1.5 text-xs text-[#a8a29e]">
         {locationState === "pending" && (
@@ -180,7 +318,11 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
             disabled={!canSaveWithoutLocation}
             className="w-full rounded-lg border border-[#f54911] px-4 py-3 text-sm font-semibold text-[#f54911] disabled:opacity-40"
           >
-            {named.length > 1 ? `Save ${named.length} souls without location` : "Save without location"}
+            {mode === "group"
+              ? `Save ${partySize || "group"} without location`
+              : named.length > 1
+                ? `Save ${named.length} souls without location`
+                : "Save without location"}
           </button>
         </div>
       )}
@@ -192,9 +334,13 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
       >
         {coords === null
           ? "Waiting for location…"
-          : named.length > 1
-            ? `Save ${named.length} souls`
-            : "Save soul"}
+          : mode === "group"
+            ? partySize > 1
+              ? `Save ${partySize} souls`
+              : "Save group"
+            : named.length > 1
+              ? `Save ${named.length} souls`
+              : "Save soul"}
       </button>
     </form>
   );

@@ -49,6 +49,10 @@ export type LocalEntry = {
   attempts: number;
   next_attempt_at: number;
   last_error: string | null;
+  /** How many souls this row represents. 1 for a person; N for each row in a group save. */
+  party_size?: number;
+  /** True when this row is part of a class / crowd save, not one-by-one names. */
+  bulk?: boolean;
 };
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -182,6 +186,19 @@ export async function markSynced(store: string, ids: string[]): Promise<void> {
       };
     }
 
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteRecords(store: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await openDb();
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(store, "readwrite");
+    const objectStore = tx.objectStore(store);
+    for (const id of ids) objectStore.delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });

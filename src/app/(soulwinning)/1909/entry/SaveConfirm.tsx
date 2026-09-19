@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 export type SaveConfirmDetail = {
   names: string[];
+  soulsAdded?: number;
   milestone: number | null;
 };
 
@@ -24,13 +25,14 @@ function scallopPath(lobes = 12, radius = 40, amp = 5.5, cx = 50, cy = 50) {
 }
 
 export function SaveConfirm({ detail, onDone }: Props) {
-  const count = detail.names.length;
+  const count = detail.soulsAdded ?? detail.names.length;
   const first = detail.names[0] ?? "This soul";
-  const body = detail.milestone
-    ? `You've led ${detail.milestone} souls today.`
-    : count > 1
+  const body =
+    count > 1
       ? `${count} souls have been added.`
-      : `${first} has been added.`;
+      : detail.milestone
+        ? `You've led ${detail.milestone} souls today.`
+        : `${first} has been added.`;
 
   useEffect(() => {
     const timer = window.setTimeout(onDone, 4200);

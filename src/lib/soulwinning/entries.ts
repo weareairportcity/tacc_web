@@ -1,5 +1,12 @@
+import { getDeviceId } from "./entrants";
 import { newId } from "./id";
-import { ENTRIES_STORE, putRecord, type LocalEntry } from "./local-db";
+import {
+  ENTRIES_STORE,
+  deleteRecords,
+  getRecord,
+  putRecord,
+  type LocalEntry,
+} from "./local-db";
 import { photoPath } from "./photo";
 
 export type Coords = { latitude: number; longitude: number } | null;
@@ -104,4 +111,113 @@ export async function saveSoulGroup(args: {
   }
 
   return entries;
+}
+
+const MAX_PARTY = 500;
+
+export type GroupDraft = {
+  name: string;
+  contact: string;
+  souls: number;
+  tongues: number;
+  church: number;
+  photo: Blob | null;
+};
+
+/**
+ * One class, one crowd, one altar call: N counted souls from a single form.
+ * Each soul is its own row so the existing hall counter still moves by N,
+ * without a schema change on event day. Only the first row carries the
+ * contact number (so the duplicate net does not swallow the rest) and the
+ * optional photo.
+ */
+export async function saveGroupParty(args: {
+  campaignId: string;
+  entrantId: string;
+  draft: GroupDraft;
+  coords: Coords;
+}): Promise<LocalEntry[]> {
+  const souls = Math.min(MAX_PARTY, Math.max(1, Math.floor(args.draft.souls)));
+  const tongues = Math.min(souls, Math.max(0, Math.floor(args.draft.tongues)));
+  const church = Math.min(souls, Math.max(0, Math.floor(args.draft.church)));
+  const name = args.draft.name.trim();
+  const contact = args.draft.contact.trim();
+  const groupId = newId();
+  const now = new Date().toISOString();
+
+  const entries: LocalEntry[] = [];
+  for (let index = 0; index < souls; index += 1) {
+    const id = newId();
+    const isLead = index === 0;
+    entries.push({
+      id,
+      campaign_id: args.campaignId,
+      entrant_id: args.entrantId,
+      group_id: groupId,
+      soul_name: name,
+      phone: isLead ? contact : "",
+      latitude: args.coords?.latitude ?? null,
+      longitude: args.coords?.longitude ?? null,
+      spoke_in_tongues: index < tongues,
+      coming_to_church: index < church,
+      created_at: now,
+      photo: isLead ? args.draft.photo : null,
+      photo_path: isLead && args.draft.photo ? photoPath(args.campaignId, id) : null,
+      photo_uploaded: false,
+      synced: 0,
+      attempts: 0,
+      next_attempt_at: 0,
+      last_error: null,
+      party_size: souls,
+      bulk: true,
+    });
+  }
+
+  for (const entry of entries) {
+    await putRecord(ENTRIES_STORE, entry);
+  }
+
+  return entries;
+}
+
+const SHOT_CAMPAIGN_ID = "shot-campaign";
+
+/**
+ * Removes souls from this phone, and from the hall if they have already
+ * synced. Only rows this device originally logged can be removed on the
+ * server — the API checks device_id so one phone cannot wipe another's work.
+ */
+export async function deleteLocalEntries(ids: string[]): Promise<void> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return;
+
+  const found: LocalEntry[] = [];
+  for (const id of unique) {
+    const row = await getRecord<LocalEntry>(ENTRIES_STORE, id);
+    if (row) found.push(row);
+  }
+  if (found.length === 0) return;
+
+  const live = found.filter(
+    (row) => row.synced === 1 && row.campaign_id !== SHOT_CAMPAIGN_ID
+  );
+  if (live.length > 0) {
+    const response = await fetch("/api/soulwinning/entries/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ids: live.map((row) => row.id),
+        device_id: getDeviceId(),
+      }),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? "Could not delete from the hall");
+    }
+  }
+
+  await deleteRecords(
+    ENTRIES_STORE,
+    found.map((row) => row.id)
+  );
 }
