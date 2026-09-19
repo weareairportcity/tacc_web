@@ -7,7 +7,8 @@ import {
   putRecord,
   type LocalEntry,
 } from "./local-db";
-import { photoPath } from "./photo";
+import { photoPath, toStoredPhoto, photoAsBlob } from "./photo";
+import { createClient } from "@/utils/supabase/client";
 
 export type Coords = { latitude: number; longitude: number } | null;
 
@@ -113,13 +114,43 @@ export async function saveSoulGroup(args: {
   return entries;
 }
 
-/** IndexedDB on some iPhones rejects a photo blob. Keep the soul anyway. */
+/** IndexedDB on some iPhones rejects a photo Blob. Keep the picture if we can. */
 async function putEntry(entry: LocalEntry): Promise<void> {
-  try {
+  if (!entry.photo) {
     await putRecord(ENTRIES_STORE, entry);
-  } catch (error) {
-    if (!entry.photo) throw error;
-    await putRecord(ENTRIES_STORE, { ...entry, photo: null, photo_path: null });
+    return;
+  }
+
+  const bytes = entry.photo instanceof Blob ? await toStoredPhoto(entry.photo) : entry.photo;
+  const buffered: LocalEntry = { ...entry, photo: bytes };
+
+  try {
+    await putRecord(ENTRIES_STORE, buffered);
+    return;
+  } catch {
+    // Quota, or a WebView that still will not clone the image.
+  }
+
+  if (entry.photo_path && typeof navigator !== "undefined" && navigator.onLine) {
+    const uploaded = await uploadPhotoNow(entry.photo_path, bytes);
+    if (uploaded) {
+      await putRecord(ENTRIES_STORE, { ...entry, photo: null, photo_uploaded: true });
+      return;
+    }
+  }
+
+  await putRecord(ENTRIES_STORE, { ...entry, photo: null, photo_path: null });
+}
+
+async function uploadPhotoNow(path: string, photo: ArrayBuffer): Promise<boolean> {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase.storage
+      .from("sw-photos")
+      .upload(path, photoAsBlob(photo), { contentType: "image/jpeg", upsert: false });
+    return !error || /exists|duplicate/i.test(error.message);
+  } catch {
+    return false;
   }
 }
 

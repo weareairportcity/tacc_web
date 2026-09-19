@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteLocalEntries, fetchRemoteEntries } from "@/lib/soulwinning/entries";
 import { listEntriesByEntrant, type LocalEntry } from "@/lib/soulwinning/local-db";
+import { photoAsBlob } from "@/lib/soulwinning/photo";
 import { SoulDetail } from "../SoulDetail";
 
 type Listed = {
@@ -47,7 +48,7 @@ function collapse(rows: LocalEntry[]): Listed[] {
         name: lead.soul_name,
         phone: lead.phone,
         created_at: lead.created_at,
-        photo: members.find((item) => item.photo)?.photo ?? null,
+        photo: localPhoto(members.find((item) => item.photo) ?? lead),
         photoPath: members.find((item) => item.photo_path)?.photo_path ?? null,
         latitude: lead.latitude,
         longitude: lead.longitude,
@@ -71,7 +72,7 @@ function toListed(row: LocalEntry): Listed {
     name: row.soul_name,
     phone: row.phone,
     created_at: row.created_at,
-    photo: row.photo,
+    photo: localPhoto(row),
     photoPath: row.photo_path,
     latitude: row.latitude,
     longitude: row.longitude,
@@ -80,6 +81,10 @@ function toListed(row: LocalEntry): Listed {
     tongues: row.spoke_in_tongues ? 1 : 0,
     church: row.coming_to_church ? 1 : 0,
   };
+}
+
+function localPhoto(row: LocalEntry): Blob | null {
+  return row.photo ? photoAsBlob(row.photo) : null;
 }
 
 export function MySoulsList({

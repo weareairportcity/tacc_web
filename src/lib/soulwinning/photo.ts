@@ -36,6 +36,17 @@ export async function compressPhoto(file: File | Blob): Promise<Blob> {
   return blob ?? file;
 }
 
+export type StoredPhoto = Blob | ArrayBuffer;
+
+/** Safari IndexedDB often rejects a Blob/File clone. Bytes clone cleanly. */
+export async function toStoredPhoto(photo: Blob): Promise<ArrayBuffer> {
+  return photo.arrayBuffer();
+}
+
+export function photoAsBlob(photo: StoredPhoto): Blob {
+  return photo instanceof Blob ? photo : new Blob([photo], { type: "image/jpeg" });
+}
+
 /** Object path inside the sw-photos bucket. Campaign-scoped for easy cleanup. */
 export function photoPath(campaignId: string, entryId: string): string {
   return `${campaignId}/${entryId}.jpg`;

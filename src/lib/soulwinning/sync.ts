@@ -19,6 +19,7 @@ import {
   type LocalEntrant,
   type LocalEntry,
 } from "./local-db";
+import { photoAsBlob } from "./photo";
 
 const CHUNK_SIZE = 50;
 const POLL_INTERVAL_MS = 15_000;
@@ -156,7 +157,7 @@ async function uploadPhoto(entry: LocalEntry): Promise<boolean> {
   // anon does not have — every field photo would 403 and the hall would 404.
   const { error } = await supabase.storage
     .from("sw-photos")
-    .upload(entry.photo_path, entry.photo, { contentType: "image/jpeg", upsert: false });
+    .upload(entry.photo_path, photoAsBlob(entry.photo), { contentType: "image/jpeg", upsert: false });
 
   // "already exists" means a previous attempt actually succeeded.
   const ok = !error || /exists|duplicate/i.test(error.message);
