@@ -126,10 +126,18 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   useEffect(() => {
     const recent = counts?.recent_photo_paths ?? [];
     const last = counts?.last_photo_path;
-    if (marqueePaths.length > 0) return;
-    const paths = last && !recent.includes(last) ? [last, ...recent] : recent;
-    if (paths.length) setMarqueePaths(paths.filter(Boolean).slice(0, 36));
-  }, [counts?.recent_photo_paths, counts?.last_photo_path, marqueePaths.length]);
+    const incoming = [last, ...recent].filter((path): path is string => Boolean(path));
+    // A soul without a photo can null last_photo_path. Keep whatever the
+    // hall already has instead of wiping the marquee on that update.
+    if (incoming.length === 0) return;
+    setMarqueePaths((prev) => {
+      const merged = [...incoming, ...prev.filter((path) => !incoming.includes(path))].slice(0, 36);
+      if (merged.length === prev.length && merged.every((path, index) => path === prev[index])) {
+        return prev;
+      }
+      return merged;
+    });
+  }, [counts?.recent_photo_paths, counts?.last_photo_path]);
 
   // Release everything waiting in one go, so a group of souls crosses the
   // screen together and the burst is sized to how many arrived.
@@ -194,7 +202,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   }, []);
 
   return (
-    <main className="sw-counter fixed inset-0 z-10 flex w-full flex-col overflow-hidden overscroll-none bg-[#fafaf9] px-[clamp(1rem,2.2vw,2rem)] py-[clamp(0.55rem,1.6vh,1.5rem)] font-sans">
+    <main className="sw-counter relative isolate flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#fafaf9] px-[clamp(1rem,2.2vw,2rem)] py-[clamp(0.55rem,1.6vh,1.5rem)] font-sans">
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
       <PhotoMarquee paths={marqueePaths} />
 

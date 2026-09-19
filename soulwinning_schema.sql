@@ -322,7 +322,9 @@ BEGIN
       pending_duplicates = c.pending_duplicates + d_pending,
       last_soul_name = coalesce(new_name, c.last_soul_name),
       last_entry_id = coalesce(new_entry, c.last_entry_id),
-      last_photo_path = CASE WHEN new_entry IS NULL THEN c.last_photo_path ELSE new_photo END,
+      -- A soul without a photo must not wipe the marquee. Keep the last
+      -- picture until a newer one actually lands.
+      last_photo_path = CASE WHEN new_photo IS NULL THEN c.last_photo_path ELSE new_photo END,
       -- newest first, capped at 10
       recent_names = CASE
         WHEN new_name IS NULL THEN c.recent_names
@@ -352,12 +354,32 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  INSERT INTO public.sw_counts AS c (campaign_id, total_souls, tongues_count, church_count, pending_duplicates, updated_at)
+  INSERT INTO public.sw_counts AS c (
+    campaign_id, total_souls, tongues_count, church_count, pending_duplicates,
+    last_photo_path, recent_photo_paths, updated_at
+  )
   SELECT p_campaign_id,
          count(*) FILTER (WHERE counted),
          count(*) FILTER (WHERE counted AND spoke_in_tongues),
          count(*) FILTER (WHERE counted AND coming_to_church),
          count(*) FILTER (WHERE duplicate_status = 'pending'),
+         (
+           SELECT e.photo_path
+           FROM public.sw_soul_entries e
+           WHERE e.campaign_id = p_campaign_id AND e.counted AND e.photo_path IS NOT NULL
+           ORDER BY e.created_at DESC
+           LIMIT 1
+         ),
+         coalesce((
+           SELECT array_agg(p.photo_path)
+           FROM (
+             SELECT e.photo_path
+             FROM public.sw_soul_entries e
+             WHERE e.campaign_id = p_campaign_id AND e.counted AND e.photo_path IS NOT NULL
+             ORDER BY e.created_at DESC
+             LIMIT 36
+           ) p
+         ), '{}'),
          now()
   FROM public.sw_soul_entries WHERE campaign_id = p_campaign_id
   ON CONFLICT (campaign_id) DO UPDATE SET
@@ -365,6 +387,8 @@ AS $$
     tongues_count = excluded.tongues_count,
     church_count = excluded.church_count,
     pending_duplicates = excluded.pending_duplicates,
+    last_photo_path = excluded.last_photo_path,
+    recent_photo_paths = excluded.recent_photo_paths,
     updated_at = now();
 $$;
 

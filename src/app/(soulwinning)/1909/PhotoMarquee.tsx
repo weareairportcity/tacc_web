@@ -19,7 +19,7 @@ export function PhotoMarquee({ paths }: { paths: string[] }) {
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      className="pointer-events-none absolute inset-0 z-[1] overflow-hidden"
       data-photo-marquee
       aria-hidden
     >

@@ -1,3 +1,4 @@
+import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
 import type { SwCampaign, SwCounts } from "./types";
 
@@ -29,5 +30,30 @@ export async function getCampaignCounts(campaignId: string): Promise<SwCounts | 
     .eq("campaign_id", campaignId)
     .maybeSingle();
 
-  return (data as SwCounts) ?? null;
+  const counts = (data as SwCounts) ?? null;
+  if (!counts) return null;
+
+  // A later soul logged without a picture used to wipe last_photo_path, and
+  // some live triggers never filled recent_photo_paths. Rebuild from entries
+  // (paths only) so the hall marquee comes back after a refresh.
+  if ((counts.recent_photo_paths?.length ?? 0) === 0 && !counts.last_photo_path) {
+    const { data: photos } = await supabaseAdmin
+      .from("sw_soul_entries")
+      .select("photo_path")
+      .eq("campaign_id", campaignId)
+      .eq("counted", true)
+      .not("photo_path", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(36);
+
+    const paths = (photos ?? [])
+      .map((row) => row.photo_path)
+      .filter((path): path is string => Boolean(path));
+
+    if (paths.length) {
+      return { ...counts, last_photo_path: paths[0], recent_photo_paths: paths };
+    }
+  }
+
+  return counts;
 }
