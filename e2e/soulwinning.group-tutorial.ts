@@ -5,11 +5,13 @@ import { execSync } from "node:child_process";
 
 const ORIGIN = "http://127.0.0.1:3000";
 const OUT_DIR = path.join(process.cwd(), "docs/soulwinning");
-const TOTAL = 8;
+const VIDEO_DIR = path.join(OUT_DIR, ".group-tutorial-video");
+const TOTAL = 5;
 
 test.describe.configure({ timeout: 240_000 });
 
 test("group tutorial video", async ({ browser }) => {
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
   const context = await browser.newContext({
     baseURL: ORIGIN,
     viewport: { width: 390, height: 844 },
@@ -18,8 +20,9 @@ test("group tutorial video", async ({ browser }) => {
     hasTouch: true,
     reducedMotion: "no-preference",
     geolocation: { latitude: 5.6037, longitude: -0.187 },
+    permissions: ["geolocation"],
     recordVideo: {
-      dir: OUT_DIR,
+      dir: VIDEO_DIR,
       size: { width: 390, height: 844 },
     },
   });
@@ -32,47 +35,69 @@ test("group tutorial video", async ({ browser }) => {
     };
     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
   });
+  await page.addInitScript(async () => {
+    const deviceId = crypto.randomUUID();
+    const entrantId = crypto.randomUUID();
+    localStorage.setItem("sw1909:device_id", deviceId);
+    localStorage.setItem("sw1909:active_entrant_id", entrantId);
+
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("sw1909", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("entrants")) {
+          const store = db.createObjectStore("entrants", { keyPath: "id" });
+          store.createIndex("synced", "synced");
+        }
+        if (!db.objectStoreNames.contains("entries")) {
+          const store = db.createObjectStore("entries", { keyPath: "id" });
+          store.createIndex("synced", "synced");
+          store.createIndex("entrant_id", "entrant_id");
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("entrants", "readwrite");
+        tx.objectStore("entrants").put({
+          id: entrantId,
+          device_id: deviceId,
+          name: "Ama Boateng",
+          fellowship: "Qadash",
+          phone: "0244123456",
+          pfcc: "PFCC 2",
+          login_code: "K7MP",
+          created_at: new Date().toISOString(),
+          synced: 0,
+          attempts: 0,
+          next_attempt_at: 0,
+        });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  });
 
   await page.goto("/1909/shots/entry");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });
-  await expect(page.getByRole("button", { name: "Start new" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "A group" })).toBeVisible();
   await installHud(page);
 
   await title(page, "How to log a group", "1909 · members · one class, one save");
-  await hold(page, 4200);
+  await hold(page, 3800);
   await page.evaluate(() => window.__swTutorial?.hideTitle());
   await hold(page, 800);
 
-  await say(page, 1, "Start as you always do. This is still you, a member.");
-  await highlight(page, page.getByRole("button", { name: "Start new" }), { circle: true });
-  await hold(page, 2200);
-  await page.getByRole("button", { name: "Start new" }).click();
-  await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
-
-  await typeInto(page, page.getByRole("textbox", { name: "Name" }), "Ama Boateng");
-  await page.getByLabel("Fellowship").selectOption("Qadash");
-  await typeInto(page, page.getByRole("textbox", { name: "Number" }), "0244123456");
-  await page.getByRole("button", { name: "Start logging" }).click();
-
-  await expect(page.getByRole("heading", { name: "Turn on location" })).toBeVisible();
-  await say(page, 2, "Location still pins the class to the map.");
-  await highlight(page, page.getByRole("button", { name: "Enable location" }), { circle: true });
-  await hold(page, 2400);
-  await context.grantPermissions(["geolocation"], { origin: ORIGIN });
-  await page.getByRole("button", { name: "Enable location" }).click();
-  await expect(page.getByRole("button", { name: "A group" })).toBeVisible();
-  await hold(page, 700);
-
-  await say(page, 3, "Won a whole class or crowd? Switch to A group.");
+  await say(page, 1, "Won a whole class or crowd? Switch to A group.");
   await highlight(page, page.getByRole("button", { name: "A group" }), { circle: true });
   await hold(page, 2800);
   await page.getByRole("button", { name: "A group" }).click();
   await expect(page.getByPlaceholder("Group name")).toBeVisible();
   await hold(page, 600);
 
-  await say(page, 4, "Name the group, then one contact for follow-up.");
+  await say(page, 2, "Name the group, then one contact for follow-up.");
   await highlight(page, page.getByPlaceholder("Group name"), { circle: true });
   await hold(page, 1800);
   await typeInto(page, page.getByPlaceholder("Group name"), "Tema SHS class");
@@ -82,7 +107,7 @@ test("group tutorial video", async ({ browser }) => {
   await typeInto(page, page.getByPlaceholder("Contact (phone)"), "0244001122");
   await hold(page, 800);
 
-  await say(page, 5, "Souls won is what the hall counts. Then how many tongues, how many church.");
+  await say(page, 3, "Souls won is what the hall counts. Then how many tongues, how many church.");
   const soulsWon = page.getByLabel("Souls won");
   await soulsWon.scrollIntoViewIfNeeded();
   await highlight(page, soulsWon, { circle: true });
@@ -103,48 +128,33 @@ test("group tutorial video", async ({ browser }) => {
   const save = page.getByRole("button", { name: "Save 12 souls" });
   await save.scrollIntoViewIfNeeded();
   await expect(save).toBeEnabled({ timeout: 12_000 });
-  await say(page, 6, "Save once. Twelve souls move the hall.");
+  await say(page, 4, "Save once. Twelve souls move the hall.");
   await highlight(page, save, { circle: true });
   await hold(page, 2800);
   await save.click();
   await expect(page.getByRole("heading", { name: "Successful" })).toBeVisible();
   await expect(page.getByText("12 souls have been added.")).toBeVisible();
   await page.evaluate(() => window.__swTutorial?.clearHighlight());
-  await hold(page, 2000);
+  await hold(page, 2200);
 
-  await say(page, 7, "My souls keeps the class as one group, not twelve names.");
-  await highlight(page, page.getByRole("button", { name: /My souls/ }), { circle: true });
-  await hold(page, 2400);
-  await page.getByRole("button", { name: /My souls/ }).click();
-  await expect(page.getByText("Tema SHS class")).toBeVisible();
-  await expect(page.getByText("12 souls")).toBeVisible();
-  await highlight(page, page.getByText("Tema SHS class").first(), { circle: true });
-  await hold(page, 3600);
-
-  await page.evaluate(() => window.__swTutorial?.clearHighlight());
-  await say(page, 8, "Wrong count? Delete the group from here.");
-  await highlight(page, page.getByRole("button", { name: "Delete" }).first(), { circle: true });
+  await say(page, 5, "That's it. One save for the whole class.");
   await hold(page, 2800);
-  await page.getByRole("button", { name: "Delete" }).first().click();
-  await expect(page.getByText("Remove all 12 souls in this group?")).toBeVisible();
-  await highlight(page, page.getByText("Remove all 12 souls in this group?"), { circle: true });
-  await hold(page, 3200);
 
   await page.evaluate(() => window.__swTutorial?.clear());
   await hold(page, 900);
   await context.close();
 
   const recorded = fs
-    .readdirSync(OUT_DIR)
+    .readdirSync(VIDEO_DIR)
     .filter((name) => name.endsWith(".webm"))
-    .map((name) => ({ name, t: fs.statSync(path.join(OUT_DIR, name)).mtimeMs }))
+    .map((name) => ({ name, t: fs.statSync(path.join(VIDEO_DIR, name)).mtimeMs }))
     .sort((a, b) => b.t - a.t)[0];
 
   if (!recorded) throw new Error("Playwright did not write a video");
 
   const webm = path.join(OUT_DIR, "group-tutorial.webm");
   const mp4 = path.join(OUT_DIR, "group-tutorial.mp4");
-  fs.renameSync(path.join(OUT_DIR, recorded.name), webm);
+  fs.copyFileSync(path.join(VIDEO_DIR, recorded.name), webm);
 
   try {
     execSync(
