@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { deleteSoulEntries } from "@/lib/soulwinning/admin";
+import { SoulDetail, type SoulDetailData } from "../SoulDetail";
 import { ClearEntriesControl } from "./ClearEntriesControl";
 
 /** Every entry, searchable — the raw record behind all the aggregates. */
@@ -19,6 +20,8 @@ export type Entry = {
   photo_path: string | null;
   created_at: string;
   group_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   sw_entrants: { name: string; fellowship: string | null; pfcc: string | null } | null;
 };
 
@@ -106,6 +109,7 @@ export function EntriesTable({
   const [limit, setLimit] = useState(PAGE);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [open, setOpen] = useState<Listed | null>(null);
 
   useEffect(() => {
     if (previewRows) {
@@ -121,7 +125,7 @@ export function EntriesTable({
       const { data, error: queryError } = await supabase
         .from("sw_soul_entries")
         .select(
-          "id, soul_name, phone, spoke_in_tongues, coming_to_church, duplicate_status, counted, photo_path, created_at, group_id, sw_entrants(name, fellowship, pfcc)"
+          "id, soul_name, phone, spoke_in_tongues, coming_to_church, duplicate_status, counted, photo_path, created_at, group_id, latitude, longitude, sw_entrants(name, fellowship, pfcc)"
         )
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false })
@@ -207,7 +211,11 @@ export function EntriesTable({
             {listed.slice(0, limit).map((item) => {
               const row = item.row;
               return (
-              <tr key={item.key} className="border-b border-[#f2f2f2] last:border-0">
+              <tr
+                key={item.key}
+                className="cursor-pointer border-b border-[#f2f2f2] last:border-0 hover:bg-[#fafaf9]"
+                onClick={() => setOpen(item)}
+              >
                 <td className="py-2.5 text-[#0c0a09]">
                   {row.soul_name}
                   {item.bulk && (
@@ -234,19 +242,32 @@ export function EntriesTable({
                 </td>
                 <td className="py-2.5">
                   <span className="flex flex-wrap gap-1">
-                    {item.tongues > 0 && (
-                      <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
-                        {item.bulk ? `${item.tongues} tongues` : "tongues"}
-                      </span>
-                    )}
-                    {item.church > 0 && (
-                      <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
-                        {item.bulk ? `${item.church} church` : "church"}
-                      </span>
+                    {item.bulk ? (
+                      <>
+                        <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                          {item.tongues} tongues
+                        </span>
+                        <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                          {item.church} church
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {item.tongues > 0 && (
+                          <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                            tongues
+                          </span>
+                        )}
+                        {item.church > 0 && (
+                          <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                            church
+                          </span>
+                        )}
+                      </>
                     )}
                   </span>
                 </td>
-                <td className="py-2.5 text-right">
+                <td className="py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
                   {pendingKey === item.key ? (
                     <span className="inline-flex gap-2">
                       <button
@@ -305,6 +326,32 @@ export function EntriesTable({
           }}
         />
       )}
+
+      {open && (
+        <SoulDetail
+          data={toDetail(open)}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </section>
   );
+}
+
+function toDetail(item: Listed): SoulDetailData {
+  const row = item.row;
+  return {
+    name: row.soul_name,
+    phone: row.phone,
+    photoPath: row.photo_path,
+    createdAt: row.created_at,
+    bulk: item.bulk,
+    souls: item.souls,
+    tongues: item.tongues,
+    church: item.church,
+    member: row.sw_entrants?.name,
+    fellowship: row.sw_entrants?.fellowship,
+    pfcc: row.sw_entrants?.pfcc,
+    latitude: row.latitude,
+    longitude: row.longitude,
+  };
 }

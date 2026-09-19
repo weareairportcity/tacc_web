@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteLocalEntries } from "@/lib/soulwinning/entries";
 import { listEntriesByEntrant, type LocalEntry } from "@/lib/soulwinning/local-db";
+import { SoulDetail } from "../SoulDetail";
 
 type Listed = {
   key: string;
@@ -11,6 +12,9 @@ type Listed = {
   phone: string;
   created_at: string;
   photo: Blob | null;
+  photoPath: string | null;
+  latitude: number | null;
+  longitude: number | null;
   bulk: boolean;
   souls: number;
   tongues: number;
@@ -34,6 +38,9 @@ function collapse(rows: LocalEntry[]): Listed[] {
         phone: lead.phone,
         created_at: lead.created_at,
         photo: members.find((item) => item.photo)?.photo ?? null,
+        photoPath: members.find((item) => item.photo_path)?.photo_path ?? null,
+        latitude: lead.latitude,
+        longitude: lead.longitude,
         bulk: true,
         souls: members.length,
         tongues: members.filter((item) => item.spoke_in_tongues).length,
@@ -49,6 +56,9 @@ function collapse(rows: LocalEntry[]): Listed[] {
       phone: row.phone,
       created_at: row.created_at,
       photo: row.photo,
+      photoPath: row.photo_path,
+      latitude: row.latitude,
+      longitude: row.longitude,
       bulk: false,
       souls: 1,
       tongues: row.spoke_in_tongues ? 1 : 0,
@@ -71,6 +81,17 @@ export function MySoulsList({
   onChanged?: () => void;
 }) {
   const [rows, setRows] = useState<LocalEntry[] | null>(null);
+  const [open, setOpen] = useState<Listed | null>(null);
+  const openPreview = useMemo(
+    () => (open?.photo ? URL.createObjectURL(open.photo) : null),
+    [open?.photo]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (openPreview) URL.revokeObjectURL(openPreview);
+    };
+  }, [openPreview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,21 +124,43 @@ export function MySoulsList({
         <SoulRow
           key={item.key}
           item={item}
+          onOpen={() => setOpen(item)}
           onDeleted={(ids) => {
             setRows((prev) => (prev ?? []).filter((row) => !ids.includes(row.id)));
+            if (open && ids.some((id) => open.ids.includes(id))) setOpen(null);
             onChanged?.();
           }}
         />
       ))}
+      {open && (
+        <SoulDetail
+          data={{
+            name: open.name,
+            phone: open.phone || null,
+            photoUrl: openPreview,
+            photoPath: open.photoPath,
+            createdAt: open.created_at,
+            bulk: open.bulk,
+            souls: open.souls,
+            tongues: open.tongues,
+            church: open.church,
+            latitude: open.latitude,
+            longitude: open.longitude,
+          }}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </div>
   );
 }
 
 function SoulRow({
   item,
+  onOpen,
   onDeleted,
 }: {
   item: Listed;
+  onOpen: () => void;
   onDeleted: (ids: string[]) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -153,37 +196,47 @@ function SoulRow({
   return (
     <div className="rounded-lg border border-[#e8e6e5] bg-white px-3 py-3">
       <div className="flex gap-3">
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
-        ) : (
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#f2f2f2] text-sm font-medium text-[#a8a29e]">
-            {item.name.slice(0, 1).toUpperCase()}
+        <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 gap-3 text-left">
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#f2f2f2] text-sm font-medium text-[#a8a29e]">
+              {item.name.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-[#0c0a09]">{item.name}</p>
+            <p className="text-xs text-[#a8a29e]">
+              {item.bulk ? `${item.souls} souls` : item.phone || "No phone"} · {time}
+            </p>
+            <p className="mt-1 flex flex-wrap gap-1">
+              {item.bulk ? (
+                <>
+                  <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                    {item.tongues} tongues
+                  </span>
+                  <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                    {item.church} church
+                  </span>
+                </>
+              ) : (
+                <>
+                  {item.tongues > 0 && (
+                    <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                      tongues
+                    </span>
+                  )}
+                  {item.church > 0 && (
+                    <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                      church
+                    </span>
+                  )}
+                </>
+              )}
+            </p>
           </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[#0c0a09]">{item.name}</p>
-          <p className="text-xs text-[#a8a29e]">
-            {item.bulk ? `${item.souls} souls` : item.phone || "No phone"} · {time}
-          </p>
-          <p className="mt-1 flex flex-wrap gap-1">
-            {item.bulk && (
-              <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
-                group
-              </span>
-            )}
-            {item.tongues > 0 && (
-              <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
-                {item.bulk ? `${item.tongues} tongues` : "tongues"}
-              </span>
-            )}
-            {item.church > 0 && (
-              <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
-                {item.bulk ? `${item.church} church` : "church"}
-              </span>
-            )}
-          </p>
-        </div>
+        </button>
         {!confirming && (
           <button
             type="button"

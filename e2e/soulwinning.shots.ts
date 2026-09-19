@@ -237,6 +237,19 @@ test.describe("soul winning shots", () => {
     await page.getByRole("button", { name: /My souls/ }).click();
     await expect(page.getByText("Ama Serwaa")).toBeVisible();
     await expect(page.getByText(/0209988776/)).toBeVisible();
+    await page.getByRole("button", { name: /Ama Serwaa/ }).click();
+    await expect(page.locator("[data-soul-detail]").getByRole("heading", { name: "Ama Serwaa" })).toBeVisible();
+  });
+
+  test("admin entries open a detail card", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/1909/shots/admin?view=entries");
+    const name = page.locator("tbody tr td").first();
+    await expect(name).toBeVisible();
+    const label = (await name.innerText()).replace(/photo|review/g, "").trim();
+    await page.locator("tbody tr").first().click();
+    await expect(page.locator("[data-soul-detail]").getByRole("heading", { name: label })).toBeVisible();
+    await expect(page.locator("[data-soul-detail]").getByText("Spoke in tongues")).toBeVisible();
   });
 
   test("big screen with floating cards", async ({ page }) => {
