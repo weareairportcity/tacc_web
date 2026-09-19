@@ -17,9 +17,11 @@ import type { SwCampaign } from "./types";
 
 export type ExportRow = {
   soul_name: string;
+  kind: "Person" | "Group";
+  souls: number;
   phone: string | null;
-  spoke_in_tongues: boolean;
-  coming_to_church: boolean;
+  tongues: number;
+  church: number;
   entrant_name: string;
   fellowship: string;
   pfcc: string;
@@ -27,6 +29,8 @@ export type ExportRow = {
 
 const HEADERS = [
   "Name",
+  "Type",
+  "Souls",
   "Phone",
   "Spoke in tongues",
   "Coming to church",
@@ -37,41 +41,99 @@ const HEADERS = [
 
 const cells = (row: ExportRow) => [
   row.soul_name,
+  row.kind,
+  String(row.souls),
   row.phone ?? "",
-  row.spoke_in_tongues ? "Yes" : "No",
-  row.coming_to_church ? "Yes" : "No",
+  row.kind === "Group" ? String(row.tongues) : row.tongues ? "Yes" : "No",
+  row.kind === "Group" ? String(row.church) : row.church ? "Yes" : "No",
   row.entrant_name,
   row.fellowship,
   row.pfcc,
 ];
 
+const soulCount = (rows: ExportRow[]) => rows.reduce((sum, row) => sum + row.souls, 0);
+const tongueCount = (rows: ExportRow[]) => rows.reduce((sum, row) => sum + row.tongues, 0);
+const churchCount = (rows: ExportRow[]) => rows.reduce((sum, row) => sum + row.church, 0);
+
+type Raw = {
+  soul_name: string;
+  phone: string | null;
+  spoke_in_tongues: boolean;
+  coming_to_church: boolean;
+  created_at: string;
+  group_id: string | null;
+  sw_entrants: { name: string; fellowship: string | null; pfcc: string | null } | null;
+};
+
+function toRow(row: Raw, extra?: { souls: number; tongues: number; church: number; kind: "Person" | "Group" }): ExportRow {
+  return {
+    soul_name: row.soul_name,
+    kind: extra?.kind ?? "Person",
+    souls: extra?.souls ?? 1,
+    phone: row.phone,
+    tongues: extra?.tongues ?? (row.spoke_in_tongues ? 1 : 0),
+    church: extra?.church ?? (row.coming_to_church ? 1 : 0),
+    entrant_name: row.sw_entrants?.name ?? "—",
+    fellowship: row.sw_entrants?.fellowship?.trim() || "Not given",
+    pfcc: row.sw_entrants?.pfcc?.trim() || "Not given",
+  };
+}
+
+/** One class is one row — 75 identical names must not become 75 lines. */
+function collapseExportRows(rows: Raw[]): ExportRow[] {
+  const grouped = new Map<string, Raw[]>();
+  const singles: Raw[] = [];
+
+  for (const row of rows) {
+    if (row.group_id) {
+      const list = grouped.get(row.group_id) ?? [];
+      list.push(row);
+      grouped.set(row.group_id, list);
+    } else {
+      singles.push(row);
+    }
+  }
+
+  const collapsed: { row: ExportRow; created_at: string }[] = singles.map((row) => ({
+    row: toRow(row),
+    created_at: row.created_at,
+  }));
+
+  for (const members of grouped.values()) {
+    const sameName = members.every((item) => item.soul_name === members[0].soul_name);
+    if (sameName && members.length > 1) {
+      const lead = members.find((item) => item.phone) ?? members[0];
+      collapsed.push({
+        row: toRow(lead, {
+          kind: "Group",
+          souls: members.length,
+          tongues: members.filter((item) => item.spoke_in_tongues).length,
+          church: members.filter((item) => item.coming_to_church).length,
+        }),
+        created_at: lead.created_at,
+      });
+    } else {
+      for (const member of members) collapsed.push({ row: toRow(member), created_at: member.created_at });
+    }
+  }
+
+  return collapsed.sort((a, b) => a.created_at.localeCompare(b.created_at)).map((item) => item.row);
+}
+
 export async function fetchExportRows(campaignId: string): Promise<ExportRow[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("sw_soul_entries")
-    .select("soul_name, phone, spoke_in_tongues, coming_to_church, created_at, sw_entrants(name, fellowship, pfcc)")
+    .select(
+      "soul_name, phone, spoke_in_tongues, coming_to_church, created_at, group_id, sw_entrants(name, fellowship, pfcc)"
+    )
     .eq("campaign_id", campaignId)
     .eq("counted", true)
-    .order("created_at");
+    .order("created_at")
+    .limit(5000);
   if (error) throw error;
 
-  type Raw = {
-    soul_name: string;
-    phone: string | null;
-    spoke_in_tongues: boolean;
-    coming_to_church: boolean;
-    sw_entrants: { name: string; fellowship: string | null; pfcc: string | null } | null;
-  };
-
-  return ((data as unknown as Raw[]) ?? []).map((row) => ({
-    soul_name: row.soul_name,
-    phone: row.phone,
-    spoke_in_tongues: row.spoke_in_tongues,
-    coming_to_church: row.coming_to_church,
-    entrant_name: row.sw_entrants?.name ?? "—",
-    fellowship: row.sw_entrants?.fellowship?.trim() || "Not given",
-    pfcc: row.sw_entrants?.pfcc?.trim() || "Not given",
-  }));
+  return collapseExportRows((data as unknown as Raw[]) ?? []);
 }
 
 function csv(rows: ExportRow[]): string {
@@ -81,25 +143,27 @@ function csv(rows: ExportRow[]): string {
 
 function pdf(rows: ExportRow[], campaign: SwCampaign, title: string): Blob {
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const souls = soulCount(rows);
 
   doc.setFontSize(16);
   doc.text(title, 40, 44);
   doc.setFontSize(10);
   doc.setTextColor(120);
   doc.text(
-    `${campaign.name} · ${rows.length} ${rows.length === 1 ? "soul" : "souls"} · ${new Date().toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })}`,
+    `${campaign.name} · ${souls.toLocaleString()} ${souls === 1 ? "soul" : "souls"} · ${new Date().toLocaleDateString(
+      "en-GB",
+      {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }
+    )}`,
     40,
     62
   );
 
-  const tongues = rows.filter((row) => row.spoke_in_tongues).length;
-  const church = rows.filter((row) => row.coming_to_church).length;
   doc.text(
-    `Spoke in tongues: ${tongues} · Coming to church: ${church}`,
+    `Spoke in tongues: ${tongueCount(rows)} · Coming to church: ${churchCount(rows)}`,
     40,
     78
   );

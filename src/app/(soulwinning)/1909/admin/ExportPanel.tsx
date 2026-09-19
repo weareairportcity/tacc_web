@@ -44,11 +44,19 @@ export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
 
   const count = useMemo(() => {
     if (!rows) return 0;
-    if (parsedScope.kind === "all") return rows.length;
-    return rows.filter(
-      (row) => (parsedScope.kind === "fellowship" ? row.fellowship : row.pfcc) === parsedScope.value
-    ).length;
+    const scoped =
+      parsedScope.kind === "all"
+        ? rows
+        : rows.filter(
+            (row) => (parsedScope.kind === "fellowship" ? row.fellowship : row.pfcc) === parsedScope.value
+          );
+    return scoped.reduce((sum, row) => sum + row.souls, 0);
   }, [rows, parsedScope]);
+
+  const totalSouls = useMemo(
+    () => (rows ?? []).reduce((sum, row) => sum + row.souls, 0),
+    [rows]
+  );
 
   if (error) return <p className="text-sm text-[#f54911]">{error}</p>;
   if (!rows) {
@@ -76,7 +84,7 @@ export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
               onChange={(event) => setScope(event.target.value)}
               className="w-full rounded-lg border border-[#e8e6e5] px-3 py-2.5 text-sm outline-none focus:border-[#3ba6f1]"
             >
-              <option value="all">All souls ({rows.length})</option>
+              <option value="all">All souls ({totalSouls})</option>
               <optgroup label="Fellowships">
                 {fellowships.map((value) => (
                   <option key={value} value={`fellowship:${value}`}>
