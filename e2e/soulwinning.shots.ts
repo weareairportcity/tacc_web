@@ -341,4 +341,37 @@ test.describe("soul winning shots", () => {
     await page.waitForTimeout(800);
     await snap(page, "12-admin-map");
   });
+
+  test("zoomed-out clusters count group souls, not pins", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/1909/shots/admin?view=map");
+    await expect(page.getByPlaceholder("Search a soul, a member, or a place")).toBeVisible({
+      timeout: 45_000,
+    });
+    await page.waitForSelector(".leaflet-container");
+    await page.waitForTimeout(2000);
+    await page.evaluate(() => {
+      window.__swLeafletMap?.setZoom(8);
+    });
+    await page.waitForTimeout(900);
+
+    const footer = await page.locator("text=/located/").textContent();
+    const located = Number(footer?.match(/([\d,]+) of/)?.[1]?.replace(/,/g, "") ?? 0);
+    expect(located).toBeGreaterThanOrEqual(75);
+
+    const visibleSouls = await page.evaluate(() => {
+      let sum = 0;
+      for (const el of document.querySelectorAll(".sw-map-cluster")) {
+        sum += Number(el.textContent?.replace(/[^\d]/g, "") || 0);
+      }
+      for (const el of document.querySelectorAll(".leaflet-marker-icon:not(.sw-map-cluster)")) {
+        const badge = [...el.querySelectorAll("span")].find((span) => /^\d+$/.test(span.textContent?.trim() ?? ""));
+        const n = Number(badge?.textContent?.trim() || "");
+        sum += n > 1 ? n : 1;
+      }
+      return sum;
+    });
+
+    expect(visibleSouls).toBe(located);
+  });
 });

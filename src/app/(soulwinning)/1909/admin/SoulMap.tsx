@@ -54,11 +54,18 @@ function ringIcon(count = 1) {
   });
 }
 
-function clusterIcon(cluster: { getChildCount: () => number }) {
-  const count = cluster.getChildCount();
+type ClusterLeaf = { options: { souls?: number } };
+
+/** A group is one pin with N souls — clusters must add those N, not the pin. */
+function clusterSoulCount(cluster: { getAllChildMarkers: () => ClusterLeaf[] }) {
+  return cluster.getAllChildMarkers().reduce((sum, marker) => sum + (marker.options.souls ?? 1), 0);
+}
+
+function clusterIcon(cluster: { getAllChildMarkers: () => ClusterLeaf[] }) {
+  const count = clusterSoulCount(cluster);
   const size = count < 10 ? 32 : count < 100 ? 40 : 52;
   return L.divIcon({
-    className: "",
+    className: "sw-map-cluster",
     html: `<div style="display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:rgba(255,255,255,.72);border:2px solid ${BLUE_EDGE};color:${INK};font:500 ${
       count < 100 ? 13 : 12
     }px/1 ui-sans-serif,system-ui;box-shadow:0 1px 4px rgba(12,10,9,.18)">${count}</div>`,
@@ -221,9 +228,10 @@ export function SoulMap({
       for (const member of (members as { name: string }[]) ?? []) {
         const theirs = (points ?? []).filter((p) => p.entrant_name === member.name);
         if (theirs.length === 0) continue;
+        const theirsCount = theirs.reduce((sum, point) => sum + (point.souls ?? 1), 0);
         results.push({
           label: member.name,
-          sublabel: `Member · ${theirs.length} ${theirs.length === 1 ? "soul" : "souls"}`,
+          sublabel: `Member · ${theirsCount} ${theirsCount === 1 ? "soul" : "souls"}`,
           lat: theirs.reduce((sum, p) => sum + p.latitude, 0) / theirs.length,
           lng: theirs.reduce((sum, p) => sum + p.longitude, 0) / theirs.length,
           zoom: 16,
@@ -414,7 +422,12 @@ function SoulMarker({ point }: { point: MapPoint }) {
   );
 
   return (
-    <Marker key={`${point.id}-${url ?? "ring"}-${count}`} position={[point.latitude, point.longitude]} icon={icon}>
+    <Marker
+      key={`${point.id}-${url ?? "ring"}-${count}`}
+      position={[point.latitude, point.longitude]}
+      icon={icon}
+      {...({ souls: count } as L.MarkerOptions)}
+    >
       <Popup
         className="sw-map-popup"
         maxWidth={240}

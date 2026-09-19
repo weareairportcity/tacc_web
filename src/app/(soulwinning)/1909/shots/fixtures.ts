@@ -205,23 +205,47 @@ export const SHOT_HOURLY: HourlyRow[] = (() => {
   });
 })();
 
-export const SHOT_MAP_POINTS: MapPoint[] = COUNTED.filter((_, index) => index % 10 !== 7).map((entry, index) => {
-  const [latitude, longitude] = coordFor(index);
-  return {
-    id: entry.id,
+export const SHOT_MAP_POINTS: MapPoint[] = (() => {
+  const points: MapPoint[] = COUNTED.filter((_, index) => index % 10 !== 7).map((entry, index) => {
+    const [latitude, longitude] = coordFor(index);
+    return {
+      id: entry.id,
+      latitude,
+      longitude,
+      soul_name: entry.soul_name,
+      phone: entry.phone,
+      photo_path: entry.photo_path,
+      fellowship: entry.sw_entrants.fellowship,
+      pfcc: entry.sw_entrants.pfcc,
+      entrant_name: entry.sw_entrants.name,
+      spoke_in_tongues: entry.spoke_in_tongues,
+      coming_to_church: entry.coming_to_church,
+      created_at: entry.created_at,
+    };
+  });
+
+  const [latitude, longitude] = coordFor(0);
+  points.push({
+    id: "shot-group-tema",
     latitude,
     longitude,
-    soul_name: entry.soul_name,
-    phone: entry.phone,
-    photo_path: entry.photo_path,
-    fellowship: entry.sw_entrants.fellowship,
-    pfcc: entry.sw_entrants.pfcc,
-    entrant_name: entry.sw_entrants.name,
-    spoke_in_tongues: entry.spoke_in_tongues,
-    coming_to_church: entry.coming_to_church,
-    created_at: entry.created_at,
-  };
-});
+    soul_name: "Tema class",
+    phone: "0244100000",
+    photo_path: SAMPLE_PHOTOS[0],
+    fellowship: "Children's Church",
+    pfcc: "Children's Church",
+    entrant_name: "Ama Boateng",
+    spoke_in_tongues: true,
+    coming_to_church: true,
+    created_at: "2026-09-19T11:00:00.000Z",
+    group_id: "shot-group-tema",
+    souls: 75,
+    tongues: 40,
+    church: 28,
+  });
+
+  return points;
+})();
 
 const last = COUNTED[COUNTED.length - 1];
 

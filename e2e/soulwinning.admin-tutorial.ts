@@ -569,7 +569,7 @@ async function clickMapPin(page: Page) {
           const x = r.left + r.width / 2;
           const y = r.top + r.height / 2;
           return {
-            cluster: el.classList.contains("marker-cluster"),
+            cluster: el.classList.contains("marker-cluster") || el.classList.contains("sw-map-cluster"),
             x,
             y,
             dist: Math.hypot(x - cx, y - cy),
