@@ -57,6 +57,18 @@ const TICK_MS = 700;
 const MAX_QUEUE = 18;
 const MAX_ON_SCREEN = 14;
 const LONGEST_FLOAT_MS = 16_000;
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function mergePhotoPaths(incoming: string[], prev: string[]) {
+  const merged = [...incoming, ...prev.filter((path) => !incoming.includes(path))]
+    .filter(Boolean)
+    .slice(0, 36);
+  if (merged.length === prev.length && merged.every((path, index) => path === prev[index])) {
+    return prev;
+  }
+  return merged;
+}
 
 
 interface Props {
@@ -78,18 +90,13 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
 
   const pushMarqueePhoto = (path: string | null | undefined) => {
     if (!path) return;
-    setMarqueePaths((prev) => {
-      if (prev[0] === path) return prev;
-      return [path, ...prev.filter((item) => item !== path)].slice(0, 36);
-    });
+    setMarqueePaths((prev) => mergePhotoPaths([path], prev));
   };
 
   const isProjector = variant === "projector";
   const [marqueePaths, setMarqueePaths] = useState<string[]>(() => {
     const recent = initialCounts?.recent_photo_paths ?? [];
-    const last = initialCounts?.last_photo_path;
-    const paths = last && !recent.includes(last) ? [last, ...recent] : recent;
-    return paths.filter(Boolean).slice(0, 36);
+    return recent.filter(Boolean).slice(0, 36);
   });
   const total = (counts?.total_souls ?? 0) + shotBump.total;
   const tongues = (counts?.tongues_count ?? 0) + shotBump.tongues;
@@ -103,11 +110,6 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   // caps the size only once the number gets long — short totals keep the big
   // display size untouched.
   const perCharVw = Math.round(150 / Math.max(String(total).length + 1, 2));
-  // Odometer glyphs are 1.3em tall. Cap by svh so a single-digit total cannot
-  // eat the goal bar and tallies — those stay in a shrink-0 footer below.
-  const totalFontSize = isProjector
-    ? `max(2.75rem, min(44vw, ${perCharVw}vw, 32svh, 16rem))`
-    : `max(2.25rem, min(40vw, ${perCharVw}vw, 28svh, 11rem))`;
 
   useEffect(() => {
     const entryId = counts?.last_entry_id ?? null;
@@ -124,20 +126,35 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   }, [counts?.last_entry_id, counts?.last_soul_name, counts?.last_photo_path]);
 
   useEffect(() => {
-    const recent = counts?.recent_photo_paths ?? [];
-    const last = counts?.last_photo_path;
-    const incoming = [last, ...recent].filter((path): path is string => Boolean(path));
-    // A soul without a photo can null last_photo_path. Keep whatever the
-    // hall already has instead of wiping the marquee on that update.
-    if (incoming.length === 0) return;
-    setMarqueePaths((prev) => {
-      const merged = [...incoming, ...prev.filter((path) => !incoming.includes(path))].slice(0, 36);
-      if (merged.length === prev.length && merged.every((path, index) => path === prev[index])) {
-        return prev;
+    const recent = (counts?.recent_photo_paths ?? []).filter(Boolean);
+    if (recent.length === 0) return;
+    setMarqueePaths((prev) => mergePhotoPaths(recent, prev));
+  }, [counts?.recent_photo_paths]);
+
+  useEffect(() => {
+    if (!UUID.test(campaign.id)) return;
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/soulwinning/marquee?campaign=${campaign.id}`);
+        if (!response.ok) return;
+        const payload = (await response.json()) as { paths?: string[] };
+        const paths = (payload.paths ?? []).filter(Boolean);
+        if (cancelled || paths.length === 0) return;
+        setMarqueePaths((prev) => mergePhotoPaths(paths, prev));
+      } catch {
+        // Keep whatever is already on the marquee.
       }
-      return merged;
-    });
-  }, [counts?.recent_photo_paths, counts?.last_photo_path]);
+    };
+
+    void load();
+    const timer = setInterval(() => void load(), 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [campaign.id]);
 
   // Release everything waiting in one go, so a group of souls crosses the
   // screen together and the burst is sized to how many arrived.
@@ -265,12 +282,15 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
       </header>
 
       {/* The count fills whatever is left; goal + tallies stay pinned below. */}
-      <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center">
+      <div
+        className="sw-count-band relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center"
+        data-projector={isProjector ? "true" : "false"}
+        style={{ ["--sw-per-char" as string]: `${perCharVw}vw` }}
+      >
         <Odometer
           value={total}
           digitWidth="0.62em"
-          className="font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09] [text-shadow:0_0_28px_#fafaf9,0_0_8px_#fafaf9]"
-          style={{ fontSize: totalFontSize }}
+          className="sw-total-num font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09] [text-shadow:0_0_28px_#fafaf9,0_0_8px_#fafaf9]"
         />
       </div>
 

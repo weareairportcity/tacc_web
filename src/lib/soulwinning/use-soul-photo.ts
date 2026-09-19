@@ -96,14 +96,14 @@ export function useResolvedPhotoUrls(paths: string[]) {
   const [urls, setUrls] = useState<string[]>([]);
 
   useEffect(() => {
-    if (unique.length === 0) {
-      setUrls([]);
-      return;
-    }
+    if (unique.length === 0) return;
 
     let cancelled = false;
     void Promise.all(unique.map(resolveSoulPhoto)).then((resolved) => {
-      if (!cancelled) setUrls(resolved.filter((item): item is string => Boolean(item)));
+      const next = resolved.filter((item): item is string => Boolean(item));
+      // Never blank the marquee because a later soul had no photo, or a
+      // signed URL failed once — keep the last pictures that actually loaded.
+      if (!cancelled && next.length) setUrls(next);
     });
 
     return () => {
