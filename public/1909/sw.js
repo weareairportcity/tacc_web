@@ -5,7 +5,7 @@
 // theairportcitychurch.com are never routed through it and can never be served
 // a stale response from this cache.
 
-const CACHE = "sw1909-v3";
+const CACHE = "sw1909-v4";
 const SHELL = ["/1909/entry", "/1909/manifest.json", "/logo.png"];
 
 self.addEventListener("install", (event) => {

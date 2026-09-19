@@ -29,6 +29,8 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   const [groupChurch, setGroupChurch] = useState("0");
   const [groupPhoto, setGroupPhoto] = useState<Blob | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [locationState, setLocationState] = useState<"pending" | "found" | "unavailable">("pending");
 
   // Every soul carries where it happened, so the group's fix is taken up front
@@ -61,64 +63,93 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   const partySize = Math.max(0, Math.floor(Number(groupSouls)));
   const tonguesN = Math.max(0, Math.floor(Number(groupTongues)));
   const churchN = Math.max(0, Math.floor(Number(groupChurch)));
-  const groupReady =
-    groupName.trim().length > 0 &&
-    partySize >= 1 &&
-    partySize <= 500 &&
-    tonguesN <= partySize &&
-    churchN <= partySize;
 
-  const canSavePerson = named.length > 0 && coords !== null && !isSaving;
-  const canSaveGroup = groupReady && coords !== null && !isSaving;
-  const canSave = mode === "person" ? canSavePerson : canSaveGroup;
-  const canSavePersonWithoutLocation = named.length > 0 && locationState === "unavailable" && !isSaving;
-  const canSaveGroupWithoutLocation = groupReady && locationState === "unavailable" && !isSaving;
-  const canSaveWithoutLocation =
-    mode === "person" ? canSavePersonWithoutLocation : canSaveGroupWithoutLocation;
+  const formError = (): string | null => {
+    if (mode === "person") {
+      if (named.length === 0) return "Enter a name first.";
+      return null;
+    }
+    if (!groupName.trim()) return "Enter a group name.";
+    if (partySize < 1) return "Enter how many souls were won.";
+    if (partySize > 500) return "A group can be at most 500.";
+    if (tonguesN > partySize || churchN > partySize) {
+      return "Tongues and church cannot be more than souls won.";
+    }
+    return null;
+  };
 
   const save = async (withCoords: Coords) => {
     setIsSaving(true);
-    if (mode === "group") {
-      const entries = await saveGroupParty({
-        campaignId,
-        entrantId,
-        draft: {
-          name: groupName,
-          contact: groupContact,
-          souls: partySize,
-          tongues: tonguesN,
-          church: churchN,
-          photo: groupPhoto,
-        },
-        coords: withCoords,
-      });
-      setGroupName("");
-      setGroupContact("");
-      setGroupSouls("");
-      setGroupTongues("0");
-      setGroupChurch("0");
-      setGroupPhoto(null);
+    setSaveError(null);
+    try {
+      if (mode === "group") {
+        const entries = await saveGroupParty({
+          campaignId,
+          entrantId,
+          draft: {
+            name: groupName,
+            contact: groupContact,
+            souls: partySize,
+            tongues: tonguesN,
+            church: churchN,
+            photo: groupPhoto,
+          },
+          coords: withCoords,
+        });
+        const savedName = groupName.trim();
+        setGroupName("");
+        setGroupContact("");
+        setGroupSouls("");
+        setGroupTongues("0");
+        setGroupChurch("0");
+        setGroupPhoto(null);
+        onSaved({ names: [savedName], soulsAdded: entries.length });
+      } else {
+        await saveSoulGroup({ campaignId, entrantId, souls: named, coords: withCoords });
+        const names = named.map((soul) => soul.soul_name.trim());
+        setSouls([emptySoul()]);
+        onSaved({ names, soulsAdded: names.length });
+      }
+      requestLocation();
+    } catch {
+      setSaveError("Could not save on this phone. Close the app fully and try again.");
+    } finally {
       setIsSaving(false);
-      onSaved({ names: [groupName.trim()], soulsAdded: entries.length });
-    } else {
-      await saveSoulGroup({ campaignId, entrantId, souls: named, coords: withCoords });
-      const names = named.map((soul) => soul.soul_name.trim());
-      setSouls([emptySoul()]);
-      setIsSaving(false);
-      onSaved({ names, soulsAdded: names.length });
     }
-
-    requestLocation();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSave || !coords) return;
-    await save(coords);
+    if (isSaving || isLocating) return;
+    const problem = formError();
+    if (problem) {
+      setSaveError(problem);
+      return;
+    }
+    let used = coords;
+    if (used === null) {
+      setIsLocating(true);
+      setSaveError(null);
+      setLocationState("pending");
+      used = await getCurrentCoords();
+      setCoords(used);
+      setLocationState(used ? "found" : "unavailable");
+      setIsLocating(false);
+      if (!used) {
+        setSaveError("Need location to save. Stay outdoors, tap Retry, then Save again.");
+        return;
+      }
+    }
+    await save(used);
   };
 
   const handleSaveWithoutLocation = async () => {
-    if (!canSaveWithoutLocation) return;
+    if (isSaving || isLocating) return;
+    const problem = formError();
+    if (problem) {
+      setSaveError(problem);
+      return;
+    }
     await save(null);
   };
 
@@ -285,7 +316,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
         {locationState === "pending" && (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Getting location — save unlocks once it lands…
+            Getting location — save waits for it…
           </>
         )}
         {locationState === "found" && (
@@ -308,14 +339,13 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
       {locationState === "unavailable" && (
         <div className="space-y-3 rounded-lg border border-[#f54911]/30 bg-[#f54911]/5 p-4">
           <p className="text-sm text-[#0c0a09]">
-            Still no location? Tap Retry first — it usually works outdoors. If it will not fix
-            here, you can save this soul without one. The soul still counts; it just will not
-            appear on the map.
+            Location is required for the map. Tap Retry first — it usually works outdoors. Save
+            without location only if it will not fix.
           </p>
           <button
             type="button"
             onClick={handleSaveWithoutLocation}
-            disabled={!canSaveWithoutLocation}
+            disabled={isSaving || isLocating || Boolean(formError())}
             className="w-full rounded-lg border border-[#f54911] px-4 py-3 text-sm font-semibold text-[#f54911] disabled:opacity-40"
           >
             {mode === "group"
@@ -327,20 +357,28 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
         </div>
       )}
 
+      {saveError && (
+        <p className="rounded-lg border border-[#f54911]/30 bg-[#f54911]/5 px-4 py-3 text-sm text-[#f54911]" role="alert">
+          {saveError}
+        </p>
+      )}
+
       <button
         type="submit"
-        disabled={!canSave}
+        disabled={isSaving || isLocating}
         className="w-full rounded-lg bg-[#3ba6f1] px-4 py-4 text-base font-semibold text-white disabled:opacity-40"
       >
-        {coords === null
-          ? "Waiting for location…"
-          : mode === "group"
-            ? partySize > 1
-              ? `Save ${partySize} souls`
-              : "Save group"
-            : named.length > 1
-              ? `Save ${named.length} souls`
-              : "Save soul"}
+        {isLocating
+          ? "Getting location…"
+          : isSaving
+            ? "Saving…"
+            : mode === "group"
+              ? partySize > 1
+                ? `Save ${partySize} souls`
+                : "Save group"
+              : named.length > 1
+                ? `Save ${named.length} souls`
+                : "Save soul"}
       </button>
     </form>
   );
@@ -357,6 +395,7 @@ function PhotoField({
   index: number;
 }) {
   const [isBusy, setIsBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
 
@@ -371,8 +410,11 @@ function PhotoField({
     const file = event.target.files?.[0];
     if (!file) return;
     setIsBusy(true);
+    setPhotoError(null);
     try {
       onChange(await compressPhoto(file));
+    } catch {
+      setPhotoError("Could not read that photo. Try another, or save without one.");
     } finally {
       setIsBusy(false);
       event.target.value = "";
@@ -397,7 +439,9 @@ function PhotoField({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-2">
+      {photoError && <p className="text-xs text-[#f54911]">{photoError}</p>}
+      <div className="grid grid-cols-2 gap-2">
       <input
         ref={cameraRef}
         type="file"
@@ -433,6 +477,7 @@ function PhotoField({
         {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
         Upload photo
       </button>
+    </div>
     </div>
   );
 }

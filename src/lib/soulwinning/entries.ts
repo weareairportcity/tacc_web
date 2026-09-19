@@ -107,10 +107,20 @@ export async function saveSoulGroup(args: {
   });
 
   for (const entry of entries) {
-    await putRecord(ENTRIES_STORE, entry);
+    await putEntry(entry);
   }
 
   return entries;
+}
+
+/** IndexedDB on some iPhones rejects a photo blob. Keep the soul anyway. */
+async function putEntry(entry: LocalEntry): Promise<void> {
+  try {
+    await putRecord(ENTRIES_STORE, entry);
+  } catch (error) {
+    if (!entry.photo) throw error;
+    await putRecord(ENTRIES_STORE, { ...entry, photo: null, photo_path: null });
+  }
 }
 
 const MAX_PARTY = 500;
@@ -174,7 +184,7 @@ export async function saveGroupParty(args: {
   }
 
   for (const entry of entries) {
-    await putRecord(ENTRIES_STORE, entry);
+    await putEntry(entry);
   }
 
   return entries;

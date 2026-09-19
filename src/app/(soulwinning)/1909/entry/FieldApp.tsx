@@ -99,23 +99,24 @@ export function FieldApp({ campaign }: Props) {
   );
 
   const handleSaved = useCallback(
-    async ({ names, soulsAdded }: { names: string[]; soulsAdded: number }) => {
+    ({ names, soulsAdded }: { names: string[]; soulsAdded: number }) => {
+      setConfirm({ names, soulsAdded, milestone: null });
       if (!entrant) return;
 
-      const previous = myTotal;
-      const total = await countEntriesByEntrant(entrant.id, campaign.id);
-      setMyTotal(total);
-      await refreshPendingCount();
-      if (campaign.id !== "shot-campaign") void syncNow();
-
-      const crossed = Math.floor(total / MILESTONE_EVERY) > Math.floor(previous / MILESTONE_EVERY);
-      const milestone = Math.floor(total / MILESTONE_EVERY) * MILESTONE_EVERY;
-
-      setConfirm({
-        names,
-        soulsAdded,
-        milestone: crossed ? milestone : null,
-      });
+      void (async () => {
+        try {
+          const previous = myTotal;
+          const total = await countEntriesByEntrant(entrant.id, campaign.id);
+          setMyTotal(total);
+          await refreshPendingCount();
+          const crossed = Math.floor(total / MILESTONE_EVERY) > Math.floor(previous / MILESTONE_EVERY);
+          const milestone = Math.floor(total / MILESTONE_EVERY) * MILESTONE_EVERY;
+          if (crossed) setConfirm({ names, soulsAdded, milestone });
+        } catch {
+          // The soul is already on the phone — do not hide the success card.
+        }
+        if (campaign.id !== "shot-campaign") void syncNow();
+      })();
     },
     [campaign.id, entrant, myTotal]
   );

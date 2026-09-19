@@ -241,6 +241,22 @@ test.describe("soul winning shots", () => {
     await expect(page.locator("[data-soul-detail]").getByRole("heading", { name: "Ama Serwaa" })).toBeVisible();
   });
 
+  test("location prompt stays until GPS is allowed", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/1909/shots/entry");
+    await page.getByRole("button", { name: "Start new" }).click();
+    await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
+    await page.getByRole("textbox", { name: "Name" }).fill("Kofi Mensah");
+    await page.getByLabel("Fellowship").selectOption("Qadash");
+    await page.getByRole("textbox", { name: "Number" }).fill("0244123456");
+    await page.getByRole("button", { name: "Start logging" }).click();
+    await page.getByRole("button", { name: "Enable location" }).click();
+    await expect(page.getByRole("heading", { name: "Turn on location" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Continue without location" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save soul" })).toHaveCount(0);
+  });
+
   test("admin entries open a detail card", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/1909/shots/admin?view=entries");
