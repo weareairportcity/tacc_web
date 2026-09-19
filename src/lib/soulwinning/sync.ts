@@ -152,9 +152,11 @@ async function uploadPhoto(entry: LocalEntry): Promise<boolean> {
   }
 
   const supabase = createClient();
+  // Insert only. upsert:true sends x-upsert, which needs an UPDATE policy
+  // anon does not have — every field photo would 403 and the hall would 404.
   const { error } = await supabase.storage
     .from("sw-photos")
-    .upload(entry.photo_path, entry.photo, { contentType: "image/jpeg", upsert: true });
+    .upload(entry.photo_path, entry.photo, { contentType: "image/jpeg", upsert: false });
 
   // "already exists" means a previous attempt actually succeeded.
   const ok = !error || /exists|duplicate/i.test(error.message);

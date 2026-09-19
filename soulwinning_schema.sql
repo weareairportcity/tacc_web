@@ -762,6 +762,8 @@ GRANT EXECUTE ON FUNCTION public.sw_map_points(UUID) TO authenticated;
 -- not logged in, so anon may INSERT (upload) but may NOT read: the counter
 -- page gets short-lived signed URLs minted server-side instead, so no image
 -- ever has a permanent, guessable address.
+-- Do not upsert from the client: x-upsert needs UPDATE, which anon must not
+-- have, and the header 403s even on a first upload.
 -- ---------------------------------------------------------------------
 DROP POLICY IF EXISTS "Anyone can upload a soul photo" ON storage.objects;
 CREATE POLICY "Anyone can upload a soul photo"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSoulPhoto } from "@/lib/soulwinning/use-soul-photo";
+import { useResolvedPhotoUrls } from "@/lib/soulwinning/use-soul-photo";
 
 const ROW_COUNT = 4;
 const SPEEDS = ["72s", "108s", "58s", "96s"];
@@ -14,7 +14,7 @@ function rowPaths(paths: string[], row: number) {
 }
 
 export function PhotoMarquee({ paths }: { paths: string[] }) {
-  const unique = paths.filter(Boolean);
+  const unique = useResolvedPhotoUrls(paths);
   if (unique.length === 0) return null;
 
   return (
@@ -36,8 +36,8 @@ export function PhotoMarquee({ paths }: { paths: string[] }) {
                   animationDirection: row % 2 === 0 ? "normal" : "reverse",
                 }}
               >
-                {loop.map((path, index) => (
-                  <MarqueeTile key={`${row}-${index}-${path}`} path={path} />
+                {loop.map((src, index) => (
+                  <MarqueeTile key={`${row}-${index}-${src}`} src={src} />
                 ))}
               </div>
             </div>
@@ -49,8 +49,7 @@ export function PhotoMarquee({ paths }: { paths: string[] }) {
   );
 }
 
-function MarqueeTile({ path }: { path: string }) {
-  const url = useSoulPhoto(path);
+function MarqueeTile({ src }: { src: string }) {
   const [landscape, setLandscape] = useState(false);
 
   return (
@@ -58,11 +57,11 @@ function MarqueeTile({ path }: { path: string }) {
       className="relative h-[92%] shrink-0 overflow-hidden rounded-[1.15rem] bg-[#eceae8]"
       style={{ aspectRatio: landscape ? "4 / 3" : "3 / 4" }}
     >
-      {url && (
+      {src && (
         // Signed / local demo URLs — ambient, low-opacity, not a saveable card.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={url}
+          src={src}
           alt=""
           draggable={false}
           className="h-full w-full object-cover opacity-50"

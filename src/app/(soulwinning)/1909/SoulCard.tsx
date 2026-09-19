@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { resolveSoulPhoto } from "@/lib/soulwinning/use-soul-photo";
 
 /**
  * The card that drifts across the counter — a photo above, the name beneath,
@@ -43,10 +44,9 @@ export function SoulCard({ name, photoPath, scale, isProjector }: Props) {
 
         let url = photoPath;
         if (!isDirect) {
-          const response = await fetch(`/api/soulwinning/photo?path=${encodeURIComponent(photoPath)}`);
-          if (!response.ok) return;
-          const signed = (await response.json()) as { url: string };
-          url = signed.url;
+          const signed = await resolveSoulPhoto(photoPath);
+          if (!signed) return;
+          url = signed;
         }
 
         const image = new Image();
