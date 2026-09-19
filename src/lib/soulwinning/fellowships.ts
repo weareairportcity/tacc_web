@@ -1,6 +1,6 @@
 /** Canonical fellowships for 1909. PFCC is derived — members never type it. */
 
-export type Pfcc = "PFCC 1" | "PFCC 2";
+export type Pfcc = "PFCC 1" | "PFCC 2" | "Children's Church";
 
 export type Fellowship = {
   name: string;
@@ -38,10 +38,11 @@ export const FELLOWSHIPS: Fellowship[] = [
   { name: "Legal Outreach", pfcc: "PFCC 2" },
   { name: "Rhema", pfcc: "PFCC 2" },
   { name: "Strategic", pfcc: "PFCC 2" },
+  { name: "Children's Church", pfcc: "Children's Church" },
 ];
 
 export const PFCC_GROUPS: { pfcc: Pfcc; fellowships: Fellowship[] }[] = (
-  ["PFCC 1", "PFCC 2"] as const
+  ["PFCC 1", "PFCC 2", "Children's Church"] as const
 ).map((pfcc) => ({
   pfcc,
   fellowships: FELLOWSHIPS.filter((row) => row.pfcc === pfcc),

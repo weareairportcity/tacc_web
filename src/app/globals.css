@@ -275,6 +275,16 @@ html:has(.sw-counter) body {
 
 /* Soul Winning map — Esri's Light Gray canvas is left exactly as it ships. No
    filters: the pins are the only coloured thing on it, which is the point. */
+.sw-map .leaflet-div-icon.sw-map-pin {
+  background: transparent;
+  border: none;
+  overflow: visible;
+}
+
+.sw-map .leaflet-marker-icon {
+  overflow: visible;
+}
+
 .sw-map .leaflet-container {
   background: #fafaf9;
 }

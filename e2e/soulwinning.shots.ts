@@ -312,6 +312,17 @@ test.describe("soul winning shots", () => {
     await snap(page, "11-admin-duplicates");
   });
 
+  test("onboarding lists children's church under its own PFCC", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/1909/shots/entry");
+    await page.getByRole("button", { name: "Start new" }).click();
+    await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
+    const fellowship = page.getByLabel("Fellowship");
+    await expect(fellowship.locator('optgroup[label="Children\'s Church"]')).toHaveCount(1);
+    await fellowship.selectOption("Children's Church");
+    await expect(page.getByText("That puts you in Children's Church")).toBeVisible();
+  });
+
   test("map with pins and a member popup", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/1909/shots/admin?view=map");

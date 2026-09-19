@@ -62,6 +62,11 @@ export type MapPoint = {
   spoke_in_tongues?: boolean;
   coming_to_church?: boolean;
   created_at: string;
+  group_id?: string | null;
+  /** 1 for a person; N when a class was saved as one group. */
+  souls?: number;
+  tongues?: number;
+  church?: number;
 };
 
 export type Dimension = "fellowship" | "pfcc" | "entrant";
@@ -127,7 +132,7 @@ export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
   const { data, error } = await supabase
     .from("sw_soul_entries")
     .select(
-      "id, soul_name, phone, photo_path, latitude, longitude, spoke_in_tongues, coming_to_church, created_at, sw_entrants(name, fellowship, pfcc)"
+      "id, soul_name, phone, photo_path, latitude, longitude, spoke_in_tongues, coming_to_church, created_at, group_id, sw_entrants(name, fellowship, pfcc)"
     )
     .eq("campaign_id", campaignId)
     .eq("counted", true)
@@ -147,10 +152,11 @@ export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
     spoke_in_tongues: boolean;
     coming_to_church: boolean;
     created_at: string;
+    group_id: string | null;
     sw_entrants: { name: string; fellowship: string | null; pfcc: string | null } | null;
   };
 
-  return ((data as unknown as Raw[]) ?? []).map((row) => ({
+  const mapped: MapPoint[] = ((data as unknown as Raw[]) ?? []).map((row) => ({
     id: row.id,
     latitude: row.latitude,
     longitude: row.longitude,
@@ -163,7 +169,50 @@ export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
     spoke_in_tongues: row.spoke_in_tongues,
     coming_to_church: row.coming_to_church,
     created_at: row.created_at,
+    group_id: row.group_id,
+    souls: 1,
+    tongues: row.spoke_in_tongues ? 1 : 0,
+    church: row.coming_to_church ? 1 : 0,
   }));
+
+  return collapseMapPoints(mapped);
+}
+
+/** One pin per class — 75 identical GPS points must not spider into a flower. */
+export function collapseMapPoints(points: MapPoint[]): MapPoint[] {
+  const grouped = new Map<string, MapPoint[]>();
+  const singles: MapPoint[] = [];
+
+  for (const point of points) {
+    if (point.group_id) {
+      const list = grouped.get(point.group_id) ?? [];
+      list.push(point);
+      grouped.set(point.group_id, list);
+    } else {
+      singles.push(point);
+    }
+  }
+
+  const collapsed: MapPoint[] = [...singles];
+
+  for (const members of grouped.values()) {
+    const sameName = members.every((item) => item.soul_name === members[0].soul_name);
+    if (sameName && members.length > 1) {
+      const lead = members.find((item) => item.photo_path) ?? members.find((item) => item.phone) ?? members[0];
+      collapsed.push({
+        ...lead,
+        souls: members.length,
+        tongues: members.filter((item) => item.spoke_in_tongues).length,
+        church: members.filter((item) => item.coming_to_church).length,
+        spoke_in_tongues: members.some((item) => item.spoke_in_tongues),
+        coming_to_church: members.some((item) => item.coming_to_church),
+      });
+    } else {
+      collapsed.push(...members);
+    }
+  }
+
+  return collapsed;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

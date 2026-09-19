@@ -7,7 +7,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Loader2, Search, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { fetchMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
+import { fetchMapPoints, collapseMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
 import { useSoulPhoto } from "@/lib/soulwinning/use-soul-photo";
 
 /**
@@ -39,12 +39,20 @@ declare global {
 /** An open ring rather than a filled dot: on a pale map every soul reads as its
  *  own mark, and overlapping rings stay countable instead of merging into a
  *  blob the way solid pins do. */
-const pin = L.divIcon({
-  className: "",
-  html: `<span style="display:block;width:15px;height:15px;border-radius:9999px;background:rgba(255,255,255,.55);border:2px solid ${BLUE_EDGE};box-shadow:0 1px 3px rgba(12,10,9,.18)"></span>`,
-  iconSize: [15, 15],
-  iconAnchor: [7, 7],
-});
+function countBadge(count: number) {
+  if (count <= 1) return "";
+  return `<span style="position:absolute;top:-7px;right:-7px;z-index:2;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#3ba6f1;color:#fff;font:700 10px/20px ui-sans-serif,system-ui;text-align:center;border:2px solid #fff;box-sizing:border-box;box-shadow:0 1px 3px rgba(12,10,9,.28)">${count}</span>`;
+}
+
+function ringIcon(count = 1) {
+  return L.divIcon({
+    className: "sw-map-pin",
+    html: `<span style="position:relative;display:block;width:15px;height:15px"><span style="display:block;width:15px;height:15px;border-radius:9999px;background:rgba(255,255,255,.55);border:2px solid ${BLUE_EDGE};box-shadow:0 1px 3px rgba(12,10,9,.18)"></span>${countBadge(count)}</span>`,
+    iconSize: [15, 15],
+    iconAnchor: [7, 7],
+    popupAnchor: [0, -10],
+  });
+}
 
 function clusterIcon(cluster: { getChildCount: () => number }) {
   const count = cluster.getChildCount();
@@ -137,7 +145,7 @@ export function SoulMap({
 
   useEffect(() => {
     if (previewPoints) {
-      setPoints(previewPoints);
+      setPoints(collapseMapPoints(previewPoints));
       return;
     }
 
@@ -378,18 +386,19 @@ export function SoulMap({
       </div>
 
       <p className="pointer-events-none absolute bottom-2 left-3 z-[1000] text-[11px] text-[#78716c]">
-        {visible.length.toLocaleString()} of {points.length.toLocaleString()} located
+        {visible.reduce((sum, point) => sum + (point.souls ?? 1), 0).toLocaleString()} of{" "}
+        {points.reduce((sum, point) => sum + (point.souls ?? 1), 0).toLocaleString()} located
         {fellowship !== "all" || pfcc !== "all" ? " (filtered)" : ""}
       </p>
     </div>
   );
 }
 
-function photoIcon(url: string) {
+function photoIcon(url: string, count = 1) {
   const src = url.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   return L.divIcon({
-    className: "",
-    html: `<span style="display:block;width:40px;height:40px;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 10px rgba(12,10,9,.28);background:#eceae8"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false" /></span>`,
+    className: "sw-map-pin",
+    html: `<span style="position:relative;display:block;width:40px;height:40px"><span style="display:block;width:40px;height:40px;border-radius:12px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 10px rgba(12,10,9,.28);background:#eceae8"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false" /></span>${countBadge(count)}</span>`,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
     popupAnchor: [0, -22],
@@ -398,10 +407,14 @@ function photoIcon(url: string) {
 
 function SoulMarker({ point }: { point: MapPoint }) {
   const url = useSoulPhoto(point.photo_path);
-  const icon = useMemo(() => (url ? photoIcon(url) : pin), [url]);
+  const count = point.souls ?? 1;
+  const icon = useMemo(
+    () => (url ? photoIcon(url, count) : ringIcon(count)),
+    [url, count]
+  );
 
   return (
-    <Marker key={`${point.id}-${url ?? "ring"}`} position={[point.latitude, point.longitude]} icon={icon}>
+    <Marker key={`${point.id}-${url ?? "ring"}-${count}`} position={[point.latitude, point.longitude]} icon={icon}>
       <Popup
         className="sw-map-popup"
         maxWidth={240}
@@ -424,15 +437,28 @@ function MapPrint({ point, photoUrl }: { point: MapPoint; photoUrl: string | nul
     hour: "2-digit",
     minute: "2-digit",
   });
+  const souls = point.souls ?? 1;
+  const tongues = point.tongues ?? (point.spoke_in_tongues ? 1 : 0);
+  const church = point.church ?? (point.coming_to_church ? 1 : 0);
 
   return (
     <article data-map-popup className="w-full min-w-[220px] bg-white">
       {photoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl} alt="" draggable={false} className="block h-36 w-full object-cover" />
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photoUrl} alt="" draggable={false} className="block h-36 w-full object-cover" />
+          {souls > 1 && (
+            <span className="absolute right-2 top-2 min-w-[1.5rem] rounded-full bg-[#3ba6f1] px-1.5 py-0.5 text-center text-[11px] font-bold text-white">
+              {souls}
+            </span>
+          )}
+        </div>
       )}
       <div className="px-3 pb-3.5 pt-3">
-        <h2 className="font-roobert text-[1.35rem] leading-none tracking-[-0.03em] text-[#0c0a09]">
+        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#a8a29e]">
+          {souls > 1 ? `Group · ${souls} souls` : "Soul"}
+        </p>
+        <h2 className="mt-0.5 font-roobert text-[1.35rem] leading-none tracking-[-0.03em] text-[#0c0a09]">
           {point.soul_name}
         </h2>
         <p className="mt-1.5 text-[13px] leading-snug text-[#57534e]">
@@ -443,15 +469,28 @@ function MapPrint({ point, photoUrl }: { point: MapPoint; photoUrl: string | nul
         {point.phone && <p className="mt-1 text-[13px] tabular-nums text-[#78716c]">{point.phone}</p>}
         <p className="mt-1 text-[11px] text-[#a8a29e]">{when}</p>
         <div className="mt-2 flex flex-wrap gap-1">
-          {point.spoke_in_tongues && (
-            <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
-              Spoke in tongues
-            </span>
-          )}
-          {point.coming_to_church && (
-            <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
-              Coming to church
-            </span>
+          {souls > 1 ? (
+            <>
+              <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                {tongues} tongues
+              </span>
+              <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                {church} church
+              </span>
+            </>
+          ) : (
+            <>
+              {point.spoke_in_tongues && (
+                <span className="rounded-full bg-[#c1e1f7] px-2 py-0.5 text-[10px] text-[#3398e1]">
+                  Spoke in tongues
+                </span>
+              )}
+              {point.coming_to_church && (
+                <span className="rounded-full bg-[#f2f2f2] px-2 py-0.5 text-[10px] text-[#78716c]">
+                  Coming to church
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
