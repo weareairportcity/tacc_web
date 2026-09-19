@@ -103,13 +103,11 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   // caps the size only once the number gets long — short totals keep the big
   // display size untouched.
   const perCharVw = Math.round(150 / Math.max(String(total).length + 1, 2));
-  // The number takes whatever vertical room is left once the header, caption,
-  // tallies and feed have theirs — a plain vh fraction can't know that, and
-  // either wastes space or pushes the page into a scroll.
-  const heightBudget = isProjector ? "calc(100svh - 430px)" : "calc(100svh - 430px)";
+  // Odometer glyphs are 1.3em tall. Cap by svh so a single-digit total cannot
+  // eat the goal bar and tallies — those stay in a shrink-0 footer below.
   const totalFontSize = isProjector
-    ? `max(6rem, min(52vw, ${heightBudget}, ${perCharVw}vw, 60rem))`
-    : `max(3.25rem, min(46vw, ${heightBudget}, ${perCharVw}vw, 32rem))`;
+    ? `max(2.75rem, min(44vw, ${perCharVw}vw, 32svh, 16rem))`
+    : `max(2.25rem, min(40vw, ${perCharVw}vw, 28svh, 11rem))`;
 
   useEffect(() => {
     const entryId = counts?.last_entry_id ?? null;
@@ -196,7 +194,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
   }, []);
 
   return (
-    <main className="relative flex h-[100svh] w-full flex-col overflow-hidden bg-[#fafaf9] px-5 py-6 font-sans sm:px-8 sm:py-8">
+    <main className="sw-counter fixed inset-0 z-10 flex w-full flex-col overflow-hidden overscroll-none bg-[#fafaf9] px-[clamp(1rem,2.2vw,2rem)] py-[clamp(0.55rem,1.6vh,1.5rem)] font-sans">
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
       <PhotoMarquee paths={marqueePaths} />
 
@@ -222,7 +220,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
       ))}
 
       {/* Header: church mark, then 1909 as the page's title, centred as a lockup */}
-      <header className="relative z-10 shrink-0 border-b border-[#e8e6e5] pb-4 text-center">
+      <header className="relative z-10 shrink-0 border-b border-[#e8e6e5] pb-[clamp(0.35rem,1.2vh,0.85rem)] text-center">
         {/* Out of the centred flow so it cannot pull the lockup off-centre. */}
         {!isProjector && (
           <span className="absolute right-0 top-0 flex items-center gap-1.5 text-[11px] text-[#a8a29e]">
@@ -239,38 +237,39 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
           alt="The Airport City Church"
           width={140}
           height={49}
-          className={`mx-auto object-contain ${
-            isProjector ? "h-8 w-auto sm:h-10" : "h-7 w-auto sm:h-8"
-          }`}
+          className="mx-auto w-auto object-contain"
+          style={{ height: isProjector ? "clamp(1.35rem, 3.4vh, 2.5rem)" : "clamp(1.15rem, 3vh, 2rem)" }}
           priority
         />
 
         <h1
-          className="mt-3 font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
-          style={{ fontSize: isProjector ? "clamp(1.75rem, 3vw, 3.25rem)" : "clamp(2.25rem, 11vw, 4rem)" }}
+          className="mt-[clamp(0.2rem,0.8vh,0.65rem)] font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
+          style={{ fontSize: isProjector ? "clamp(1.35rem, 4.2vh, 2.75rem)" : "clamp(1.5rem, 5vh, 3rem)" }}
         >
           1909
         </h1>
         <p
-          className="sw-on-marquee mt-1 text-[#44403c]"
-          style={{ fontSize: isProjector ? "clamp(0.8rem, 1.1vw, 1.25rem)" : "clamp(0.8rem, 3.2vw, 1rem)" }}
+          className="sw-on-marquee mt-[clamp(0.1rem,0.5vh,0.35rem)] text-[#44403c]"
+          style={{ fontSize: isProjector ? "clamp(0.7rem, 1.6vh, 1.15rem)" : "clamp(0.7rem, 1.8vh, 0.95rem)" }}
         >
           Soul Winning · The Airport City Church
         </p>
       </header>
 
-      {/* The count */}
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center py-4 text-center sm:py-6">
+      {/* The count fills whatever is left; goal + tallies stay pinned below. */}
+      <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center">
         <Odometer
           value={total}
           digitWidth="0.62em"
           className="font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09] [text-shadow:0_0_28px_#fafaf9,0_0_8px_#fafaf9]"
           style={{ fontSize: totalFontSize }}
         />
+      </div>
 
-        <div className="relative isolate mt-4 w-full">
+      <div className="relative z-10 mx-auto w-full shrink-0 pt-[clamp(0.35rem,1.2vh,0.85rem)] pb-[max(0.15rem,env(safe-area-inset-bottom))] text-center">
+        <div className="relative isolate w-full">
           <div
-            className="pointer-events-none absolute -inset-x-10 -inset-y-4 -z-10 sm:-inset-x-16"
+            className="pointer-events-none absolute -inset-x-10 -inset-y-3 -z-10 sm:-inset-x-16"
             style={{
               background:
                 "radial-gradient(ellipse at center, rgba(250,250,249,0.96) 0%, rgba(250,250,249,0.82) 48%, rgba(250,250,249,0) 74%)",
@@ -280,7 +279,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
           <p
             className="sw-on-marquee text-balance tracking-[0.048px] text-[#292524]"
             style={{
-              fontSize: isProjector ? "clamp(1.1rem, 2.2vw, 2.75rem)" : "clamp(0.9rem, 3.5vw, 1.25rem)",
+              fontSize: isProjector ? "clamp(0.95rem, 2.4vh, 2.1rem)" : "clamp(0.8rem, 2.2vh, 1.15rem)",
             }}
           >
             {total === 1 ? "soul won for Christ" : "souls won for Christ"}
@@ -288,18 +287,18 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
 
           {goal && (
             <div
-              className="mt-7 w-full"
+              className="mt-[clamp(0.4rem,1.4vh,1.1rem)] w-full"
               style={{ maxWidth: isProjector ? "60rem" : "28rem", marginInline: "auto" }}
             >
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2.5">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2">
                 <div
                   className="h-full rounded-full bg-[#3ba6f1] transition-[width] duration-700 ease-out"
                   style={{ width: `${barWidth}%` }}
                 />
               </div>
               <p
-                className="sw-on-marquee mt-2 text-[#44403c]"
-                style={{ fontSize: isProjector ? "clamp(0.9rem, 1.4vw, 1.6rem)" : "0.75rem" }}
+                className="sw-on-marquee mt-1.5 text-[#44403c]"
+                style={{ fontSize: isProjector ? "clamp(0.75rem, 1.8vh, 1.35rem)" : "clamp(0.65rem, 1.5vh, 0.75rem)" }}
               >
                 {Math.round(progressPct).toLocaleString()}% of {goal.toLocaleString()} goal
               </p>
@@ -308,15 +307,13 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
         </div>
 
         <div
-          className="mt-8 grid w-full grid-cols-2 gap-3 sm:gap-4"
-          style={{ maxWidth: isProjector ? "50rem" : "28rem" }}
+          className="mt-[clamp(0.5rem,1.8vh,1.25rem)] grid w-full grid-cols-2 gap-2 sm:gap-3"
+          style={{ maxWidth: isProjector ? "50rem" : "28rem", marginInline: "auto" }}
         >
           <Tally label="Spoke in tongues" value={tongues} isProjector={isProjector} />
           <Tally label="Coming to church" value={church} isProjector={isProjector} />
         </div>
       </div>
-
-
     </main>
   );
 }
@@ -331,19 +328,19 @@ function Tally({
   isProjector: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-[#e8e6e5] bg-white px-3 py-3 sm:px-5 sm:py-4">
+    <div className="rounded-xl border border-[#e8e6e5] bg-white px-[clamp(0.65rem,1.6vw,1.25rem)] py-[clamp(0.45rem,1.4vh,0.9rem)]">
       <Odometer
         value={value}
         digitWidth="0.6em"
         className="font-roobert font-medium leading-none tracking-[-0.02em] text-[#3398e1]"
         style={{
-          fontSize: isProjector ? "clamp(1.75rem, 3vw, 4rem)" : "clamp(1.375rem, 6.5vw, 2rem)",
+          fontSize: isProjector ? "clamp(1.35rem, 4.2vh, 3.25rem)" : "clamp(1.15rem, 3.6vh, 1.85rem)",
         }}
       />
       <p
-        className="mt-1 text-[#78716c]"
+        className="mt-[clamp(0.15rem,0.5vh,0.35rem)] text-[#78716c]"
         style={{
-          fontSize: isProjector ? "clamp(0.85rem, 1.3vw, 1.6rem)" : "clamp(0.7rem, 3vw, 0.8125rem)",
+          fontSize: isProjector ? "clamp(0.7rem, 1.8vh, 1.35rem)" : "clamp(0.65rem, 1.6vh, 0.8rem)",
         }}
       >
         {label}
