@@ -221,3 +221,62 @@ export async function deleteLocalEntries(ids: string[]): Promise<void> {
     found.map((row) => row.id)
   );
 }
+
+export type RemoteSoul = {
+  id: string;
+  campaign_id: string;
+  entrant_id: string;
+  group_id: string;
+  soul_name: string;
+  phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  spoke_in_tongues: boolean;
+  coming_to_church: boolean;
+  created_at: string;
+  photo_path: string | null;
+};
+
+/** Souls already on the hall for this member's login code. */
+export async function fetchRemoteEntries(args: {
+  loginCode: string;
+  campaignId: string;
+}): Promise<LocalEntry[]> {
+  if (!args.loginCode || args.campaignId === SHOT_CAMPAIGN_ID) return [];
+
+  try {
+    const response = await fetch("/api/soulwinning/entries/mine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: args.loginCode, campaign_id: args.campaignId }),
+    });
+    if (!response.ok) return [];
+    const body = (await response.json()) as { entries?: RemoteSoul[] };
+    return (body.entries ?? []).map(remoteToLocal);
+  } catch {
+    return [];
+  }
+}
+
+function remoteToLocal(row: RemoteSoul): LocalEntry {
+  return {
+    id: row.id,
+    campaign_id: row.campaign_id,
+    entrant_id: row.entrant_id,
+    group_id: row.group_id,
+    soul_name: row.soul_name,
+    phone: row.phone ?? "",
+    latitude: row.latitude,
+    longitude: row.longitude,
+    spoke_in_tongues: row.spoke_in_tongues,
+    coming_to_church: row.coming_to_church,
+    created_at: row.created_at,
+    photo: null,
+    photo_path: row.photo_path,
+    photo_uploaded: Boolean(row.photo_path),
+    synced: 1,
+    attempts: 0,
+    next_attempt_at: 0,
+    last_error: null,
+  };
+}

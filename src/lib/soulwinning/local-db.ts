@@ -157,14 +157,24 @@ export async function countEntriesByEntrant(entrantId: string, campaignId: strin
 
 /** Souls this member logged on this phone, newest first. */
 export async function listEntriesByEntrant(entrantId: string, campaignId: string): Promise<LocalEntry[]> {
-  const rows = await run<LocalEntry[]>(
-    ENTRIES_STORE,
-    "readonly",
-    (s) => s.index("entrant_id").getAll(entrantId) as IDBRequest<LocalEntry[]>
-  );
-  return rows
-    .filter((row) => row.campaign_id === campaignId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const matches = (rows: LocalEntry[]) =>
+    rows
+      .filter((row) => row.entrant_id === entrantId && row.campaign_id === campaignId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  try {
+    const rows = await run<LocalEntry[]>(
+      ENTRIES_STORE,
+      "readonly",
+      (s) => s.index("entrant_id").getAll(IDBKeyRange.only(entrantId)) as IDBRequest<LocalEntry[]>
+    );
+    return matches(rows);
+  } catch {
+    // Older WebViews throw if the index is missing or getAll(key) is picky —
+    // never fail closed or My souls looks empty after a real save.
+    const all = await getAll<LocalEntry>(ENTRIES_STORE);
+    return matches(all);
+  }
 }
 
 export async function markSynced(store: string, ids: string[]): Promise<void> {

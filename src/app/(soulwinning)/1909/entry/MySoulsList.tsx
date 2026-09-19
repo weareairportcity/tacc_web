@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { deleteLocalEntries } from "@/lib/soulwinning/entries";
+import { deleteLocalEntries, fetchRemoteEntries } from "@/lib/soulwinning/entries";
 import { listEntriesByEntrant, type LocalEntry } from "@/lib/soulwinning/local-db";
 import { SoulDetail } from "../SoulDetail";
 
@@ -22,17 +22,27 @@ type Listed = {
 };
 
 function collapse(rows: LocalEntry[]): Listed[] {
-  const seen = new Set<string>();
-  const out: Listed[] = [];
+  const grouped = new Map<string, LocalEntry[]>();
+  const singles: LocalEntry[] = [];
 
   for (const row of rows) {
-    if (row.bulk && row.group_id) {
-      if (seen.has(row.group_id)) continue;
-      seen.add(row.group_id);
-      const members = rows.filter((item) => item.group_id === row.group_id);
+    if (row.group_id) {
+      const list = grouped.get(row.group_id) ?? [];
+      list.push(row);
+      grouped.set(row.group_id, list);
+    } else {
+      singles.push(row);
+    }
+  }
+
+  const listed: Listed[] = singles.map((row) => toListed(row));
+
+  for (const [groupId, members] of grouped) {
+    const sameName = members.every((item) => item.soul_name === members[0].soul_name);
+    if (sameName && members.length > 1) {
       const lead = members.find((item) => item.phone) ?? members[0];
-      out.push({
-        key: row.group_id,
+      listed.push({
+        key: groupId,
         ids: members.map((item) => item.id),
         name: lead.soul_name,
         phone: lead.phone,
@@ -46,39 +56,46 @@ function collapse(rows: LocalEntry[]): Listed[] {
         tongues: members.filter((item) => item.spoke_in_tongues).length,
         church: members.filter((item) => item.coming_to_church).length,
       });
-      continue;
+    } else {
+      for (const row of members) listed.push(toListed(row));
     }
-
-    out.push({
-      key: row.id,
-      ids: [row.id],
-      name: row.soul_name,
-      phone: row.phone,
-      created_at: row.created_at,
-      photo: row.photo,
-      photoPath: row.photo_path,
-      latitude: row.latitude,
-      longitude: row.longitude,
-      bulk: false,
-      souls: 1,
-      tongues: row.spoke_in_tongues ? 1 : 0,
-      church: row.coming_to_church ? 1 : 0,
-    });
   }
 
-  return out;
+  return listed.sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+function toListed(row: LocalEntry): Listed {
+  return {
+    key: row.id,
+    ids: [row.id],
+    name: row.soul_name,
+    phone: row.phone,
+    created_at: row.created_at,
+    photo: row.photo,
+    photoPath: row.photo_path,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    bulk: false,
+    souls: 1,
+    tongues: row.spoke_in_tongues ? 1 : 0,
+    church: row.coming_to_church ? 1 : 0,
+  };
 }
 
 export function MySoulsList({
   campaignId,
   entrantId,
+  loginCode,
   revision,
   onChanged,
+  onCount,
 }: {
   campaignId: string;
   entrantId: string;
+  loginCode?: string;
   revision: number;
   onChanged?: () => void;
+  onCount?: (count: number) => void;
 }) {
   const [rows, setRows] = useState<LocalEntry[] | null>(null);
   const [open, setOpen] = useState<Listed | null>(null);
@@ -95,13 +112,41 @@ export function MySoulsList({
 
   useEffect(() => {
     let cancelled = false;
-    void listEntriesByEntrant(entrantId, campaignId).then((next) => {
-      if (!cancelled) setRows(next);
-    });
+    void (async () => {
+      try {
+        const local = await listEntriesByEntrant(entrantId, campaignId);
+        if (cancelled) return;
+        if (local.length > 0) {
+          setRows(local);
+          onCount?.(local.length);
+        }
+
+        const remote = await fetchRemoteEntries({
+          loginCode: loginCode ?? "",
+          campaignId,
+        });
+        if (cancelled) return;
+
+        if (remote.length === 0) {
+          setRows(local);
+          onCount?.(local.length);
+          return;
+        }
+
+        const merged = new Map<string, LocalEntry>();
+        for (const row of remote) merged.set(row.id, row);
+        for (const row of local) merged.set(row.id, row);
+        const next = [...merged.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+        setRows(next);
+        onCount?.(next.length);
+      } catch {
+        if (!cancelled) setRows([]);
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [campaignId, entrantId, revision]);
+  }, [campaignId, entrantId, loginCode, revision]);
 
   if (!rows) {
     return <div className="rounded-lg border border-[#e8e6e5] bg-white px-5 py-10" />;

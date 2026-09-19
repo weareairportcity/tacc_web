@@ -156,9 +156,10 @@ export function FieldApp({ campaign }: Props) {
     );
   }
 
-  // Part of onboarding, and re-shown if the permission is ever revoked: no soul
-  // can be logged without the location it was won at.
-  if (!locationAllowed) {
+  // Returning members on iPhone often come back with location "unknown", even
+  // after they already allowed it. Do not hide My souls behind that wall —
+  // the form still asks for a fix at save time.
+  if (!locationAllowed && myTotal === 0) {
     return (
       <main className="mx-auto w-full max-w-md px-5 py-10">
         <Header campaign={campaign} />
@@ -224,10 +225,12 @@ export function FieldApp({ campaign }: Props) {
         <MySoulsList
           campaignId={campaign.id}
           entrantId={entrant.id}
+          loginCode={entrant.login_code}
           revision={myTotal}
           onChanged={() => {
             void countEntriesByEntrant(entrant.id, campaign.id).then(setMyTotal);
           }}
+          onCount={setMyTotal}
         />
       )}
 
