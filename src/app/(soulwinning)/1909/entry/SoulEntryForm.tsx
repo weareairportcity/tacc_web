@@ -16,7 +16,7 @@ const emptySoul = (): SoulDraft => ({
 interface Props {
   campaignId: string;
   entrantId: string;
-  onSaved: (count: number) => void;
+  onSaved: (detail: { names: string[] }) => void;
 }
 
 export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
@@ -63,7 +63,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
 
     setSouls([emptySoul()]);
     setIsSaving(false);
-    onSaved(named.length);
+    onSaved({ names: named.map((soul) => soul.soul_name.trim()) });
 
     requestLocation(); // next group, next fix
   };

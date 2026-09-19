@@ -192,9 +192,55 @@ body {
   text-shadow: 0 0 18px #fafaf9, 0 0 10px #fafaf9, 0 1px 0 #fafaf9;
 }
 
+@keyframes sw-confirm-overlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sw-confirm-card {
+  from { opacity: 0; transform: translateY(18px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sw-confirm-seal {
+  0% { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+  62% { transform: scale(1.12) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes sw-confirm-check {
+  from { stroke-dashoffset: 28; opacity: 0; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+
+.sw-confirm-overlay {
+  animation: sw-confirm-overlay 0.22s ease-out both;
+}
+
+.sw-confirm-card {
+  animation: sw-confirm-card 0.42s cubic-bezier(0.22, 1.15, 0.32, 1) both;
+}
+
+.sw-confirm-seal {
+  position: relative;
+  animation: sw-confirm-seal 0.55s cubic-bezier(0.22, 1.4, 0.36, 1) 0.08s both;
+}
+
+.sw-confirm-check {
+  stroke-dasharray: 28;
+  animation: sw-confirm-check 0.35s ease-out 0.32s both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sw-marquee-track {
     animation-play-state: paused;
+  }
+
+  .sw-confirm-overlay,
+  .sw-confirm-card,
+  .sw-confirm-seal,
+  .sw-confirm-check {
+    animation: none;
   }
 }
 

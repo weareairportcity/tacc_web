@@ -136,7 +136,7 @@ test("entry tutorial video", async ({ browser }) => {
   await highlight(page, save, { circle: true });
   await hold(page, 2800);
   await save.click();
-  await expect(page.getByText("Soul saved")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Successful" })).toBeVisible();
   await page.evaluate(() => window.__swTutorial?.clearHighlight());
   await hold(page, 1600);
 

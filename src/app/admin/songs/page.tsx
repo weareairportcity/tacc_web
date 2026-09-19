@@ -133,6 +133,10 @@ export default function AdminSongs() {
           router.push("/admin");
           return;
         }
+        if (roleData?.role === "soulwinning") {
+          router.push("/1909/admin");
+          return;
+        }
 
         await fetchSongs();
       } catch (err: any) {

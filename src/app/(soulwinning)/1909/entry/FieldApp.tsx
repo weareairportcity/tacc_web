@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronRight, PartyPopper } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { SwCampaign } from "@/lib/soulwinning/types";
 import {
   getActiveEntrant,
@@ -14,6 +14,7 @@ import { refreshPendingCount, startSync, syncNow } from "@/lib/soulwinning/sync"
 import { EntrantSwitcher } from "./EntrantSwitcher";
 import { LocationPrompt } from "./LocationPrompt";
 import { MySoulsList } from "./MySoulsList";
+import { SaveConfirm, type SaveConfirmDetail } from "./SaveConfirm";
 import { SoulEntryForm } from "./SoulEntryForm";
 import { StartScreen } from "./StartScreen";
 import { SyncIndicator } from "./SyncIndicator";
@@ -34,7 +35,7 @@ export function FieldApp({ campaign }: Props) {
   const [myTotal, setMyTotal] = useState(0);
   const [locationAllowed, setLocationAllowed] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ text: string; milestone: boolean } | null>(null);
+  const [confirm, setConfirm] = useState<SaveConfirmDetail | null>(null);
 
   // Load this device's members, then start the background queue. Whatever
   // happens, the screen must end up showing something: a member staring at a
@@ -68,6 +69,14 @@ export function FieldApp({ campaign }: Props) {
       }
     })();
 
+    // Demo / screenshot pages must never push into the live campaign.
+    if (campaign.id === "shot-campaign") {
+      return () => {
+        cancelled = true;
+        clearTimeout(failSafe);
+      };
+    }
+
     const stopSync = startSync();
     return () => {
       cancelled = true;
@@ -75,12 +84,6 @@ export function FieldApp({ campaign }: Props) {
       stopSync();
     };
   }, [campaign.id]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), toast.milestone ? 5000 : 2500);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   const selectEntrant = useCallback(
     async (next: LocalEntrant) => {
@@ -90,30 +93,28 @@ export function FieldApp({ campaign }: Props) {
       setMyTotal(await countEntriesByEntrant(next.id, campaign.id));
       setIsSwitching(false);
       setIsAddingPerson(false);
-      void syncNow();
+      if (campaign.id !== "shot-campaign") void syncNow();
     },
     [campaign.id]
   );
 
   const handleSaved = useCallback(
-    async (savedCount: number) => {
+    async ({ names }: { names: string[] }) => {
       if (!entrant) return;
 
       const previous = myTotal;
       const total = await countEntriesByEntrant(entrant.id, campaign.id);
       setMyTotal(total);
       await refreshPendingCount();
-      void syncNow();
+      if (campaign.id !== "shot-campaign") void syncNow();
 
-      // Every 10th soul this entrant has personally logged (plan §6).
       const crossed = Math.floor(total / MILESTONE_EVERY) > Math.floor(previous / MILESTONE_EVERY);
       const milestone = Math.floor(total / MILESTONE_EVERY) * MILESTONE_EVERY;
 
-      setToast(
-        crossed
-          ? { text: `You've led ${milestone} souls today!`, milestone: true }
-          : { text: savedCount > 1 ? `${savedCount} souls saved` : "Soul saved", milestone: false }
-      );
+      setConfirm({
+        names,
+        milestone: crossed ? milestone : null,
+      });
     },
     [campaign.id, entrant, myTotal]
   );
@@ -247,18 +248,7 @@ export function FieldApp({ campaign }: Props) {
         </div>
       )}
 
-      {toast && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-5">
-          <div
-            className={`flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium shadow-[0_12px_45px_0_rgba(17,12,46,0.12)] ${
-              toast.milestone ? "bg-[#0c0a09] text-white" : "bg-white text-[#0c0a09]"
-            }`}
-          >
-            {toast.milestone && <PartyPopper className="h-4 w-4 text-[#3ba6f1]" />}
-            {toast.text}
-          </div>
-        </div>
-      )}
+      {confirm && <SaveConfirm detail={confirm} onDone={() => setConfirm(null)} />}
     </main>
   );
 }

@@ -232,7 +232,7 @@ test.describe("soul winning shots", () => {
     await page.getByPlaceholder("Phone").fill("0209988776");
     await expect(page.getByRole("button", { name: "Save soul" })).toBeEnabled({ timeout: 12_000 });
     await page.getByRole("button", { name: "Save soul" }).click();
-    await expect(page.getByText("Soul saved")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Successful" })).toBeVisible();
 
     await page.getByRole("button", { name: /My souls/ }).click();
     await expect(page.getByText("Ama Serwaa")).toBeVisible();

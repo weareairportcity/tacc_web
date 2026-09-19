@@ -59,6 +59,10 @@ export default function AdminDashboard() {
         router.push("/admin/songs");
         return;
       }
+      if (roleData?.role === "soulwinning") {
+        router.push("/1909/admin");
+        return;
+      }
 
       // Fetch bookings
       try {
