@@ -127,9 +127,9 @@ export async function fetchDuplicates(campaignId: string): Promise<DuplicateRow[
   return (data as DuplicateRow[]) ?? [];
 }
 
-export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
+export async function fetchMapPoints(campaignId: string): Promise<{ points: MapPoint[]; totalSouls: number }> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const located = supabase
     .from("sw_soul_entries")
     .select(
       "id, soul_name, phone, photo_path, latitude, longitude, spoke_in_tongues, coming_to_church, created_at, group_id, sw_entrants(name, fellowship, pfcc)"
@@ -140,7 +140,16 @@ export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
     .not("longitude", "is", null)
     .limit(5000);
 
+  const counted = supabase
+    .from("sw_soul_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId)
+    .eq("counted", true);
+
+  const [{ data, error }, { count, error: countError }] = await Promise.all([located, counted]);
+
   if (error) throw error;
+  if (countError) throw countError;
 
   type Raw = {
     id: string;
@@ -175,7 +184,8 @@ export async function fetchMapPoints(campaignId: string): Promise<MapPoint[]> {
     church: row.coming_to_church ? 1 : 0,
   }));
 
-  return collapseMapPoints(mapped);
+  const points = collapseMapPoints(mapped);
+  return { points, totalSouls: count ?? points.reduce((sum, point) => sum + (point.souls ?? 1), 0) };
 }
 
 /** One pin per class — 75 identical GPS points must not spider into a flower. */

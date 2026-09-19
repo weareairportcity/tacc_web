@@ -142,6 +142,7 @@ export function SoulMap({
   previewPoints?: MapPoint[];
 }) {
   const [points, setPoints] = useState<MapPoint[] | null>(null);
+  const [totalSouls, setTotalSouls] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -152,13 +153,19 @@ export function SoulMap({
 
   useEffect(() => {
     if (previewPoints) {
-      setPoints(collapseMapPoints(previewPoints));
+      const collapsed = collapseMapPoints(previewPoints);
+      setPoints(collapsed);
+      setTotalSouls(collapsed.reduce((sum, point) => sum + (point.souls ?? 1), 0));
       return;
     }
 
     let cancelled = false;
     fetchMapPoints(campaignId)
-      .then((rows) => !cancelled && setPoints(rows))
+      .then((result) => {
+        if (cancelled) return;
+        setPoints(result.points);
+        setTotalSouls(result.totalSouls);
+      })
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "Could not load map points"));
     return () => {
       cancelled = true;
@@ -181,6 +188,18 @@ export function SoulMap({
         (pfcc === "all" || (point.pfcc ?? "Not given") === pfcc)
     );
   }, [points, fellowship, pfcc]);
+
+  const locatedSouls = useMemo(
+    () => (points ?? []).reduce((sum, point) => sum + (point.souls ?? 1), 0),
+    [points]
+  );
+  const visibleSouls = useMemo(
+    () => visible.reduce((sum, point) => sum + (point.souls ?? 1), 0),
+    [visible]
+  );
+  const filtered = fellowship !== "all" || pfcc !== "all";
+  const missingSouls = Math.max(0, (totalSouls ?? locatedSouls) - locatedSouls);
+  const footerDenom = filtered ? locatedSouls : (totalSouls ?? locatedSouls);
 
   const center = useMemo<[number, number]>(() => {
     if (!visible.length) return ACCRA;
@@ -394,9 +413,12 @@ export function SoulMap({
       </div>
 
       <p className="pointer-events-none absolute bottom-2 left-3 z-[1000] text-[11px] text-[#78716c]">
-        {visible.reduce((sum, point) => sum + (point.souls ?? 1), 0).toLocaleString()} of{" "}
-        {points.reduce((sum, point) => sum + (point.souls ?? 1), 0).toLocaleString()} located
-        {fellowship !== "all" || pfcc !== "all" ? " (filtered)" : ""}
+        {visibleSouls.toLocaleString()} of {footerDenom.toLocaleString()} located
+        {!filtered && missingSouls > 0
+          ? ` · ${missingSouls.toLocaleString()} without location`
+          : filtered
+            ? " (filtered)"
+            : ""}
       </p>
     </div>
   );
