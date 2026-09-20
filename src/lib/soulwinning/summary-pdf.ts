@@ -10,6 +10,27 @@ const WASH: [number, number, number] = [193, 225, 247];
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN = 36;
+const ORIGIN_SHIFT = 20037508.342789244;
+
+export type SummaryMapPoint = {
+  latitude: number;
+  longitude: number;
+  souls?: number;
+};
+
+export type MapBounds = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
+export type SummaryMap = {
+  image: string | null;
+  labels?: string | null;
+  bounds: MapBounds;
+  points: SummaryMapPoint[];
+};
 
 export type SummaryPdfData = {
   campaign: SwCampaign;
@@ -18,6 +39,7 @@ export type SummaryPdfData = {
   pfccs: LeaderboardRow[];
   members: LeaderboardRow[];
   hourly: HourlyRow[];
+  map?: SummaryMap | null;
   logo?: string | null;
   printedAt?: Date;
 };
@@ -54,14 +76,105 @@ export async function loadLogo(): Promise<string | null> {
     const response = await fetch("/logo.png");
     if (!response.ok) return null;
     const blob = await response.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
+    return await toDataUrl(blob);
   } catch {
     return null;
+  }
+}
+
+async function toDataUrl(blob: Blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return `data:image/png;base64,${btoa(binary)}`;
+}
+
+function mercatorX(lng: number) {
+  return (lng * ORIGIN_SHIFT) / 180;
+}
+
+function mercatorY(lat: number) {
+  const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const y = Math.log(Math.tan(((90 + clamped) * Math.PI) / 360)) / (Math.PI / 180);
+  return (y * ORIGIN_SHIFT) / 180;
+}
+
+function atPercentile(values: number[], t: number) {
+  const index = Math.min(values.length - 1, Math.max(0, Math.round(t * (values.length - 1))));
+  return values[index];
+}
+
+export function boundsForPoints(points: SummaryMapPoint[]): MapBounds | null {
+  if (points.length === 0) return null;
+  const lats = [...points.map((point) => point.latitude)].sort((a, b) => a - b);
+  const lngs = [...points.map((point) => point.longitude)].sort((a, b) => a - b);
+  const trim = points.length > 20;
+  let south = atPercentile(lats, trim ? 0.02 : 0);
+  let north = atPercentile(lats, trim ? 0.98 : 1);
+  let west = atPercentile(lngs, trim ? 0.02 : 0);
+  let east = atPercentile(lngs, trim ? 0.98 : 1);
+  if (south === north) {
+    south -= 0.04;
+    north += 0.04;
+  }
+  if (west === east) {
+    west -= 0.04;
+    east += 0.04;
+  }
+  const latPad = Math.max((north - south) * 0.16, 0.035);
+  const lngPad = Math.max((east - west) * 0.16, 0.035);
+  return {
+    west: west - lngPad,
+    south: south - latPad,
+    east: east + lngPad,
+    north: north + latPad,
+  };
+}
+
+function project(lat: number, lng: number, bounds: MapBounds, width: number, height: number) {
+  const x0 = mercatorX(bounds.west);
+  const x1 = mercatorX(bounds.east);
+  const y0 = mercatorY(bounds.south);
+  const y1 = mercatorY(bounds.north);
+  return {
+    x: ((mercatorX(lng) - x0) / (x1 - x0)) * width,
+    y: ((y1 - mercatorY(lat)) / (y1 - y0)) * height,
+  };
+}
+
+async function fetchLayer(service: string, bounds: MapBounds, width: number, height: number, transparent: boolean) {
+  const bbox = `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`;
+  const params = new URLSearchParams({
+    bbox,
+    bboxSR: "4326",
+    imageSR: "3857",
+    size: `${width},${height}`,
+    format: "png",
+    f: "image",
+    transparent: transparent ? "true" : "false",
+  });
+  const response = await fetch(
+    `https://server.arcgisonline.com/ArcGIS/rest/services/${service}/MapServer/export?${params.toString()}`
+  );
+  if (!response.ok) return null;
+  return toDataUrl(await response.blob());
+}
+
+export async function loadSummaryMap(points: SummaryMapPoint[]): Promise<SummaryMap | null> {
+  const bounds = boundsForPoints(points);
+  if (!bounds) return null;
+  const width = 1400;
+  const height = 520;
+  try {
+    const [image, labels] = await Promise.all([
+      fetchLayer("Canvas/World_Light_Gray_Base", bounds, width, height, false),
+      fetchLayer("Canvas/World_Light_Gray_Reference", bounds, width, height, true),
+    ]);
+    return { image, labels, bounds, points };
+  } catch {
+    return { image: null, bounds, points };
   }
 }
 
@@ -119,6 +232,40 @@ function drawRanks(
     cursor += 17;
   }
   return cursor;
+}
+
+function drawMap(doc: jsPDF, map: SummaryMap | null | undefined, x: number, y: number, width: number, height: number) {
+  doc.setFillColor(250, 250, 249);
+  doc.roundedRect(x, y, width, height, 3, 3, "F");
+
+  if (!map || map.points.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text("No locations captured.", x + 10, y + height / 2);
+    return;
+  }
+
+  if (map.image) {
+    try {
+      doc.addImage(map.image, "PNG", x, y, width, height);
+      if (map.labels) doc.addImage(map.labels, "PNG", x, y, width, height);
+    } catch {
+      // keep the wash behind the pins
+    }
+  }
+
+  for (const point of map.points) {
+    const { x: dx, y: dy } = project(point.latitude, point.longitude, map.bounds, width, height);
+    if (dx < 3 || dy < 3 || dx > width - 3 || dy > height - 3) continue;
+    const souls = point.souls ?? 1;
+    const radius = Math.min(4.4, 1.7 + Math.sqrt(souls) * 0.45);
+    doc.setFillColor(255, 255, 255);
+    doc.circle(x + dx, y + dy, radius, "F");
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.85);
+    doc.circle(x + dx, y + dy, radius, "S");
+  }
 }
 
 export function buildSummaryPdf(data: SummaryPdfData): Blob {
@@ -206,11 +353,6 @@ export function buildSummaryPdf(data: SummaryPdfData): Blob {
     { value: overview.tongues_count.toLocaleString(), label: "Spoke in tongues", note: `${pct(overview.tongues_count, total)}%` },
     { value: overview.church_count.toLocaleString(), label: "Coming to church", note: `${pct(overview.church_count, total)}%` },
     { value: overview.entrant_count.toLocaleString(), label: "Members entering", note: "" },
-    {
-      value: overview.located_count.toLocaleString(),
-      label: "On the map",
-      note: total ? `${pct(overview.located_count, total)}%` : "",
-    },
   ];
   const cellW = inner / stats.length;
   stats.forEach((stat, index) => {
@@ -256,20 +398,30 @@ export function buildSummaryPdf(data: SummaryPdfData): Blob {
     doc.text(row.souls.toLocaleString(), x + 10, pfccY + 42);
   });
 
-  const ranksY = 322;
+  const ranksY = 318;
   const colGap = 28;
   const colW = (inner - colGap) / 2;
-  const leftBottom = drawRanks(doc, MARGIN, ranksY, colW, "Fellowships", fellowships, 12);
-  const rightBottom = drawRanks(doc, MARGIN + colW + colGap, ranksY, colW, "Members", members, 12);
-  const hourY = Math.max(leftBottom, rightBottom) + 20;
+  const leftBottom = drawRanks(doc, MARGIN, ranksY, colW, "Fellowships", fellowships, 8);
+  const rightBottom = drawRanks(doc, MARGIN + colW + colGap, ranksY, colW, "Members", members, 8);
+  const mapY = Math.max(leftBottom, rightBottom) + 18;
 
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...INK);
+  doc.text("Where they were won", MARGIN, mapY);
+
+  const mapTop = mapY + 8;
+  const mapH = 168;
+  drawMap(doc, data.map, MARGIN, mapTop, inner, mapH);
+
+  const hourY = mapTop + mapH + 18;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...INK);
   doc.text("How the day moved", MARGIN, hourY);
 
-  const plotTop = hourY + 12;
-  const plotH = 88;
+  const plotTop = hourY + 10;
+  const plotH = 56;
   const plotW = inner;
   const series = activeHours(hourly);
   const maxHour = Math.max(...series.map((row) => row.souls), 1);
@@ -286,14 +438,14 @@ export function buildSummaryPdf(data: SummaryPdfData): Blob {
   }
 
   doc.setFillColor(...RULE);
-  doc.rect(MARGIN, plotTop + plotH - 14, inner, 0.6, "F");
+  doc.rect(MARGIN, plotTop + plotH - 12, inner, 0.6, "F");
 
   series.forEach((row, index) => {
-    const barH = (row.souls / maxHour) * (plotH - 14);
+    const barH = (row.souls / maxHour) * (plotH - 12);
     const w = Math.min(Math.max(band * 0.42, 4), 16);
     const x = MARGIN + index * band + (band - w) / 2;
     doc.setFillColor(...BLUE);
-    doc.rect(x, plotTop + (plotH - 14) - barH, w, Math.max(barH, 1), "F");
+    doc.rect(x, plotTop + (plotH - 12) - barH, w, Math.max(barH, 1), "F");
   });
 
   if (series.length > 0) {
@@ -303,14 +455,14 @@ export function buildSummaryPdf(data: SummaryPdfData): Blob {
     const first = series[0];
     const mid = series[Math.floor(series.length / 2)];
     const last = series[series.length - 1];
-    doc.text(hourTick(first.hour), MARGIN, plotTop + plotH + 4);
-    doc.text(hourTick(mid.hour), MARGIN + plotW / 2, plotTop + plotH + 4, { align: "center" });
-    doc.text(hourTick(last.hour), PAGE_W - MARGIN, plotTop + plotH + 4, { align: "right" });
+    doc.text(hourTick(first.hour), MARGIN, plotTop + plotH + 2);
+    doc.text(hourTick(mid.hour), MARGIN + plotW / 2, plotTop + plotH + 2, { align: "center" });
+    doc.text(hourTick(last.hour), PAGE_W - MARGIN, plotTop + plotH + 2, { align: "right" });
   } else {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text("No hourly counts yet.", MARGIN, plotTop + 24);
+    doc.text("No hourly counts yet.", MARGIN, plotTop + 20);
   }
 
   let foot = PAGE_H - 28;

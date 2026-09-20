@@ -10,8 +10,8 @@ import {
   type ExportRow,
   type Format,
 } from "@/lib/soulwinning/export";
-import { fetchHourly, fetchLeaderboard, fetchOverview } from "@/lib/soulwinning/admin";
-import { buildSummaryPdf, loadLogo } from "@/lib/soulwinning/summary-pdf";
+import { fetchHourly, fetchLeaderboard, fetchMapPoints, fetchOverview } from "@/lib/soulwinning/admin";
+import { buildSummaryPdf, loadLogo, loadSummaryMap } from "@/lib/soulwinning/summary-pdf";
 import type { SwCampaign } from "@/lib/soulwinning/types";
 
 export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
@@ -76,7 +76,7 @@ export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
         <h3 className="font-roobert text-base text-[#0c0a09]">One-page summary</h3>
         <p className="mb-4 text-xs text-[#a8a29e]">
           The day on one sheet: the total against the goal, tongues and church, top fellowships,
-          PFCCs and members, and how the hours moved. No names of the souls.
+          PFCCs and members, the map, and how the hours moved. No names of the souls.
         </p>
         <button
           type="button"
@@ -86,13 +86,22 @@ export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
             setError(null);
             try {
               const hours = { from: null, to: null };
-              const [overview, fellowships, pfccs, members, hourly, logo] = await Promise.all([
+              const [overview, fellowships, pfccs, members, hourly, logo, map] = await Promise.all([
                 fetchOverview(campaign.id, hours),
-                fetchLeaderboard(campaign.id, "fellowship", hours, 12),
-                fetchLeaderboard(campaign.id, "pfcc", hours, 12),
-                fetchLeaderboard(campaign.id, "entrant", hours, 12),
+                fetchLeaderboard(campaign.id, "fellowship", hours, 8),
+                fetchLeaderboard(campaign.id, "pfcc", hours, 8),
+                fetchLeaderboard(campaign.id, "entrant", hours, 8),
                 fetchHourly(campaign.id),
                 loadLogo(),
+                fetchMapPoints(campaign.id).then(({ points }) =>
+                  loadSummaryMap(
+                    points.map((point) => ({
+                      latitude: point.latitude,
+                      longitude: point.longitude,
+                      souls: point.souls ?? 1,
+                    }))
+                  )
+                ),
               ]);
               if (!overview) throw new Error("Could not load the day's totals");
               download(
@@ -104,6 +113,7 @@ export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
                   pfccs,
                   members,
                   hourly,
+                  map,
                   logo,
                 })
               );
