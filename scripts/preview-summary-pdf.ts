@@ -4,7 +4,6 @@ import { buildSummaryPdf } from "../src/lib/soulwinning/summary-pdf";
 import {
   SHOT_CAMPAIGN,
   SHOT_FELLOWSHIPS,
-  SHOT_HOURLY,
   SHOT_MEMBERS,
   SHOT_OVERVIEW,
   SHOT_PFCCS,
@@ -19,7 +18,7 @@ const blob = buildSummaryPdf({
   fellowships: SHOT_FELLOWSHIPS,
   pfccs: SHOT_PFCCS,
   members: SHOT_MEMBERS,
-  hourly: SHOT_HOURLY,
+  groups: { entries: 1, souls: 75, people: SHOT_OVERVIEW.total_souls - 75, largest: 75 },
   logo,
   printedAt: new Date("2026-09-20T08:30:00.000Z"),
 });
