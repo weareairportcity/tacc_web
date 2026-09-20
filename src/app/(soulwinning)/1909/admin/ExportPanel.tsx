@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileArchive, Loader2 } from "lucide-react";
+import { Download, FileArchive, FileText, Loader2 } from "lucide-react";
 import {
+  download,
   exportSeparatedZip,
   exportSingle,
   fetchExportRows,
   type ExportRow,
   type Format,
 } from "@/lib/soulwinning/export";
+import { fetchHourly, fetchLeaderboard, fetchOverview } from "@/lib/soulwinning/admin";
+import { buildSummaryPdf, loadLogo } from "@/lib/soulwinning/summary-pdf";
 import type { SwCampaign } from "@/lib/soulwinning/types";
 
 export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
@@ -69,6 +72,54 @@ export function ExportPanel({ campaign }: { campaign: SwCampaign }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      <section className="rounded-xl border border-[#e8e6e5] bg-white p-5 lg:col-span-2">
+        <h3 className="font-roobert text-base text-[#0c0a09]">One-page summary</h3>
+        <p className="mb-4 text-xs text-[#a8a29e]">
+          The day on one sheet: the total against the goal, tongues and church, top fellowships,
+          PFCCs and members, and how the hours moved. No names of the souls.
+        </p>
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={async () => {
+            setBusy("summary");
+            setError(null);
+            try {
+              const hours = { from: null, to: null };
+              const [overview, fellowships, pfccs, members, hourly, logo] = await Promise.all([
+                fetchOverview(campaign.id, hours),
+                fetchLeaderboard(campaign.id, "fellowship", hours, 12),
+                fetchLeaderboard(campaign.id, "pfcc", hours, 12),
+                fetchLeaderboard(campaign.id, "entrant", hours, 12),
+                fetchHourly(campaign.id),
+                loadLogo(),
+              ]);
+              if (!overview) throw new Error("Could not load the day's totals");
+              download(
+                `${campaign.slug}-summary.pdf`,
+                buildSummaryPdf({
+                  campaign,
+                  overview,
+                  fellowships,
+                  pfccs,
+                  members,
+                  hourly,
+                  logo,
+                })
+              );
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Could not build the summary");
+            } finally {
+              setBusy(null);
+            }
+          }}
+          className="flex w-full max-w-md items-center justify-center gap-2 rounded-lg bg-[#3ba6f1] px-4 py-3 text-sm font-medium text-white disabled:opacity-40"
+        >
+          {busy === "summary" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          Download summary PDF
+        </button>
+      </section>
+
       <section className="rounded-xl border border-[#e8e6e5] bg-white p-5">
         <h3 className="font-roobert text-base text-[#0c0a09]">One file</h3>
         <p className="mb-4 text-xs text-[#a8a29e]">

@@ -18,6 +18,7 @@ import {
   SHOT_MAP_POINTS,
   SHOT_MEMBERS,
   SHOT_OVERVIEW,
+  SHOT_PFCCS,
 } from "../fixtures";
 
 const SoulMap = dynamic(() => import("../../admin/SoulMap").then((mod) => mod.SoulMap), {
@@ -41,7 +42,7 @@ export function ShotsAdmin({ view: initialView }: { view: View }) {
   const [view, setView] = useState<View>(initialView);
   const [dimension, setDimension] = useState<Dimension>(initialView === "overview" ? "entrant" : "fellowship");
   const rows = useMemo(
-    () => (dimension === "entrant" ? SHOT_MEMBERS : SHOT_FELLOWSHIPS),
+    () => (dimension === "entrant" ? SHOT_MEMBERS : dimension === "pfcc" ? SHOT_PFCCS : SHOT_FELLOWSHIPS),
     [dimension]
   );
 

@@ -171,10 +171,15 @@ export const SHOT_ENTRIES = Array.from({ length: 300 }, (_, index) => {
 
 const COUNTED = SHOT_ENTRIES.filter((row) => row.counted);
 
-function rank(dimension: "fellowship" | "entrant"): LeaderboardRow[] {
+function rank(dimension: "fellowship" | "pfcc" | "entrant"): LeaderboardRow[] {
   const buckets = new Map<string, LeaderboardRow>();
   for (const row of COUNTED) {
-    const label = dimension === "fellowship" ? row.sw_entrants.fellowship : row.sw_entrants.name;
+    const label =
+      dimension === "fellowship"
+        ? row.sw_entrants.fellowship
+        : dimension === "pfcc"
+          ? row.sw_entrants.pfcc
+          : row.sw_entrants.name;
     const sublabel =
       dimension === "entrant" ? `${row.sw_entrants.fellowship} · ${row.sw_entrants.pfcc}` : null;
     const current = buckets.get(label) ?? { label, sublabel, souls: 0, tongues: 0, church: 0 };
@@ -187,6 +192,7 @@ function rank(dimension: "fellowship" | "entrant"): LeaderboardRow[] {
 }
 
 export const SHOT_FELLOWSHIPS = rank("fellowship");
+export const SHOT_PFCCS = rank("pfcc");
 export const SHOT_MEMBERS = rank("entrant");
 
 export const SHOT_HOURLY: HourlyRow[] = (() => {
