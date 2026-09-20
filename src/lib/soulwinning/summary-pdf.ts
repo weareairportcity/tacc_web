@@ -38,6 +38,17 @@ function hourTick(hour: number) {
   return hour < 12 ? `${hour}a` : `${hour - 12}p`;
 }
 
+function activeHours(rows: HourlyRow[]): HourlyRow[] {
+  const first = rows.findIndex((row) => row.souls > 0);
+  if (first < 0) return [];
+  let last = rows.length - 1;
+  while (last > first && rows[last].souls === 0) last -= 1;
+  let start = first;
+  const six = rows.findIndex((row) => row.hour === 6);
+  if (six >= 0 && start < six && last > six) start = six;
+  return rows.slice(start, last + 1);
+}
+
 export async function loadLogo(): Promise<string | null> {
   try {
     const response = await fetch("/logo.png");
@@ -260,7 +271,7 @@ export function buildSummaryPdf(data: SummaryPdfData): Blob {
   const plotTop = hourY + 12;
   const plotH = 88;
   const plotW = inner;
-  const series = hourly.length > 0 ? hourly : [];
+  const series = activeHours(hourly);
   const maxHour = Math.max(...series.map((row) => row.souls), 1);
   const band = series.length > 0 ? plotW / series.length : plotW;
   const peak = series.reduce((best, row) => (row.souls > best.souls ? row : best), series[0]);
