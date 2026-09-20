@@ -8,7 +8,7 @@ interface Props {
   entrants: LocalEntrant[];
   activeId: string | null;
   onPick: (entrant: LocalEntrant) => void;
-  onAddNew: () => void;
+  onAddNew?: () => void;
   onClose: () => void;
 }
 
@@ -33,7 +33,9 @@ export function EntrantSwitcher({ entrants, activeId, onPick, onAddNew, onClose 
           </button>
         </div>
         <p className="mb-4 text-sm text-[#78716c]">
-          This phone can be passed around. Pick your name, or add someone new.
+          {onAddNew
+            ? "This phone can be passed around. Pick your name, or add someone new."
+            : "This phone can be passed around. Pick your name."}
         </p>
 
         {active?.login_code && (
@@ -62,14 +64,16 @@ export function EntrantSwitcher({ entrants, activeId, onPick, onAddNew, onClose 
             </button>
           ))}
 
-          <button
-            type="button"
-            onClick={onAddNew}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-4 py-3.5 text-sm font-medium text-[#78716c]"
-          >
-            <Plus className="h-4 w-4" />
-            Add another member on this phone
-          </button>
+          {onAddNew && (
+            <button
+              type="button"
+              onClick={onAddNew}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#d6d3d1] px-4 py-3.5 text-sm font-medium text-[#78716c]"
+            >
+              <Plus className="h-4 w-4" />
+              Add another member on this phone
+            </button>
+          )}
         </div>
       </div>
     </div>

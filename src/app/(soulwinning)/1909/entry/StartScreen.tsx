@@ -10,9 +10,10 @@ interface Props {
   onDone: (entrant: LocalEntrant) => void;
   onCancel?: () => void;
   adding?: boolean;
+  closed?: boolean;
 }
 
-export function StartScreen({ onDone, onCancel, adding = false }: Props) {
+export function StartScreen({ onDone, onCancel, adding = false, closed = false }: Props) {
   const [mode, setMode] = useState<"gate" | "new" | "code">("gate");
 
   if (mode === "new") {
@@ -32,6 +33,39 @@ export function StartScreen({ onDone, onCancel, adding = false }: Props) {
 
   if (mode === "code") {
     return <CodeForm onDone={onDone} onBack={() => setMode("gate")} />;
+  }
+
+  if (closed) {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-1">
+          <h2 className="font-display text-2xl text-[#0c0a09]">Logging is closed</h2>
+          <p className="text-sm">
+            1909 outreach has ended. If you already logged souls, open with your login code to
+            see them.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMode("code")}
+          className="w-full rounded-lg border border-[#e8e6e5] bg-white px-4 py-4 text-left"
+        >
+          <span className="block text-base font-semibold text-[#0c0a09]">I have a code</span>
+          <span className="mt-0.5 block text-sm text-[#78716c]">
+            Look at souls already saved on another phone
+          </span>
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full rounded-lg px-4 py-3 text-sm font-medium text-[#78716c]"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    );
   }
 
   return (

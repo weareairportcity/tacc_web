@@ -26,12 +26,13 @@ interface Props {
 }
 
 export function FieldApp({ campaign }: Props) {
+  const closed = !campaign.active;
   const [isReady, setIsReady] = useState(false);
   const [entrants, setEntrants] = useState<LocalEntrant[]>([]);
   const [entrant, setEntrant] = useState<LocalEntrant | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
-  const [tab, setTab] = useState<"log" | "mine">("log");
+  const [tab, setTab] = useState<"log" | "mine">(campaign.active ? "log" : "mine");
   const [myTotal, setMyTotal] = useState(0);
   const [locationAllowed, setLocationAllowed] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
@@ -152,15 +153,17 @@ export function FieldApp({ campaign }: Props) {
     return (
       <main className="mx-auto w-full max-w-md px-5 py-10">
         <Header campaign={campaign} />
-        <StartScreen onDone={selectEntrant} />
+        {closed && <ClosedBanner />}
+        <StartScreen closed={closed} onDone={selectEntrant} />
       </main>
     );
   }
 
   // Returning members on iPhone often come back with location "unknown", even
   // after they already allowed it. Do not hide My souls behind that wall —
-  // the form still asks for a fix at save time.
-  if (!locationAllowed && myTotal === 0) {
+  // the form still asks for a fix at save time. Skip it entirely once logging
+  // is closed.
+  if (!closed && !locationAllowed && myTotal === 0) {
     return (
       <main className="mx-auto w-full max-w-md px-5 py-10">
         <Header campaign={campaign} />
@@ -172,6 +175,7 @@ export function FieldApp({ campaign }: Props) {
   return (
     <main className="mx-auto w-full max-w-md px-5 pb-16 pt-8">
       <Header campaign={campaign} />
+      {closed && <ClosedBanner />}
 
       <div className="mb-5 space-y-2">
         <div className="flex justify-end">
@@ -221,12 +225,18 @@ export function FieldApp({ campaign }: Props) {
       </div>
 
       {tab === "log" ? (
-        <SoulEntryForm campaignId={campaign.id} entrantId={entrant.id} onSaved={handleSaved} />
+        <SoulEntryForm
+          campaignId={campaign.id}
+          entrantId={entrant.id}
+          closed={closed}
+          onSaved={handleSaved}
+        />
       ) : (
         <MySoulsList
           campaignId={campaign.id}
           entrantId={entrant.id}
           loginCode={entrant.login_code}
+          closed={closed}
           revision={myTotal}
           onChanged={() => {
             void countEntriesByEntrant(entrant.id, campaign.id).then(setMyTotal);
@@ -240,12 +250,12 @@ export function FieldApp({ campaign }: Props) {
           entrants={entrants}
           activeId={entrant.id}
           onPick={selectEntrant}
-          onAddNew={() => setIsAddingPerson(true)}
+          onAddNew={closed ? undefined : () => setIsAddingPerson(true)}
           onClose={() => setIsSwitching(false)}
         />
       )}
 
-      {isAddingPerson && (
+      {isAddingPerson && !closed && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[#fafaf9] px-5 py-10">
           <div className="mx-auto w-full max-w-md">
             <StartScreen
@@ -262,6 +272,17 @@ export function FieldApp({ campaign }: Props) {
 
       {confirm && <SaveConfirm detail={confirm} onDone={() => setConfirm(null)} />}
     </main>
+  );
+}
+
+function ClosedBanner() {
+  return (
+    <div className="mb-5 rounded-lg border border-[#3398e1]/30 bg-[#c1e1f7]/55 px-4 py-3">
+      <p className="text-sm font-semibold text-[#0c0a09]">Logging is closed</p>
+      <p className="mt-0.5 text-sm text-[#57534e]">
+        1909 outreach has ended. You can still look at souls already on this phone.
+      </p>
+    </div>
   );
 }
 

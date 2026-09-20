@@ -91,6 +91,7 @@ export function MySoulsList({
   campaignId,
   entrantId,
   loginCode,
+  closed = false,
   revision,
   onChanged,
   onCount,
@@ -98,6 +99,7 @@ export function MySoulsList({
   campaignId: string;
   entrantId: string;
   loginCode?: string;
+  closed?: boolean;
   revision: number;
   onChanged?: () => void;
   onCount?: (count: number) => void;
@@ -161,7 +163,9 @@ export function MySoulsList({
     return (
       <div className="rounded-lg border border-[#e8e6e5] bg-white px-5 py-10 text-center">
         <p className="text-sm font-medium text-[#0c0a09]">No souls on this phone yet</p>
-        <p className="mt-1 text-sm text-[#78716c]">Log one on the other tab and it will show up here.</p>
+        <p className="mt-1 text-sm text-[#78716c]">
+          {closed ? "Logging is closed, so nothing new will appear here." : "Log one on the other tab and it will show up here."}
+        </p>
       </div>
     );
   }
@@ -180,6 +184,7 @@ export function MySoulsList({
             if (open && ids.some((id) => open.ids.includes(id))) setOpen(null);
             onChanged?.();
           }}
+          canDelete={!closed}
         />
       ))}
       {open && (
@@ -208,10 +213,12 @@ function SoulRow({
   item,
   onOpen,
   onDeleted,
+  canDelete = true,
 }: {
   item: Listed;
   onOpen: () => void;
   onDeleted: (ids: string[]) => void;
+  canDelete?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -287,7 +294,7 @@ function SoulRow({
             </p>
           </div>
         </button>
-        {!confirming && (
+        {canDelete && !confirming && (
           <button
             type="button"
             onClick={() => setConfirming(true)}

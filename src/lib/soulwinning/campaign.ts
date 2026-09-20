@@ -16,7 +16,7 @@ export async function getCampaignBySlug(slug: string): Promise<SwCampaign | null
   const campaign = (data as SwCampaign) ?? null;
   if (!campaign) return null;
   if (campaign.slug === "1909") {
-    return { ...campaign, goal_total: NINETEEN_OH_NINE_GOAL };
+    return { ...campaign, goal_total: NINETEEN_OH_NINE_GOAL, active: false };
   }
   return campaign;
 }

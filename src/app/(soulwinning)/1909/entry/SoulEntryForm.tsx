@@ -16,10 +16,11 @@ const emptySoul = (): SoulDraft => ({
 interface Props {
   campaignId: string;
   entrantId: string;
+  closed?: boolean;
   onSaved: (detail: { names: string[]; soulsAdded: number }) => void;
 }
 
-export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
+export function SoulEntryForm({ campaignId, entrantId, closed = false, onSaved }: Props) {
   const [souls, setSouls] = useState<SoulDraft[]>([emptySoul()]);
   const [mode, setMode] = useState<"person" | "group">("person");
   const [groupName, setGroupName] = useState("");
@@ -31,7 +32,9 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [locationState, setLocationState] = useState<"pending" | "found" | "unavailable">("pending");
+  const [locationState, setLocationState] = useState<"pending" | "found" | "unavailable">(
+    closed ? "found" : "pending"
+  );
 
   // Every soul carries where it happened, so the group's fix is taken up front
   // and the save stays locked until it lands. All souls in the group share it.
@@ -53,8 +56,9 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   }, [runLocationRequest]);
 
   useEffect(() => {
+    if (closed) return;
     runLocationRequest();
-  }, [runLocationRequest]);
+  }, [closed, runLocationRequest]);
 
   const update = (index: number, patch: Partial<SoulDraft>) =>
     setSouls((prev) => prev.map((soul, i) => (i === index ? { ...soul, ...patch } : soul)));
@@ -79,6 +83,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   };
 
   const save = async (withCoords: Coords) => {
+    if (closed) return;
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -120,7 +125,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving || isLocating) return;
+    if (closed || isSaving || isLocating) return;
     const problem = formError();
     if (problem) {
       setSaveError(problem);
@@ -144,7 +149,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
   };
 
   const handleSaveWithoutLocation = async () => {
-    if (isSaving || isLocating) return;
+    if (closed || isSaving || isLocating) return;
     const problem = formError();
     if (problem) {
       setSaveError(problem);
@@ -155,6 +160,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <fieldset disabled={closed} className="space-y-4 disabled:opacity-60">
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#f2f2f2] p-1">
         <button
           type="button"
@@ -312,49 +318,53 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 text-xs text-[#a8a29e]">
-        {locationState === "pending" && (
-          <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Getting location — save waits for it…
-          </>
-        )}
-        {locationState === "found" && (
-          <>
-            <MapPin className="h-3.5 w-3.5 text-[#3ba6f1]" />
-            Location captured for this group
-          </>
-        )}
-        {locationState === "unavailable" && (
-          <>
-            <MapPinOff className="h-3.5 w-3.5 text-[#f54911]" />
-            <span className="text-[#f54911]">No location yet</span>
-            <button type="button" onClick={requestLocation} className="font-medium underline">
-              Retry
-            </button>
-          </>
-        )}
-      </div>
+      {!closed && (
+        <>
+          <div className="flex items-center gap-1.5 text-xs text-[#a8a29e]">
+            {locationState === "pending" && (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Getting location — save waits for it…
+              </>
+            )}
+            {locationState === "found" && (
+              <>
+                <MapPin className="h-3.5 w-3.5 text-[#3ba6f1]" />
+                Location captured for this group
+              </>
+            )}
+            {locationState === "unavailable" && (
+              <>
+                <MapPinOff className="h-3.5 w-3.5 text-[#f54911]" />
+                <span className="text-[#f54911]">No location yet</span>
+                <button type="button" onClick={requestLocation} className="font-medium underline">
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
 
-      {locationState === "unavailable" && (
-        <div className="space-y-3 rounded-lg border border-[#f54911]/30 bg-[#f54911]/5 p-4">
-          <p className="text-sm text-[#0c0a09]">
-            Location is required for the map. Tap Retry first — it usually works outdoors. Save
-            without location only if it will not fix.
-          </p>
-          <button
-            type="button"
-            onClick={handleSaveWithoutLocation}
-            disabled={isSaving || isLocating || Boolean(formError())}
-            className="w-full rounded-lg border border-[#f54911] px-4 py-3 text-sm font-semibold text-[#f54911] disabled:opacity-40"
-          >
-            {mode === "group"
-              ? `Save ${partySize || "group"} without location`
-              : named.length > 1
-                ? `Save ${named.length} souls without location`
-                : "Save without location"}
-          </button>
-        </div>
+          {locationState === "unavailable" && (
+            <div className="space-y-3 rounded-lg border border-[#f54911]/30 bg-[#f54911]/5 p-4">
+              <p className="text-sm text-[#0c0a09]">
+                Location is required for the map. Tap Retry first — it usually works outdoors. Save
+                without location only if it will not fix.
+              </p>
+              <button
+                type="button"
+                onClick={handleSaveWithoutLocation}
+                disabled={isSaving || isLocating || Boolean(formError())}
+                className="w-full rounded-lg border border-[#f54911] px-4 py-3 text-sm font-semibold text-[#f54911] disabled:opacity-40"
+              >
+                {mode === "group"
+                  ? `Save ${partySize || "group"} without location`
+                  : named.length > 1
+                    ? `Save ${named.length} souls without location`
+                    : "Save without location"}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {saveError && (
@@ -365,10 +375,12 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
 
       <button
         type="submit"
-        disabled={isSaving || isLocating}
+        disabled={closed || isSaving || isLocating}
         className="w-full rounded-lg bg-[#3ba6f1] px-4 py-4 text-base font-semibold text-white disabled:opacity-40"
       >
-        {isLocating
+        {closed
+          ? "Logging is closed"
+          : isLocating
           ? "Getting location…"
           : isSaving
             ? "Saving…"
@@ -380,6 +392,7 @@ export function SoulEntryForm({ campaignId, entrantId, onSaved }: Props) {
                 ? `Save ${named.length} souls`
                 : "Save soul"}
       </button>
+      </fieldset>
     </form>
   );
 }
