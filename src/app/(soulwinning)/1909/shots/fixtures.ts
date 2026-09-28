@@ -1,19 +1,19 @@
 import type { HourlyRow, LeaderboardRow, DuplicateRow, MapPoint, Overview } from "@/lib/soulwinning/admin";
-import type { SwCampaign, SwCounts } from "@/lib/soulwinning/types";
+import type { SwCampaignSettings, SwCounts } from "@/lib/soulwinning/types";
 import { FELLOWSHIPS } from "@/lib/soulwinning/fellowships";
 
-export const SHOT_CAMPAIGN: SwCampaign = {
+export const SHOT_CAMPAIGN: SwCampaignSettings = {
   id: "shot-campaign",
   name: "1909 Outreach",
   slug: "1909",
   event_date: "2026-09-19",
-  active: true,
+  opens_at: "2026-09-19T00:00:00.000Z",
+  closes_at: "2099-12-31T20:00:00.000Z",
   sms_template:
     "1909 update at {time}: {total} souls won for Christ ({tongues} spoke in tongues, {church} coming to church). Goal {goal}.",
   sms_start_hour: 8,
   sms_end_hour: 18,
   goal_total: 1909,
-  created_at: "2026-09-19T07:00:00.000Z",
 };
 
 export const SAMPLE_PHOTOS = [
@@ -255,8 +255,7 @@ export const SHOT_MAP_POINTS: MapPoint[] = (() => {
 
 const last = COUNTED[COUNTED.length - 1];
 
-export const SHOT_COUNTS: SwCounts = {
-  campaign_id: SHOT_CAMPAIGN.id,
+export const SHOT_COUNTS: SwCounts & { pending_duplicates: number } = {
   total_souls: COUNTED.length,
   tongues_count: COUNTED.filter((row) => row.spoke_in_tongues).length,
   church_count: COUNTED.filter((row) => row.coming_to_church).length,
@@ -266,8 +265,8 @@ export const SHOT_COUNTS: SwCounts = {
   recent_names: COUNTED.slice(-10)
     .reverse()
     .map((row) => row.soul_name.split(" ")[0]),
-  last_photo_path: [...COUNTED].reverse().find((row) => row.photo_path)?.photo_path ?? null,
-  recent_photo_paths: SAMPLE_PHOTOS,
+  last_photo: [...COUNTED].reverse().find((row) => row.photo_path)?.photo_path ?? null,
+  recent_photos: SAMPLE_PHOTOS,
   updated_at: "2026-09-19T17:40:00.000Z",
 };
 

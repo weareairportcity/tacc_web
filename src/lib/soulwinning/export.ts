@@ -3,7 +3,7 @@
 import JSZip from "jszip";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { createClient } from "@/utils/supabase/client";
+import { fetchCountedEntries } from "./admin";
 import type { SwCampaign } from "./types";
 
 /**
@@ -121,19 +121,7 @@ function collapseExportRows(rows: Raw[]): ExportRow[] {
 }
 
 export async function fetchExportRows(campaignId: string): Promise<ExportRow[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("sw_soul_entries")
-    .select(
-      "soul_name, phone, spoke_in_tongues, coming_to_church, created_at, group_id, sw_entrants(name, fellowship, pfcc)"
-    )
-    .eq("campaign_id", campaignId)
-    .eq("counted", true)
-    .order("created_at")
-    .limit(5000);
-  if (error) throw error;
-
-  return collapseExportRows((data as unknown as Raw[]) ?? []);
+  return collapseExportRows(await fetchCountedEntries(campaignId));
 }
 
 function csv(rows: ExportRow[]): string {

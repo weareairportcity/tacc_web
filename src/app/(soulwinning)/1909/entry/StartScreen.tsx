@@ -41,7 +41,7 @@ export function StartScreen({ onDone, onCancel, adding = false, closed = false }
         <div className="space-y-1">
           <h2 className="font-display text-2xl text-[#0c0a09]">Logging is closed</h2>
           <p className="text-sm">
-            1909 outreach has ended. If you already logged souls, open with your login code to
+            This outreach has ended. If you already logged souls, open with your login code to
             see them.
           </p>
         </div>

@@ -3,13 +3,18 @@ export type SwCampaign = {
   name: string;
   slug: string;
   event_date: string;
-  active: boolean;
+  /** Logging and the live counter run between these (ISO, UTC = Accra). */
+  opens_at: string;
+  closes_at: string;
+  /** Target for the counter's progress bar; null hides it. */
+  goal_total: number | null;
+};
+
+/** Admin-only campaign settings. */
+export type SwCampaignSettings = SwCampaign & {
   sms_template: string;
   sms_start_hour: number;
   sms_end_hour: number;
-  /** Target for the counter's progress bar; null hides it. */
-  goal_total: number | null;
-  created_at: string;
 };
 
 export type SwEntrant = {
@@ -45,22 +50,27 @@ export type SwSoulEntry = {
   synced_at: string;
 };
 
+/** What the public counter is given: aggregates and first names only. */
 export type SwCounts = {
-  campaign_id: string;
   total_souls: number;
   tongues_count: number;
   church_count: number;
-  pending_duplicates: number;
   /** First name only — all the counter page is ever given about a soul. */
   last_soul_name: string | null;
   last_entry_id: string | null;
   /** Last few first names, newest first — the "recently won" strip. */
   recent_names: string[];
-  /** Storage path of the newest soul's photo, if one was taken. */
-  last_photo_path: string | null;
-  /** Newest photo paths for the counter marquee. Public page never reads entries. */
-  recent_photo_paths: string[];
+  /** Signed link to the newest soul's photo, if one was taken. */
+  last_photo: string | null;
+  /** Signed thumbnail links for the marquee, newest first. */
+  recent_photos: string[];
   updated_at: string;
+};
+
+export type SwLive = {
+  campaign: SwCampaign;
+  counts: SwCounts | null;
+  server_time: string;
 };
 
 export type SwSmsConfig = {

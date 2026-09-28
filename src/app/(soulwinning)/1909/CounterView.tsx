@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { burstConfetti } from "@/lib/soulwinning/confetti";
 import { SoulCard } from "./SoulCard";
 import { PhotoMarquee } from "./PhotoMarquee";
-import { useCampaignCounts } from "@/lib/soulwinning/use-counts";
+import { useLiveCounts } from "@/lib/soulwinning/use-live";
 import type { SwCampaign, SwCounts } from "@/lib/soulwinning/types";
 import { Odometer } from "./Odometer";
 
@@ -57,8 +57,6 @@ const TICK_MS = 700;
 const MAX_QUEUE = 18;
 const MAX_ON_SCREEN = 14;
 const LONGEST_FLOAT_MS = 16_000;
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function mergePhotoPaths(incoming: string[], prev: string[]) {
   const merged = [...incoming, ...prev.filter((path) => !incoming.includes(path))]
@@ -78,7 +76,7 @@ interface Props {
 }
 
 export function CounterView({ campaign, initialCounts, variant }: Props) {
-  const { counts, isLive } = useCampaignCounts(campaign.id, initialCounts);
+  const { counts, isLive } = useLiveCounts(campaign, initialCounts);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [floating, setFloating] = useState<FloatingSoul[]>([]);
   const [shotBump, setShotBump] = useState({ total: 0, tongues: 0, church: 0 });
@@ -95,7 +93,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
 
   const isProjector = variant === "projector";
   const [marqueePaths, setMarqueePaths] = useState<string[]>(() => {
-    const recent = initialCounts?.recent_photo_paths ?? [];
+    const recent = initialCounts?.recent_photos ?? [];
     return recent.filter(Boolean).slice(0, 36);
   });
   const total = (counts?.total_souls ?? 0) + shotBump.total;
@@ -117,44 +115,24 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
     lastEntryRef.current = entryId;
     queueRef.current.push({
       name: counts?.last_soul_name || "A soul",
-      photoPath: counts?.last_photo_path ?? null,
+      photoPath: counts?.last_photo ?? null,
     });
-    pushMarqueePhoto(counts?.last_photo_path);
+    pushMarqueePhoto(counts?.last_photo);
     if (queueRef.current.length > MAX_QUEUE) {
       queueRef.current = queueRef.current.slice(-MAX_QUEUE);
     }
-  }, [counts?.last_entry_id, counts?.last_soul_name, counts?.last_photo_path]);
+  }, [counts?.last_entry_id, counts?.last_soul_name, counts?.last_photo]);
 
+  // The live feed already carries the newest signed thumbnail links.
   useEffect(() => {
-    const recent = (counts?.recent_photo_paths ?? []).filter(Boolean);
+    // Replace rather than merge: links are re-signed every few hours, and the
+    // feed is always the newest 36, so merging would show a photo twice.
+    const recent = (counts?.recent_photos ?? []).filter(Boolean).slice(0, 36);
     if (recent.length === 0) return;
-    setMarqueePaths((prev) => mergePhotoPaths(recent, prev));
-  }, [counts?.recent_photo_paths]);
-
-  useEffect(() => {
-    if (!UUID.test(campaign.id)) return;
-
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/soulwinning/marquee?campaign=${campaign.id}`);
-        if (!response.ok) return;
-        const payload = (await response.json()) as { paths?: string[] };
-        const paths = (payload.paths ?? []).filter(Boolean);
-        if (cancelled || paths.length === 0) return;
-        setMarqueePaths((prev) => mergePhotoPaths(paths, prev));
-      } catch {
-        // Keep whatever is already on the marquee.
-      }
-    };
-
-    void load();
-    const timer = setInterval(() => void load(), 20_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [campaign.id]);
+    setMarqueePaths((prev) =>
+      prev.length === recent.length && prev.every((url, i) => url === recent[i]) ? prev : recent,
+    );
+  }, [counts?.recent_photos]);
 
   // Release everything waiting in one go, so a group of souls crosses the
   // screen together and the burst is sized to how many arrived.
@@ -244,7 +222,7 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
         </div>
       ))}
 
-      {/* Header: church mark, then 1909 as the page's title, centred as a lockup */}
+      {/* Header: church mark, then the campaign's name as the title, centred as a lockup */}
       <header className="relative z-10 shrink-0 border-b border-[#e8e6e5] pb-[clamp(0.35rem,1.2vh,0.85rem)] text-center">
         {/* Out of the centred flow so it cannot pull the lockup off-centre. */}
         {!isProjector && (
@@ -269,9 +247,14 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
 
         <h1
           className="mt-[clamp(0.2rem,0.8vh,0.65rem)] font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
-          style={{ fontSize: isProjector ? "clamp(1.35rem, 4.2vh, 2.75rem)" : "clamp(1.5rem, 5vh, 3rem)" }}
+          // Capped by width too: "Grace in Continuity" has to fit a phone.
+          style={{
+            fontSize: isProjector
+              ? "clamp(1.35rem, min(4.2vh, 4vw), 2.75rem)"
+              : "clamp(1.3rem, min(5vh, 7.5vw), 3rem)",
+          }}
         >
-          1909
+          {campaign.name}
         </h1>
         <p
           className="sw-on-marquee mt-[clamp(0.1rem,0.5vh,0.35rem)] text-[#44403c]"

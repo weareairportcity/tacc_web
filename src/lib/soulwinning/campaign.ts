@@ -1,45 +1,32 @@
-import { createClient } from "@/utils/supabase/server";
-import type { SwCampaign, SwCounts } from "./types";
-import { listMarqueePhotoPaths } from "./marquee-paths";
+import { SW_API } from "./api";
+import type { SwCampaign, SwLive } from "./types";
 
-const NINETEEN_OH_NINE_GOAL = 1909;
+/**
+ * Server-side reads for the soul winning pages. Both are cached by Next.js, so
+ * the pages are static and rebuilt at most every few minutes — opening the
+ * counter on 50 phones doesn't run 50 server renders.
+ */
 
-/** The campaign a soul-winning route is serving, looked up by its slug (e.g. "1909"). */
 export async function getCampaignBySlug(slug: string): Promise<SwCampaign | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("sw_campaigns")
-    .select("*")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  const campaign = (data as SwCampaign) ?? null;
-  if (!campaign) return null;
-  if (campaign.slug === "1909") {
-    return { ...campaign, goal_total: NINETEEN_OH_NINE_GOAL, active: false };
+  try {
+    const response = await fetch(`${SW_API}/v1/campaign/${encodeURIComponent(slug)}`, {
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) return null;
+    return ((await response.json()) as { campaign: SwCampaign }).campaign;
+  } catch {
+    return null;
   }
-  return campaign;
 }
 
-/** Aggregate counts only — never raw entries, so nothing personal reaches a public page. */
-export async function getCampaignCounts(campaignId: string): Promise<SwCounts | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("sw_counts")
-    .select("*")
-    .eq("campaign_id", campaignId)
-    .maybeSingle();
-
-  const counts = (data as SwCounts) ?? null;
-  if (!counts) return null;
-
-  const paths = await listMarqueePhotoPaths(campaignId);
-  if (paths.length === 0) return counts;
-
-  return {
-    ...counts,
-    // last_photo_path stays whatever the latest soul is (often null). The
-    // marquee always uses every submitted picture, not only the last one.
-    recent_photo_paths: paths,
-  };
+export async function getLive(slug: string): Promise<SwLive | null> {
+  try {
+    const response = await fetch(`${SW_API}/v1/live/${encodeURIComponent(slug)}`, {
+      next: { revalidate: 60 },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as SwLive;
+  } catch {
+    return null;
+  }
 }

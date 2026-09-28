@@ -1,6 +1,6 @@
 {
-  "name": "1909 Soul Winning — Log a Soul",
-  "short_name": "1909",
+  "name": "Soul Winning — Log a Soul",
+  "short_name": "Soul Winning",
   "description": "Log every soul won during the outreach.",
   "start_url": "/1909/entry",
   "scope": "/1909",

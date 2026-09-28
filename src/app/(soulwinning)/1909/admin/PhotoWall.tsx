@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
+import { fetchPhotoEntries } from "@/lib/soulwinning/admin";
 import { useSoulPhoto } from "@/lib/soulwinning/use-soul-photo";
 import type { Entry } from "./EntriesTable";
 
@@ -29,20 +29,17 @@ export function PhotoWall({
     let cancelled = false;
     void (async () => {
       setRows(null);
-      const supabase = createClient();
-      const { data, error: queryError } = await supabase
-        .from("sw_soul_entries")
-        .select(
-          "id, soul_name, phone, spoke_in_tongues, coming_to_church, duplicate_status, counted, photo_path, created_at, sw_entrants(name, fellowship, pfcc)"
-        )
-        .eq("campaign_id", campaignId)
-        .not("photo_path", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(2000);
+      let data: Entry[] | null = null;
+      let queryError: Error | null = null;
+      try {
+        data = await fetchPhotoEntries(campaignId);
+      } catch (err) {
+        queryError = err instanceof Error ? err : new Error("Could not load photos");
+      }
 
       if (cancelled) return;
       if (queryError) setError(queryError.message);
-      else setRows((data as unknown as Entry[]) ?? []);
+      else setRows(data ?? []);
     })();
 
     return () => {

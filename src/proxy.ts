@@ -39,8 +39,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── Admin session refresh ────────────────────────────────────────────
-  // Everything else — the counter, the projector, the field app — skips this.
-  const needsSession = pathname.startsWith("/admin") || pathname.startsWith("/1909/admin");
+  // Only the Supabase-backed admin area. The soul winning admin (/1909/admin)
+  // has its own admin-code sign-in and no Supabase session.
+  const needsSession = pathname.startsWith("/admin");
   if (!needsSession) {
     return NextResponse.next();
   }
@@ -88,8 +89,16 @@ export async function proxy(request: NextRequest) {
   return supabaseResponse;
 }
 
+// Runs only where it has work to do: every path on the soul winning subdomain
+// (for the /1909 rewrite) and the Supabase admin area. It used to match nearly
+// every request on the site, which made each page view and API call pay for a
+// proxy invocation it didn't need.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
+      has: [{ type: "header", key: "host", value: "(?:www\\.)?soulwinning\\..+" }],
+    },
+    "/admin/:path*",
   ],
 };

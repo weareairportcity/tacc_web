@@ -7,7 +7,7 @@
  * entrant_id is a foreign key.
  */
 
-import { createClient } from "@/utils/supabase/client";
+import { SwApiError, swPost, swPutPhoto } from "./api";
 import { openDb, ENTRIES_STORE as ENTRIES } from "./local-db";
 import {
   ENTRANTS_STORE,
@@ -19,7 +19,7 @@ import {
   type LocalEntrant,
   type LocalEntry,
 } from "./local-db";
-import { photoAsBlob } from "./photo";
+import { makeThumbnail, photoAsBlob, thumbPath } from "./photo";
 
 const CHUNK_SIZE = 50;
 const POLL_INTERVAL_MS = 15_000;
@@ -63,32 +63,20 @@ export async function refreshPendingCount(): Promise<void> {
 }
 
 /**
- * A plain INSERT, retried row by row if the batch trips a duplicate id.
- *
- * Not an upsert: PostgREST's upsert takes the ON CONFLICT path, which RLS
- * evaluates against an UPDATE policy — and anon deliberately has none, so
- * every insert would be rejected. A duplicate id can only mean this exact
- * entry already reached Postgres on an earlier attempt, which is precisely
- * what client-generated ids are for, so it counts as success.
+ * Sends a batch to the soul winning API. The server ignores ids it already
+ * has, so a retry after a flaky connection is always safe.
  */
-const UNIQUE_VIOLATION = "23505";
-
 async function insertRows(
-  table: string,
+  endpoint: "/v1/entrants" | "/v1/entries",
   rows: Record<string, unknown>[]
 ): Promise<{ ok: boolean; error: string | null }> {
-  const supabase = createClient();
-  const { error } = await supabase.from(table).insert(rows);
-  if (!error) return { ok: true, error: null };
-  if (error.code !== UNIQUE_VIOLATION) return { ok: false, error: error.message };
-
-  // One bad id must not hold up the rest of the batch.
-  let failure: string | null = null;
-  for (const row of rows) {
-    const { error: rowError } = await supabase.from(table).insert(row);
-    if (rowError && rowError.code !== UNIQUE_VIOLATION) failure = rowError.message;
+  try {
+    await swPost(endpoint, { rows });
+    return { ok: true, error: null };
+  } catch (error) {
+    if (error instanceof SwApiError) return { ok: false, error: error.message };
+    return { ok: false, error: "network error" };
   }
-  return { ok: failure === null, error: failure };
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -120,7 +108,7 @@ async function pushEntrants(): Promise<boolean> {
       created_at: entrant.created_at,
     }));
 
-    const { ok, error } = await insertRows("sw_entrants", rows);
+    const { ok, error } = await insertRows("/v1/entrants", rows);
 
     if (ok) {
       await markSynced(ENTRANTS_STORE, batch.map((entrant) => entrant.id));
@@ -152,17 +140,14 @@ async function uploadPhoto(entry: LocalEntry): Promise<boolean> {
     return true;
   }
 
-  const supabase = createClient();
-  // Insert only. upsert:true sends x-upsert, which needs an UPDATE policy
-  // anon does not have — every field photo would 403 and the hall would 404.
-  const { error } = await supabase.storage
-    .from("sw-photos")
-    .upload(entry.photo_path, photoAsBlob(entry.photo), { contentType: "image/jpeg", upsert: false });
-
-  // "already exists" means a previous attempt actually succeeded.
-  const ok = !error || /exists|duplicate/i.test(error.message);
-  if (!ok) {
-    emit({ lastError: `photo: ${error?.message ?? "upload failed"}` });
+  // Thumbnail first (the counter marquee uses it), then the full photo. Both
+  // uploads are idempotent: the server answers "already there" as success.
+  const full = photoAsBlob(entry.photo);
+  const thumb = await makeThumbnail(full);
+  const thumbOk = thumb ? await swPutPhoto(thumbPath(entry.photo_path), thumb) : true;
+  const fullOk = await swPutPhoto(entry.photo_path, full);
+  if (!thumbOk || !fullOk) {
+    emit({ lastError: "photo: upload failed" });
     return false;
   }
 
@@ -212,7 +197,7 @@ async function pushEntries(): Promise<void> {
       created_at: entry.created_at,
     }));
 
-    const { ok, error } = await insertRows("sw_soul_entries", rows);
+    const { ok, error } = await insertRows("/v1/entries", rows);
 
     if (!ok) {
       await markFailed(ENTRIES_STORE, batch.map((entry) => entry.id), error ?? "insert failed");

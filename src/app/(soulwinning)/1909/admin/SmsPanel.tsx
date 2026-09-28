@@ -9,7 +9,7 @@ import {
   setSmsRecipientEnabled,
   updateCampaignSettings,
 } from "@/lib/soulwinning/admin";
-import type { SwCampaign, SwSmsConfig } from "@/lib/soulwinning/types";
+import type { SwCampaignSettings as SwCampaign, SwSmsConfig } from "@/lib/soulwinning/types";
 
 /**
  * Recipients and the message template are both editable here rather than

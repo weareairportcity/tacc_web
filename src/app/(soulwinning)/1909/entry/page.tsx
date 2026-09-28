@@ -1,14 +1,29 @@
 import type { Metadata } from "next";
-import { OutreachEnded } from "../OutreachEnded";
+import { notFound } from "next/navigation";
+import { SW_CAMPAIGN } from "@/lib/soulwinning/api";
+import { getCampaignBySlug } from "@/lib/soulwinning/campaign";
+import { FieldApp } from "./FieldApp";
 
-// The outreach is over. This used to be a live, force-dynamic page that polled
-// Supabase from every open phone and projector; it is now static so it costs
-// nothing to leave open. The live version is in git history before this change.
+// Static, rebuilt at most every 5 minutes: the field app is a client-side app
+// that talks to the Cloudflare API directly, so a page load costs no server work.
+export const revalidate = 300;
+
+// A manifest of its own, scoped to /1909, so the outreach app installs on its
+// own without disturbing the camp manifest already served at /manifest.json.
 export const metadata: Metadata = {
-  title: "1909 — Log a Soul",
+  title: "Soul Winning — Log a Soul",
   description: "Log every soul won during the outreach.",
+  manifest: "/1909/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Soul Winning",
+    statusBarStyle: "default",
+  },
 };
 
-export default function Page() {
-  return <OutreachEnded />;
+export default async function EntryPage() {
+  const campaign = await getCampaignBySlug(SW_CAMPAIGN);
+  if (!campaign) notFound();
+
+  return <FieldApp campaign={campaign} />;
 }

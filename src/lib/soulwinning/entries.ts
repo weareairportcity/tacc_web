@@ -7,8 +7,8 @@ import {
   putRecord,
   type LocalEntry,
 } from "./local-db";
-import { photoPath, toStoredPhoto, photoAsBlob } from "./photo";
-import { createClient } from "@/utils/supabase/client";
+import { makeThumbnail, photoPath, thumbPath, toStoredPhoto, photoAsBlob } from "./photo";
+import { SW_API, swPutPhoto } from "./api";
 
 export type Coords = { latitude: number; longitude: number } | null;
 
@@ -143,15 +143,10 @@ async function putEntry(entry: LocalEntry): Promise<void> {
 }
 
 async function uploadPhotoNow(path: string, photo: ArrayBuffer): Promise<boolean> {
-  try {
-    const supabase = createClient();
-    const { error } = await supabase.storage
-      .from("sw-photos")
-      .upload(path, photoAsBlob(photo), { contentType: "image/jpeg", upsert: false });
-    return !error || /exists|duplicate/i.test(error.message);
-  } catch {
-    return false;
-  }
+  const full = photoAsBlob(photo);
+  const thumb = await makeThumbnail(full);
+  if (thumb && !(await swPutPhoto(thumbPath(path), thumb))) return false;
+  return swPutPhoto(path, full);
 }
 
 const MAX_PARTY = 500;
@@ -243,7 +238,7 @@ export async function deleteLocalEntries(ids: string[]): Promise<void> {
     (row) => row.synced === 1 && row.campaign_id !== SHOT_CAMPAIGN_ID
   );
   if (live.length > 0) {
-    const response = await fetch("/api/soulwinning/entries/delete", {
+    const response = await fetch(`${SW_API}/v1/entries/delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -286,7 +281,7 @@ export async function fetchRemoteEntries(args: {
   if (!args.loginCode || args.campaignId === SHOT_CAMPAIGN_ID) return [];
 
   try {
-    const response = await fetch("/api/soulwinning/entries/mine", {
+    const response = await fetch(`${SW_API}/v1/entries/mine`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: args.loginCode, campaign_id: args.campaignId }),

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { SwCampaign } from "@/lib/soulwinning/types";
+import { campaignPhase, type CampaignPhase } from "@/lib/soulwinning/api";
 import {
   getActiveEntrant,
   listEntrants,
@@ -25,14 +26,27 @@ interface Props {
   campaign: SwCampaign;
 }
 
+// Re-checks the campaign window each half minute, so a phone left open flips
+// to "open" at the start time and to "closed" at the end without a reload.
+function usePhase(campaign: SwCampaign): CampaignPhase {
+  const [phase, setPhase] = useState<CampaignPhase>(() => campaignPhase(campaign));
+  useEffect(() => {
+    const timer = setInterval(() => setPhase(campaignPhase(campaign)), 30_000);
+    return () => clearInterval(timer);
+  }, [campaign]);
+  return phase;
+}
+
 export function FieldApp({ campaign }: Props) {
-  const closed = !campaign.active;
+  const phase = usePhase(campaign);
+  // Before opening, members can still sign up; they just can't log souls yet.
+  const closed = phase !== "open";
   const [isReady, setIsReady] = useState(false);
   const [entrants, setEntrants] = useState<LocalEntrant[]>([]);
   const [entrant, setEntrant] = useState<LocalEntrant | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
-  const [tab, setTab] = useState<"log" | "mine">(campaign.active ? "log" : "mine");
+  const [tab, setTab] = useState<"log" | "mine">(phase === "closed" ? "mine" : "log");
   const [myTotal, setMyTotal] = useState(0);
   const [locationAllowed, setLocationAllowed] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
@@ -153,8 +167,8 @@ export function FieldApp({ campaign }: Props) {
     return (
       <main className="mx-auto w-full max-w-md px-5 py-10">
         <Header campaign={campaign} />
-        {closed && <ClosedBanner />}
-        <StartScreen closed={closed} onDone={selectEntrant} />
+        {closed && <ClosedBanner campaign={campaign} phase={phase} />}
+        <StartScreen closed={phase === "closed"} onDone={selectEntrant} />
       </main>
     );
   }
@@ -175,7 +189,7 @@ export function FieldApp({ campaign }: Props) {
   return (
     <main className="mx-auto w-full max-w-md px-5 pb-16 pt-8">
       <Header campaign={campaign} />
-      {closed && <ClosedBanner />}
+      {closed && <ClosedBanner campaign={campaign} phase={phase} />}
 
       <div className="mb-5 space-y-2">
         <div className="flex justify-end">
@@ -275,12 +289,24 @@ export function FieldApp({ campaign }: Props) {
   );
 }
 
-function ClosedBanner() {
+function ClosedBanner({ campaign, phase }: { campaign: SwCampaign; phase: CampaignPhase }) {
+  const opens = new Date(campaign.opens_at).toLocaleString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Africa/Accra",
+  });
   return (
     <div className="mb-5 rounded-lg border border-[#3398e1]/30 bg-[#c1e1f7]/55 px-4 py-3">
-      <p className="text-sm font-semibold text-[#0c0a09]">Logging is closed</p>
+      <p className="text-sm font-semibold text-[#0c0a09]">
+        {phase === "before" ? "Logging hasn't opened yet" : "Logging is closed"}
+      </p>
       <p className="mt-0.5 text-sm text-[#57534e]">
-        1909 outreach has ended. You can still look at souls already on this phone.
+        {phase === "before"
+          ? `You can sign up now. Logging souls opens ${opens}.`
+          : `${campaign.name} has ended. You can still look at souls already on this phone.`}
       </p>
     </div>
   );

@@ -8,6 +8,7 @@ import { pfccForFellowship } from "./fellowships";
 import { newId } from "./id";
 import { normalizeLoginCode, uniqueLoginCode } from "./login-code";
 import { ENTRANTS_STORE, getAll, putRecord, type LocalEntrant } from "./local-db";
+import { SW_API } from "./api";
 
 const DEVICE_KEY = "sw1909:device_id";
 const ACTIVE_KEY = "sw1909:active_entrant_id";
@@ -107,7 +108,7 @@ export async function adoptEntrantByCode(raw: string): Promise<CodeLoginResult> 
   }
 
   try {
-    const response = await fetch("/api/soulwinning/login-code", {
+    const response = await fetch(`${SW_API}/v1/login-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),

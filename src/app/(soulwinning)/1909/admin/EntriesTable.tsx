@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { deleteSoulEntries } from "@/lib/soulwinning/admin";
+import { deleteSoulEntries, fetchEntries } from "@/lib/soulwinning/admin";
 import { SoulDetail, type SoulDetailData } from "../SoulDetail";
 import { ClearEntriesControl } from "./ClearEntriesControl";
 
@@ -121,19 +120,17 @@ export function EntriesTable({
 
     void (async () => {
       setRows(null);
-      const supabase = createClient();
-      const { data, error: queryError } = await supabase
-        .from("sw_soul_entries")
-        .select(
-          "id, soul_name, phone, spoke_in_tongues, coming_to_church, duplicate_status, counted, photo_path, created_at, group_id, latitude, longitude, sw_entrants(name, fellowship, pfcc)"
-        )
-        .eq("campaign_id", campaignId)
-        .order("created_at", { ascending: false })
-        .limit(2000);
+      let data: Entry[] | null = null;
+      let queryError: Error | null = null;
+      try {
+        data = await fetchEntries(campaignId);
+      } catch (err) {
+        queryError = err instanceof Error ? err : new Error("Could not load entries");
+      }
 
       if (cancelled) return;
       if (queryError) setError(queryError.message);
-      else setRows((data as unknown as Entry[]) ?? []);
+      else setRows(data ?? []);
     })();
 
     return () => {

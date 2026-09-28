@@ -6,8 +6,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Loader2, Search, X } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { fetchMapPoints, collapseMapPoints, type MapPoint } from "@/lib/soulwinning/admin";
+import { fetchMapPoints, collapseMapPoints, searchMap, type MapPoint } from "@/lib/soulwinning/admin";
 import { useSoulPhoto } from "@/lib/soulwinning/use-soul-photo";
 
 /**
@@ -217,39 +216,26 @@ export function SoulMap({
     setHits(null);
 
     try {
-      const supabase = createClient();
       const results: SearchHit[] = [];
+      const found = await searchMap(campaignId, term);
 
-      const { data: souls } = await supabase
-        .from("sw_soul_entries")
-        .select("soul_name, latitude, longitude, sw_entrants(name)")
-        .eq("campaign_id", campaignId)
-        .not("latitude", "is", null)
-        .ilike("soul_name", `%${term}%`)
-        .limit(8);
-
-      type SoulHit = { soul_name: string; latitude: number; longitude: number; sw_entrants: { name: string } | null };
-      for (const row of (souls as unknown as SoulHit[]) ?? []) {
+      for (const row of found.souls) {
+        if (row.latitude == null || row.longitude == null) continue;
         results.push({
-          label: row.soul_name,
-          sublabel: `Soul · logged by ${row.sw_entrants?.name ?? "—"}`,
+          label: row.soul_name ?? "",
+          sublabel: `Soul · logged by ${row.entrant_name ?? "—"}`,
           lat: row.latitude,
           lng: row.longitude,
           zoom: 18,
         });
       }
 
-      const { data: members } = await supabase
-        .from("sw_entrants")
-        .select("name")
-        .ilike("name", `%${term}%`)
-        .limit(5);
-      for (const member of (members as { name: string }[]) ?? []) {
-        const theirs = (points ?? []).filter((p) => p.entrant_name === member.name);
+      for (const name of found.members) {
+        const theirs = (points ?? []).filter((p) => p.entrant_name === name);
         if (theirs.length === 0) continue;
         const theirsCount = theirs.reduce((sum, point) => sum + (point.souls ?? 1), 0);
         results.push({
-          label: member.name,
+          label: name,
           sublabel: `Member · ${theirsCount} ${theirsCount === 1 ? "soul" : "souls"}`,
           lat: theirs.reduce((sum, p) => sum + p.latitude, 0) / theirs.length,
           lng: theirs.reduce((sum, p) => sum + p.longitude, 0) / theirs.length,
