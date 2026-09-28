@@ -21,6 +21,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "googleapis": "^171.4.0",
+    "heic2any": "^0.0.4",
     "ics": "^3.11.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
