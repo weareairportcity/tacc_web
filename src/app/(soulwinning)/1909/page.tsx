@@ -1,21 +1,14 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getCampaignBySlug, getCampaignCounts } from "@/lib/soulwinning/campaign";
-import { CounterView } from "./CounterView";
+import { OutreachEnded } from "./OutreachEnded";
 
-export const dynamic = "force-dynamic";
-
+// The outreach is over. This used to be a live, force-dynamic page that polled
+// Supabase from every open phone and projector; it is now static so it costs
+// nothing to leave open. The live version is in git history before this change.
 export const metadata: Metadata = {
   title: "1909 — Souls Won for Christ",
   description: "Souls won for Christ, live.",
 };
 
-/** The public live counter — what /1909 shows anyone who opens it. */
-export default async function CounterPage() {
-  const campaign = await getCampaignBySlug("1909");
-  if (!campaign) notFound();
-
-  const counts = await getCampaignCounts(campaign.id);
-
-  return <CounterView campaign={campaign} initialCounts={counts} variant="public" />;
+export default function Page() {
+  return <OutreachEnded />;
 }

@@ -1,28 +1,14 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getCampaignBySlug } from "@/lib/soulwinning/campaign";
-import { FieldApp } from "./FieldApp";
+import { OutreachEnded } from "../OutreachEnded";
 
-export const dynamic = "force-dynamic";
-
-const CAMPAIGN_SLUG = "1909";
-
-// A manifest of its own, scoped to /1909, so the outreach app installs on its
-// own without disturbing the camp manifest already served at /manifest.json.
+// The outreach is over. This used to be a live, force-dynamic page that polled
+// Supabase from every open phone and projector; it is now static so it costs
+// nothing to leave open. The live version is in git history before this change.
 export const metadata: Metadata = {
   title: "1909 — Log a Soul",
   description: "Log every soul won during the outreach.",
-  manifest: "/1909/manifest.json",
-  appleWebApp: {
-    capable: true,
-    title: "1909",
-    statusBarStyle: "default",
-  },
 };
 
-export default async function EntryPage() {
-  const campaign = await getCampaignBySlug(CAMPAIGN_SLUG);
-  if (!campaign) notFound();
-
-  return <FieldApp campaign={campaign} />;
+export default function Page() {
+  return <OutreachEnded />;
 }

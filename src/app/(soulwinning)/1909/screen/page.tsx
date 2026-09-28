@@ -1,24 +1,14 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getCampaignBySlug, getCampaignCounts } from "@/lib/soulwinning/campaign";
-import { CounterView } from "../CounterView";
+import { OutreachEnded } from "../OutreachEnded";
 
-export const dynamic = "force-dynamic";
-
+// The outreach is over. This used to be a live, force-dynamic page that polled
+// Supabase from every open phone and projector; it is now static so it costs
+// nothing to leave open. The live version is in git history before this change.
 export const metadata: Metadata = {
   title: "1909 — Big Screen",
   description: "Souls won for Christ, live.",
 };
 
-/**
- * The projector view: same live data, built to be read across a hall. No entry
- * form, no controls, nothing to tap — it is meant to be opened once and left up.
- */
-export default async function BigScreenPage() {
-  const campaign = await getCampaignBySlug("1909");
-  if (!campaign) notFound();
-
-  const counts = await getCampaignCounts(campaign.id);
-
-  return <CounterView campaign={campaign} initialCounts={counts} variant="projector" />;
+export default function Page() {
+  return <OutreachEnded />;
 }
