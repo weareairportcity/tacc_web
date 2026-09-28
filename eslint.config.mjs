@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloudflare Worker: generated types and local state.
+    "workers/*/worker-configuration.d.ts",
+    "workers/*/.wrangler/**",
   ]),
 ]);
 

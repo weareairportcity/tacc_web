@@ -1,0 +1,29 @@
+// Soul winning API: the field app, the live counter feed, photos, the admin
+// queries and the hourly SMS. See src/index.ts.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "soulwinning-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  // Custom domain: needed for Cloudflare's edge cache on photos.
+  "routes": [{ "pattern": "sw-api.theairportcitychurch.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "soulwinning",
+      "database_id": "09d96433-5e8c-41b2-816b-887f4b51f439",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "soulwinning-photos" }],
+  // Hourly SMS. The handler decides whether it's an event day and inside the
+  // campaign's SMS hours, like the old GitHub Actions cron did.
+  "triggers": { "crons": ["0 * * * *"] },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://soulwinning.theairportcitychurch.com,https://www.theairportcitychurch.com,https://theairportcitychurch.com,http://localhost:3000,http://127.0.0.1:3000,http://soulwinning.localhost:3000"
+  }
+  // Secrets (wrangler secret put): ADMIN_SECRET, PHOTO_SIGNING_SECRET,
+  // MNOTIFY_API_KEY, MNOTIFY_SENDER_ID
+}
