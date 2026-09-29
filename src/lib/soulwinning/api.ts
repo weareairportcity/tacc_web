@@ -12,7 +12,7 @@ export const SW_API = process.env.NEXT_PUBLIC_SW_API_URL || "https://sw-api.thea
  * 403, so server-to-server calls go to the Worker's workers.dev address, which
  * sits outside the zone. Browsers keep using the custom domain.
  */
-export const SW_API_SERVER = process.env.SW_API_URL || "https://soulwinning-api.jak-anyen.workers.dev";
+export const SW_API_SERVER = process.env.SW_API_SERVER_URL || "https://soulwinning-api.jak-anyen.workers.dev";
 
 /** Which campaign the soul winning pages serve. */
 export const SW_CAMPAIGN = process.env.NEXT_PUBLIC_SW_CAMPAIGN ?? "gic";
