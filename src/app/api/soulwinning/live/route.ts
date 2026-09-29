@@ -9,7 +9,10 @@ import { SW_API, SW_CAMPAIGN } from "@/lib/soulwinning/api";
 export async function GET() {
   try {
     const response = await fetch(`${SW_API}/v1/live/${SW_CAMPAIGN}`, { cache: "no-store" });
-    if (!response.ok) throw new Error(String(response.status));
+    if (!response.ok) {
+      const server = response.headers.get("server") ?? "";
+      throw new Error(`upstream ${response.status}${server ? ` (${server})` : ""}`);
+    }
     return new NextResponse(await response.text(), {
       headers: {
         "Content-Type": "application/json",
@@ -17,9 +20,12 @@ export async function GET() {
         "CDN-Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
       },
     });
-  } catch {
+  } catch (err) {
+    // The reason (status only, never a secret) makes an outage diagnosable.
+    const reason = err instanceof Error ? err.message : "unknown";
+    console.error("[soulwinning/live]", reason);
     return NextResponse.json(
-      { error: "live feed unavailable" },
+      { error: "live feed unavailable", reason },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }
