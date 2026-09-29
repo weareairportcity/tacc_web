@@ -1,4 +1,4 @@
-import { SW_API } from "./api";
+import { SW_API_SERVER as SW_API } from "./api";
 import type { SwCampaign, SwLive } from "./types";
 
 /**

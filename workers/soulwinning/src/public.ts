@@ -356,7 +356,7 @@ export async function getLive(request: Request, env: AppEnv, slug: string) {
     .bind(campaign.id)
     .first<CountsRow>();
 
-  const origin = new URL(request.url).origin;
+  const origin = env.PUBLIC_ORIGIN;
   const photoPaths: string[] = counts ? JSON.parse(counts.recent_photo_paths) : [];
   const photos = await Promise.all(
     photoPaths.map((path) => photoUrl(env, origin, thumbPathFor(path))),

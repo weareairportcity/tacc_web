@@ -28,7 +28,7 @@ const bind = (env: AppEnv, s: Statement) => {
 
 export async function handleAdmin(request: Request, env: AppEnv, path: string) {
   requireAdmin(request, env);
-  const origin = new URL(request.url).origin;
+  const origin = env.PUBLIC_ORIGIN;
 
   switch (path) {
     case "/v1/admin/query": {

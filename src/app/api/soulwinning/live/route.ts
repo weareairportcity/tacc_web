@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SW_API, SW_CAMPAIGN } from "@/lib/soulwinning/api";
+import { SW_API_SERVER as SW_API, SW_CAMPAIGN } from "@/lib/soulwinning/api";
 
 /**
  * The counter feed every screen polls. Vercel's CDN caches the answer for 10

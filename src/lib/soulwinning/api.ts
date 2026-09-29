@@ -4,7 +4,15 @@
  * admin calls go through the Next.js server with the admin secret.
  */
 
-export const SW_API = process.env.NEXT_PUBLIC_SW_API_URL ?? "https://sw-api.theairportcitychurch.com";
+export const SW_API = process.env.NEXT_PUBLIC_SW_API_URL || "https://sw-api.theairportcitychurch.com";
+
+/**
+ * The address the Next.js *server* uses. Cloudflare's bot protection on
+ * theairportcitychurch.com answers requests from Vercel's data-centre IPs with
+ * 403, so server-to-server calls go to the Worker's workers.dev address, which
+ * sits outside the zone. Browsers keep using the custom domain.
+ */
+export const SW_API_SERVER = process.env.SW_API_URL || "https://soulwinning-api.jak-anyen.workers.dev";
 
 /** Which campaign the soul winning pages serve. */
 export const SW_CAMPAIGN = process.env.NEXT_PUBLIC_SW_CAMPAIGN ?? "gic";

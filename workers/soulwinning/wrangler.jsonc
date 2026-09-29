@@ -22,6 +22,9 @@
   // campaign's SMS hours, like the old GitHub Actions cron did.
   "triggers": { "crons": ["0 * * * *"] },
   "vars": {
+    // Photo links always point here (edge-cached), even when the request came
+    // in through workers.dev from the Next.js server.
+    "PUBLIC_ORIGIN": "https://sw-api.theairportcitychurch.com",
     "ALLOWED_ORIGINS": "https://soulwinning.theairportcitychurch.com,https://www.theairportcitychurch.com,https://theairportcitychurch.com,http://localhost:3000,http://127.0.0.1:3000,http://soulwinning.localhost:3000"
   }
   // Secrets (wrangler secret put): ADMIN_SECRET, PHOTO_SIGNING_SECRET,

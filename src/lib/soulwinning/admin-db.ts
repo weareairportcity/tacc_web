@@ -3,7 +3,9 @@
  * soul winning Worker's admin API. SW_API_ADMIN_SECRET never leaves the server.
  */
 
-const base = () => process.env.SW_API_URL ?? "https://sw-api.theairportcitychurch.com";
+import { SW_API_SERVER } from "./api";
+
+const base = () => SW_API_SERVER;
 
 async function call<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${base()}${path}`, {
