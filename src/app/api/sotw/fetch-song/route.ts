@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { putMedia } from "@/lib/cf";
+import { songsAdmin } from "@/lib/code-session";
 
 // Sanitize a string for use as a Supabase Storage file name
 function slugify(text: string): string {
@@ -45,6 +46,9 @@ function toTitleCase(str: string): string {
 }
 
 export async function POST(request: Request) {
+  if (!(await songsAdmin.isValid())) {
+    return NextResponse.json({ error: "Please sign in to the songs admin again." }, { status: 401 });
+  }
   try {
     const { url } = await request.json();
 
@@ -211,9 +215,9 @@ export async function POST(request: Request) {
       console.warn("iTunes artwork search error:", e);
     }
 
-    // ── 6. Download and Upload Files to Supabase Storage ─────────────
-    const slug = slugify(title);
-    const bucket = "sotw-media";
+    // ── 6. Download and store files in Cloudflare R2 ─────────────────
+    // A timestamp keeps every stored URL unique, so it can be cached forever.
+    const slug = `${slugify(title)}-${Date.now()}`;
     let storedAudioUrl: string | null = null;
     let storedCoverUrl: string | null = null;
 
@@ -228,23 +232,7 @@ export async function POST(request: Request) {
         const audioRes = await fetch(externalAudioUrl, { headers: downloadHeaders });
         if (audioRes.ok) {
           const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
-          const audioPath = `${slug}.mp3`;
-
-          await supabaseAdmin.storage.from(bucket).remove([audioPath]);
-
-          const { error: uploadError } = await supabaseAdmin.storage
-            .from(bucket)
-            .upload(audioPath, audioBuffer, {
-              contentType: "audio/mpeg",
-              upsert: true,
-            });
-
-          if (!uploadError) {
-            const { data: publicUrl } = supabaseAdmin.storage
-              .from(bucket)
-              .getPublicUrl(audioPath);
-            storedAudioUrl = publicUrl.publicUrl;
-          }
+          storedAudioUrl = await putMedia(`${slug}.mp3`, audioBuffer, "audio/mpeg");
         }
       } catch (e) {
         console.warn("Audio storage upload failed, using external URL fallback:", e);
@@ -260,23 +248,7 @@ export async function POST(request: Request) {
           const contentType = imgRes.headers.get("content-type") || "image/jpeg";
           const ext = contentType.includes("png") ? "png" : "jpg";
           const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
-          const imgPath = `${slug}.${ext}`;
-
-          await supabaseAdmin.storage.from(bucket).remove([imgPath]);
-
-          const { error: uploadError } = await supabaseAdmin.storage
-            .from(bucket)
-            .upload(imgPath, imgBuffer, {
-              contentType,
-              upsert: true,
-            });
-
-          if (!uploadError) {
-            const { data: publicUrl } = supabaseAdmin.storage
-              .from(bucket)
-              .getPublicUrl(imgPath);
-            storedCoverUrl = publicUrl.publicUrl;
-          }
+          storedCoverUrl = await putMedia(`${slug}.${ext}`, imgBuffer, contentType);
         }
       } catch (e) {
         console.warn("Cover image storage upload failed, using direct URL fallback:", e);

@@ -1,4 +1,5 @@
 import { handleAdmin } from "./admin";
+import { deleteMedia, getMedia, postSongEvent, putMedia } from "./media";
 import { getPhoto, putPhoto } from "./photos";
 import {
   getCampaign,
@@ -10,7 +11,15 @@ import {
   postMine,
 } from "./public";
 import { runSms } from "./sms";
-import { HttpError, corsHeaders, json, type AppEnv } from "./util";
+import { HttpError, corsHeaders, json, timingSafeEqual, type AppEnv } from "./util";
+
+function requireAdminToken(request: Request, env: AppEnv) {
+  const header = request.headers.get("Authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!env.ADMIN_SECRET || !token || !timingSafeEqual(token, env.ADMIN_SECRET)) {
+    throw new HttpError(401, "unauthorized");
+  }
+}
 
 /**
  * Soul winning API on Cloudflare (D1 + R2), replacing Supabase for campaigns.
@@ -27,6 +36,21 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
   const path = url.pathname;
   const method = request.method;
 
+  // media.theairportcitychurch.com/<key>: public church media.
+  if (url.hostname.startsWith("media.")) {
+    if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method not allowed");
+    return getMedia(request, env, decodeURIComponent(path.slice(1)));
+  }
+  if (method === "POST" && path === "/v1/sotw/events") return postSongEvent(request, env);
+
+  if (path.startsWith("/v1/admin/media/") && method === "PUT") {
+    requireAdminToken(request, env);
+    return putMedia(request, env, decodeURIComponent(path.slice("/v1/admin/media/".length)));
+  }
+  if (path === "/v1/admin/media-delete" && method === "POST") {
+    requireAdminToken(request, env);
+    return deleteMedia(request, env);
+  }
   if (path.startsWith("/v1/admin/") && method === "POST") return handleAdmin(request, env, path);
 
   let m: RegExpMatchArray | null;

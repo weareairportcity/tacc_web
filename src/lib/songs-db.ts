@@ -1,4 +1,10 @@
-import { supabaseAdmin } from "./supabase";
+import { batch, query } from "./cf";
+
+/**
+ * Song of the Week data on Cloudflare D1 (database "tacc"), moved off
+ * Supabase. Public pages read published songs on the server; the admin
+ * writes through server actions in app/admin/songs/actions.ts.
+ */
 
 export type Song = {
   id: string;
@@ -10,92 +16,23 @@ export type Song = {
   lyrics: string;
   audio_url?: string;
   cover_image_url?: string;
+  source_url?: string | null;
   is_published: boolean;
 };
 
-// Fetch all songs. Admin can see drafts, public only gets published songs.
-export async function getSongs(onlyPublished = false): Promise<Song[]> {
-  // Check if database is empty, seed if it is
-  const { count, error: countError } = await supabaseAdmin
-    .from("sotw_songs")
-    .select("*", { count: "exact", head: true });
+type SongRow = Omit<Song, "is_published"> & { is_published: number };
 
-  // If the table doesn't exist yet, return empty gracefully
-  if (countError) {
-    // PGRST205 = table not found in schema cache
-    if (countError.code === "PGRST205" || countError.message?.includes("Could not find")) {
-      console.warn("sotw_songs table not found — please create it via the Supabase SQL editor.");
-      return [];
-    }
-    console.error("Error checking songs count:", countError);
-    return [];
-  }
+const toSong = (row: SongRow): Song => ({ ...row, is_published: row.is_published === 1 });
 
-  if (count === 0) {
-    try {
-      await seedSongs();
-    } catch (e) {
-      console.error("Failed to seed songs:", e);
-    }
-  }
+// Public reads are cached for a minute; admin saves revalidate the "songs" tag.
+export const SONGS_TAG = "songs";
+const PUBLIC_CACHE = { revalidate: 60, tags: [SONGS_TAG] };
 
-  let query = supabaseAdmin
-    .from("sotw_songs")
-    .select("*");
+const COLUMNS =
+  "id, created_at, week_label, publish_date, title, artist, lyrics, audio_url, cover_image_url, source_url, is_published";
 
-  if (onlyPublished) {
-    query = query.eq("is_published", true);
-  }
-
-  // Order by publish date descending (latest week first)
-  let { data, error } = await query.order("publish_date", { ascending: false });
-
-  if (error) {
-    console.error("Error fetching songs:", error);
-    return [];
-  }
-
-  // Auto-ensure default songs exist in database and update any stale URLs or week labels to Spotify studio assets
-  if (data) {
-    for (const defaultSong of DEFAULT_SONGS) {
-      const existing = data.find(s => s.title?.toLowerCase() === defaultSong.title.toLowerCase());
-      if (!existing) {
-        try {
-          const { data: newSongData } = await supabaseAdmin
-            .from("sotw_songs")
-            .insert([defaultSong])
-            .select();
-          if (newSongData) {
-            data = [...newSongData, ...data];
-          }
-        } catch (e) {
-          console.error(`Failed to auto-insert default song ${defaultSong.title}:`, e);
-        }
-      } else {
-        try {
-          await supabaseAdmin
-            .from("sotw_songs")
-            .update({
-              week_label: defaultSong.week_label,
-              audio_url: defaultSong.audio_url,
-              cover_image_url: defaultSong.cover_image_url,
-              lyrics: defaultSong.lyrics,
-            })
-            .eq("id", existing.id);
-          existing.week_label = defaultSong.week_label;
-          existing.audio_url = defaultSong.audio_url;
-          existing.cover_image_url = defaultSong.cover_image_url;
-          existing.lyrics = defaultSong.lyrics;
-        } catch (e) {
-          console.error(`Failed to update URLs for ${defaultSong.title}:`, e);
-        }
-      }
-    }
-  }
-
-  return data || [];
-}
-
+// Audio for the original songs still lives in Supabase Storage (public links)
+// until it's copied into R2 once Supabase lifts its restriction.
 const SUPABASE_STORAGE_BASE = "https://nsiaryznabnexpwuokzv.supabase.co/storage/v1/object/public/sotw-media";
 
 const DEFAULT_SONGS = [
@@ -572,49 +509,53 @@ You’re my All`,
   }
 ];
 
-async function seedSongs() {
-  await supabaseAdmin.from("sotw_songs").insert(DEFAULT_SONGS);
+/** Inserts the built-in songs the first time, when the table is empty. */
+export async function seedIfEmpty() {
+  const [{ n }] = await query<{ n: number }>("app", "SELECT count(*) AS n FROM sotw_songs");
+  if (n > 0) return;
+  await batch(
+    "app",
+    DEFAULT_SONGS.map((song) => ({
+      sql: `INSERT INTO sotw_songs (id, week_label, publish_date, title, artist, lyrics, audio_url, cover_image_url, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      params: [
+        crypto.randomUUID(),
+        song.week_label,
+        song.publish_date,
+        song.title,
+        song.artist,
+        song.lyrics,
+        song.audio_url ?? null,
+        song.cover_image_url ?? null,
+      ],
+    })),
+  );
 }
 
-// Fetch a single song by ID
+/** Songs, latest week first. Admin sees drafts; the public only published. */
+export async function getSongs(onlyPublished = false): Promise<Song[]> {
+  try {
+    const rows = await query<SongRow>(
+      "app",
+      `SELECT ${COLUMNS} FROM sotw_songs ${onlyPublished ? "WHERE is_published = 1" : ""}
+       ORDER BY publish_date DESC, created_at DESC`,
+      [],
+      PUBLIC_CACHE,
+    );
+    return rows.map(toSong);
+  } catch (error) {
+    console.error("Error fetching songs:", error);
+    return [];
+  }
+}
+
 export async function getSongById(id: string): Promise<Song | null> {
-  const { data, error } = await supabaseAdmin
-    .from("sotw_songs")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error) {
-    console.error(`Error fetching song ${id}:`, error);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  try {
+    const [row] = await query<SongRow>("app", `SELECT ${COLUMNS} FROM sotw_songs WHERE id = ?`, [id], PUBLIC_CACHE);
+    return row ? toSong(row) : null;
+  } catch (error) {
+    console.error("Error fetching song:", error);
     return null;
-  }
-
-  return data;
-}
-
-// Save or update a song
-export async function saveSong(song: Partial<Song> & { week_label: string; title: string; artist: string; publish_date: string; lyrics: string }) {
-  const { data, error } = await supabaseAdmin
-    .from("sotw_songs")
-    .upsert(song)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data;
-}
-
-// Delete a song
-export async function deleteSong(id: string) {
-  const { error } = await supabaseAdmin
-    .from("sotw_songs")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
-    throw new Error(error.message);
   }
 }

@@ -12,6 +12,9 @@ import { HttpError, UUID, json, readJson, timingSafeEqual, type AppEnv } from ".
 
 type Statement = { sql: string; params?: unknown[] };
 
+/** "campaign" (soul winning, the default) or "app" (church app data). */
+const database = (env: AppEnv, which: unknown) => (which === "app" ? env.APP_DB : env.DB);
+
 function requireAdmin(request: Request, env: AppEnv) {
   const header = request.headers.get("Authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
@@ -20,10 +23,10 @@ function requireAdmin(request: Request, env: AppEnv) {
   }
 }
 
-const bind = (env: AppEnv, s: Statement) => {
+const bind = (db: D1Database, s: Statement) => {
   if (typeof s?.sql !== "string" || !s.sql.trim()) throw new HttpError(400, "sql required");
   const params = Array.isArray(s.params) ? s.params : [];
-  return env.DB.prepare(s.sql).bind(...params);
+  return db.prepare(s.sql).bind(...params);
 };
 
 export async function handleAdmin(request: Request, env: AppEnv, path: string) {
@@ -32,16 +35,20 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
 
   switch (path) {
     case "/v1/admin/query": {
-      const body = await readJson<Statement>(request, 1024 * 1024);
-      const result = await bind(env, body).all();
+      const body = await readJson<Statement & { db?: string }>(request, 1024 * 1024);
+      const result = await bind(database(env, body.db), body).all();
       return json({ results: result.results ?? [], meta: result.meta });
     }
     case "/v1/admin/batch": {
-      const { statements } = await readJson<{ statements?: Statement[] }>(request, 4 * 1024 * 1024);
+      const { statements, db } = await readJson<{ statements?: Statement[]; db?: string }>(
+        request,
+        4 * 1024 * 1024,
+      );
       if (!Array.isArray(statements) || statements.length === 0) {
         throw new HttpError(400, "statements required");
       }
-      const results = await env.DB.batch(statements.map((s) => bind(env, s)));
+      const target = database(env, db);
+      const results = await target.batch(statements.map((s) => bind(target, s)));
       return json({ results: results.map((r) => ({ results: r.results ?? [], meta: r.meta })) });
     }
     case "/v1/admin/recount": {

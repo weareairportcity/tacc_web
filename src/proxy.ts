@@ -41,7 +41,8 @@ export async function proxy(request: NextRequest) {
   // ── Admin session refresh ────────────────────────────────────────────
   // Only the Supabase-backed admin area. The soul winning admin (/1909/admin)
   // has its own admin-code sign-in and no Supabase session.
-  const needsSession = pathname.startsWith("/admin");
+  // /admin/songs moved to Cloudflare with its own admin-code sign-in.
+  const needsSession = pathname.startsWith("/admin") && !pathname.startsWith("/admin/songs");
   if (!needsSession) {
     return NextResponse.next();
   }

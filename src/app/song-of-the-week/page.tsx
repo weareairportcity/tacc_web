@@ -4,7 +4,8 @@ import Image from "next/image";
 import { Search } from "lucide-react";
 import CatalogGrid from "./CatalogGrid";
 
-export const revalidate = 0;
+// Static, refreshed at most every minute (and straight away when an admin saves).
+export const revalidate = 60;
 
 export default async function SongOfTheWeekPortal() {
   const songs = await getSongs(true);

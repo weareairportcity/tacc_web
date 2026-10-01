@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { putMedia } from "@/lib/cf";
+import { songsAdmin } from "@/lib/code-session";
 
-const BUCKET = "sotw-media";
 
 // Allowed MIME types
 const ALLOWED_TYPES: Record<string, string> = {
@@ -16,6 +16,9 @@ const ALLOWED_TYPES: Record<string, string> = {
 const MAX_SIZE = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(request: Request) {
+  if (!(await songsAdmin.isValid())) {
+    return NextResponse.json({ error: "Please sign in to the songs admin again." }, { status: 401 });
+  }
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -51,29 +54,11 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(BUCKET)
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: true,
-      });
+    // Stored in Cloudflare R2 and served from media.theairportcitychurch.com.
+    // The timestamp keeps every upload's URL unique, so it can be cached forever.
+    const url = await putMedia(filePath, buffer, file.type);
 
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      return NextResponse.json(
-        { error: uploadError.message },
-        { status: 500 }
-      );
-    }
-
-    const { data: publicUrl } = supabaseAdmin.storage
-      .from(BUCKET)
-      .getPublicUrl(filePath);
-
-    return NextResponse.json({
-      url: publicUrl.publicUrl,
-      path: filePath,
-    });
+    return NextResponse.json({ url, path: filePath });
   } catch (err: any) {
     console.error("upload-media error:", err);
     return NextResponse.json(

@@ -1,5 +1,7 @@
 "use client";
 
+import { SW_API } from "./soulwinning/api";
+
 export function getOrCreateVisitorId(): string {
   if (typeof window === "undefined") return "";
 
@@ -16,9 +18,11 @@ export function trackSongEvent(songId: string, eventType: "view" | "play" | "rep
 
   const visitorId = getOrCreateVisitorId();
 
-  fetch("/api/sotw/track", {
+  // Straight to the Cloudflare API: a play costs no Vercel function.
+  fetch(`${SW_API}/v1/sotw/events`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    keepalive: true,
     body: JSON.stringify({
       song_id: songId,
       event_type: eventType,

@@ -2,7 +2,13 @@ import { getSongById, getSongs } from "@/lib/songs-db";
 import { notFound } from "next/navigation";
 import SongDetailView from "./SongDetailView";
 
-export const revalidate = 0; // Fetch fresh data on load
+// Static, refreshed at most every minute (and straight away when an admin saves).
+export const revalidate = 60;
+
+// Published songs are built ahead of time; new ones are built on first visit.
+export async function generateStaticParams() {
+  return (await getSongs(true)).map((song) => ({ id: song.id }));
+}
 
 type Props = {
   params: Promise<{ id: string }> | { id: string };

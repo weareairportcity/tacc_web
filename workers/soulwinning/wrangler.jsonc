@@ -7,7 +7,11 @@
   "compatibility_date": "2026-09-01",
   "workers_dev": true,
   // Custom domain: needed for Cloudflare's edge cache on photos.
-  "routes": [{ "pattern": "sw-api.theairportcitychurch.com", "custom_domain": true }],
+  "routes": [
+    { "pattern": "sw-api.theairportcitychurch.com", "custom_domain": true },
+    // Public church media (Song of the Week audio and covers) from R2.
+    { "pattern": "media.theairportcitychurch.com", "custom_domain": true }
+  ],
   "observability": { "enabled": true },
   "d1_databases": [
     {
@@ -15,9 +19,19 @@
       "database_name": "soulwinning",
       "database_id": "09d96433-5e8c-41b2-816b-887f4b51f439",
       "migrations_dir": "migrations"
+    },
+    {
+      // Church app data (Song of the Week now; more as it moves off Supabase).
+      "binding": "APP_DB",
+      "database_name": "tacc",
+      "database_id": "2adc42e7-0955-4c21-ad7d-ad24422a969c",
+      "migrations_dir": "migrations-tacc"
     }
   ],
-  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "soulwinning-photos" }],
+  "r2_buckets": [
+    { "binding": "PHOTOS", "bucket_name": "soulwinning-photos" },
+    { "binding": "MEDIA", "bucket_name": "tacc-media" }
+  ],
   // Hourly SMS. The handler decides whether it's an event day and inside the
   // campaign's SMS hours, like the old GitHub Actions cron did.
   "triggers": { "crons": ["0 * * * *"] },
@@ -25,6 +39,7 @@
     // Photo links always point here (edge-cached), even when the request came
     // in through workers.dev from the Next.js server.
     "PUBLIC_ORIGIN": "https://sw-api.theairportcitychurch.com",
+    "MEDIA_ORIGIN": "https://media.theairportcitychurch.com",
     "ALLOWED_ORIGINS": "https://soulwinning.theairportcitychurch.com,https://www.theairportcitychurch.com,https://theairportcitychurch.com,http://localhost:3000,http://127.0.0.1:3000,http://soulwinning.localhost:3000"
   }
   // Secrets (wrangler secret put): ADMIN_SECRET, PHOTO_SIGNING_SECRET,
