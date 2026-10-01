@@ -313,3 +313,9 @@ html:has(.sw-counter) body {
   line-height: 20px !important;
   box-shadow: 0 1px 3px rgba(12, 10, 9, 0.16);
 }
+
+/* Song of the Week: the little "now playing" equalizer bars. */
+@keyframes sotw-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}

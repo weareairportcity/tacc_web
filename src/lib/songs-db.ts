@@ -31,9 +31,6 @@ const PUBLIC_CACHE = { revalidate: 60, tags: [SONGS_TAG] };
 const COLUMNS =
   "id, created_at, week_label, publish_date, title, artist, lyrics, audio_url, cover_image_url, source_url, is_published";
 
-// Audio for the original songs still lives in Supabase Storage (public links)
-// until it's copied into R2 once Supabase lifts its restriction.
-const SUPABASE_STORAGE_BASE = "https://nsiaryznabnexpwuokzv.supabase.co/storage/v1/object/public/sotw-media";
 
 const DEFAULT_SONGS = [
   {
@@ -105,7 +102,7 @@ Lord, Your Word is sovereign
 Lord, Your Word is sovereign
 Lord, Your Word is sovereign
 What You say is final`,
-    audio_url: "https://loveworldlyrics.com/wp-content/uploads/2024/06/WHAT-YOU-SAY-IS-FINAL-ELI-J.mp3",
+    audio_url: "https://media.theairportcitychurch.com/sotw-what-you-say-is-final-1790869600526.mp3",
     cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ee/86/6c/ee866c7c-feeb-87a5-9b99-0879bb02ce8e/7300341490854.jpg/600x600bb.jpg",
     is_published: true,
   },
@@ -201,7 +198,7 @@ Sweet Holy Spirit, we adore You
 You're the Angel of His presence
 So gentle, yet all-powerful
 Sweet Holy Spirit, we adore You`,
-    audio_url: "https://loveworldlyrics.com/wp-content/uploads/2025/03/SWEET-HOLY-SPIRIT-SIMEON-RICH-AND-MAYA.mp3",
+    audio_url: "https://media.theairportcitychurch.com/sotw-sweet-holy-spirit-simeon-rich-and-maya-1790869700163.mp3",
     cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ae/49/7a/ae497a24-2564-a067-5abb-528b1e8c6953/7300344067473.jpg/600x600bb.jpg",
     is_published: true,
   },
@@ -289,7 +286,7 @@ Beyond duty
 We raise our hands in praise
 Too much for words for us
 Is your love`,
-    audio_url: `${SUPABASE_STORAGE_BASE}/the-king.mp3`,
+    audio_url: "https://media.theairportcitychurch.com/sotw-the-king-1790869753286.mp3",
     cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/df/89/d5/df89d530-d7e2-996b-03cb-9e0fc6eb623f/7300343705253.jpg/600x600bb.jpg",
     is_published: true,
   },
@@ -383,7 +380,7 @@ No more palaces and kings
 Nor kingdoms of men
 For Your decree shall rule the nations
 Almighty God`,
-    audio_url: `${SUPABASE_STORAGE_BASE}/your-dominion-is-for-eternity.mp3`,
+    audio_url: "https://media.theairportcitychurch.com/sotw-your-dominion-is-for-eternity-1790869790199.mp3",
     cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/29/b6/db/29b6dbc9-164a-c02b-0077-1506eb415826/7300342869666.jpg/600x600bb.jpg",
     is_published: true,
   },
@@ -451,7 +448,7 @@ Coda
 You are the greatest
 The biggest, the strongest, the wisest
 The highest, the fairest, oh Lord`,
-    audio_url: `${SUPABASE_STORAGE_BASE}/the-center-of-your-love.mp3`,
+    audio_url: "https://media.theairportcitychurch.com/sotw-the-centre-of-your-love-1790869821801.mp3",
     cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/19/17/d1/1917d12d-82ff-31a1-368c-c2817ef3b65c/7300346224256.jpg/600x600bb.jpg",
     is_published: true,
   },
@@ -503,7 +500,7 @@ By Your grace
 Your thoughts of me
 Are so great
 You’re my All`,
-    audio_url: `${SUPABASE_STORAGE_BASE}/i-am-complete-in-you.mp3`,
+    audio_url: "https://media.theairportcitychurch.com/sotw-i-am-complete-in-you-1790869848122.mp3",
     cover_image_url: "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ae/49/7a/ae497a24-2564-a067-5abb-528b1e8c6953/7300344067473.jpg/600x600bb.jpg",
     is_published: true,
   }

@@ -1,7 +1,6 @@
 import { getSongs } from "@/lib/songs-db";
 import Link from "next/link";
 import Image from "next/image";
-import { Search } from "lucide-react";
 import CatalogGrid from "./CatalogGrid";
 
 // Static, refreshed at most every minute (and straight away when an admin saves).
@@ -29,12 +28,6 @@ export default async function SongOfTheWeekPortal() {
             <span className="text-xs font-normal text-[#78716c] font-roobert tracking-tight">Songs Portal</span>
           </Link>
 
-          {/* Centered Search Bar */}
-          <div className="hidden md:flex items-center gap-2 bg-[#fafaf9] border border-[#e8e6e5] rounded-[8px] px-3 py-1.5 w-[360px] focus-within:border-[#3ba6f1] transition-all">
-            <Search className="w-4 h-4 text-[#a8a29e]" />
-            <span className="text-xs text-[#78716c] flex-1">Search lyrics, hymns, or artists...</span>
-            <kbd className="bg-[#ffffff] text-[10px] text-[#a8a29e] font-sans border border-[#e8e6e5] rounded px-1.5 py-0.5 shadow-xs">⌘K</kbd>
-          </div>
 
           <div className="flex items-center gap-4 text-xs font-normal">
             <Link href="/" className="text-[#78716c] hover:text-[#0c0a09] transition-colors hidden sm:inline-block">Home</Link>
@@ -80,12 +73,8 @@ export default async function SongOfTheWeekPortal() {
                 Weekly Song Catalog
               </h2>
               <p className="text-xs text-[#78716c] mt-1 font-normal">
-                Official releases and published worship lyrics
+                Every song so far. Press play, queue a few, or sing along in full screen.
               </p>
-            </div>
-            
-            <div className="flex items-center bg-[#fafaf9] border border-[#e8e6e5] rounded-full p-0.5 text-xs font-normal">
-              <span className="bg-[#ffffff] text-[#0c0a09] rounded-full px-3 py-1 shadow-xs border border-[#e8e6e5]">All Songs</span>
             </div>
           </div>
 

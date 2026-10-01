@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { 
   Music, Play, Pause, Volume2, VolumeX, ArrowLeft, ExternalLink,
-  Repeat, Repeat1, Shuffle, SkipBack, SkipForward 
+  Repeat, Repeat1, Shuffle, SkipBack, SkipForward,
+  Loader2, ListPlus, ListEnd, Share2, Copy, Maximize2, Minus, Plus,
 } from "lucide-react";
+import { parseLyrics, shareSong, toTrack, toTracks } from "@/lib/song-tracks";
+import { useNotice } from "@/components/player/SongMenu";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 import { trackSongEvent } from "@/lib/analytics-client";
 
@@ -39,6 +42,10 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
     repeatMode,
     isShuffle,
     playTrack,
+    playNext,
+    addToQueue,
+    openFullScreen,
+    status,
     seek,
     setVolume,
     toggleMute,
@@ -56,19 +63,8 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
       trackSongEvent(song.id, "view");
     }
 
-    // Populate context playlist with current song and all other weekly songs in order
-    const formattedPlaylist = allSongsList
-      .filter((s) => s.audio_url)
-      .map((s) => ({
-        id: s.id,
-        title: s.title,
-        artist: s.artist,
-        audioUrl: s.audio_url || "",
-        coverImageUrl: s.cover_image_url,
-        weekLabel: s.week_label,
-      }));
-
-    setPlaylist(formattedPlaylist);
+    // The song's page sets up its week list for prev/next (without replacing a queue someone built).
+    setPlaylist(toTracks(allSongsList));
   }, [song?.id]);
 
   const isCurrentSong = currentTrack?.id === song.id;
@@ -78,30 +74,32 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
   const volume = globalVolume;
   const isMuted = isGlobalMuted;
 
-  const handlePlayClick = () => {
-    if (song.audio_url) {
-      const formattedPlaylist = allSongsList
-        .filter((s) => s.audio_url)
-        .map((s) => ({
-          id: s.id,
-          title: s.title,
-          artist: s.artist,
-          audioUrl: s.audio_url || "",
-          coverImageUrl: s.cover_image_url,
-          weekLabel: s.week_label,
-        }));
+  const [notice, setNotice] = useNotice();
+  const [lyricSize, setLyricSize] = useState(1);
+  const LYRIC_SIZES = ["text-sm", "text-sm sm:text-[15px]", "text-base sm:text-lg", "text-lg sm:text-xl"];
 
-      playTrack(
-        {
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          audioUrl: song.audio_url,
-          coverImageUrl: song.cover_image_url,
-          weekLabel: song.week_label,
-        },
-        formattedPlaylist
-      );
+  const handlePlayClick = () => {
+    if (song.audio_url) playTrack(toTrack(song), toTracks(allSongsList));
+  };
+
+  const singAlong = () => {
+    if (!song.audio_url) return;
+    if (!isCurrentSong) playTrack(toTrack(song), toTracks(allSongsList));
+    openFullScreen();
+  };
+
+  const onShare = async () => {
+    const result = await shareSong(song);
+    if (result === "copied") setNotice("Link copied");
+    if (result === "failed") setNotice("Couldn't share this song");
+  };
+
+  const copyLyrics = async () => {
+    try {
+      await navigator.clipboard.writeText(`${song.title} — ${song.artist}\n\n${song.lyrics}`);
+      setNotice("Lyrics copied");
+    } catch {
+      setNotice("Couldn't copy the lyrics");
     }
   };
 
@@ -120,32 +118,6 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
     const minutes = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  // Parse lyrics text into headings and body text segments
-  const parseLyrics = (lyricsText: string) => {
-    if (!lyricsText) return [];
-    
-    const blocks = lyricsText.split(/\n\s*\n/);
-    
-    return blocks.map((block) => {
-      const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
-      let heading = "";
-      let bodyLines = [...lines];
-
-      if (lines[0] && (lines[0].startsWith("[") && lines[0].endsWith("]"))) {
-        heading = lines[0].substring(1, lines[0].length - 1);
-        bodyLines = lines.slice(1);
-      } else if (lines[0] && (lines[0].endsWith(":") || lines[0].length < 20) && (lines[0].toLowerCase().includes("verse") || lines[0].toLowerCase().includes("chorus") || lines[0].toLowerCase().includes("bridge") || lines[0].toLowerCase().includes("outro") || lines[0].toLowerCase().includes("refrain") || lines[0].toLowerCase().includes("pre-chorus"))) {
-        heading = lines[0].replace(":", "").trim();
-        bodyLines = lines.slice(1);
-      }
-
-      return {
-        heading,
-        lines: bodyLines,
-      };
-    });
   };
 
   const lyricSections = parseLyrics(song.lyrics);
@@ -299,7 +271,9 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                       className="w-11 h-11 rounded-full bg-[#3ba6f1] text-white border border-[#3398e1] hover:bg-[#3398e1] active:scale-95 shadow-sm flex items-center justify-center transition-all"
                       title={isPlaying ? "Pause" : "Play"}
                     >
-                      {isPlaying ? (
+                      {isCurrentSong && status === "loading" ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isPlaying ? (
                         <Pause className="w-4 h-4 fill-current stroke-[1.5]" />
                       ) : (
                         <Play className="w-4 h-4 fill-current stroke-[1.5] translate-x-0.5" />
@@ -359,6 +333,42 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                     />
                   </div>
 
+                  {/* More ways to listen */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={singAlong}
+                      className="col-span-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#0c0a09] px-4 py-2.5 text-xs font-medium text-white transition-colors hover:bg-[#1c1917]"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" /> Sing along (full screen lyrics)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playNext(toTrack(song));
+                        setNotice("It will play next");
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-[#e8e6e5] px-3 py-2 text-xs text-[#0c0a09] transition-colors hover:bg-[#fafaf9]"
+                    >
+                      <ListPlus className="h-3.5 w-3.5" /> Play next
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotice(addToQueue(toTrack(song)) ? "Added to the queue" : "Already in your queue");
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-[#e8e6e5] px-3 py-2 text-xs text-[#0c0a09] transition-colors hover:bg-[#fafaf9]"
+                    >
+                      <ListEnd className="h-3.5 w-3.5" /> Add to queue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onShare}
+                      className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full border border-[#e8e6e5] px-3 py-2 text-xs text-[#0c0a09] transition-colors hover:bg-[#fafaf9]"
+                    >
+                      <Share2 className="h-3.5 w-3.5" /> Share this song
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="p-3 bg-[#fafaf9] rounded-[8px] border border-[#e8e6e5] text-xs text-[#78716c] flex items-center gap-2">
@@ -376,7 +386,42 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
               <h2 className="text-xl font-roobert font-normal tracking-[-0.021em] text-[#0c0a09]">
                 Official Lyrics
               </h2>
-              <span className="text-xs text-[#78716c] font-normal">SOTW Edition</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Smaller lyrics"
+                  onClick={() => setLyricSize((v) => Math.max(0, v - 1))}
+                  className="rounded-full p-1.5 text-[#78716c] hover:bg-[#fafaf9] hover:text-[#0c0a09]"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Larger lyrics"
+                  onClick={() => setLyricSize((v) => Math.min(LYRIC_SIZES.length - 1, v + 1))}
+                  className="rounded-full p-1.5 text-[#78716c] hover:bg-[#fafaf9] hover:text-[#0c0a09]"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Copy lyrics"
+                  title="Copy lyrics"
+                  onClick={copyLyrics}
+                  className="rounded-full p-1.5 text-[#78716c] hover:bg-[#fafaf9] hover:text-[#0c0a09]"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                {song.audio_url && (
+                  <button
+                    type="button"
+                    onClick={singAlong}
+                    className="ml-1 inline-flex items-center gap-1.5 rounded-full border border-[#e8e6e5] px-3 py-1.5 text-xs text-[#0c0a09] hover:bg-[#fafaf9]"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" /> Full screen
+                  </button>
+                )}
+              </div>
             </div>
 
             {lyricSections.length === 0 ? (
@@ -392,7 +437,7 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
                     )}
                     <div className="space-y-1.5">
                       {section.lines.map((line, lidx) => (
-                        <p key={lidx} className="text-sm sm:text-[15px] text-[#0c0a09] leading-[1.64] font-normal">
+                        <p key={lidx} className={`${LYRIC_SIZES[lyricSize]} text-[#0c0a09] leading-[1.64] font-normal`}>
                           {line}
                         </p>
                       ))}
@@ -470,7 +515,7 @@ export default function SongDetailView({ song, otherSongs }: SongDetailViewProps
           </div>
         </div>
       </footer>
-
+      {notice}
     </div>
   );
 }
