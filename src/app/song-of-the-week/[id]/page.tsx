@@ -1,5 +1,5 @@
 import { getSongById, getSongs } from "@/lib/songs-db";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import SongDetailView from "./SongDetailView";
 
 // Static, refreshed at most every minute (and straight away when an admin saves).
@@ -21,8 +21,12 @@ export default async function SongDetailPage({ params }: Props) {
 
   const song = await getSongById(id);
 
+  // Links shared before the move to Cloudflare carry the old Supabase ids, and
+  // unpublished songs shouldn't be reachable: send visitors to the list rather
+  // than a dead end. (Not a permanent redirect — once the original songs are
+  // imported with their old ids, those links open the song again.)
   if (!song || !song.is_published) {
-    notFound();
+    redirect("/song-of-the-week");
   }
 
   // Get all published songs for the carousel
