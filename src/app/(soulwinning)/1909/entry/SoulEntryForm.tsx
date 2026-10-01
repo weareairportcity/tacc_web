@@ -17,10 +17,12 @@ interface Props {
   campaignId: string;
   entrantId: string;
   closed?: boolean;
+  /** Closed because the campaign hasn't started yet, not because it ended. */
+  notYetOpen?: boolean;
   onSaved: (detail: { names: string[]; soulsAdded: number }) => void;
 }
 
-export function SoulEntryForm({ campaignId, entrantId, closed = false, onSaved }: Props) {
+export function SoulEntryForm({ campaignId, entrantId, closed = false, notYetOpen = false, onSaved }: Props) {
   const [souls, setSouls] = useState<SoulDraft[]>([emptySoul()]);
   const [mode, setMode] = useState<"person" | "group">("person");
   const [groupName, setGroupName] = useState("");
@@ -379,7 +381,9 @@ export function SoulEntryForm({ campaignId, entrantId, closed = false, onSaved }
         className="w-full rounded-lg bg-[#3ba6f1] px-4 py-4 text-base font-semibold text-white disabled:opacity-40"
       >
         {closed
-          ? "Logging is closed"
+          ? notYetOpen
+            ? "Logging opens soon"
+            : "Logging is closed"
           : isLocating
           ? "Getting location…"
           : isSaving

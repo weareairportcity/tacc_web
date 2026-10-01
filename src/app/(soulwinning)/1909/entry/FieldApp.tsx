@@ -243,6 +243,7 @@ export function FieldApp({ campaign }: Props) {
           campaignId={campaign.id}
           entrantId={entrant.id}
           closed={closed}
+          notYetOpen={phase === "before"}
           onSaved={handleSaved}
         />
       ) : (
@@ -296,6 +297,7 @@ function ClosedBanner({ campaign, phase }: { campaign: SwCampaign; phase: Campai
     month: "long",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
     timeZone: "Africa/Accra",
   });
   return (
