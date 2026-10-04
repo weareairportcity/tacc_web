@@ -45,7 +45,7 @@ const bool = (v: unknown) => v === 1 || v === true;
 export async function fetchCampaigns(): Promise<SwCampaignSettings[]> {
   await requireAdmin();
   return query<SwCampaignSettings>(
-    `SELECT id, name, slug, event_date, opens_at, closes_at, goal_total,
+    `SELECT id, name, slug, event_date, opens_at, closes_at, goal_total, target_per_member,
             sms_template, sms_start_hour, sms_end_hour
      FROM campaigns ORDER BY event_date DESC`,
   );
@@ -183,6 +183,41 @@ export async function resolveDuplicate(id: string, status: "unique" | "merged"):
     [status, checkId(id)],
   );
   if (row) await recount(row.campaign_id);
+}
+
+// ─── Target (7 per member) ───────────────────────────────────────────────────
+
+export type TargetRow = {
+  name: string;
+  fellowship: string | null;
+  pfcc: string | null;
+  phone: string | null;
+  souls: number;
+  reached_at: string;
+};
+
+/** Everyone who has reached the campaign's per-member target, first to reach it first. */
+export async function fetchTargetReached(campaignId: string): Promise<{ target: number; rows: TargetRow[] }> {
+  await requireAdmin();
+  const [campaign] = await query<{ target: number }>(
+    "SELECT coalesce(target_per_member, 7) AS target FROM campaigns WHERE id = ?",
+    [checkId(campaignId)],
+  );
+  const target = campaign?.target ?? 7;
+  const rows = await query<TargetRow>(
+    `WITH ranked AS (
+       SELECT entrant_id, created_at,
+              ROW_NUMBER() OVER (PARTITION BY entrant_id ORDER BY created_at, id) AS rn,
+              count(*) OVER (PARTITION BY entrant_id) AS souls
+       FROM entries WHERE campaign_id = ?1 AND counted
+     )
+     SELECT n.name, n.fellowship, n.pfcc, n.phone, r.souls, r.created_at AS reached_at
+     FROM ranked r JOIN entrants n ON n.id = r.entrant_id
+     WHERE r.rn = ?2
+     ORDER BY r.created_at`,
+    [campaignId, target],
+  );
+  return { target, rows };
 }
 
 // ─── Map ─────────────────────────────────────────────────────────────────────

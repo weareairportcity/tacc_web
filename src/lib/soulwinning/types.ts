@@ -8,10 +8,13 @@ export type SwCampaign = {
   closes_at: string;
   /** Target for the counter's progress bar; null hides it. */
   goal_total: number | null;
+  /** Souls each member aims for (Grace in Continuity: 7). */
+  target_per_member?: number;
 };
 
 /** Admin-only campaign settings. */
 export type SwCampaignSettings = SwCampaign & {
+  target_per_member?: number;
   sms_template: string;
   sms_start_hour: number;
   sms_end_hour: number;
@@ -67,9 +70,19 @@ export type SwCounts = {
   updated_at: string;
 };
 
+export type SwLeaderboard = {
+  target: number;
+  members: { name: string; pfcc: string; souls: number }[];
+  pfccs: { pfcc: string; souls: number; members: number }[];
+  /** Everyone who reached the target, in the order they reached it. */
+  completed: { name: string; pfcc: string; souls: number; reached_at: string }[];
+  computed_at: string;
+};
+
 export type SwLive = {
   campaign: SwCampaign;
   counts: SwCounts | null;
+  leaderboard?: SwLeaderboard;
   server_time: string;
 };
 

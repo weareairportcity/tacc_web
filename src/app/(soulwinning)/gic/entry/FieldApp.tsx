@@ -20,7 +20,6 @@ import { SoulEntryForm } from "./SoulEntryForm";
 import { StartScreen } from "./StartScreen";
 import { SyncIndicator } from "./SyncIndicator";
 
-const MILESTONE_EVERY = 10;
 
 interface Props {
   campaign: SwCampaign;
@@ -124,16 +123,18 @@ export function FieldApp({ campaign }: Props) {
           const total = await countEntriesByEntrant(entrant.id, campaign.id);
           setMyTotal(total);
           await refreshPendingCount();
-          const crossed = Math.floor(total / MILESTONE_EVERY) > Math.floor(previous / MILESTONE_EVERY);
-          const milestone = Math.floor(total / MILESTONE_EVERY) * MILESTONE_EVERY;
-          if (crossed) setConfirm({ names, soulsAdded, milestone });
+          // Celebrate reaching the target (7), and each multiple after it.
+          const target = campaign.target_per_member ?? 7;
+          const crossed = Math.floor(total / target) > Math.floor(previous / target);
+          const milestone = Math.floor(total / target) * target;
+          if (crossed) setConfirm({ names, soulsAdded, milestone, target });
         } catch {
           // The soul is already on the phone — do not hide the success card.
         }
         if (campaign.id !== "shot-campaign") void syncNow();
       })();
     },
-    [campaign.id, entrant, myTotal]
+    [campaign.id, entrant, myTotal, campaign.target_per_member]
   );
 
   if (!isReady) {

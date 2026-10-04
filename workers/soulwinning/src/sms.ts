@@ -1,4 +1,5 @@
 import type { Campaign, CountsRow } from "./db";
+import { computeLeaderboard } from "./leaderboard";
 import type { AppEnv } from "./util";
 
 /**
@@ -110,13 +111,20 @@ export async function runSms(env: AppEnv, now: Date, force = false) {
       )?.n ?? 0;
 
     const total = counts?.total_souls ?? 0;
+    const board = await computeLeaderboard(env.DB, campaign);
+    const top = (rows: { souls: number }[], label: (r: never) => string) =>
+      rows[0] ? `${label(rows[0] as never)} (${rows[0].souls})` : "—";
     const message = campaign.sms_template
       .replaceAll("{total}", total.toLocaleString("en-GB"))
       .replaceAll("{last_hour}", lastHour.toLocaleString("en-GB"))
       .replaceAll("{time}", formatTime(now))
       .replaceAll("{tongues}", (counts?.tongues_count ?? 0).toLocaleString("en-GB"))
       .replaceAll("{church}", (counts?.church_count ?? 0).toLocaleString("en-GB"))
-      .replaceAll("{goal}", campaign.goal_total ? campaign.goal_total.toLocaleString("en-GB") : "—");
+      .replaceAll("{goal}", campaign.goal_total ? campaign.goal_total.toLocaleString("en-GB") : "—")
+      .replaceAll("{completed}", board.completed.length.toLocaleString("en-GB"))
+      .replaceAll("{top_pfcc}", top(board.pfccs, (r: { pfcc: string }) => r.pfcc))
+      .replaceAll("{top_member}", top(board.members, (r: { name: string }) => r.name))
+      .replaceAll("{first_to_target}", board.completed[0]?.name ?? "—");
 
     const { results } = await env.DB.prepare(
       "SELECT phone_number FROM sms_config WHERE campaign_id = ? AND enabled = 1",

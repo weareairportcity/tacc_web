@@ -7,6 +7,7 @@ import {
   type Campaign,
   type CountsRow,
 } from "./db";
+import { cachedLeaderboard } from "./leaderboard";
 import { photoUrl, thumbPathFor } from "./photos";
 import {
   HttpError,
@@ -45,6 +46,7 @@ export function publicCampaign(c: Campaign) {
     opens_at: c.opens_at,
     closes_at: c.closes_at,
     goal_total: c.goal_total,
+    target_per_member: c.target_per_member ?? 7,
   };
 }
 
@@ -362,9 +364,12 @@ export async function getLive(request: Request, env: AppEnv, slug: string) {
     photoPaths.map((path) => photoUrl(env, origin, thumbPathFor(path))),
   );
 
+  const leaderboard = await cachedLeaderboard(env.DB, campaign, counts);
+
   return json(
     {
       campaign: publicCampaign(campaign),
+      leaderboard,
       counts: counts && {
         total_souls: counts.total_souls,
         tongues_count: counts.tongues_count,

@@ -11,9 +11,12 @@ export type Campaign = {
   sms_template: string;
   sms_start_hour: number;
   sms_end_hour: number;
+  target_per_member: number;
 };
 
 export type CountsRow = {
+  leaderboard: string | null;
+  leaderboard_at: string | null;
   campaign_id: string;
   total_souls: number;
   tongues_count: number;
@@ -132,6 +135,7 @@ export function recount(db: D1Database, campaignId: string) {
              ORDER BY created_at DESC LIMIT 36
            )
          ), '[]'),
+         leaderboard_at = NULL,
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
        WHERE campaign_id = ?1`,
     )

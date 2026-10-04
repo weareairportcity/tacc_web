@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { burstConfetti } from "@/lib/soulwinning/confetti";
 import { SoulCard } from "./SoulCard";
 import { PhotoMarquee } from "./PhotoMarquee";
 import { useLiveCounts } from "@/lib/soulwinning/use-live";
-import type { SwCampaign, SwCounts } from "@/lib/soulwinning/types";
+import type { SwCampaign, SwCounts, SwLeaderboard } from "@/lib/soulwinning/types";
+import { ScreenBoards, TargetCelebration } from "./ScreenBoards";
 import { Odometer } from "./Odometer";
 
 type FloatingSoul = {
@@ -72,12 +73,17 @@ function mergePhotoPaths(incoming: string[], prev: string[]) {
 interface Props {
   campaign: SwCampaign;
   initialCounts: SwCounts | null;
+  initialLeaderboard?: SwLeaderboard | null;
   variant: "public" | "projector";
 }
 
-export function CounterView({ campaign, initialCounts, variant }: Props) {
-  const { counts, isLive } = useLiveCounts(campaign, initialCounts);
+export function CounterView({ campaign, initialCounts, initialLeaderboard = null, variant }: Props) {
+  const { counts, leaderboard, isLive } = useLiveCounts(campaign, initialCounts, initialLeaderboard);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // A bigger burst than a single soul: someone just reached their target.
+  const celebrateTarget = useCallback(() => {
+    if (canvasRef.current) burstConfetti(canvasRef.current, 420);
+  }, []);
   const [floating, setFloating] = useState<FloatingSoul[]>([]);
   const [shotBump, setShotBump] = useState({ total: 0, tongues: 0, church: 0 });
 
@@ -200,6 +206,8 @@ export function CounterView({ campaign, initialCounts, variant }: Props) {
     <main className="sw-counter relative isolate flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#fafaf9] px-[clamp(1rem,2.2vw,2rem)] py-[clamp(0.55rem,1.6vh,1.5rem)] font-sans">
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
       <PhotoMarquee paths={marqueePaths} />
+      {isProjector && <ScreenBoards board={leaderboard} />}
+      <TargetCelebration board={leaderboard} onCelebrate={celebrateTarget} />
 
       {floating.map((soul) => (
         <div

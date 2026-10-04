@@ -18,5 +18,5 @@ export default async function Page() {
   if (!campaign) notFound();
   const live = await getLive(SW_CAMPAIGN);
 
-  return <CounterView campaign={campaign} initialCounts={live?.counts ?? null} variant="projector" />;
+  return <CounterView campaign={campaign} initialCounts={live?.counts ?? null} initialLeaderboard={live?.leaderboard ?? null} variant="projector" />;
 }

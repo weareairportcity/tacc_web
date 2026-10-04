@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { burstConfetti } from "@/lib/soulwinning/confetti";
 
 export type SaveConfirmDetail = {
   names: string[];
   soulsAdded?: number;
   milestone: number | null;
+  /** The member's target (7). A milestone that's a multiple of it is a celebration. */
+  target?: number;
 };
 
 interface Props {
@@ -27,15 +30,30 @@ function scallopPath(lobes = 12, radius = 40, amp = 5.5, cx = 50, cy = 50) {
 export function SaveConfirm({ detail, onDone }: Props) {
   const count = detail.soulsAdded ?? detail.names.length;
   const first = detail.names[0] ?? "This soul";
-  const body =
-    count > 1
+  const target = detail.target;
+  const celebrating = Boolean(target && detail.milestone && detail.milestone % target === 0);
+  const title = celebrating ? "Congratulations!" : "Successful";
+  const body = celebrating
+    ? detail.milestone === target
+      ? `You've reached your target of ${target} souls! 🎉 Keep going.`
+      : `${detail.milestone} souls, ${detail.milestone! / target!}× your target! 🎉`
+    : count > 1
       ? `${count} souls have been added.`
       : detail.milestone
         ? `You've led ${detail.milestone} souls today.`
         : `${first} has been added.`;
+  const confettiRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(onDone, 4200);
+    if (!celebrating || !confettiRef.current) return;
+    const canvas = confettiRef.current;
+    burstConfetti(canvas, 320);
+    const again = window.setTimeout(() => burstConfetti(canvas, 200), 900);
+    return () => window.clearTimeout(again);
+  }, [celebrating]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(onDone, celebrating ? 8000 : 4200);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" || event.key === "Enter") onDone();
     };
@@ -44,7 +62,7 @@ export function SaveConfirm({ detail, onDone }: Props) {
       window.clearTimeout(timer);
       window.removeEventListener("keydown", onKey);
     };
-  }, [onDone]);
+  }, [onDone, celebrating]);
 
   return (
     <div
@@ -55,6 +73,7 @@ export function SaveConfirm({ detail, onDone }: Props) {
       data-save-confirm
       onClick={onDone}
     >
+      {celebrating && <canvas ref={confettiRef} className="pointer-events-none fixed inset-0 z-[61] h-full w-full" />}
       <div
         className="sw-confirm-card w-full max-w-[20.5rem] rounded-[2rem] bg-white px-7 pb-7 pt-10 text-center shadow-[0_24px_60px_-20px_rgba(12,10,9,0.35)]"
         onClick={(event) => event.stopPropagation()}
@@ -78,7 +97,7 @@ export function SaveConfirm({ detail, onDone }: Props) {
         </div>
 
         <h2 id="sw-confirm-title" className="font-display text-[1.65rem] leading-none text-[#0c0a09]">
-          Successful
+          {title}
         </h2>
         <p className="mx-auto mt-2 max-w-[16rem] text-[13px] leading-5 text-[#78716c]">{body}</p>
 

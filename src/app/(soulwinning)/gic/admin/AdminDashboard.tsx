@@ -27,6 +27,7 @@ import { ExportPanel } from "./ExportPanel";
 import { Leaderboards } from "./Leaderboards";
 import { PhotoWall } from "./PhotoWall";
 import { SmsPanel } from "./SmsPanel";
+import { TargetReached } from "./TargetReached";
 
 // Leaflet touches window on import, so the map only loads in the browser.
 const SoulMap = dynamic(() => import("./SoulMap").then((mod) => mod.SoulMap), {
@@ -86,8 +87,12 @@ export function AdminDashboard() {
     })();
   }, []);
 
+  // Bumped on every refresh so panels that load themselves (target list) reload too.
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const load = useCallback(async () => {
     if (!campaignId) return;
+    setRefreshKey((k) => k + 1);
     setIsLoading(true);
     setError(null);
     try {
@@ -288,6 +293,14 @@ export function AdminDashboard() {
               rows={leaderboard}
               campaignSlug={campaign?.slug ?? "campaign"}
             />
+
+            {campaignId && (
+              <TargetReached
+                campaignId={campaignId}
+                campaignSlug={campaign?.slug ?? "campaign"}
+                refreshKey={refreshKey}
+              />
+            )}
           </div>
         )}
 

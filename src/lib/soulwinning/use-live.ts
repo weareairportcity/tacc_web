@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { campaignPhase } from "./api";
-import type { SwCampaign, SwCounts, SwLive } from "./types";
+import type { SwCampaign, SwCounts, SwLeaderboard, SwLive } from "./types";
 
 // While the campaign is open, every screen polls the cached live route. The
 // route is served from Vercel's CDN, so this interval sets how fresh the
@@ -17,8 +17,13 @@ const BEFORE_POLL_MS = 60_000;
  * polling on its own once the campaign closes, so a projector left running
  * overnight costs nothing.
  */
-export function useLiveCounts(campaign: SwCampaign, initial: SwCounts | null) {
+export function useLiveCounts(
+  campaign: SwCampaign,
+  initial: SwCounts | null,
+  initialBoard: SwLeaderboard | null = null,
+) {
   const [counts, setCounts] = useState<SwCounts | null>(initial);
+  const [leaderboard, setLeaderboard] = useState<SwLeaderboard | null>(initialBoard);
   const [isLive, setIsLive] = useState(true);
 
   useEffect(() => {
@@ -32,6 +37,7 @@ export function useLiveCounts(campaign: SwCampaign, initial: SwCounts | null) {
         const live = (await response.json()) as SwLive;
         if (cancelled) return;
         if (live.counts) setCounts(live.counts);
+        if (live.leaderboard) setLeaderboard(live.leaderboard);
         setIsLive(true);
       } catch {
         if (!cancelled) setIsLive(false);
@@ -59,5 +65,5 @@ export function useLiveCounts(campaign: SwCampaign, initial: SwCounts | null) {
     };
   }, [campaign]);
 
-  return { counts, isLive };
+  return { counts, leaderboard, isLive };
 }

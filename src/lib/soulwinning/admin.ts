@@ -24,13 +24,14 @@ export {
   fetchPhotoEntries,
   fetchSmsConfig,
   fetchSmsLog,
+  fetchTargetReached,
   removeSmsRecipient,
   resolveDuplicate,
   searchMap,
   setSmsRecipientEnabled,
   updateCampaignSettings,
 } from "./admin-actions";
-export type { AdminEntry, MapSearchHit } from "./admin-actions";
+export type { AdminEntry, MapSearchHit, TargetRow } from "./admin-actions";
 
 export function downloadCsv(filename: string, content: string): void {
   const blob = new Blob([`\uFEFF${content}`], { type: "text/csv;charset=utf-8" });
