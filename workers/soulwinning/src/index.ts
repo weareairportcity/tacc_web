@@ -4,6 +4,7 @@ import { getPhoto, putPhoto } from "./photos";
 import {
   getCampaign,
   getLive,
+  getRank,
   postDeleteMine,
   postEntrants,
   postEntries,
@@ -56,6 +57,9 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
   let m: RegExpMatchArray | null;
   if (method === "GET" && (m = path.match(/^\/v1\/campaign\/([a-z0-9-]{1,40})$/))) {
     return getCampaign(env, m[1]);
+  }
+  if (method === "GET" && (m = path.match(/^\/v1\/rank\/([a-z0-9-]{1,40})$/))) {
+    return getRank(request, env, m[1]);
   }
   if (method === "GET" && (m = path.match(/^\/v1\/live\/([a-z0-9-]{1,40})$/))) {
     return getLive(request, env, m[1]);

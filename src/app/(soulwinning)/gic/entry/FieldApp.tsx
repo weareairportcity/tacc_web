@@ -19,6 +19,7 @@ import { SaveConfirm, type SaveConfirmDetail } from "./SaveConfirm";
 import { SoulEntryForm } from "./SoulEntryForm";
 import { StartScreen } from "./StartScreen";
 import { SyncIndicator } from "./SyncIndicator";
+import { TargetProgress } from "./TargetProgress";
 
 
 interface Props {
@@ -216,6 +217,14 @@ export function FieldApp({ campaign }: Props) {
             <ChevronRight className="h-3.5 w-3.5" />
           </span>
         </button>
+        {campaign.id !== "shot-campaign" && (
+          <TargetProgress
+            campaignSlug={campaign.slug}
+            entrantId={entrant.id}
+            souls={myTotal}
+            target={campaign.target_per_member ?? 7}
+          />
+        )}
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-[#f2f2f2] p-1">

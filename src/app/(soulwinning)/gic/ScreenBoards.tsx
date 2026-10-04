@@ -16,12 +16,12 @@ export function ScreenBoards({ board }: { board: SwLeaderboard | null }) {
   const { target } = board;
   return (
     <>
-      <aside className="pointer-events-none absolute left-[clamp(0.75rem,1.6vw,2rem)] top-[18%] z-10 hidden w-[clamp(15rem,21vw,28rem)] flex-col gap-[1.6vh] lg:flex">
+      <aside className="pointer-events-none absolute left-[clamp(0.75rem,1.6vw,2rem)] top-[16%] z-10 hidden w-[clamp(15rem,21vw,28rem)] flex-col gap-[1.6vh] lg:flex">
         <Panel icon={<Users className="h-[2.2vh] w-[2.2vh]" />} title="Top PFCCs">
           {board.pfccs.length === 0 ? (
             <Empty>Waiting for the first soul</Empty>
           ) : (
-            board.pfccs.slice(0, 5).map((p, i) => (
+            board.pfccs.slice(0, 4).map((p, i) => (
               <Row key={p.pfcc} rank={i} label={p.pfcc} sub={`${p.members} ${p.members === 1 ? "member" : "members"}`} value={p.souls} />
             ))
           )}
@@ -34,17 +34,17 @@ export function ScreenBoards({ board }: { board: SwLeaderboard | null }) {
           {board.completed.length === 0 ? (
             <Empty>Who will be first to {target}?</Empty>
           ) : (
-            board.completed.slice(0, 5).map((m, i) => (
+            board.completed.slice(0, 3).map((m, i) => (
               <Row key={`${m.name}-${m.reached_at}`} rank={i} label={m.name} sub={m.pfcc} value={m.souls} done />
             ))
           )}
-          {board.completed.length > 5 && (
-            <p className="mt-[0.6vh] text-[1.6vh] text-[#78716c]">+{board.completed.length - 5} more have reached {target}</p>
+          {board.completed.length > 3 && (
+            <p className="mt-[0.6vh] text-[1.6vh] text-[#78716c]">+{board.completed.length - 3} more have reached {target}</p>
           )}
         </Panel>
       </aside>
 
-      <aside className="pointer-events-none absolute right-[clamp(0.75rem,1.6vw,2rem)] top-[18%] z-10 hidden w-[clamp(15rem,21vw,28rem)] flex-col lg:flex">
+      <aside className="pointer-events-none absolute right-[clamp(0.75rem,1.6vw,2rem)] top-[16%] z-10 hidden w-[clamp(15rem,21vw,28rem)] flex-col lg:flex">
         <Panel icon={<Trophy className="h-[2.2vh] w-[2.2vh]" />} title="Top soul winners">
           {board.members.length === 0 ? (
             <Empty>Waiting for the first soul</Empty>

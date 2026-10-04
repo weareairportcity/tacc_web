@@ -7,7 +7,7 @@ import {
   type Campaign,
   type CountsRow,
 } from "./db";
-import { cachedLeaderboard } from "./leaderboard";
+import { cachedLeaderboard, publicLeaderboard, rankFor } from "./leaderboard";
 import { photoUrl, thumbPathFor } from "./photos";
 import {
   HttpError,
@@ -369,7 +369,7 @@ export async function getLive(request: Request, env: AppEnv, slug: string) {
   return json(
     {
       campaign: publicCampaign(campaign),
-      leaderboard,
+      leaderboard: publicLeaderboard(leaderboard),
       counts: counts && {
         total_souls: counts.total_souls,
         tongues_count: counts.tongues_count,
@@ -387,4 +387,17 @@ export async function getLive(request: Request, env: AppEnv, slug: string) {
     },
     { headers: { "Cache-Control": "public, max-age=5" } },
   );
+}
+
+/** "You're #4 of 12 in your PFCC" for a member's phone. One counts row read. */
+export async function getRank(request: Request, env: AppEnv, slug: string) {
+  const entrant = new URL(request.url).searchParams.get("entrant") ?? "";
+  if (!UUID.test(entrant)) throw new HttpError(400, "entrant required");
+  const campaign = await campaignBySlug(env.DB, slug);
+  if (!campaign) throw new HttpError(404, "campaign not found");
+  const counts = await env.DB.prepare("SELECT leaderboard, leaderboard_at FROM counts WHERE campaign_id = ?")
+    .bind(campaign.id)
+    .first<{ leaderboard: string | null; leaderboard_at: string | null }>();
+  const board = await cachedLeaderboard(env.DB, campaign, counts);
+  return json(rankFor(board, entrant.toLowerCase()), { headers: { "Cache-Control": "private, max-age=30" } });
 }
