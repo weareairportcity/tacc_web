@@ -29,11 +29,11 @@ export async function unlockAdmin(_prev: UnlockState, form: FormData): Promise<U
 
   attempts.delete(ip);
   await startAdminSession();
-  revalidatePath("/1909/admin");
+  revalidatePath("/gic/admin");
   return { error: null };
 }
 
 export async function lockAdmin() {
   await endAdminSession();
-  revalidatePath("/1909/admin");
+  revalidatePath("/gic/admin");
 }

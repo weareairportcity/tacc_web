@@ -1,22 +1,14 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { SW_CAMPAIGN } from "@/lib/soulwinning/api";
-import { getCampaignBySlug, getLive } from "@/lib/soulwinning/campaign";
-import { CounterView } from "./CounterView";
+import { OutreachEnded } from "./OutreachEnded";
 
-// Static, rebuilt at most once a minute. The live numbers come from the
-// CDN-cached /api/soulwinning/live feed the page polls, never a render per view.
-export const revalidate = 60;
-
+// The outreach is over. This used to be a live, force-dynamic page that polled
+// Supabase from every open phone and projector; it is now static so it costs
+// nothing to leave open. The live version is in git history before this change.
 export const metadata: Metadata = {
-  title: "Soul Winning — Souls Won for Christ",
+  title: "1909 — Souls Won for Christ",
   description: "Souls won for Christ, live.",
 };
 
-export default async function Page() {
-  const campaign = await getCampaignBySlug(SW_CAMPAIGN);
-  if (!campaign) notFound();
-  const live = await getLive(SW_CAMPAIGN);
-
-  return <CounterView campaign={campaign} initialCounts={live?.counts ?? null} variant="public" />;
+export default function Page() {
+  return <OutreachEnded />;
 }

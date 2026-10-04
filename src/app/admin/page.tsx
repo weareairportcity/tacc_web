@@ -60,7 +60,7 @@ export default function AdminDashboard() {
         return;
       }
       if (roleData?.role === "soulwinning") {
-        router.push("/1909/admin");
+        router.push("/gic/admin");
         return;
       }
 

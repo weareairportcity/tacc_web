@@ -21,7 +21,7 @@ async function grantLocation(page: Page) {
 }
 
 async function becomeMember(page: Page, name: string, extras?: { fellowship?: string }) {
-  await page.goto("/1909/shots/entry");
+  await page.goto("/gic/shots/entry");
   await expect(page.getByRole("button", { name: "Start new" })).toBeVisible();
   await page.getByRole("button", { name: "Start new" }).click();
   await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
@@ -65,7 +65,7 @@ async function waitForCardInView(page: Page, name: string, hasPhoto = false) {
 test.describe("soul winning shots", () => {
   test("member onboarding filled", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/1909/shots/entry");
+    await page.goto("/gic/shots/entry");
     await page.getByRole("button", { name: "Start new" }).click();
     await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
     await page.getByRole("textbox", { name: "Name" }).fill("Kofi Mensah");
@@ -76,7 +76,7 @@ test.describe("soul winning shots", () => {
 
   test("location prompt", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/1909/shots/entry");
+    await page.goto("/gic/shots/entry");
     await page.getByRole("button", { name: "Start new" }).click();
     await page.getByRole("textbox", { name: "Name" }).fill("Kofi Mensah");
     await page.getByLabel("Fellowship").selectOption("Qadash");
@@ -104,7 +104,7 @@ test.describe("soul winning shots", () => {
 
     const counter = await context.newPage();
     await counter.setViewportSize({ width: 1440, height: 900 });
-    await counter.goto("/1909/shots/counter");
+    await counter.goto("/gic/shots/counter");
     await expect(counter.getByText("souls won for Christ")).toBeVisible();
 
     await enqueueSouls(counter, [
@@ -163,7 +163,7 @@ test.describe("soul winning shots", () => {
 
     const counter = await context.newPage();
     await counter.setViewportSize({ width: 1440, height: 900 });
-    await counter.goto("/1909/shots/counter");
+    await counter.goto("/gic/shots/counter");
     await expect(counter.getByText("souls won for Christ")).toBeVisible();
 
     await enqueueSouls(counter, [
@@ -243,7 +243,7 @@ test.describe("soul winning shots", () => {
 
   test("location prompt stays until GPS is allowed", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/1909/shots/entry");
+    await page.goto("/gic/shots/entry");
     await page.getByRole("button", { name: "Start new" }).click();
     await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
     await page.getByRole("textbox", { name: "Name" }).fill("Kofi Mensah");
@@ -259,7 +259,7 @@ test.describe("soul winning shots", () => {
 
   test("admin entries open a detail card", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/1909/shots/admin?view=entries");
+    await page.goto("/gic/shots/admin?view=entries");
     const name = page.locator("tbody tr td").first();
     await expect(name).toBeVisible();
     const label = (await name.innerText()).replace(/photo|review/g, "").trim();
@@ -270,7 +270,7 @@ test.describe("soul winning shots", () => {
 
   test("big screen with floating cards", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
-    await page.goto("/1909/shots/screen");
+    await page.goto("/gic/shots/screen");
     await expect(page.getByText("souls won for Christ")).toBeVisible();
     await enqueueSouls(page, [
       {
@@ -301,7 +301,7 @@ test.describe("soul winning shots", () => {
 
   test("admin photo wall", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
-    await page.goto("/1909/shots/admin?view=wall");
+    await page.goto("/gic/shots/admin?view=wall");
     await expect(page.getByRole("button", { name: "Wall" })).toBeVisible();
     await expect(page.locator("[data-wall-tile]").first()).toBeVisible();
     await page.locator("[data-wall-tile] img").first().waitFor({ state: "visible" });
@@ -313,7 +313,7 @@ test.describe("soul winning shots", () => {
 
   test("admin overview with rankings", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
-    await page.goto("/1909/shots/admin?view=overview");
+    await page.goto("/gic/shots/admin?view=overview");
     await expect(page.getByText("Members entering")).toBeVisible();
     await expect(page.getByText("Kofi Mensah")).toBeVisible();
     await page.getByText("Souls per hour").hover();
@@ -322,7 +322,7 @@ test.describe("soul winning shots", () => {
 
   test("duplicate review queue", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/1909/shots/admin?view=duplicates");
+    await page.goto("/gic/shots/admin?view=duplicates");
     await expect(page.getByText("Emmanuel Tetteh")).toBeVisible();
     await expect(page.getByRole("button", { name: "Separate soul" }).first()).toBeVisible();
     await snap(page, "11-admin-duplicates");
@@ -330,7 +330,7 @@ test.describe("soul winning shots", () => {
 
   test("onboarding lists children's church under its own PFCC", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/1909/shots/entry");
+    await page.goto("/gic/shots/entry");
     await page.getByRole("button", { name: "Start new" }).click();
     await expect(page.getByRole("heading", { name: "Before you start" })).toBeVisible();
     const fellowship = page.getByLabel("Fellowship");
@@ -341,7 +341,7 @@ test.describe("soul winning shots", () => {
 
   test("map with pins and a member popup", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/1909/shots/admin?view=map");
+    await page.goto("/gic/shots/admin?view=map");
     await expect(page.getByPlaceholder("Search a soul, a member, or a place")).toBeVisible({
       timeout: 45_000,
     });
@@ -360,7 +360,7 @@ test.describe("soul winning shots", () => {
 
   test("zoomed-out clusters count group souls, not pins", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/1909/shots/admin?view=map");
+    await page.goto("/gic/shots/admin?view=map");
     await expect(page.getByPlaceholder("Search a soul, a member, or a place")).toBeVisible({
       timeout: 45_000,
     });

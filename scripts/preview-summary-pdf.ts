@@ -7,7 +7,7 @@ import {
   SHOT_MEMBERS,
   SHOT_OVERVIEW,
   SHOT_PFCCS,
-} from "../src/app/(soulwinning)/1909/shots/fixtures";
+} from "../src/app/(soulwinning)/gic/shots/fixtures";
 
 const logoPath = path.join(process.cwd(), "public/logo.png");
 const logo = `data:image/png;base64,${readFileSync(logoPath).toString("base64")}`;

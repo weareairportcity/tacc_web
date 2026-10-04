@@ -36,7 +36,7 @@ test("admin and screen tutorial video", async ({ browser }) => {
     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
   });
 
-  await page.goto("/1909/shots/screen");
+  await page.goto("/gic/shots/screen");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });
@@ -94,7 +94,7 @@ test("admin and screen tutorial video", async ({ browser }) => {
   await page.evaluate(() => window.__swTutorial?.clearHighlight());
   await hold(page, 800);
 
-  await page.goto("/1909/shots/admin?view=entries");
+  await page.goto("/gic/shots/admin?view=entries");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });
@@ -123,7 +123,7 @@ test("admin and screen tutorial video", async ({ browser }) => {
   await page.evaluate(() => window.__swTutorial?.clear());
   await hold(page, 600);
 
-  await page.goto("/1909/shots/admin?view=wall");
+  await page.goto("/gic/shots/admin?view=wall");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });
@@ -166,7 +166,7 @@ test("admin and screen tutorial video", async ({ browser }) => {
   await page.evaluate(() => window.__swTutorial?.clear());
   await hold(page, 600);
 
-  await page.goto("/1909/shots/admin?view=map");
+  await page.goto("/gic/shots/admin?view=map");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });

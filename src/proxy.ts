@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * Subdomain routing plus admin session handling.
  *
- * soulwinning.theairportcitychurch.com/* serves the /1909 app, so the outreach
+ * soulwinning.theairportcitychurch.com/* serves the current campaign (/gic), so the outreach
  * lives on its own host while staying one deployment.
  *
  * The Supabase session work is deliberately scoped to /admin only. It costs a
@@ -26,6 +26,7 @@ export async function proxy(request: NextRequest) {
   // ── Subdomain → /1909 ────────────────────────────────────────────────
   if (SOULWINNING_HOSTS.has(hostname)) {
     const alreadyMapped =
+      pathname.startsWith("/gic") ||
       pathname.startsWith("/1909") ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/api") ||
@@ -33,13 +34,13 @@ export async function proxy(request: NextRequest) {
 
     if (!alreadyMapped) {
       const url = request.nextUrl.clone();
-      url.pathname = `/1909${pathname === "/" ? "" : pathname}`;
+      url.pathname = `/gic${pathname === "/" ? "" : pathname}`;
       return NextResponse.rewrite(url);
     }
   }
 
   // ── Admin session refresh ────────────────────────────────────────────
-  // Only the Supabase-backed admin area. The soul winning admin (/1909/admin)
+  // Only the Supabase-backed admin area. The soul winning admin (/gic/admin)
   // has its own admin-code sign-in and no Supabase session.
   // /admin/songs moved to Cloudflare with its own admin-code sign-in.
   const needsSession = pathname.startsWith("/admin") && !pathname.startsWith("/admin/songs");

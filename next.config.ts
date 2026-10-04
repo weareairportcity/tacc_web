@@ -9,8 +9,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // The Soul Winning service worker lives at /1909/sw.js but needs to
-        // control /1909 itself, which is one level up from its own path.
+        // The Soul Winning service worker lives at /gic/sw.js but needs to
+        // control /gic itself, which is one level up from its own path.
+        source: "/gic/sw.js",
+        headers: [
+          { key: "Service-Worker-Allowed", value: "/gic" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+      {
+        // Retired 1909 worker: a self-removing script. Never cached, so phones
+        // that installed the 1909 app pick it up and clean themselves up.
         source: "/1909/sw.js",
         headers: [
           { key: "Service-Worker-Allowed", value: "/1909" },

@@ -78,7 +78,7 @@ test("group tutorial video", async ({ browser }) => {
     });
   });
 
-  await page.goto("/1909/shots/entry");
+  await page.goto("/gic/shots/entry");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });

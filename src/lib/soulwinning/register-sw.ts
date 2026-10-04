@@ -18,11 +18,11 @@ export function useSoulWinningServiceWorker() {
     if (process.env.NODE_ENV !== "production") {
       void navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
-          if (registration.scope.includes("/1909")) void registration.unregister();
+          if (registration.scope.includes("/gic") || registration.scope.includes("/1909")) void registration.unregister();
         }
       });
       void caches.keys().then((keys) => {
-        for (const key of keys) if (key.startsWith("sw1909-")) void caches.delete(key);
+        for (const key of keys) if (key.startsWith("sw1909-") || key.startsWith("swgic-")) void caches.delete(key);
       });
       return;
     }
@@ -51,7 +51,7 @@ export function useSoulWinningServiceWorker() {
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     void navigator.serviceWorker
-      .register("/1909/sw.js", { scope: "/1909", updateViaCache: "none" })
+      .register("/gic/sw.js", { scope: "/gic", updateViaCache: "none" })
       .then((registration) => {
         if (cancelled) return;
         lastCheck = Date.now();

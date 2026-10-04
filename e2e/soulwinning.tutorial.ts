@@ -34,7 +34,7 @@ test("entry tutorial video", async ({ browser }) => {
     new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
   });
 
-  await page.goto("/1909/shots/entry");
+  await page.goto("/gic/shots/entry");
   await page.addStyleTag({
     content: "nextjs-portal,[data-next-badge-root]{display:none!important}",
   });

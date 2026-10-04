@@ -59,7 +59,7 @@ export default function AdminLogin() {
         router.push("/admin/songs");
         router.refresh();
       } else if (role === "soulwinning") {
-        router.push("/1909/admin");
+        router.push("/gic/admin");
         router.refresh();
       } else {
         // role === "both"
@@ -119,7 +119,7 @@ export default function AdminLogin() {
             </button>
 
             <button
-              onClick={() => navigateTo("/1909/admin")}
+              onClick={() => navigateTo("/gic/admin")}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left"
             >
               <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center group-hover:bg-sky-100 transition-colors">
