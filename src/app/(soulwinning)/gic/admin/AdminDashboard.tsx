@@ -20,6 +20,7 @@ import {
 } from "@/lib/soulwinning/admin";
 import type { SwCampaignSettings as SwCampaign } from "@/lib/soulwinning/types";
 import { lockAdmin } from "./actions";
+import { CampaignOpenControl } from "./CampaignOpenControl";
 import { CumulativeChart, RatesChart, SoulsPerHourChart } from "./Charts";
 import { DuplicateQueue } from "./DuplicateQueue";
 import { EntriesTable } from "./EntriesTable";
@@ -146,6 +147,8 @@ export function AdminDashboard() {
               <p className="text-xs text-[#a8a29e]">{campaign?.name ?? "No campaign"}</p>
             </div>
           </div>
+
+          {campaign && <CampaignOpenControl campaign={campaign} onChanged={reloadCampaigns} />}
 
           <button
             type="button"

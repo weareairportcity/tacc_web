@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { SwCampaign } from "@/lib/soulwinning/types";
-import { campaignPhase, type CampaignPhase } from "@/lib/soulwinning/api";
+import { SW_API, campaignPhase, type CampaignPhase, type CampaignWindow } from "@/lib/soulwinning/api";
 import {
   getActiveEntrant,
   listEntrants,
@@ -26,15 +26,51 @@ interface Props {
   campaign: SwCampaign;
 }
 
+// How often an open phone asks whether an admin has closed (or reopened) the campaign.
+const WINDOW_REFRESH_MS = 2 * 60 * 1000;
+
 // Re-checks the campaign window each half minute, so a phone left open flips
-// to "open" at the start time and to "closed" at the end without a reload.
+// to "open" at the start time and to "closed" at the end without a reload. The
+// window itself is re-fetched every couple of minutes: the campaign stays open
+// until an admin closes it, so the page's own copy of closes_at goes stale.
 function usePhase(campaign: SwCampaign): CampaignPhase {
-  const [phase, setPhase] = useState<CampaignPhase>(() => campaignPhase(campaign));
+  const [window_, setWindow] = useState<CampaignWindow>(campaign);
+  const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
-    const timer = setInterval(() => setPhase(campaignPhase(campaign)), 30_000);
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
-  }, [campaign]);
-  return phase;
+  }, []);
+
+  useEffect(() => {
+    if (campaign.id === "shot-campaign") return;
+    let cancelled = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      try {
+        const res = await fetch(`${SW_API}/v1/campaign/${campaign.slug}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const { campaign: next } = (await res.json()) as { campaign: CampaignWindow };
+        setWindow((prev) =>
+          prev.opens_at === next.opens_at && prev.closes_at === next.closes_at
+            ? prev
+            : { opens_at: next.opens_at, closes_at: next.closes_at },
+        );
+      } catch {
+        // Offline or a blip: keep the window we have.
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => void refresh(), WINDOW_REFRESH_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [campaign.id, campaign.slug]);
+
+  return campaignPhase(window_, now);
 }
 
 export function FieldApp({ campaign }: Props) {

@@ -28,6 +28,7 @@ export {
   removeSmsRecipient,
   resolveDuplicate,
   searchMap,
+  setCampaignOpen,
   setSmsRecipientEnabled,
   updateCampaignSettings,
 } from "./admin-actions";

@@ -9,6 +9,7 @@
  * Timestamps are UTC, which is Accra time, so strftime('%H') is the local hour.
  */
 
+import { revalidatePath } from "next/cache";
 import { requireAdmin } from "./admin-auth";
 import { batch, deletePhotos, photoUrls, purgeCampaignPhotos, query, recount } from "./admin-db";
 import { collapseMapPoints, toCsv } from "./admin-shared";
@@ -447,6 +448,24 @@ export async function clearCampaignEntries(campaignId: string): Promise<number> 
   ]);
   await purgeCampaignPhotos(campaignId);
   return n;
+}
+
+/** "Open until an admin closes it": far enough out that it never closes by itself. */
+const OPEN_ENDED = "2099-12-31T23:59:59.000Z";
+
+/**
+ * Closes logging now, or reopens it with no end time. Phones and screens pick
+ * the change up within a couple of minutes. Souls already logged on a phone
+ * before the close still count whenever they sync.
+ */
+export async function setCampaignOpen(campaignId: string, open: boolean): Promise<string> {
+  await requireAdmin();
+  checkId(campaignId);
+  const closesAt = open ? OPEN_ENDED : new Date().toISOString();
+  await query("UPDATE campaigns SET closes_at = ? WHERE id = ?", [closesAt, campaignId]);
+  // The entry page and counter are static pages holding the campaign window.
+  revalidatePath("/gic", "layout");
+  return closesAt;
 }
 
 // ─── SMS ─────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { campaignPhase } from "./api";
+import { campaignPhase, type CampaignWindow } from "./api";
 import type { SwCampaign, SwCounts, SwLeaderboard, SwLive } from "./types";
 
 // While the campaign is open, every screen polls the cached live route. The
@@ -29,6 +29,9 @@ export function useLiveCounts(
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // The feed carries the campaign's current window, so an admin closing (or
+    // reopening) the campaign reaches screens that have been open for hours.
+    let window_: CampaignWindow = campaign;
 
     const tick = async () => {
       try {
@@ -36,6 +39,7 @@ export function useLiveCounts(
         if (!response.ok) throw new Error(String(response.status));
         const live = (await response.json()) as SwLive;
         if (cancelled) return;
+        if (live.campaign) window_ = live.campaign;
         if (live.counts) setCounts(live.counts);
         if (live.leaderboard) setLeaderboard(live.leaderboard);
         setIsLive(true);
@@ -43,7 +47,7 @@ export function useLiveCounts(
         if (!cancelled) setIsLive(false);
       }
       if (cancelled) return;
-      const phase = campaignPhase(campaign);
+      const phase = campaignPhase(window_);
       if (phase === "closed") return; // final numbers are in; stop polling
       timer = setTimeout(tick, phase === "open" ? OPEN_POLL_MS : BEFORE_POLL_MS);
     };
@@ -52,7 +56,7 @@ export function useLiveCounts(
 
     // A tab coming back into view refreshes straight away.
     const onVisible = () => {
-      if (document.visibilityState !== "visible" || campaignPhase(campaign) !== "open") return;
+      if (document.visibilityState !== "visible" || campaignPhase(window_) !== "open") return;
       if (timer) clearTimeout(timer);
       void tick();
     };
