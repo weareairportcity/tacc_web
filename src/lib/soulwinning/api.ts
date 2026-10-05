@@ -17,6 +17,16 @@ export const SW_API_SERVER = process.env.SW_API_SERVER_URL || "https://soulwinni
 /** Which campaign the soul winning pages serve. */
 export const SW_CAMPAIGN = process.env.NEXT_PUBLIC_SW_CAMPAIGN ?? "gic";
 
+// A request on weak signal can hang without ever failing. Sync runs one pass at a
+// time, so one hung request would leave the phone on "pending sync" until the
+// page is reloaded. Give up and let the queue retry instead.
+const POST_TIMEOUT_MS = 20_000;
+const PHOTO_TIMEOUT_MS = 45_000;
+
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(ms) : undefined;
+}
+
 export class SwApiError extends Error {
   constructor(
     readonly status: number,
@@ -31,6 +41,7 @@ export async function swPost<T>(path: string, body: unknown): Promise<T> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: timeoutSignal(POST_TIMEOUT_MS),
   });
   const data = (await response.json().catch(() => ({}))) as { error?: string };
   if (!response.ok) throw new SwApiError(response.status, data.error ?? `request failed (${response.status})`);
@@ -43,6 +54,7 @@ export async function swPutPhoto(key: string, photo: Blob): Promise<boolean> {
       method: "PUT",
       headers: { "Content-Type": "image/jpeg" },
       body: photo,
+      signal: timeoutSignal(PHOTO_TIMEOUT_MS),
     });
     return response.ok;
   } catch {
