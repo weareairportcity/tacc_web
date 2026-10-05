@@ -1,6 +1,6 @@
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
-import { runSms } from "./sms";
+import { runSms, sendSms } from "./sms";
 import { checkUsage } from "./usage";
 import { HttpError, UUID, json, readJson, timingSafeEqual, type AppEnv } from "./util";
 
@@ -88,6 +88,17 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       // Today's usage against the free limits. notify:false = just look.
       const { notify } = await readJson<{ notify?: boolean }>(request);
       return json(await checkUsage(env, { notify: Boolean(notify) }));
+    }
+    case "/v1/admin/usage/test-alert": {
+      // Sends one test text to ALERT_PHONE through the same path real alerts use.
+      const to = (env as AppEnv & { ALERT_PHONE?: string }).ALERT_PHONE;
+      if (!to) throw new HttpError(400, "ALERT_PHONE not set");
+      const sent = await sendSms(
+        env,
+        to,
+        "TACC website alert (test): usage alerts are set up. You'll get a text like this if Cloudflare usage passes 60% of a free daily limit.",
+      );
+      return json({ sent });
     }
     case "/v1/admin/sms/run": {
       const { force } = await readJson<{ force?: boolean }>(request);
