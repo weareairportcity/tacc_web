@@ -74,6 +74,8 @@ export type SwLeaderboard = {
   target: number;
   members: { name: string; pfcc: string; souls: number }[];
   pfccs: { pfcc: string; souls: number; members: number }[];
+  /** Missing only on a leaderboard cached before fellowships were added. */
+  fellowships?: { fellowship: string; souls: number; members: number }[];
   /** Everyone who reached the target, in the order they reached it. */
   completed: { name: string; pfcc: string; souls: number; reached_at: string }[];
   computed_at: string;

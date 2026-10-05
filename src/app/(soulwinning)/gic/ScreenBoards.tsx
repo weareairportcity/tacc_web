@@ -9,7 +9,7 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 type Size = "screen" | "phone";
 
 /**
- * Top PFCCs and top soul winners. On wide screens (projector, laptop) they
+ * Top PFCCs and top fellowships. On wide screens (projector, laptop) they
  * sit either side of the total, sized to the screen height; below that they
  * stack under the counter (see StackedBoards) so phones get them too.
  * Who reached the target first is an admin-only view.
@@ -24,7 +24,7 @@ export function ScreenBoards({ board }: { board: SwLeaderboard | null }) {
         <PfccPanel board={board} size="screen" limit={6} />
       </aside>
       <aside className={`${side} right-[clamp(0.75rem,1.6vw,2rem)]`}>
-        <WinnersPanel board={board} size="screen" limit={8} />
+        <FellowshipPanel board={board} size="screen" limit={6} />
       </aside>
     </>
   );
@@ -38,7 +38,7 @@ export function StackedBoards({ board }: { board: SwLeaderboard | null }) {
       <h2 className="mb-4 text-center font-roobert text-xl tracking-[-0.02em] text-[#0c0a09]">Leaderboard</h2>
       <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
         <PfccPanel board={board} size="phone" limit={10} />
-        <WinnersPanel board={board} size="phone" limit={10} />
+        <FellowshipPanel board={board} size="phone" limit={10} />
       </div>
     </section>
   );
@@ -77,21 +77,21 @@ function PfccPanel({ board, size, limit }: { board: SwLeaderboard; size: Size; l
   );
 }
 
-function WinnersPanel({ board, size, limit }: { board: SwLeaderboard; size: Size; limit: number }) {
+function FellowshipPanel({ board, size, limit }: { board: SwLeaderboard; size: Size; limit: number }) {
+  const fellowships = board.fellowships ?? [];
   return (
-    <Panel size={size} icon={<Trophy className={iconClass(size)} />} title="Top soul winners">
-      {board.members.length === 0 ? (
+    <Panel size={size} icon={<Trophy className={iconClass(size)} />} title="Top fellowships">
+      {fellowships.length === 0 ? (
         <Empty size={size}>Waiting for the first soul</Empty>
       ) : (
-        board.members.slice(0, limit).map((m, i) => (
+        fellowships.slice(0, limit).map((f, i) => (
           <Row
-            key={`${m.name}-${i}`}
+            key={f.fellowship}
             size={size}
             rank={i}
-            label={m.name}
-            sub={m.pfcc}
-            value={m.souls}
-            done={m.souls >= board.target}
+            label={f.fellowship}
+            sub={`${f.members} ${f.members === 1 ? "member" : "members"}`}
+            value={f.souls}
           />
         ))
       )}

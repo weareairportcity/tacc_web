@@ -5,6 +5,7 @@ export type Leaderboard = {
   /** Top soul winners, most souls first (ties: whoever got there first). */
   members: { name: string; pfcc: string; souls: number }[];
   pfccs: { pfcc: string; souls: number; members: number }[];
+  fellowships: { fellowship: string; souls: number; members: number }[];
   /** Everyone who has reached the target, in the order they reached it. */
   completed: { name: string; pfcc: string; souls: number; reached_at: string }[];
   computed_at: string;
@@ -18,7 +19,7 @@ const NOT_GIVEN = "Not given";
 /** Works the leaderboards out from the entries table. Counted souls only. */
 export async function computeLeaderboard(db: D1Database, campaign: Campaign & { target_per_member?: number }) {
   const target = campaign.target_per_member ?? 7;
-  const [members, pfccs, completed, all] = await db.batch([
+  const [members, pfccs, completed, all, fellowships] = await db.batch([
     db
       .prepare(
         `SELECT n.name, coalesce(nullif(trim(n.pfcc), ''), '${NOT_GIVEN}') AS pfcc, count(*) AS souls
@@ -65,12 +66,24 @@ export async function computeLeaderboard(db: D1Database, campaign: Campaign & { 
          GROUP BY e.entrant_id`,
       )
       .bind(campaign.id),
+    db
+      .prepare(
+        `SELECT coalesce(nullif(trim(n.fellowship), ''), '${NOT_GIVEN}') AS fellowship, count(*) AS souls,
+                count(DISTINCT e.entrant_id) AS members
+         FROM entries e JOIN entrants n ON n.id = e.entrant_id
+         WHERE e.campaign_id = ? AND e.counted
+         GROUP BY 1
+         ORDER BY souls DESC
+         LIMIT 10`,
+      )
+      .bind(campaign.id),
   ]);
 
   return {
     target,
     members: (members.results ?? []) as Leaderboard["members"],
     pfccs: (pfccs.results ?? []) as Leaderboard["pfccs"],
+    fellowships: (fellowships.results ?? []) as Leaderboard["fellowships"],
     completed: (completed.results ?? []) as Leaderboard["completed"],
     computed_at: new Date().toISOString(),
     all: (all.results ?? []) as NonNullable<Leaderboard["all"]>,
