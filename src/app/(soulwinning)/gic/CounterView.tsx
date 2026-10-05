@@ -7,7 +7,7 @@ import { SoulCard } from "./SoulCard";
 import { PhotoMarquee } from "./PhotoMarquee";
 import { useLiveCounts } from "@/lib/soulwinning/use-live";
 import type { SwCampaign, SwCounts, SwLeaderboard } from "@/lib/soulwinning/types";
-import { ScreenBoards, TargetCelebration } from "./ScreenBoards";
+import { LeaderboardHint, ScreenBoards, StackedBoards, TargetCelebration } from "./ScreenBoards";
 import { Odometer } from "./Odometer";
 
 type FloatingSoul = {
@@ -203,137 +203,141 @@ export function CounterView({ campaign, initialCounts, initialLeaderboard = null
   }, []);
 
   return (
-    <main className="sw-counter relative isolate flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#fafaf9] px-[clamp(1rem,2.2vw,2rem)] py-[clamp(0.55rem,1.6vh,1.5rem)] font-sans">
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
-      <PhotoMarquee paths={marqueePaths} />
-      {isProjector && <ScreenBoards board={leaderboard} />}
-      <TargetCelebration board={leaderboard} onCelebrate={celebrateTarget} />
+    <>
+      <main className="sw-counter relative isolate flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#fafaf9] px-[clamp(1rem,2.2vw,2rem)] py-[clamp(0.55rem,1.6vh,1.5rem)] font-sans">
+        <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-30 h-full w-full" />
+        <PhotoMarquee paths={marqueePaths} />
+        <ScreenBoards board={leaderboard} />
+        <TargetCelebration board={leaderboard} onCelebrate={celebrateTarget} />
 
-      {floating.map((soul) => (
-        <div
-          key={soul.key}
-          className={`sw-float pointer-events-none absolute ${soul.inFront ? "z-20" : "z-[2]"}`}
-          data-soul-name={soul.name}
-          data-has-photo={soul.photoPath ? "true" : "false"}
-          style={{
-            top: `${soul.lane}%`,
-            animationDuration: `${soul.duration}s`,
-            animationDelay: `${soul.delay}s`,
-          }}
-        >
-          <SoulCard
-            name={soul.name}
-            photoPath={soul.photoPath}
-            scale={soul.scale}
-            isProjector={isProjector}
-          />
-        </div>
-      ))}
-
-      {/* Header: church mark, then the campaign's name as the title, centred as a lockup */}
-      <header className="relative z-10 shrink-0 border-b border-[#e8e6e5] pb-[clamp(0.35rem,1.2vh,0.85rem)] text-center">
-        {/* Out of the centred flow so it cannot pull the lockup off-centre. */}
-        {!isProjector && (
-          <span className="absolute right-0 top-0 flex items-center gap-1.5 text-[11px] text-[#a8a29e]">
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-[#3ba6f1]" : "bg-[#d6d3d1]"}`}
-              aria-hidden
-            />
-            {isLive ? "Live" : "Reconnecting…"}
-          </span>
-        )}
-
-        <Image
-          src="/logo.png"
-          alt="The Airport City Church"
-          width={140}
-          height={49}
-          className="mx-auto w-auto object-contain"
-          style={{ height: isProjector ? "clamp(1.35rem, 3.4vh, 2.5rem)" : "clamp(1.15rem, 3vh, 2rem)" }}
-          priority
-        />
-
-        <h1
-          className="mt-[clamp(0.2rem,0.8vh,0.65rem)] font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
-          // Capped by width too: "Grace in Continuity" has to fit a phone.
-          style={{
-            fontSize: isProjector
-              ? "clamp(1.35rem, min(4.2vh, 4vw), 2.75rem)"
-              : "clamp(1.3rem, min(5vh, 7.5vw), 3rem)",
-          }}
-        >
-          {campaign.name}
-        </h1>
-        <p
-          className="sw-on-marquee mt-[clamp(0.1rem,0.5vh,0.35rem)] text-[#44403c]"
-          style={{ fontSize: isProjector ? "clamp(0.7rem, 1.6vh, 1.15rem)" : "clamp(0.7rem, 1.8vh, 0.95rem)" }}
-        >
-          Soul Winning · The Airport City Church
-        </p>
-      </header>
-
-      {/* The count fills whatever is left; goal + tallies stay pinned below. */}
-      <div
-        className="sw-count-band relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center"
-        data-projector={isProjector ? "true" : "false"}
-        style={{ ["--sw-per-char" as string]: `${perCharVw}vw` }}
-      >
-        <Odometer
-          value={total}
-          digitWidth="0.62em"
-          className="sw-total-num font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09] [text-shadow:0_0_28px_#fafaf9,0_0_8px_#fafaf9]"
-        />
-      </div>
-
-      <div className="relative z-10 mx-auto w-full shrink-0 pt-[clamp(0.35rem,1.2vh,0.85rem)] pb-[max(0.15rem,env(safe-area-inset-bottom))] text-center">
-        <div className="relative isolate w-full">
+        {floating.map((soul) => (
           <div
-            className="pointer-events-none absolute -inset-x-10 -inset-y-3 -z-10 sm:-inset-x-16"
+            key={soul.key}
+            className={`sw-float pointer-events-none absolute ${soul.inFront ? "z-20" : "z-[2]"}`}
+            data-soul-name={soul.name}
+            data-has-photo={soul.photoPath ? "true" : "false"}
             style={{
-              background:
-                "radial-gradient(ellipse at center, rgba(250,250,249,0.96) 0%, rgba(250,250,249,0.82) 48%, rgba(250,250,249,0) 74%)",
-            }}
-            aria-hidden
-          />
-          <p
-            className="sw-on-marquee text-balance tracking-[0.048px] text-[#292524]"
-            style={{
-              fontSize: isProjector ? "clamp(0.95rem, 2.4vh, 2.1rem)" : "clamp(0.8rem, 2.2vh, 1.15rem)",
+              top: `${soul.lane}%`,
+              animationDuration: `${soul.duration}s`,
+              animationDelay: `${soul.delay}s`,
             }}
           >
-            {total === 1 ? "soul won for Christ" : "souls won for Christ"}
-          </p>
+            <SoulCard
+              name={soul.name}
+              photoPath={soul.photoPath}
+              scale={soul.scale}
+              isProjector={isProjector}
+            />
+          </div>
+        ))}
 
-          {goal && (
-            <div
-              className="mt-[clamp(0.4rem,1.4vh,1.1rem)] w-full"
-              style={{ maxWidth: isProjector ? "60rem" : "28rem", marginInline: "auto" }}
-            >
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2">
-                <div
-                  className="h-full rounded-full bg-[#3ba6f1] transition-[width] duration-700 ease-out"
-                  style={{ width: `${barWidth}%` }}
-                />
-              </div>
-              <p
-                className="sw-on-marquee mt-1.5 text-[#44403c]"
-                style={{ fontSize: isProjector ? "clamp(0.75rem, 1.8vh, 1.35rem)" : "clamp(0.65rem, 1.5vh, 0.75rem)" }}
-              >
-                {Math.round(progressPct).toLocaleString()}% of {goal.toLocaleString()} goal
-              </p>
-            </div>
+        {/* Header: church mark, then the campaign's name as the title, centred as a lockup */}
+        <header className="relative z-10 shrink-0 border-b border-[#e8e6e5] pb-[clamp(0.35rem,1.2vh,0.85rem)] text-center">
+          {/* Out of the centred flow so it cannot pull the lockup off-centre. */}
+          {!isProjector && (
+            <span className="absolute right-0 top-0 flex items-center gap-1.5 text-[11px] text-[#a8a29e]">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-[#3ba6f1]" : "bg-[#d6d3d1]"}`}
+                aria-hidden
+              />
+              {isLive ? "Live" : "Reconnecting…"}
+            </span>
           )}
+
+          <Image
+            src="/logo.png"
+            alt="The Airport City Church"
+            width={140}
+            height={49}
+            className="mx-auto w-auto object-contain"
+            style={{ height: isProjector ? "clamp(1.35rem, 3.4vh, 2.5rem)" : "clamp(1.15rem, 3vh, 2rem)" }}
+            priority
+          />
+
+          <h1
+            className="mt-[clamp(0.2rem,0.8vh,0.65rem)] font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09]"
+            // Capped by width too: "Grace in Continuity" has to fit a phone.
+            style={{
+              fontSize: isProjector
+                ? "clamp(1.35rem, min(4.2vh, 4vw), 2.75rem)"
+                : "clamp(1.3rem, min(5vh, 7.5vw), 3rem)",
+            }}
+          >
+            {campaign.name}
+          </h1>
+          <p
+            className="sw-on-marquee mt-[clamp(0.1rem,0.5vh,0.35rem)] text-[#44403c]"
+            style={{ fontSize: isProjector ? "clamp(0.7rem, 1.6vh, 1.15rem)" : "clamp(0.7rem, 1.8vh, 0.95rem)" }}
+          >
+            Soul Winning · The Airport City Church
+          </p>
+        </header>
+
+        {/* The count fills whatever is left; goal + tallies stay pinned below. */}
+        <div
+          className="sw-count-band relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center"
+          data-projector={isProjector ? "true" : "false"}
+          style={{ ["--sw-per-char" as string]: `${perCharVw}vw` }}
+        >
+          <Odometer
+            value={total}
+            digitWidth="0.62em"
+            className="sw-total-num font-roobert font-medium leading-none tracking-[-0.045em] text-[#0c0a09] [text-shadow:0_0_28px_#fafaf9,0_0_8px_#fafaf9]"
+          />
         </div>
 
-        <div
-          className="mt-[clamp(0.5rem,1.8vh,1.25rem)] grid w-full grid-cols-2 gap-2 sm:gap-3"
-          style={{ maxWidth: isProjector ? "50rem" : "28rem", marginInline: "auto" }}
-        >
-          <Tally label="Spoke in tongues" value={tongues} isProjector={isProjector} />
-          <Tally label="Coming to church" value={church} isProjector={isProjector} />
+        <div className="relative z-10 mx-auto w-full shrink-0 pt-[clamp(0.35rem,1.2vh,0.85rem)] pb-[max(0.15rem,env(safe-area-inset-bottom))] text-center">
+          <div className="relative isolate w-full">
+            <div
+              className="pointer-events-none absolute -inset-x-10 -inset-y-3 -z-10 sm:-inset-x-16"
+              style={{
+                background:
+                  "radial-gradient(ellipse at center, rgba(250,250,249,0.96) 0%, rgba(250,250,249,0.82) 48%, rgba(250,250,249,0) 74%)",
+              }}
+              aria-hidden
+            />
+            <p
+              className="sw-on-marquee text-balance tracking-[0.048px] text-[#292524]"
+              style={{
+                fontSize: isProjector ? "clamp(0.95rem, 2.4vh, 2.1rem)" : "clamp(0.8rem, 2.2vh, 1.15rem)",
+              }}
+            >
+              {total === 1 ? "soul won for Christ" : "souls won for Christ"}
+            </p>
+
+            {goal && (
+              <div
+                className="mt-[clamp(0.4rem,1.4vh,1.1rem)] w-full"
+                style={{ maxWidth: isProjector ? "60rem" : "28rem", marginInline: "auto" }}
+              >
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e8e6e5] sm:h-2">
+                  <div
+                    className="h-full rounded-full bg-[#3ba6f1] transition-[width] duration-700 ease-out"
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <p
+                  className="sw-on-marquee mt-1.5 text-[#44403c]"
+                  style={{ fontSize: isProjector ? "clamp(0.75rem, 1.8vh, 1.35rem)" : "clamp(0.65rem, 1.5vh, 0.75rem)" }}
+                >
+                  {Math.round(progressPct).toLocaleString()}% of {goal.toLocaleString()} goal
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div
+            className="mt-[clamp(0.5rem,1.8vh,1.25rem)] grid w-full grid-cols-2 gap-2 sm:gap-3"
+            style={{ maxWidth: isProjector ? "50rem" : "28rem", marginInline: "auto" }}
+          >
+            <Tally label="Spoke in tongues" value={tongues} isProjector={isProjector} />
+            <Tally label="Coming to church" value={church} isProjector={isProjector} />
+          </div>
+          {leaderboard && <LeaderboardHint />}
         </div>
-      </div>
-    </main>
+      </main>
+      <StackedBoards board={leaderboard} />
+    </>
   );
 }
 

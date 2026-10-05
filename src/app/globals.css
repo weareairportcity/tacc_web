@@ -192,13 +192,16 @@ body {
   text-shadow: 0 0 18px #fafaf9, 0 0 10px #fafaf9, 0 1px 0 #fafaf9;
 }
 
-/* Hall / public counter: lock the page to one screen so the goal bar and
-   tallies cannot be scrolled off (or clipped) on short projectors. */
-html:has(.sw-counter),
-html:has(.sw-counter) body {
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
+/* Hall / public counter: on big screens, lock the page to one screen so the
+   tallies cannot be scrolled off (or clipped) on short projectors. Phones and
+   tablets scroll, because the leaderboards sit under the counter there. */
+@media (min-width: 1024px) {
+  html:has(.sw-counter),
+  html:has(.sw-counter) body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
 }
 
 /* The total fills the leftover band between header and tallies. Glyphs are
