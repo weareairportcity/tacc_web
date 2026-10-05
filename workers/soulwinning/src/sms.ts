@@ -23,7 +23,7 @@ const toGhana = (phone: string) => {
   return `233${digits}`;
 };
 
-async function sendSms(env: AppEnv, to: string, message: string) {
+export async function sendSms(env: AppEnv, to: string, message: string) {
   if (!env.MNOTIFY_API_KEY) return false;
   try {
     const res = await fetch(

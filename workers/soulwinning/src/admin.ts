@@ -1,6 +1,7 @@
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms } from "./sms";
+import { checkUsage } from "./usage";
 import { HttpError, UUID, json, readJson, timingSafeEqual, type AppEnv } from "./util";
 
 /**
@@ -82,6 +83,11 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
         cursor = page.truncated ? page.cursor : undefined;
       } while (cursor);
       return json({ removed });
+    }
+    case "/v1/admin/usage": {
+      // Today's usage against the free limits. notify:false = just look.
+      const { notify } = await readJson<{ notify?: boolean }>(request);
+      return json(await checkUsage(env, { notify: Boolean(notify) }));
     }
     case "/v1/admin/sms/run": {
       const { force } = await readJson<{ force?: boolean }>(request);

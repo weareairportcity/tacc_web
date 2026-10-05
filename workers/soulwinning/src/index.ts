@@ -12,6 +12,7 @@ import {
   postMine,
 } from "./public";
 import { runSms } from "./sms";
+import { checkUsage } from "./usage";
 import { HttpError, corsHeaders, json, timingSafeEqual, type AppEnv } from "./util";
 
 function requireAdminToken(request: Request, env: AppEnv) {
@@ -101,5 +102,10 @@ export default {
 
   async scheduled(controller, env, ctx) {
     ctx.waitUntil(runSms(env as AppEnv, new Date(controller.scheduledTime)).then((r) => console.log("sms", r)));
+    ctx.waitUntil(
+      checkUsage(env as AppEnv)
+        .then((r) => console.log("usage", JSON.stringify(r)))
+        .catch((e) => console.error("usage check failed", e)),
+    );
   },
 } satisfies ExportedHandler<Env>;
