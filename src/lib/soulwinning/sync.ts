@@ -16,6 +16,7 @@ import {
   getUnsynced,
   markFailed,
   markSynced,
+  markUnsynced,
   type LocalEntrant,
   type LocalEntry,
 } from "./local-db";
@@ -23,6 +24,8 @@ import { makeThumbnail, photoAsBlob, thumbPath } from "./photo";
 
 const CHUNK_SIZE = 50;
 const POLL_INTERVAL_MS = 15_000;
+/** The Worker's 409 when an entry's member hasn't reached it yet (workers/soulwinning/src/public.ts). */
+const ENTRANT_MISSING = "entrant not synced yet";
 
 export type SyncState = {
   pending: number;
@@ -203,6 +206,13 @@ async function pushEntries(): Promise<void> {
     const { ok, error } = await insertRows("/v1/entries", rows);
 
     if (!ok) {
+      // The phone thinks the member is synced but the server has never seen
+      // them: a profile left in this browser from 1909 (Supabase). Queue the
+      // member again so the next pass sends them first, then these souls.
+      if (error === ENTRANT_MISSING) {
+        await markUnsynced(ENTRANTS_STORE, [...new Set(batch.map((entry) => entry.entrant_id))]);
+        rerun = true;
+      }
       await markFailed(ENTRIES_STORE, batch.map((entry) => entry.id), error ?? "insert failed");
       emit({ lastError: error });
       continue;

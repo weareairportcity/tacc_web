@@ -201,6 +201,32 @@ export async function markSynced(store: string, ids: string[]): Promise<void> {
   });
 }
 
+/** Puts records back in the queue, e.g. an entrant the server says it never got. */
+export async function markUnsynced(store: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await openDb();
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(store, "readwrite");
+    const objectStore = tx.objectStore(store);
+
+    for (const id of ids) {
+      const get = objectStore.get(id);
+      get.onsuccess = () => {
+        const record = get.result;
+        if (!record || record.synced === 0) return;
+        record.synced = 0;
+        record.attempts = 0;
+        record.next_attempt_at = 0;
+        objectStore.put(record);
+      };
+    }
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function deleteRecords(store: string, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const db = await openDb();
