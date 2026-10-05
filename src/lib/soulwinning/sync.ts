@@ -34,6 +34,9 @@ export type SyncState = {
 let state: SyncState = { pending: 0, syncing: false, online: true, lastError: null };
 const listeners = new Set<(state: SyncState) => void>();
 let inFlight: Promise<void> | null = null;
+// A save that lands while a pass is running would otherwise wait for the next
+// 15-second poll; instead, run one more pass straight after.
+let rerun = false;
 let started = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -219,7 +222,10 @@ async function pushEntries(): Promise<void> {
 }
 
 export function syncNow(): Promise<void> {
-  if (inFlight) return inFlight;
+  if (inFlight) {
+    rerun = true;
+    return inFlight;
+  }
 
   inFlight = (async () => {
     // Every exit path runs the finally — an early return that skipped it would
@@ -246,6 +252,10 @@ export function syncNow(): Promise<void> {
       await refreshPendingCount();
       emit({ syncing: false });
       inFlight = null;
+      if (rerun) {
+        rerun = false;
+        setTimeout(() => void syncNow(), 0);
+      }
     }
   })();
 

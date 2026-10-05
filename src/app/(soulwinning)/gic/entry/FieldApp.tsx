@@ -11,7 +11,7 @@ import {
 } from "@/lib/soulwinning/entrants";
 import { countEntriesByEntrant, type LocalEntrant } from "@/lib/soulwinning/local-db";
 import { hasLocationPermission } from "@/lib/soulwinning/entries";
-import { refreshPendingCount, startSync, syncNow } from "@/lib/soulwinning/sync";
+import { refreshPendingCount, startSync, subscribeToSync, syncNow } from "@/lib/soulwinning/sync";
 import { EntrantSwitcher } from "./EntrantSwitcher";
 import { LocationPrompt } from "./LocationPrompt";
 import { MySoulsList } from "./MySoulsList";
@@ -111,6 +111,16 @@ export function FieldApp({ campaign }: Props) {
       if (campaign.id !== "shot-campaign") void syncNow();
     },
     [campaign.id]
+  );
+
+  // Closing the page with souls still waiting to send: ask first, where the
+  // browser allows it. (They're safe on the phone either way and send next time.)
+  useEffect(
+    () =>
+      subscribeToSync((state) => {
+        window.onbeforeunload = state.pending > 0 ? (e) => e.preventDefault() : null;
+      }),
+    [],
   );
 
   const handleSaved = useCallback(

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { CloudOff, Loader2 } from "lucide-react";
+import { subscribeToSync, type SyncState } from "@/lib/soulwinning/sync";
 import { burstConfetti } from "@/lib/soulwinning/confetti";
 
 export type SaveConfirmDetail = {
@@ -44,6 +46,19 @@ export function SaveConfirm({ detail, onDone }: Props) {
         : `${first} has been added.`;
   const confettiRef = useRef<HTMLCanvasElement>(null);
 
+  // Whether what was just saved has reached the hall yet. Saving never waits
+  // for this (no signal must never block a save); it's shown so members keep
+  // the app open for the few seconds it takes.
+  const [sync, setSync] = useState<SyncState | null>(null);
+  useEffect(() => subscribeToSync(setSync), []);
+  const sendStatus: "sending" | "sent" | "offline" | null = !sync
+    ? null
+    : !sync.online
+      ? "offline"
+      : sync.pending === 0 && !sync.syncing
+        ? "sent"
+        : "sending";
+
   useEffect(() => {
     if (!celebrating || !confettiRef.current) return;
     const canvas = confettiRef.current;
@@ -53,7 +68,9 @@ export function SaveConfirm({ detail, onDone }: Props) {
   }, [celebrating]);
 
   useEffect(() => {
-    const timer = window.setTimeout(onDone, celebrating ? 8000 : 4200);
+    // Stay up while it's sending (up to 10s), close soon after it's sent.
+    const delay = celebrating ? 8000 : sendStatus === "sending" ? 10000 : sendStatus === "sent" ? 2200 : 4200;
+    const timer = window.setTimeout(onDone, delay);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" || event.key === "Enter") onDone();
     };
@@ -62,7 +79,7 @@ export function SaveConfirm({ detail, onDone }: Props) {
       window.clearTimeout(timer);
       window.removeEventListener("keydown", onKey);
     };
-  }, [onDone, celebrating]);
+  }, [onDone, celebrating, sendStatus]);
 
   return (
     <div
@@ -100,6 +117,27 @@ export function SaveConfirm({ detail, onDone }: Props) {
           {title}
         </h2>
         <p className="mx-auto mt-2 max-w-[16rem] text-[13px] leading-5 text-[#78716c]">{body}</p>
+
+        {sendStatus && (
+          <p
+            className={`mx-auto mt-3 flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+              sendStatus === "sent"
+                ? "bg-[#dcfce7] text-[#166534]"
+                : sendStatus === "offline"
+                  ? "bg-[#f2f2f2] text-[#57534e]"
+                  : "bg-[#c1e1f7]/60 text-[#3398e1]"
+            }`}
+            data-send-status={sendStatus}
+          >
+            {sendStatus === "sending" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {sendStatus === "offline" && <CloudOff className="h-3.5 w-3.5" />}
+            {sendStatus === "sent"
+              ? "✓ Sent to the hall"
+              : sendStatus === "offline"
+                ? "Saved on your phone. It will send when you have signal."
+                : "Sending to the hall… keep the app open"}
+          </p>
+        )}
 
         <button
           type="button"
