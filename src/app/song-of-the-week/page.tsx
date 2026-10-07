@@ -1,13 +1,15 @@
 import { getSongs } from "@/lib/songs-db";
 import Link from "next/link";
 import Image from "next/image";
+import { getServices } from "@/lib/services-db";
 import CatalogGrid from "./CatalogGrid";
+import ServicesSection from "./ServicesSection";
 
 // Static, refreshed at most every minute (and straight away when an admin saves).
 export const revalidate = 60;
 
 export default async function SongOfTheWeekPortal() {
-  const songs = await getSongs(true);
+  const [songs, services] = await Promise.all([getSongs(true), getServices(true)]);
 
   return (
     <div className="min-h-screen bg-[#fafaf9] font-inter text-[#0c0a09] antialiased flex flex-col relative overflow-x-hidden selection:bg-[#c1e1f7] selection:text-[#0c0a09]">
@@ -64,6 +66,8 @@ export default async function SongOfTheWeekPortal() {
             </Link>
           </div>
         </div>
+
+        <ServicesSection services={services} />
 
         {/* Catalog Section */}
         <div id="catalog" className="space-y-6">

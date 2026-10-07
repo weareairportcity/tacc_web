@@ -10,6 +10,8 @@ export type AudioTrack = {
   audioUrl: string;
   coverImageUrl?: string;
   weekLabel?: string;
+  /** Where the title links; defaults to the song's Song of the Week page. */
+  href?: string;
   /** Plain-text lyrics, shown in the full-screen player. */
   lyrics?: string;
 };

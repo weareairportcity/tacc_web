@@ -9,6 +9,7 @@ export type SongLike = {
   audio_url?: string | null;
   cover_image_url?: string | null;
   lyrics?: string;
+  href?: string;
 };
 
 export function toTrack(song: SongLike): AudioTrack {
@@ -20,6 +21,7 @@ export function toTrack(song: SongLike): AudioTrack {
     coverImageUrl: song.cover_image_url ?? undefined,
     weekLabel: song.week_label,
     lyrics: song.lyrics,
+    href: song.href,
   };
 }
 

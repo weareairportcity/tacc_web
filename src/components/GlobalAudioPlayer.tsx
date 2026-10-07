@@ -214,7 +214,7 @@ export default function GlobalAudioPlayer() {
                         </span>
                       )}
                       <Link
-                        href={`/song-of-the-week/${currentTrack.id}`}
+                        href={currentTrack.href ?? `/song-of-the-week/${currentTrack.id}`}
                         className="mt-0.5 block truncate font-roobert text-xs tracking-tight hover:text-[#3ba6f1] sm:text-sm"
                       >
                         {currentTrack.title}

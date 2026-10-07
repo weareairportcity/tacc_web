@@ -17,7 +17,8 @@ import {
 import Image from "next/image";
 
 import AnalyticsDashboard, { RawAnalyticsEvent } from "./AnalyticsDashboard";
-import { BarChart3 } from "lucide-react";
+import { ServicesAdmin } from "./ServicesAdmin";
+import { BarChart3, ListMusic } from "lucide-react";
 
 type Song = {
   id: string;
@@ -88,7 +89,7 @@ export function SongsAdmin() {
   const [analyticsMap, setAnalyticsMap] = useState<
     Record<string, { views: number; visitors: number; plays: number; listeners: number; repeats: number; repeaters: number }>
   >({});
-  const [activeTab, setActiveTab] = useState<"catalog" | "analytics">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "services" | "analytics">("catalog");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -492,7 +493,7 @@ export function SongsAdmin() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 mb-8 pb-3">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 mb-8 pb-3">
           <button
             onClick={() => setActiveTab("catalog")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
@@ -502,6 +503,16 @@ export function SongsAdmin() {
             }`}
           >
             <Music className="w-4 h-4" /> Weekly Song Catalog
+          </button>
+          <button
+            onClick={() => setActiveTab("services")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              activeTab === "services"
+                ? "bg-red-500 text-white shadow-sm"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <ListMusic className="w-4 h-4" /> Live Services
           </button>
           <button
             onClick={() => setActiveTab("analytics")}
@@ -516,7 +527,9 @@ export function SongsAdmin() {
         </div>
 
         {/* Tab 2: Analytics */}
-        {activeTab === "analytics" ? (
+        {activeTab === "services" ? (
+          <ServicesAdmin />
+        ) : activeTab === "analytics" ? (
           <AnalyticsDashboard songs={songs} events={rawEvents} />
         ) : (
           <>

@@ -459,7 +459,7 @@ function TrackTitle({
   track,
   className = "",
 }: {
-  track: { id: string; title: string; artist: string; weekLabel?: string };
+  track: { id: string; title: string; artist: string; weekLabel?: string; href?: string };
   className?: string;
 }) {
   return (
@@ -468,7 +468,7 @@ function TrackTitle({
         <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-[#3ba6f1]">{track.weekLabel}</p>
       )}
       <Link
-        href={`/song-of-the-week/${track.id}`}
+        href={track.href ?? `/song-of-the-week/${track.id}`}
         className="block truncate font-roobert text-2xl tracking-[-0.02em] hover:underline sm:text-3xl"
       >
         {track.title}
