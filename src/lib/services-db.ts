@@ -12,6 +12,8 @@ export type ServiceSong = {
   id: string;
   service_id: string;
   position: number;
+  /** Heading this song sits under, e.g. "First List"; empty for none. */
+  section: string;
   title: string;
   artist: string;
   lyrics: string;
@@ -40,7 +42,7 @@ const PUBLIC_CACHE = { revalidate: 60, tags: [SERVICES_TAG] };
 
 export const SERVICE_COLUMNS = "id, title, service_date, cover_image_url, is_published";
 export const SERVICE_SONG_COLUMNS =
-  "id, service_id, position, title, artist, lyrics, audio_url, source_url, status";
+  "id, service_id, position, section, title, artist, lyrics, audio_url, source_url, status";
 
 export const isServiceId = (id: string) => /^[0-9a-f-]{36}$/i.test(id);
 

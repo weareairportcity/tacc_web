@@ -86,6 +86,7 @@ export async function deleteServiceAdmin(id: string) {
 export type ServiceSongInput = {
   id?: string;
   service_id: string;
+  section?: string;
   title: string;
   artist: string;
   lyrics: string;
@@ -98,19 +99,19 @@ export async function saveServiceSongAdmin(song: ServiceSongInput) {
   await requireSongsAdmin();
   requireId(song.service_id);
   if (!song.title?.trim()) throw new Error("Please give the song a title.");
-  const values = [song.title.trim(), song.artist?.trim() ?? "", song.lyrics ?? "", song.audio_url || null, song.source_url || null];
+  const values = [song.section?.trim() ?? "", song.title.trim(), song.artist?.trim() ?? "", song.lyrics ?? "", song.audio_url || null, song.source_url || null];
   if (song.id && isServiceId(song.id)) {
     await query(
       "app",
-      `UPDATE sotw_service_songs SET title = ?, artist = ?, lyrics = ?, audio_url = ?, source_url = ?
+      `UPDATE sotw_service_songs SET section = ?, title = ?, artist = ?, lyrics = ?, audio_url = ?, source_url = ?
        WHERE id = ? AND service_id = ?`,
       [...values, song.id, song.service_id],
     );
   } else {
     await query(
       "app",
-      `INSERT INTO sotw_service_songs (id, service_id, position, title, artist, lyrics, audio_url, source_url)
-       SELECT ?, ?, coalesce(max(position), 0) + 1, ?, ?, ?, ?, ? FROM sotw_service_songs WHERE service_id = ?`,
+      `INSERT INTO sotw_service_songs (id, service_id, position, section, title, artist, lyrics, audio_url, source_url)
+       SELECT ?, ?, coalesce(max(position), 0) + 1, ?, ?, ?, ?, ?, ? FROM sotw_service_songs WHERE service_id = ?`,
       [crypto.randomUUID(), song.service_id, ...values, song.service_id],
     );
   }

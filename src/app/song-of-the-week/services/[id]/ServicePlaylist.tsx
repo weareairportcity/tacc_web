@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Check, ChevronDown, Loader2, Maximize2, Music, Pause, Play, Radio } from "lucide-react";
@@ -23,10 +23,11 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
   const liveRef = useRef<HTMLLIElement>(null);
 
   const href = `/song-of-the-week/services/${service.id}`;
-  const songs: (SongLike & { status: SongStatus })[] = useMemo(
+  const songs: (SongLike & { section: string; status: SongStatus })[] = useMemo(
     () =>
       service.songs.map((s) => ({
         id: s.id,
+        section: s.section,
         title: s.title,
         artist: s.artist,
         lyrics: s.lyrics,
@@ -137,6 +138,9 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
       <main className="mx-auto max-w-[900px] px-4 py-8 sm:px-6">
         <ol className="space-y-2">
           {songs.map((song, i) => {
+            const newSection = Boolean(song.section) && song.section !== songs[i - 1]?.section;
+            // Numbers restart in each section.
+            const number = i - songs.findIndex((s) => s.section === song.section) + 1;
             const isLive = song.status === "live";
             const isSung = song.status === "sung";
             const current = isCurrent(song.id);
@@ -144,109 +148,115 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
             const lyricsOpen = openLyrics === song.id;
             const sections = lyricsOpen ? parseLyrics(song.lyrics) : [];
             return (
-              <li
-                key={song.id}
-                ref={isLive ? liveRef : undefined}
-                className={`scroll-mt-24 rounded-[12px] border bg-white transition-all ${
-                  isLive
-                    ? "border-[#ef4444] shadow-[0_8px_30px_rgba(239,68,68,0.15)] ring-2 ring-[#ef4444]/15"
-                    : current
-                      ? "border-[#3ba6f1]"
-                      : "border-[#e8e6e5]"
-                }`}
-              >
-                <div className={`flex items-center gap-3 p-3 sm:gap-4 sm:p-4 ${isSung ? "opacity-55" : ""}`}>
-                  {/* Position and state */}
-                  <div className="flex w-8 shrink-0 justify-center">
-                    {isLive ? (
-                      <Radio className="h-5 w-5 animate-pulse text-[#ef4444]" aria-label="Live" />
-                    ) : isSung ? (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16a34a] text-white" aria-label="Sung">
-                        <Check className="h-3.5 w-3.5" />
-                      </span>
-                    ) : (
-                      <span className="font-roobert text-sm text-[#a8a29e]">{i + 1}</span>
-                    )}
-                  </div>
+              <Fragment key={song.id}>
+                {newSection && (
+                  <li className={`px-1 pb-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#78716c] ${i > 0 ? "pt-6" : ""}`}>
+                    {song.section}
+                  </li>
+                )}
+                <li
+                  ref={isLive ? liveRef : undefined}
+                  className={`scroll-mt-24 rounded-[12px] border bg-white transition-all ${
+                    isLive
+                      ? "border-[#ef4444] shadow-[0_8px_30px_rgba(239,68,68,0.15)] ring-2 ring-[#ef4444]/15"
+                      : current
+                        ? "border-[#3ba6f1]"
+                        : "border-[#e8e6e5]"
+                  }`}
+                >
+                  <div className={`flex items-center gap-3 p-3 sm:gap-4 sm:p-4 ${isSung ? "opacity-55" : ""}`}>
+                    {/* Position and state */}
+                    <div className="flex w-8 shrink-0 justify-center">
+                      {isLive ? (
+                        <Radio className="h-5 w-5 animate-pulse text-[#ef4444]" aria-label="Live" />
+                      ) : isSung ? (
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16a34a] text-white" aria-label="Sung">
+                          <Check className="h-3.5 w-3.5" />
+                        </span>
+                      ) : (
+                        <span className="font-roobert text-sm text-[#a8a29e]">{number}</span>
+                      )}
+                    </div>
 
-                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[#0c0a09]">
-                    {service.cover_image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element -- remote cover art
-                      <img src={service.cover_image_url} alt="" className="h-full w-full object-cover" />
-                    )}
-                  </div>
+                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[#0c0a09]">
+                      {service.cover_image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element -- remote cover art
+                        <img src={service.cover_image_url} alt="" className="h-full w-full object-cover" />
+                      )}
+                    </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className={`flex items-center gap-1.5 truncate font-roobert text-[15px] tracking-[-0.01em] ${current ? "text-[#3398e1]" : ""} ${isSung ? "line-through decoration-[#a8a29e]/60" : ""}`}>
-                      {playing && <EqualizerBars className="shrink-0 text-[#3ba6f1]" />}
-                      <span className="truncate">{song.title}</span>
-                    </p>
-                    <p className="mt-0.5 flex items-center gap-2 truncate text-xs text-[#78716c]">
-                      {isLive && <span className="rounded-full bg-[#ef4444] px-1.5 py-px text-[10px] font-semibold text-white">LIVE</span>}
-                      {isSung && <span className="text-[#16a34a]">Sung</span>}
-                      <span className="truncate">{song.artist}</span>
-                    </p>
-                  </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`flex items-center gap-1.5 truncate font-roobert text-[15px] tracking-[-0.01em] ${current ? "text-[#3398e1]" : ""} ${isSung ? "line-through decoration-[#a8a29e]/60" : ""}`}>
+                        {playing && <EqualizerBars className="shrink-0 text-[#3ba6f1]" />}
+                        <span className="truncate">{song.title}</span>
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-2 truncate text-xs text-[#78716c]">
+                        {isLive && <span className="rounded-full bg-[#ef4444] px-1.5 py-px text-[10px] font-semibold text-white">LIVE</span>}
+                        {isSung && <span className="text-[#16a34a]">Sung</span>}
+                        <span className="truncate">{song.artist}</span>
+                      </p>
+                    </div>
 
-                  <div className="flex shrink-0 items-center gap-1">
-                    {song.lyrics && (
-                      <button
-                        type="button"
-                        onClick={() => setOpenLyrics(lyricsOpen ? null : song.id)}
-                        aria-expanded={lyricsOpen}
-                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-xs text-[#78716c] hover:bg-[#fafaf9] hover:text-[#0c0a09]"
-                      >
-                        Lyrics <ChevronDown className={`h-3.5 w-3.5 transition-transform ${lyricsOpen ? "rotate-180" : ""}`} />
-                      </button>
-                    )}
-                    {song.audio_url && (
-                      <button
-                        type="button"
-                        onClick={() => play(song)}
-                        aria-label={playing ? `Pause ${song.title}` : `Play ${song.title}`}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3ba6f1] text-white shadow-sm transition-colors hover:bg-[#3398e1]"
-                      >
-                        {current && status === "loading" ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : playing ? (
-                          <Pause className="h-4 w-4 fill-current" />
-                        ) : (
-                          <Play className="h-4 w-4 translate-x-0.5 fill-current" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {lyricsOpen && (
-                  <div className="border-t border-[#e8e6e5] px-4 pb-5 pt-4 sm:px-16">
-                    {song.audio_url && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!current) player.playTrack(toTrack(song), tracks);
-                          player.openFullScreen();
-                        }}
-                        className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#e8e6e5] px-3 py-1.5 text-xs text-[#0c0a09] hover:border-[#d6d3d1]"
-                      >
-                        <Maximize2 className="h-3.5 w-3.5" /> Sing along in full screen
-                      </button>
-                    )}
-                    <div className="space-y-4 text-[15px] leading-relaxed text-[#292524]">
-                      {sections.map((section, j) => (
-                        <div key={j}>
-                          {section.heading && (
-                            <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[#3398e1]">{section.heading}</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {song.lyrics && (
+                        <button
+                          type="button"
+                          onClick={() => setOpenLyrics(lyricsOpen ? null : song.id)}
+                          aria-expanded={lyricsOpen}
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-xs text-[#78716c] hover:bg-[#fafaf9] hover:text-[#0c0a09]"
+                        >
+                          Lyrics <ChevronDown className={`h-3.5 w-3.5 transition-transform ${lyricsOpen ? "rotate-180" : ""}`} />
+                        </button>
+                      )}
+                      {song.audio_url && (
+                        <button
+                          type="button"
+                          onClick={() => play(song)}
+                          aria-label={playing ? `Pause ${song.title}` : `Play ${song.title}`}
+                          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3ba6f1] text-white shadow-sm transition-colors hover:bg-[#3398e1]"
+                        >
+                          {current && status === "loading" ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : playing ? (
+                            <Pause className="h-4 w-4 fill-current" />
+                          ) : (
+                            <Play className="h-4 w-4 translate-x-0.5 fill-current" />
                           )}
-                          {section.lines.map((line, k) => (
-                            <p key={k}>{line}</p>
-                          ))}
-                        </div>
-                      ))}
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
-              </li>
+
+                  {lyricsOpen && (
+                    <div className="border-t border-[#e8e6e5] px-4 pb-5 pt-4 sm:px-16">
+                      {song.audio_url && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!current) player.playTrack(toTrack(song), tracks);
+                            player.openFullScreen();
+                          }}
+                          className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#e8e6e5] px-3 py-1.5 text-xs text-[#0c0a09] hover:border-[#d6d3d1]"
+                        >
+                          <Maximize2 className="h-3.5 w-3.5" /> Sing along in full screen
+                        </button>
+                      )}
+                      <div className="space-y-4 text-[15px] leading-relaxed text-[#292524]">
+                        {sections.map((section, j) => (
+                          <div key={j}>
+                            {section.heading && (
+                              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[#3398e1]">{section.heading}</p>
+                            )}
+                            {section.lines.map((line, k) => (
+                              <p key={k}>{line}</p>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              </Fragment>
             );
           })}
         </ol>
