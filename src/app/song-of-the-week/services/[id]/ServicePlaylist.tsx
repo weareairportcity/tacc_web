@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Check, ChevronDown, Loader2, Maximize2, Music, Pause, Play, Radio } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Loader2, Maximize2, Music, Pause, Play, Radio, ScrollText } from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 import { parseLyrics, toTrack, toTracks, type SongLike } from "@/lib/song-tracks";
 import { EqualizerBars } from "@/components/player/EqualizerBars";
@@ -40,7 +40,11 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
     [service, statuses, href],
   );
   const tracks = useMemo(() => toTracks(songs), [songs]);
-  const live = songs.find((s) => s.status === "live");
+  const liveIndex = songs.findIndex((s) => s.status === "live");
+  const live = songs[liveIndex];
+  const upNext = songs.find((s, i) => i > liveIndex && s.status === "upcoming");
+  // Numbers restart in each section.
+  const numberOf = (i: number) => i - songs.findIndex((s) => s.section === songs[i].section) + 1;
   const allSung = songs.length > 0 && songs.every((s) => s.status === "sung");
 
   // Follow along: poll the CDN-cached live feed while the page is on screen.
@@ -73,6 +77,13 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
     if (liveId) liveRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [liveId]);
 
+  /** Opens the live song's lyrics and scrolls to it. */
+  const jumpToLive = () => {
+    if (!liveId) return;
+    setOpenLyrics(liveId);
+    liveRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const isCurrent = (id: string) => currentTrack?.id === id;
   const isPlayingSong = (id: string) => isCurrent(id) && (status === "playing" || status === "loading");
   const play = (song: SongLike) => {
@@ -89,6 +100,50 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
           <Image src="/logo.png" alt="The Airport City Church" width={92} height={30} className="object-contain" />
         </div>
       </header>
+
+      {/* Now singing: stays under the top bar while scrolling */}
+      {live && (
+        <div className="sticky top-[64px] z-30 bg-[#ef4444] text-white shadow-[0_6px_20px_rgba(239,68,68,0.3)]" role="status" aria-live="polite">
+          <div className="mx-auto flex max-w-[900px] items-center gap-3 px-4 py-2.5 sm:px-6">
+            <button
+              type="button"
+              onClick={jumpToLive}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80">
+                  Now singing{live.section ? ` · ${live.section} #${numberOf(liveIndex)}` : ` · #${liveIndex + 1}`}
+                </span>
+                <span key={live.id} className="block truncate font-roobert text-base leading-tight sm:text-lg">
+                  {live.title}
+                </span>
+                {upNext && <span className="block truncate text-[11px] text-white/75">Up next: {upNext.title}</span>}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={jumpToLive}
+              className="hidden shrink-0 items-center gap-1 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium hover:bg-white/30 sm:inline-flex"
+            >
+              <ScrollText className="h-3.5 w-3.5" /> Lyrics
+            </button>
+            {live.audio_url && (
+              <button
+                type="button"
+                onClick={() => play(live)}
+                aria-label={isPlayingSong(live.id) ? `Pause ${live.title}` : `Play ${live.title}`}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#ef4444]"
+              >
+                {isPlayingSong(live.id) ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 translate-x-0.5 fill-current" />}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Album header */}
       <section className="relative overflow-hidden bg-[#0c0a09] text-white">
@@ -123,11 +178,6 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
               >
                 <Play className="h-4 w-4 fill-current" /> Play all
               </button>
-              {live && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#ef4444] px-4 py-2.5 text-sm font-medium">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> Now singing: {live.title}
-                </span>
-              )}
               {allSung && <span className="text-sm text-white/60">This service&apos;s worship has ended.</span>}
             </div>
           </div>
@@ -139,8 +189,7 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
         <ol className="space-y-2">
           {songs.map((song, i) => {
             const newSection = Boolean(song.section) && song.section !== songs[i - 1]?.section;
-            // Numbers restart in each section.
-            const number = i - songs.findIndex((s) => s.section === song.section) + 1;
+            const number = numberOf(i);
             const isLive = song.status === "live";
             const isSung = song.status === "sung";
             const current = isCurrent(song.id);
@@ -156,7 +205,7 @@ export default function ServicePlaylist({ service }: { service: ServiceWithSongs
                 )}
                 <li
                   ref={isLive ? liveRef : undefined}
-                  className={`scroll-mt-24 rounded-[12px] border bg-white transition-all ${
+                  className={`scroll-mt-36 rounded-[12px] border bg-white transition-all ${
                     isLive
                       ? "border-[#ef4444] shadow-[0_8px_30px_rgba(239,68,68,0.15)] ring-2 ring-[#ef4444]/15"
                       : current
