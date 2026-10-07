@@ -215,7 +215,8 @@ function parseCeeNaija(html: string): ParsedSong {
     const area = end >= 0 ? after.slice(0, end) : after;
     const blocks = [...area.matchAll(/<p class="wp-block-paragraph"[^>]*>([\s\S]*?)<\/p>/gi)]
       .map((m) => stripTags(m[1]))
-      .filter(Boolean);
+      // Skips empty and placeholder ("………") paragraphs.
+      .filter((b) => /\p{L}/u.test(b));
     // A paragraph that is only "Chorus", "Refrain"… heads the next one.
     lyrics = blocks
       .map((b, i) => (i > 0 && /^\[?(verse|chorus|refrain|bridge|pre-chorus|tag|outro|intro)\b[^\n]{0,12}$/i.test(blocks[i - 1]) ? `\n${b}` : `\n\n${b}`))
