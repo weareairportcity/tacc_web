@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { putMedia } from "@/lib/cf";
-import { songsAdmin } from "@/lib/code-session";
+import { isSongsAdmin } from "@/lib/code-session";
 
 
 // Allowed MIME types
@@ -16,7 +16,7 @@ const ALLOWED_TYPES: Record<string, string> = {
 const MAX_SIZE = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(request: Request) {
-  if (!(await songsAdmin.isValid())) {
+  if (!(await isSongsAdmin())) {
     return NextResponse.json({ error: "Please sign in to the songs admin again." }, { status: 401 });
   }
   try {

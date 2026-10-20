@@ -1,43 +1,12 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { query } from "@/lib/cf";
 import { SONGS_TAG, seedIfEmpty } from "@/lib/songs-db";
-import { requireSongsAdmin, songsAdmin } from "@/lib/code-session";
+import { requireSongsAdmin } from "@/lib/code-session";
 import type { RawAnalyticsEvent } from "./AnalyticsDashboard";
 
 const ID = /^[0-9a-f-]{36}$/i;
-
-// ─── Sign-in ─────────────────────────────────────────────────────────────────
-
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
-export type UnlockState = { error: string | null };
-
-export async function unlockSongsAdmin(_prev: UnlockState, form: FormData): Promise<UnlockState> {
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const now = Date.now();
-  const entry = attempts.get(ip);
-  if (entry && entry.resetAt > now && entry.count >= 5) {
-    return { error: "Too many wrong tries. Please wait 10 minutes and try again." };
-  }
-  if (!songsAdmin.isCode(String(form.get("code") ?? ""))) {
-    const fresh = !entry || entry.resetAt <= now;
-    attempts.set(ip, { count: fresh ? 1 : entry.count + 1, resetAt: fresh ? now + 600_000 : entry.resetAt });
-    await new Promise((r) => setTimeout(r, 800));
-    return { error: "That code is not right. Please check it and try again." };
-  }
-  attempts.delete(ip);
-  await songsAdmin.start();
-  revalidatePath("/admin/songs");
-  return { error: null };
-}
-
-export async function lockSongsAdmin() {
-  await songsAdmin.end();
-  revalidatePath("/admin/songs");
-}
 
 // ─── Songs ───────────────────────────────────────────────────────────────────
 

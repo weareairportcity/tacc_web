@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import {
   deleteSongAdmin,
   fetchSongsAdmin,
-  lockSongsAdmin,
   saveSongAdmin,
   setSongPublished,
 } from "./actions";
@@ -83,6 +84,8 @@ type FetchStep = {
 };
 
 export function SongsAdmin() {
+  const router = useRouter();
+  const supabase = createClient();
 
   const [songs, setSongs] = useState<Song[]>([]);
   const [rawEvents, setRawEvents] = useState<RawAnalyticsEvent[]>([]);
@@ -117,7 +120,7 @@ export function SongsAdmin() {
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
-  // The page only renders this once the songs admin code cookie checks out.
+  // The page only renders this once a Supabase Auth session is present.
   // No background polling: the old page re-downloaded every song and every
   // analytics event every 5 seconds. Saves refresh the list; so does reloading.
   useEffect(() => {
@@ -445,8 +448,9 @@ export function SongsAdmin() {
   };
 
   const handleLogout = async () => {
-    await lockSongsAdmin();
-    window.location.reload();
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+    router.refresh();
   };
 
   // ─── Render ────────────────────────────────────────────────────

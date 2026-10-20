@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { createClient } from "@/utils/supabase/server";
 
 /**
  * A code-protected admin area: one secret code in an env var, and an httpOnly
@@ -48,11 +49,17 @@ export function codeSession(opts: { cookie: string; codeEnv: string; maxAgeDays?
   };
 }
 
-/** Song of the Week admin (SONGS_ADMIN_CODE). */
-export const songsAdmin = codeSession({ cookie: "songs_admin", codeEnv: "SONGS_ADMIN_CODE" });
+/** Signed-in Supabase Auth user. Song data itself stays on Cloudflare D1. */
+export async function isSongsAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return Boolean(user);
+}
 
 export async function requireSongsAdmin() {
-  if (!(await songsAdmin.isValid())) {
-    throw new Error("Your admin session has ended. Please enter the songs admin code again.");
+  if (!(await isSongsAdmin())) {
+    throw new Error("Your admin session has ended. Please sign in again.");
   }
 }

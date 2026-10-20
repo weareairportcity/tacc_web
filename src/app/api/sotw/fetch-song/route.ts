@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { putMedia } from "@/lib/cf";
-import { songsAdmin } from "@/lib/code-session";
+import { isSongsAdmin } from "@/lib/code-session";
 
 // Sanitize a string for use as a Supabase Storage file name
 function slugify(text: string): string {
@@ -239,7 +239,7 @@ function parseCeeNaija(html: string): ParsedSong {
 const SUPPORTED = /(^|\.)(loveworldlyrics\.com|ceenaija\.com)$/i;
 
 export async function POST(request: Request) {
-  if (!(await songsAdmin.isValid())) {
+  if (!(await isSongsAdmin())) {
     return NextResponse.json({ error: "Please sign in to the songs admin again." }, { status: 401 });
   }
   try {
