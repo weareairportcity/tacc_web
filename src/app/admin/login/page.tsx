@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Calendar, Music, HeartHandshake } from "lucide-react";
+import { Loader2, Calendar, Music, HeartHandshake, Tent } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
@@ -148,6 +148,23 @@ export default function AdminLogin() {
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Song of the Week catalog & uploads
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigateTo("/admin/camp")}
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all group text-left"
+            >
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
+                <Tent className="w-6 h-6 text-emerald-700" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  Camp
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Camps, room types & rooms
                 </p>
               </div>
             </button>

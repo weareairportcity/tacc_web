@@ -10,7 +10,8 @@
     "shots:soulwinning": "playwright test soulwinning.shots",
     "tutorial:entry": "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}\" playwright test soulwinning.tutorial",
     "tutorial:admin": "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}\" playwright test soulwinning.admin-tutorial",
-    "tutorial:group": "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}\" playwright test soulwinning.group-tutorial"
+    "tutorial:group": "PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}\" playwright test soulwinning.group-tutorial",
+    "test": "vitest run"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",
@@ -48,6 +49,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }
