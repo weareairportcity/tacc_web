@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BedDouble } from "lucide-react";
+import { ArrowLeft, BedDouble, Users } from "lucide-react";
 import { query } from "@/lib/cf";
 import type { AuditEntry } from "@/lib/camp/audit";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { NoAccess, pageStaff } from "../access";
 import { CampForm } from "../CampForm";
-import { Card, STATUS_STYLES, secondaryButtonClass } from "../ui";
+import { Card, STATUS_STYLES, secondaryButtonClass } from "@/components/camp/ui";
 import { RoomTypes } from "./RoomTypes";
 
 export default async function CampPage({ params }: { params: Promise<{ campId: string }> }) {
@@ -16,10 +16,15 @@ export default async function CampPage({ params }: { params: Promise<{ campId: s
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
 
-  const [camp, roomTypes, [{ rooms }], activity] = await Promise.all([
+  const [camp, roomTypes, [{ rooms, people }], activity] = await Promise.all([
     getCamp(campId),
     listRoomTypes(campId),
-    query<{ rooms: number }>("app", "SELECT count(*) AS rooms FROM camp_rooms WHERE camp_id = ?", [campId]),
+    query<{ rooms: number; people: number }>(
+      "app",
+      `SELECT (SELECT count(*) FROM camp_rooms WHERE camp_id = ?1) AS rooms,
+              (SELECT count(*) FROM camp_registrations WHERE camp_id = ?1) AS people`,
+      [campId],
+    ),
     query<AuditEntry>(
       "app",
       "SELECT id, created_at, actor, action, entity, entity_id FROM camp_audit_log WHERE camp_id = ? ORDER BY id DESC LIMIT 15",
@@ -41,9 +46,14 @@ export default async function CampPage({ params }: { params: Promise<{ campId: s
               {camp.status}
             </span>
           </div>
-          <Link href={`/admin/camp/${camp.id}/rooms`} className={secondaryButtonClass}>
-            <BedDouble className="h-4 w-4" /> Rooms ({rooms})
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/admin/camp/${camp.id}/registrations`} className={secondaryButtonClass}>
+              <Users className="h-4 w-4" /> Registrations ({people})
+            </Link>
+            <Link href={`/admin/camp/${camp.id}/rooms`} className={secondaryButtonClass}>
+              <BedDouble className="h-4 w-4" /> Rooms ({rooms})
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { ChevronRight, Users } from "lucide-react";
 import { listCamps } from "@/lib/camp/camps";
 import { NoAccess, pageStaff } from "./access";
 import { NewCamp } from "./NewCamp";
-import { STATUS_STYLES, secondaryButtonClass } from "./ui";
+import { STATUS_STYLES, secondaryButtonClass } from "@/components/camp/ui";
 
 export default async function CampAdminHome() {
   const staff = await pageStaff("coordinator");

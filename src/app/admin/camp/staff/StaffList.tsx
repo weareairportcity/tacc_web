@@ -6,7 +6,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
 import type { ScopeKind, Staff, StaffRole } from "@/lib/camp/types";
 import { removeStaffAction, saveStaffAction } from "../actions";
-import { ErrorText, Field, buttonClass, inputClass } from "../ui";
+import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
 
 const ROLE_LABELS: Record<StaffRole, string> = {
   admin: "Admin",

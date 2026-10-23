@@ -21,7 +21,8 @@ async function call<T>(path: string, init: RequestInit, cacheFor?: CacheFor): Pr
   return data;
 }
 
-const post = <T>(path: string, body: unknown, cacheFor?: CacheFor) =>
+/** A JSON POST to one of the Worker's /v1/admin endpoints. */
+export const post = <T>(path: string, body: unknown, cacheFor?: CacheFor) =>
   call<T>(
     path,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },

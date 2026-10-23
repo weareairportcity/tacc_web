@@ -1,4 +1,5 @@
 import { handleAdmin } from "./admin";
+import { paystackWebhook, reconcile } from "./camp";
 import { deleteMedia, getMedia, postSongEvent, putMedia } from "./media";
 import { getPhoto, putPhoto } from "./photos";
 import {
@@ -31,7 +32,11 @@ function requireAdminToken(request: Request, env: AppEnv) {
  *   Photo links          → /v1/photo/… (signed, expiring)
  *   Admin (Next server)  → /v1/admin/* with ADMIN_SECRET
  *   Hourly SMS           → cron trigger
+ *   Camp payments        → /v1/admin/camp/* (Next server), /v1/camp/paystack/webhook,
+ *                          and a 10-minute reconciliation cron. See src/camp.ts.
  */
+
+const CAMP_RECONCILE_CRON = "*/10 * * * *";
 
 async function route(request: Request, env: AppEnv): Promise<Response> {
   const url = new URL(request.url);
@@ -44,6 +49,7 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
     return getMedia(request, env, decodeURIComponent(path.slice(1)));
   }
   if (method === "POST" && path === "/v1/sotw/events") return postSongEvent(request, env);
+  if (method === "POST" && path === "/v1/camp/paystack/webhook") return paystackWebhook(request, env);
 
   if (path.startsWith("/v1/admin/media/") && method === "PUT") {
     requireAdminToken(request, env);
@@ -101,6 +107,14 @@ export default {
   },
 
   async scheduled(controller, env, ctx) {
+    if (controller.cron === CAMP_RECONCILE_CRON) {
+      ctx.waitUntil(
+        reconcile(env as AppEnv)
+          .then((r) => console.log("camp reconcile", JSON.stringify(r)))
+          .catch((e) => console.error("camp reconcile failed", e)),
+      );
+      return;
+    }
     ctx.waitUntil(runSms(env as AppEnv, new Date(controller.scheduledTime)).then((r) => console.log("sms", r)));
     ctx.waitUntil(
       checkUsage(env as AppEnv)

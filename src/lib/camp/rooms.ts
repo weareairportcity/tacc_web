@@ -95,6 +95,12 @@ export async function deleteRoomType(actor: string, id: string) {
   if (!before) throw new CampError("Unknown room type.");
   const [{ n }] = await query<{ n: number }>("app", "SELECT count(*) AS n FROM camp_rooms WHERE room_type_id = ?", [id]);
   if (n > 0) throw new CampError(`"${before.name}" still has ${n} room(s). Delete or move them first.`);
+  const [{ people }] = await query<{ people: number }>(
+    "app",
+    "SELECT count(*) AS people FROM camp_registrations WHERE room_type_id = ?",
+    [id],
+  );
+  if (people > 0) throw new CampError(`${people} registration(s) chose "${before.name}", so it can't be deleted.`);
   await batch("app", [
     { sql: "DELETE FROM camp_room_types WHERE id = ?", params: [id] },
     auditStatement({ actor, campId: before.camp_id, action: "room_type.delete", entity: "room_type", entityId: id, before }),

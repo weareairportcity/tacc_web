@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { CAMP_STATUSES, type Camp, type CampInput } from "@/lib/camp/types";
 import { saveCampAction } from "./actions";
-import { ErrorText, Field, buttonClass, inputClass } from "./ui";
+import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
 
 const EMPTY: CampInput = {
   name: "",
@@ -16,7 +16,7 @@ const EMPTY: CampInput = {
   registration_closes_on: "",
   payment_due_on: "",
   roommate_deadline_on: "",
-  min_first_payment_pct: 30,
+  fee_bps: 195,
   status: "draft",
 };
 
@@ -86,15 +86,16 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             />
           </Field>
         ))}
-        <Field label="Minimum first payment (% of room price)">
+        <Field label="Paystack fee added to each payment (%)">
           <input
             required
             type="number"
-            min={1}
-            max={100}
+            min={0}
+            max={20}
+            step={0.01}
             className={inputClass}
-            value={values.min_first_payment_pct}
-            onChange={(e) => set("min_first_payment_pct", Number(e.target.value))}
+            value={values.fee_bps / 100}
+            onChange={(e) => set("fee_bps", Math.round(Number(e.target.value) * 100))}
           />
         </Field>
         <Field label="Status">

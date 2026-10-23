@@ -14,6 +14,7 @@ import {
   updateRoom,
   updateRoomType,
 } from "@/lib/camp/rooms";
+import { cancelRegistration } from "@/lib/camp/registrations";
 import { removeStaff, saveStaff } from "@/lib/camp/staff";
 import { CampError, type CampInput, type RoomInput, type Staff } from "@/lib/camp/types";
 
@@ -103,6 +104,16 @@ export async function importRoomsAction(campId: string, csvText: string) {
     const staff = await requireCampRole("coordinator");
     if (typeof csvText !== "string" || csvText.length > 1024 * 1024) throw new CampError("The file must be under 1 MB.");
     return importRooms(staff.email, campId, csvText);
+  });
+}
+
+// ─── Registrations ───────────────────────────────────────────────────────────
+
+export async function cancelRegistrationAction(id: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await cancelRegistration(staff.email, id);
+    return null;
   });
 }
 

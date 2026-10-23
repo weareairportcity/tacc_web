@@ -23,7 +23,8 @@ export type Camp = {
   registration_closes_on: string;
   payment_due_on: string;
   roommate_deadline_on: string;
-  min_first_payment_pct: number;
+  /** Paystack's fee, passed on to attendees, in basis points (195 = 1.95%). */
+  fee_bps: number;
   status: CampStatus;
 };
 
@@ -59,3 +60,57 @@ export type Staff = {
 
 /** A user-facing validation problem, safe to show as-is. */
 export class CampError extends Error {}
+
+export const REGISTRATION_STATUSES = ["registered", "partially_paid", "fully_paid", "cancelled"] as const;
+export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
+
+export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
+  registered: "Registered",
+  partially_paid: "Partially paid",
+  fully_paid: "Fully paid",
+  cancelled: "Cancelled",
+};
+
+export type Registration = {
+  id: string;
+  created_at: string;
+  camp_id: string;
+  room_type_id: string;
+  room_type_name: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  gender: Gender;
+  fellowship: string;
+  pfcc: string;
+  church: string;
+  price_pesewas: number;
+  paid_pesewas: number;
+  status: RegistrationStatus;
+};
+
+/** What an attendee types in; PFCC comes from the fellowship. */
+export type RegistrationInput = {
+  full_name: string;
+  phone: string;
+  email: string;
+  gender: Gender;
+  fellowship: string;
+  church: string;
+  room_type_id: string;
+};
+
+export type PaymentStatus = "pending" | "success" | "failed";
+
+export type Payment = {
+  id: string;
+  created_at: string;
+  registration_id: string;
+  reference: string;
+  amount_pesewas: number;
+  fee_pesewas: number;
+  charged_pesewas: number;
+  status: PaymentStatus;
+  flag: string | null;
+  paid_at: string | null;
+};

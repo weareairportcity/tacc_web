@@ -9,7 +9,7 @@ import { CAMP_STATUSES, CampError, type Camp, type CampInput } from "./types";
  */
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
-  registration_closes_on, payment_due_on, roommate_deadline_on, min_first_payment_pct, status`;
+  registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ID = /^[0-9a-f-]{36}$/i;
@@ -34,7 +34,7 @@ export function validateCampInput(raw: CampInput): CampInput {
     ...raw,
     name: String(raw.name ?? "").trim(),
     venue: String(raw.venue ?? "").trim(),
-    min_first_payment_pct: Number(raw.min_first_payment_pct),
+    fee_bps: Number(raw.fee_bps),
   };
   const problems: string[] = [];
   if (!input.name) problems.push("Name is required.");
@@ -63,8 +63,8 @@ export function validateCampInput(raw: CampInput): CampInput {
       problems.push("The roommate deadline must be on or before the start date.");
     }
   }
-  if (!Number.isInteger(input.min_first_payment_pct) || input.min_first_payment_pct < 1 || input.min_first_payment_pct > 100) {
-    problems.push("Minimum first payment must be a whole percentage from 1 to 100.");
+  if (!Number.isInteger(input.fee_bps) || input.fee_bps < 0 || input.fee_bps > 2000) {
+    problems.push("The Paystack fee must be between 0% and 20%, to two decimal places.");
   }
   if (!CAMP_STATUSES.includes(input.status)) problems.push("Unknown status.");
 
@@ -78,6 +78,13 @@ export async function listCamps(): Promise<Camp[]> {
 
 export async function getCamp(id: string): Promise<Camp | null> {
   const [camp] = await query<Camp>("app", `SELECT ${COLUMNS} FROM camps WHERE id = ?`, [checkId(id, "camp")]);
+  return camp ?? null;
+}
+
+/** The public camp page's camp. Drafts aren't public. */
+export async function getCampBySlug(slug: string): Promise<Camp | null> {
+  if (!/^[a-z0-9-]{1,60}$/.test(slug)) return null;
+  const [camp] = await query<Camp>("app", `SELECT ${COLUMNS} FROM camps WHERE slug = ? AND status <> 'draft'`, [slug]);
   return camp ?? null;
 }
 
@@ -99,7 +106,7 @@ export async function createCamp(actor: string, raw: CampInput): Promise<string>
   await batch("app", [
     {
       sql: `INSERT INTO camps (id, name, slug, venue, starts_on, ends_on, registration_opens_on,
-              registration_closes_on, payment_due_on, roommate_deadline_on, min_first_payment_pct, status)
+              registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
@@ -112,7 +119,7 @@ export async function createCamp(actor: string, raw: CampInput): Promise<string>
         input.registration_closes_on,
         input.payment_due_on,
         input.roommate_deadline_on,
-        input.min_first_payment_pct,
+        input.fee_bps,
         input.status,
       ],
     },
@@ -130,7 +137,7 @@ export async function updateCamp(actor: string, id: string, raw: CampInput) {
     {
       sql: `UPDATE camps SET name = ?, venue = ?, starts_on = ?, ends_on = ?, registration_opens_on = ?,
               registration_closes_on = ?, payment_due_on = ?, roommate_deadline_on = ?,
-              min_first_payment_pct = ?, status = ?
+              fee_bps = ?, status = ?
             WHERE id = ?`,
       params: [
         input.name,
@@ -141,7 +148,7 @@ export async function updateCamp(actor: string, id: string, raw: CampInput) {
         input.registration_closes_on,
         input.payment_due_on,
         input.roommate_deadline_on,
-        input.min_first_payment_pct,
+        input.fee_bps,
         input.status,
         id,
       ],

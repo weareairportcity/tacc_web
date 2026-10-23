@@ -29,6 +29,10 @@ The plaintext `phone_number` column on Supabase `attendees` is still unchecked, 
 | 5 | Reversible migrations | Paired down file per migration in `migrations-tacc/down/`. |
 | 6 | Tests | Vitest, run against a local D1. |
 | 7 | Urgent items | Fix now. Done and pushed in `e90fc3d`. The git history keeps the CSV by choice: no rewrite. |
+| 8 | Paystack fees | Passed on to the attendee. The app adds the fee itself (per-camp rate, default 1.95%); Paystack's "pass charges to customers" stays off. |
+| 9 | Minimum first payment | None. Any instalment from GHS 1 up to the balance. The old column stays unused. |
+| 10 | Underpayment at the due date | Stays Partially Paid, flagged "Past due"; a coordinator decides. |
+| 11 | Attendee URL | `/camps/<slug>` (default, not yet confirmed). |
 
 ## Stack
 

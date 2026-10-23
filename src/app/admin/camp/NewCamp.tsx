@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { CampForm } from "./CampForm";
-import { Card, buttonClass } from "./ui";
+import { Card, buttonClass } from "@/components/camp/ui";
 
 export function NewCamp() {
   const [open, setOpen] = useState(false);

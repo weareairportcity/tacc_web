@@ -1,3 +1,4 @@
+import { payCheck, payInit, postReconcile } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms, sendSms } from "./sms";
@@ -91,7 +92,7 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
     }
     case "/v1/admin/usage/test-alert": {
       // Sends one test text to ALERT_PHONE through the same path real alerts use.
-      const to = (env as AppEnv & { ALERT_PHONE?: string }).ALERT_PHONE;
+      const to = env.ALERT_PHONE;
       if (!to) throw new HttpError(400, "ALERT_PHONE not set");
       const sent = await sendSms(
         env,
@@ -100,6 +101,12 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       );
       return json({ sent });
     }
+    case "/v1/admin/camp/pay-init":
+      return payInit(request, env);
+    case "/v1/admin/camp/check":
+      return payCheck(request, env);
+    case "/v1/admin/camp/reconcile":
+      return postReconcile(request, env);
     case "/v1/admin/sms/run": {
       const { force } = await readJson<{ force?: boolean }>(request);
       return json(await runSms(env, new Date(), Boolean(force)));

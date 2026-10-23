@@ -27,7 +27,7 @@ const campInput = (overrides: Partial<CampInput> = {}): CampInput => ({
   registration_closes_on: "2027-06-01",
   payment_due_on: "2027-06-01",
   roommate_deadline_on: "2027-06-03",
-  min_first_payment_pct: 30,
+  fee_bps: 195,
   status: "draft",
   ...overrides,
 });
@@ -68,7 +68,7 @@ describe("camps", () => {
 
   it("rejects bad dates and percentages", async () => {
     await expect(createCamp(ACTOR, campInput({ ends_on: "2027-06-01" }))).rejects.toThrow("can't end before");
-    await expect(createCamp(ACTOR, campInput({ min_first_payment_pct: 0 }))).rejects.toThrow(CampError);
+    await expect(createCamp(ACTOR, campInput({ fee_bps: -1 }))).rejects.toThrow(CampError);
     await expect(createCamp(ACTOR, campInput({ starts_on: "not a date" }))).rejects.toThrow("must be a date");
   });
 });

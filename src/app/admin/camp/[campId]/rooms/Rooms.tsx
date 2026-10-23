@@ -6,7 +6,7 @@ import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import type { CsvError } from "@/lib/camp/csv";
 import type { Gender, Room, RoomInput, RoomType } from "@/lib/camp/types";
 import { deleteRoomAction, importRoomsAction, saveRoomAction } from "../../actions";
-import { Card, ErrorText, Field, buttonClass, inputClass, secondaryButtonClass } from "../../ui";
+import { Card, ErrorText, Field, buttonClass, inputClass, secondaryButtonClass } from "@/components/camp/ui";
 
 type Draft = RoomInput & { id: string | null };
 

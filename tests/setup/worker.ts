@@ -2,7 +2,14 @@ import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TEST_ADMIN_SECRET, TEST_WORKER_PORT, TEST_WORKER_URL, WORKER_DIR } from "./constants";
+import {
+  TEST_ADMIN_SECRET,
+  TEST_PAYSTACK_PORT,
+  TEST_PAYSTACK_SECRET,
+  TEST_WORKER_PORT,
+  TEST_WORKER_URL,
+  WORKER_DIR,
+} from "./constants";
 
 /**
  * Starts the soulwinning Worker locally on a fresh D1 with every tacc
@@ -35,7 +42,16 @@ async function waitForWorker(child: ReturnType<typeof spawn>, log: () => string)
 export default async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "camp-d1-"));
   const envFile = join(dir, "test.env");
-  writeFileSync(envFile, `ADMIN_SECRET=${TEST_ADMIN_SECRET}\n`);
+  // A fake Paystack key and API, so the tests never reach the real Paystack.
+  writeFileSync(
+    envFile,
+    [
+      `ADMIN_SECRET=${TEST_ADMIN_SECRET}`,
+      `PAYSTACK_SECRET_KEY=${TEST_PAYSTACK_SECRET}`,
+      `PAYSTACK_API_URL=http://127.0.0.1:${TEST_PAYSTACK_PORT}`,
+      "",
+    ].join("\n"),
+  );
   applyMigrations(dir);
 
   let output = "";

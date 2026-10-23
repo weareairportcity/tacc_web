@@ -3,6 +3,10 @@ export type AppEnv = Env & {
   PHOTO_SIGNING_SECRET: string;
   MNOTIFY_API_KEY?: string;
   MNOTIFY_SENDER_ID?: string;
+  ALERT_PHONE?: string;
+  PAYSTACK_SECRET_KEY?: string;
+  /** Tests point this at a fake Paystack. */
+  PAYSTACK_API_URL?: string;
 };
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

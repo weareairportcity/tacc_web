@@ -21,3 +21,12 @@ export function formatCedis(pesewas: number): string {
 export function pesewasToCedisInput(pesewas: number): string {
   return `${Math.floor(pesewas / 100)}.${String(pesewas % 100).padStart(2, "0")}`;
 }
+
+/**
+ * Paystack's fee, passed on so the church receives the full instalment.
+ * Must match feeFor in workers/soulwinning/src/camp.ts, which charges it.
+ */
+export function feeFor(amountPesewas: number, feeBps: number): number {
+  if (feeBps <= 0) return 0;
+  return Math.ceil((amountPesewas * 10000) / (10000 - feeBps)) - amountPesewas;
+}

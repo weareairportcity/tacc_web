@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** Small shared pieces for the camp admin forms, in the admin portal's style. */
+/** Small shared pieces for the camp forms (admin and attendee), in the admin portal's style. */
 
 export const inputClass =
   "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-slate-900";
@@ -42,4 +42,21 @@ export const STATUS_STYLES: Record<string, string> = {
   open: "bg-emerald-50 text-emerald-700",
   closed: "bg-amber-50 text-amber-700",
   archived: "bg-slate-100 text-slate-400",
+};
+
+/** "2027-06-10" → "10 Jun 2027" (dates are stored without a time zone). */
+export function formatDate(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+export const REGISTRATION_STATUS_STYLES: Record<string, string> = {
+  registered: "bg-slate-100 text-slate-600",
+  partially_paid: "bg-amber-50 text-amber-700",
+  fully_paid: "bg-emerald-50 text-emerald-700",
+  cancelled: "bg-red-50 text-red-700",
 };
