@@ -317,10 +317,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) { setIsAuthed(true); setUserEmail(user.email || ""); }
+      if (user) { setIsAuthed(true); setUserEmail(user.email || ""); loadCamps(); }
       setIsChecking(false);
     });
-    loadCamps();
   }, []);
 
   const switchCamp = (newCampId: string) => {
@@ -333,6 +332,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const handleAuth = (email: string) => {
     setIsAuthed(true);
     setUserEmail(email);
+    loadCamps();
   };
 
   const handleSignOut = async () => {

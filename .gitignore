@@ -47,3 +47,6 @@ next-env.d.ts
 blue-watercolor-background.jpg
 Screenshot*.png
 38fd219a618dbfc02b5ea00f79b3e115.jpg
+
+# Attendee data (names, phone numbers) must never be committed
+*.csv

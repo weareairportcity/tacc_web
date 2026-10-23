@@ -2,6 +2,22 @@
 
 import { supabaseAdmin } from "@/lib/supabase";
 import { sendSMS } from "@/lib/mnotify";
+import { createClient } from "@/utils/supabase/server";
+
+// Every action below except the public room search runs with the service-role
+// key, and server actions can be called by direct POST, so each admin action
+// checks for a signed-in Supabase admin itself. Interim until the old camp
+// feature is retired (docs/camp-spec.md, Phase 6).
+async function requireCampAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Your admin session has ended. Please sign in again.");
+}
+
+/** Public pages get the camp without its admin token. */
+const publicCamp = (camp: CampDetails): CampDetails => ({ ...camp, admin_token: "" });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -261,6 +277,7 @@ export async function getRoomAssignmentDetails(personId: string, campId?: string
 // ─── Admin — Camp ─────────────────────────────────────────────────────────────
 
 export async function getCampByToken(adminToken: string): Promise<CampDetails | null> {
+  await requireCampAdmin();
   try {
     const { data, error } = await supabaseAdmin.from("camps").select("*").eq("admin_token", adminToken).maybeSingle();
     if (!error && data) return { ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") };
@@ -271,20 +288,22 @@ export async function getCampByToken(adminToken: string): Promise<CampDetails | 
 export async function getCampBySlug(slug: string): Promise<CampDetails | null> {
   try {
     const { data, error } = await supabaseAdmin.from("camps").select("*").eq("slug", slug).maybeSingle();
-    if (!error && data) return { ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") };
+    if (!error && data) return publicCamp({ ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") });
   } catch {}
-  return LOCAL_CAMPS_STORE.find(c => c.slug === slug) || null;
+  const local = LOCAL_CAMPS_STORE.find(c => c.slug === slug);
+  return local ? publicCamp(local) : null;
 }
 
 export async function getDefaultCamp(): Promise<CampDetails | null> {
   try {
     const { data, error } = await supabaseAdmin.from("camps").select("*").order("created_at").limit(1).maybeSingle();
-    if (!error && data) return { ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") };
+    if (!error && data) return publicCamp({ ...data, room_types: Array.isArray(data.room_types) ? data.room_types : JSON.parse(data.room_types || "[]") });
   } catch {}
-  return LOCAL_CAMPS_STORE[0] || null;
+  return LOCAL_CAMPS_STORE[0] ? publicCamp(LOCAL_CAMPS_STORE[0]) : null;
 }
 
 export async function getCampsList(): Promise<CampDetails[]> {
+  await requireCampAdmin();
   try {
     const { data, error } = await supabaseAdmin.from("camps").select("*").order("created_at", { ascending: false });
     if (!error && data && data.length > 0) return data.map(c => ({ ...c, room_types: Array.isArray(c.room_types) ? c.room_types : JSON.parse(c.room_types || "[]") }));
@@ -295,6 +314,7 @@ export async function getCampsList(): Promise<CampDetails[]> {
 export async function createCampAction(data: {
   name: string; slug: string; logoUrl?: string; roomTypes: string[];
 }): Promise<{ success: boolean; camp?: CampDetails; error?: string }> {
+  await requireCampAdmin();
   const newCamp: CampDetails = {
     id: `camp_${Date.now()}`,
     name: data.name,
@@ -317,6 +337,7 @@ export async function createCampAction(data: {
 export async function updateCampAction(campId: string, updates: {
   name?: string; logoUrl?: string; roomTypes?: string[];
 }): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   const idx = LOCAL_CAMPS_STORE.findIndex(c => c.id === campId);
   if (idx !== -1) {
     if (updates.name) LOCAL_CAMPS_STORE[idx].name = updates.name;
@@ -336,6 +357,7 @@ export async function updateCampAction(campId: string, updates: {
 // ─── Admin — Attendees ────────────────────────────────────────────────────────
 
 export async function getAdminAttendees(campId: string): Promise<AttendeeAdmin[]> {
+  await requireCampAdmin();
   const realCampUuid = await resolveCampUuid(campId);
   try {
     let q = supabaseAdmin.from("attendees").select("*");
@@ -351,6 +373,7 @@ export async function addAttendeeAction(data: {
   roomType?: string; roomNumber?: string; phoneNumber?: string;
   pfcc?: string; gender?: string; dayOfArrival?: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
+  await requireCampAdmin();
   const newId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
   const newItem: any = {
     id: newId,
@@ -400,6 +423,7 @@ export async function bulkUploadAttendeesAction(
   campId: string,
   list: Array<{ full_name: string; fellowship: string; room_type?: string; room_number?: string; key_bearer?: string; phone_number?: string; pfcc?: string; gender?: string; day_of_arrival?: string }>,
 ): Promise<{ success: boolean; count?: number; error?: string }> {
+  await requireCampAdmin();
   let count = 0;
   for (const item of list) {
     const res = await addAttendeeAction({ campId, fullName: item.full_name, fellowship: item.fellowship, roomType: item.room_type, roomNumber: item.room_number, phoneNumber: item.phone_number, pfcc: item.pfcc, gender: item.gender, dayOfArrival: item.day_of_arrival });
@@ -423,6 +447,7 @@ export async function importRealCSVAction(
   }>,
   detectedRoomType?: string
 ): Promise<{ success: boolean; peopleCreated: number; roomsCreated: number; error?: string }> {
+  await requireCampAdmin();
   let peopleCreated = 0;
   let roomsCreated = 0;
 
@@ -479,6 +504,7 @@ export async function importRealCSVAction(
 }
 
 export async function clearCampAttendeesAndRoomsAction(campId: string): Promise<{ success: boolean }> {
+  await requireCampAdmin();
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.camp_id && a.camp_id !== campId);
   LOCAL_ROOMS_STORE = LOCAL_ROOMS_STORE.filter(r => r.camp_id !== campId);
   LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.filter(g => g.camp_id !== campId);
@@ -496,6 +522,7 @@ export async function clearCampAttendeesAndRoomsAction(campId: string): Promise<
 }
 
 export async function deleteAttendeeAction(id: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => a.id !== id);
   saveStoreToFile();
   try { await supabaseAdmin.from("attendees").delete().eq("id", id); } catch {}
@@ -505,6 +532,7 @@ export async function deleteAttendeeAction(id: string): Promise<{ success: boole
 // ─── Admin — Rooms ────────────────────────────────────────────────────────────
 
 export async function getRoomsAction(campId: string): Promise<Room[]> {
+  await requireCampAdmin();
   const realCampUuid = await resolveCampUuid(campId);
   try {
     if (realCampUuid) {
@@ -516,6 +544,7 @@ export async function getRoomsAction(campId: string): Promise<Room[]> {
 }
 
 export async function addRoomAction(campId: string, roomNumber: string, roomType: string): Promise<{ success: boolean; room?: Room; error?: string }> {
+  await requireCampAdmin();
   if (LOCAL_ROOMS_STORE.find(r => r.camp_id === campId && r.room_number === roomNumber)) {
     return { success: false, error: `Room ${roomNumber} already exists.` };
   }
@@ -530,6 +559,7 @@ export async function addRoomAction(campId: string, roomNumber: string, roomType
 }
 
 export async function deleteRoomAction(roomId: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
   if (room) {
     // Unassign all people from this room
@@ -542,6 +572,7 @@ export async function deleteRoomAction(roomId: string): Promise<{ success: boole
 }
 
 export async function assignPersonToRoomAction(personId: string, roomId: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
   if (!room) return { success: false, error: "Room not found" };
 
@@ -575,6 +606,7 @@ export async function assignPersonToRoomAction(personId: string, roomId: string)
 }
 
 export async function removePersonFromRoomAction(personId: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
   const groupId = (person as any)?.group_id;
 
@@ -597,6 +629,7 @@ export async function removePersonFromRoomAction(personId: string): Promise<{ su
 }
 
 export async function setKeyBearerAction(roomId: string, personId: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   const room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
   if (!room) return { success: false, error: "Room not found" };
   const person = LOCAL_ATTENDEES_STORE.find(a => a.id === personId);
@@ -612,6 +645,7 @@ export async function setKeyBearerAction(roomId: string, personId: string): Prom
 }
 
 export async function getRoomOccupants(roomId: string): Promise<AttendeeAdmin[]> {
+  await requireCampAdmin();
   return LOCAL_ATTENDEES_STORE.filter(a => a.room_id === roomId);
 }
 
@@ -625,6 +659,7 @@ export type PFCCGroup = {
 };
 
 export async function getFellowshipsAction(campId: string): Promise<FellowshipGroup[]> {
+  await requireCampAdmin();
   const attendees = await getAdminAttendees(campId);
   const grouped = new Map<string, AttendeeAdmin[]>();
   for (const a of attendees) {
@@ -640,6 +675,7 @@ export async function getFellowshipsAction(campId: string): Promise<FellowshipGr
 }
 
 export async function getPFCCGroupsAction(campId: string): Promise<PFCCGroup[]> {
+  await requireCampAdmin();
   const fellowships = await getFellowshipsAction(campId);
   const attendees = await getAdminAttendees(campId);
 
@@ -669,6 +705,7 @@ export async function getPFCCGroupsAction(campId: string): Promise<PFCCGroup[]> 
 }
 
 export async function getFellowshipNames(campId: string): Promise<string[]> {
+  await requireCampAdmin();
   const all = await getAdminAttendees(campId);
   return [...new Set(all.map(a => a.fellowship).filter(Boolean))].sort();
 }
@@ -676,6 +713,7 @@ export async function getFellowshipNames(campId: string): Promise<string[]> {
 // ─── Admin — Coordinators ─────────────────────────────────────────────────────
 
 export async function getCoordinatorsAction(campId: string): Promise<Coordinator[]> {
+  await requireCampAdmin();
   try {
     const { data, error } = await supabaseAdmin.from("camp_admins").select("*").eq("camp_id", campId);
     if (!error && data && data.length > 0) return data as Coordinator[];
@@ -684,6 +722,7 @@ export async function getCoordinatorsAction(campId: string): Promise<Coordinator
 }
 
 export async function addCoordinatorAction(campId: string, email: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   if (LOCAL_COORDINATORS_STORE.find(c => c.camp_id === campId && c.email === email)) {
     return { success: false, error: "This email is already a coordinator." };
   }
@@ -694,6 +733,7 @@ export async function addCoordinatorAction(campId: string, email: string): Promi
 }
 
 export async function removeCoordinatorAction(campId: string, coordinatorId: string): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   LOCAL_COORDINATORS_STORE = LOCAL_COORDINATORS_STORE.filter(c => !(c.camp_id === campId && c.id === coordinatorId));
   try { await supabaseAdmin.from("camp_admins").delete().eq("id", coordinatorId); } catch {}
   return { success: true };
@@ -704,6 +744,7 @@ export async function removeCoordinatorAction(campId: string, coordinatorId: str
 export async function sendRoomAssignmentSMSAction(params: {
   name: string; roomNumber: string; roomType: string; keyBearer: string; phoneNumber: string;
 }): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   const phone = params.phoneNumber || "0550076503";
   const message = `Hi ${params.name}, your camp room is ${params.roomNumber} (${params.roomType}). ${params.keyBearer} has the key. – TACC Camp Meeting`;
   const ok = await sendSMS(phone, message);
@@ -715,6 +756,7 @@ export async function sendRoomAssignmentSMSAction(params: {
 let LOCAL_GROUPS_STORE: Group[] = [];
 
 export async function getGroupsAction(campId: string): Promise<Group[]> {
+  await requireCampAdmin();
   const realCampUuid = await resolveCampUuid(campId);
   try {
     if (realCampUuid) {
@@ -770,6 +812,7 @@ export async function importGroupsFromCSVAction(
   }>,
   roomTypePreference: string
 ): Promise<{ success: boolean; groupsCreated: number; peopleCreated: number; error?: string }> {
+  await requireCampAdmin();
   const realCampUuid = await resolveCampUuid(campId);
 
   // Pre-pass: Map non-empty PFCC for each group_id so missing PFCC values in a group inherit it
@@ -895,6 +938,7 @@ export async function assignGroupToRoomAction(
   groupId: string,
   roomId: string
 ): Promise<{ success: boolean; error?: string }> {
+  await requireCampAdmin();
   let room = LOCAL_ROOMS_STORE.find(r => r.id === roomId);
   if (!room) {
     try {
@@ -927,6 +971,7 @@ export async function assignGroupToRoomAction(
 }
 
 export async function unassignGroupFromRoomAction(groupId: string): Promise<{ success: boolean }> {
+  await requireCampAdmin();
   LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.map(g =>
     g.id === groupId ? { ...g, room_id: undefined } : g
   );
@@ -943,6 +988,7 @@ export async function unassignGroupFromRoomAction(groupId: string): Promise<{ su
 }
 
 export async function deleteGroupAction(groupId: string): Promise<{ success: boolean }> {
+  await requireCampAdmin();
   // Remove attendees that belong to this group
   LOCAL_ATTENDEES_STORE = LOCAL_ATTENDEES_STORE.filter(a => (a as any).group_id !== groupId);
   LOCAL_GROUPS_STORE = LOCAL_GROUPS_STORE.filter(g => g.id !== groupId);
@@ -961,6 +1007,7 @@ export async function uploadCampLogoAction(
   fileName: string,
   mimeType: string
 ): Promise<{ success: boolean; url?: string; error?: string }> {
+  await requireCampAdmin();
   try {
     const buffer = Buffer.from(fileBase64, "base64");
     const path = `${campId}/${Date.now()}_${fileName}`;
