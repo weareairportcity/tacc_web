@@ -4,9 +4,9 @@ import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { getGroupFor, groupStatementsForRemoval } from "./groups";
 import { formatCedis } from "./money";
-import { getRegistration } from "./registrations";
-import { listRoomTypes } from "./rooms";
-import { CampError, type Registration } from "./types";
+import { getRegistration, isFull } from "./registrations";
+import { listRoomTypes, placesFor } from "./rooms";
+import { CampError, type Gender, type Registration, type RoomType } from "./types";
 
 /**
  * Coordinator corrections the spec leaves manual: recording a refund made in
@@ -128,6 +128,16 @@ export async function recordRefund(actor: string, registrationId: string, raw: R
  * both. Blocked if they've paid more than the new price: record a refund of
  * the difference first.
  */
+/** Runs a batch; if it failed because the room type just filled, says that instead. */
+async function batchOrFull(type: RoomType, gender: Gender, statements: Parameters<typeof batch>[1]) {
+  try {
+    return await batch("app", statements);
+  } catch (err) {
+    if (await isFull(type.id, gender)) throw new CampError(`${type.name} just filled up for ${gender === "male" ? "men" : "women"}.`);
+    throw err;
+  }
+}
+
 export async function changeRoomType(actor: string, registrationId: string, roomTypeId: string) {
   const before = await getRegistration(registrationId);
   if (!before) throw new CampError("Unknown registration.");
@@ -135,6 +145,9 @@ export async function changeRoomType(actor: string, registrationId: string, room
   const type = (await listRoomTypes(before.camp_id)).find((t) => t.id === checkId(roomTypeId, "room type"));
   if (!type) throw new CampError("Choose a room type from this camp.");
   if (type.id === before.room_type_id) throw new CampError(`${before.full_name} is already in ${type.name}.`);
+  if (placesFor(type, before.gender) === 0) {
+    throw new CampError(`${type.name} is full for ${before.gender === "male" ? "men" : "women"}. Raise its places left on Rooms first if the venue has more.`);
+  }
   if (before.paid_pesewas > type.price_pesewas) {
     throw new CampError(
       `${before.full_name} has paid ${formatCedis(before.paid_pesewas)}, more than ${type.name}'s price of ${formatCedis(type.price_pesewas)}. ` +
@@ -146,7 +159,7 @@ export async function changeRoomType(actor: string, registrationId: string, room
   const moved = { ...before, room_type_id: type.id } as Registration;
   const [group, { room_label }] = await Promise.all([getGroupFor(before.id), placement(before.id)]);
   const groupRemoval = await groupStatementsForRemoval(actor, moved, reason);
-  const results = await batch("app", [
+  const results = await batchOrFull(type, before.gender, [
     {
       sql: `UPDATE camp_registrations SET room_type_id = ?, price_pesewas = ?
             WHERE id = ? AND status <> 'cancelled' AND room_type_id = ? AND paid_pesewas <= ?

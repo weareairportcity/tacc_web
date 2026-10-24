@@ -37,6 +37,9 @@ export type RoomType = {
   name: string;
   price_pesewas: number;
   capacity: number;
+  /** Places left for each gender, as last told by the venue. null = no limit, 0 = full. */
+  places_male: number | null;
+  places_female: number | null;
 };
 
 export type Room = {

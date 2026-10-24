@@ -3,8 +3,8 @@ import { parseCsv, parseRoomCsv } from "@/lib/camp/csv";
 import type { RoomType } from "@/lib/camp/types";
 
 const TYPES: RoomType[] = [
-  { id: "t-hostel", camp_id: "c", name: "Hostel", price_pesewas: 60000, capacity: 4 },
-  { id: "t-villa", camp_id: "c", name: "Villa", price_pesewas: 120000, capacity: 2 },
+  { id: "t-hostel", camp_id: "c", name: "Hostel", price_pesewas: 60000, capacity: 4, places_male: null, places_female: null },
+  { id: "t-villa", camp_id: "c", name: "Villa", price_pesewas: 120000, capacity: 2, places_male: null, places_female: null },
 ];
 
 describe("parseCsv", () => {

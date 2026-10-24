@@ -11,6 +11,7 @@ import {
   deleteRoom,
   deleteRoomType,
   importRooms,
+  setPlacesLeft,
   updateRoom,
   updateRoomType,
 } from "@/lib/camp/rooms";
@@ -20,7 +21,7 @@ import { cancelRegistration } from "@/lib/camp/registrations";
 import { campOrigin } from "@/lib/camp/origin";
 import { sendRoomSms } from "@/lib/camp/room-sms";
 import { removeStaff, saveStaff } from "@/lib/camp/staff";
-import { CampError, type CampInput, type RoomInput, type Staff } from "@/lib/camp/types";
+import { CampError, type CampInput, type Gender, type RoomInput, type Staff } from "@/lib/camp/types";
 
 /**
  * Camp admin actions. Each one checks the caller's camp role itself: server
@@ -71,6 +72,15 @@ export async function saveRoomTypeAction(
     const existing = nullable(id);
     if (existing) await updateRoomType(staff.email, existing, values);
     else await createRoomType(staff.email, campId, values);
+    return null;
+  });
+}
+
+/** placesLeft: null for no limit, 0 for full, otherwise what the venue says is left. */
+export async function setPlacesLeftAction(roomTypeId: string, gender: Gender, placesLeft: number | null) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await setPlacesLeft(staff.email, roomTypeId, gender, placesLeft);
     return null;
   });
 }

@@ -2,7 +2,7 @@ import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { ID, checkId } from "./camps";
 import { parseRoomCsv, type CsvError } from "./csv";
-import { CampError, GENDERS, type Room, type RoomInput, type RoomType } from "./types";
+import { CampError, GENDERS, type Gender, type Room, type RoomInput, type RoomType } from "./types";
 
 /**
  * Room types and rooms on D1. Unique names and labels are checked here for a
@@ -13,6 +13,14 @@ import { CampError, GENDERS, type Room, type RoomInput, type RoomType } from "./
 // ─── Room types ──────────────────────────────────────────────────────────────
 
 export type RoomTypeInput = Pick<RoomType, "name" | "price_pesewas" | "capacity">;
+
+const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.price_pesewas, t.capacity,
+    (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'male') AS places_male,
+    (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS places_female
+  FROM camp_room_types t`;
+
+/** Places left for one gender: null means no limit, 0 means full. */
+export const placesFor = (type: RoomType, gender: Gender) => (gender === "male" ? type.places_male : type.places_female);
 
 function validateRoomType(raw: RoomTypeInput): RoomTypeInput {
   const input = { name: String(raw.name ?? "").trim(), price_pesewas: raw.price_pesewas, capacity: Number(raw.capacity) };
@@ -30,15 +38,15 @@ function validateRoomType(raw: RoomTypeInput): RoomTypeInput {
 export async function listRoomTypes(campId: string): Promise<RoomType[]> {
   return query<RoomType>(
     "app",
-    "SELECT id, camp_id, name, price_pesewas, capacity FROM camp_room_types WHERE camp_id = ? ORDER BY price_pesewas, name",
+    `${TYPE_SELECT} WHERE t.camp_id = ? ORDER BY t.price_pesewas, t.name`,
     [checkId(campId, "camp")],
   );
 }
 
-async function getRoomType(id: string): Promise<RoomType | null> {
+export async function getRoomType(id: string): Promise<RoomType | null> {
   const [row] = await query<RoomType>(
     "app",
-    "SELECT id, camp_id, name, price_pesewas, capacity FROM camp_room_types WHERE id = ?",
+    `${TYPE_SELECT} WHERE t.id = ?`,
     [checkId(id, "room type")],
   );
   return row ?? null;
@@ -104,6 +112,42 @@ export async function deleteRoomType(actor: string, id: string) {
   await batch("app", [
     { sql: "DELETE FROM camp_room_types WHERE id = ?", params: [id] },
     auditStatement({ actor, campId: before.camp_id, action: "room_type.delete", entity: "room_type", entityId: id, before }),
+  ]);
+}
+
+/**
+ * Records how many places the venue says are left for one gender of a room
+ * type. null removes the limit; 0 marks it full. Registrations count it down
+ * (migration 0009's triggers), so this is only for when the venue gives a new
+ * number.
+ */
+export async function setPlacesLeft(actor: string, roomTypeId: string, gender: Gender, placesLeft: number | null) {
+  const type = await getRoomType(roomTypeId);
+  if (!type) throw new CampError("Unknown room type.");
+  if (!GENDERS.includes(gender)) throw new CampError("Choose male or female.");
+  if (placesLeft !== null && (!Number.isInteger(placesLeft) || placesLeft < 0 || placesLeft > 10_000)) {
+    throw new CampError("Places left must be a whole number from 0 to 10,000.");
+  }
+  const before = placesFor(type, gender);
+  if (before === placesLeft) return;
+  await batch("app", [
+    placesLeft === null
+      ? { sql: "DELETE FROM camp_room_type_places WHERE room_type_id = ? AND gender = ?", params: [type.id, gender] }
+      : {
+          sql: `INSERT INTO camp_room_type_places (room_type_id, gender, places_left, updated_by) VALUES (?, ?, ?, ?)
+                ON CONFLICT (room_type_id, gender) DO UPDATE SET places_left = excluded.places_left,
+                  updated_by = excluded.updated_by, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
+          params: [type.id, gender, placesLeft, actor],
+        },
+    auditStatement({
+      actor,
+      campId: type.camp_id,
+      action: "room_type.places_left",
+      entity: "room_type",
+      entityId: type.id,
+      before: { gender, places_left: before },
+      after: { gender, places_left: placesLeft },
+    }),
   ]);
 }
 

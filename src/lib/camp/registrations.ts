@@ -5,11 +5,12 @@ import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { generateCode, hashCode, normalizeCode, CODE_LENGTH } from "./codes";
 import { groupStatementsForRemoval } from "./groups";
-import { listRoomTypes } from "./rooms";
+import { getRoomType, listRoomTypes, placesFor } from "./rooms";
 import {
   CampError,
   GENDERS,
   type Camp,
+  type Gender,
   type Payment,
   type Registration,
   type RegistrationInput,
@@ -58,6 +59,9 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
   if (!(CHURCHES as readonly string[]).includes(raw.church)) problems.push("Choose your church.");
   const roomType = roomTypes.find((t) => t.id === raw.room_type_id);
   if (!roomType) problems.push("Choose a room type.");
+  else if (GENDERS.includes(raw.gender) && placesFor(roomType, raw.gender) === 0) {
+    problems.push(`${roomType.name} is full for ${raw.gender === "male" ? "men" : "women"}. Pick another room type.`);
+  }
 
   if (problems.length) throw new CampError(problems.join(" "));
   return {
@@ -96,7 +100,7 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
   const price = input.roomType.price_pesewas;
   // Contact details stay out of the audit log.
   const after = { full_name: input.full_name, room_type_id: input.roomType.id, price_pesewas: price };
-  await batch("app", [
+  const statements = [
     {
       sql: `INSERT INTO camp_registrations (id, camp_id, room_type_id, full_name, phone, email, gender, fellowship,
               pfcc, church, price_pesewas, status, code_hash)
@@ -118,8 +122,23 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
       ],
     },
     auditStatement({ actor: `attendee:${id}`, campId: camp.id, action: "registration.create", entity: "registration", entityId: id, after }),
-  ]);
+  ];
+  try {
+    await batch("app", statements);
+  } catch (err) {
+    // The database refuses the last place twice over (migration 0009); say so kindly.
+    if (await isFull(input.roomType.id, input.gender)) {
+      throw new CampError(`${input.roomType.name} filled up while you were registering. Pick another room type.`);
+    }
+    throw err;
+  }
   return { id, code };
+}
+
+/** True if the room type has no places left for this gender. */
+export async function isFull(roomTypeId: string, gender: Gender) {
+  const type = await getRoomType(roomTypeId);
+  return !!type && placesFor(type, gender) === 0;
 }
 
 export async function getRegistration(id: string): Promise<Registration | null> {
