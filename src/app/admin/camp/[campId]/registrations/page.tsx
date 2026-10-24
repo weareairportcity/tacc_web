@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
-import { formatCedis } from "@/lib/camp/money";
-import { listFlaggedPayments, listRegistrations, todayInGhana } from "@/lib/camp/registrations";
 import { formatGroupCode } from "@/lib/camp/codes";
-import { GROUP_STATE_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
+import { formatCedis } from "@/lib/camp/money";
+import { listFlaggedPayments, todayInGhana } from "@/lib/camp/registrations";
+import { ROOMMATE_LABELS, filtersToQuery, listPeople, parsePeopleFilters } from "@/lib/camp/reports";
+import { listRoomTypes } from "@/lib/camp/rooms";
+import { REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
+import { PeopleFilters } from "@/components/camp/PeopleFilters";
 import { Card, REGISTRATION_STATUS_STYLES } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CancelButton } from "./CancelButton";
@@ -15,17 +18,25 @@ const FLAG_LABELS: Record<string, string> = {
   over_balance: "Paid after the balance was covered: refund in Paystack",
 };
 
-/** Minimal list for Phase 2; the full dashboard and filters come in Phase 5. */
-export default async function RegistrationsPage({ params }: { params: Promise<{ campId: string }> }) {
+/** Coordinators' people table: everyone, filterable by URL, exportable to CSV. */
+export default async function RegistrationsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ campId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
+  const filters = parsePeopleFilters(await searchParams);
 
-  const [camp, registrations, flagged] = await Promise.all([
+  const [camp, people, flagged, roomTypes] = await Promise.all([
     getCamp(campId),
-    listRegistrations(campId),
+    listPeople(campId, filters),
     listFlaggedPayments(campId),
+    listRoomTypes(campId),
   ]);
   if (!camp) notFound();
   const pastDue = todayInGhana() > camp.payment_due_on;
@@ -36,7 +47,7 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
         <Link href={`/admin/camp/${camp.id}`} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> {camp.name}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Registrations ({registrations.length})</h1>
+        <h1 className="mt-2 text-2xl font-bold">People ({people.length})</h1>
         <p className="mt-1 text-sm text-slate-500">
           Public page: <span className="font-mono">/camps/{camp.slug}</span>
         </p>
@@ -58,6 +69,14 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
         </Card>
       )}
 
+      <PeopleFilters
+        filters={filters}
+        roomTypes={roomTypes}
+        exportHref={`/admin/camp/${camp.id}/registrations/export${filtersToQuery(filters)}`}
+        searchLabel="Search by name or phone"
+        showChurch
+      />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 text-left text-slate-500">
@@ -74,14 +93,14 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {registrations.length === 0 && (
+            {people.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-6 text-center text-slate-500">
-                  No registrations yet.
+                  {filtersToQuery(filters) ? "Nobody matches these filters." : "No registrations yet."}
                 </td>
               </tr>
             )}
-            {registrations.map((r) => {
+            {people.map((r) => {
               const balance = r.price_pesewas - r.paid_pesewas;
               const overdue = pastDue && balance > 0 && r.status !== "cancelled";
               return (
@@ -102,18 +121,18 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
                     {r.flagged > 0 && <AlertTriangle className="ml-2 inline h-4 w-4 text-amber-600" />}
                   </td>
                   <td className="px-4 py-2">
-                    {r.group_code && r.group_state ? (
+                    {r.group_code ? (
                       <span className="whitespace-nowrap">
                         <span className="font-mono text-xs">{formatGroupCode(r.group_code)}</span>
-                        <span className="ml-2 text-xs text-slate-500">{GROUP_STATE_LABELS[r.group_state]}</span>
+                        {r.roommate && <span className="ml-2 text-xs text-slate-500">{ROOMMATE_LABELS[r.roommate]}</span>}
                       </span>
-                    ) : r.status === "fully_paid" ? (
-                      <span className="text-xs text-slate-500">Unmatched</span>
+                    ) : r.roommate ? (
+                      <span className="text-xs text-slate-500">{ROOMMATE_LABELS[r.roommate]}</span>
                     ) : null}
                   </td>
                   <td className="px-4 py-2">{r.room_label ?? ""}</td>
-                  <td className="px-4 py-2 text-right">{formatCedis(r.paid_pesewas)}</td>
-                  <td className="px-4 py-2 text-right">{formatCedis(balance)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCedis(r.paid_pesewas)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCedis(balance)}</td>
                   <td className="px-4 py-2 text-right">
                     <CancelButton id={r.id} name={r.full_name} cancelled={r.status === "cancelled"} />
                   </td>

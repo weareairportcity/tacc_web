@@ -41,6 +41,9 @@ The plaintext `phone_number` column on Supabase `attendees` is still unchecked, 
 | 17 | Occupied rooms | Can't drop below their occupants or change gender or room type until emptied. Deleting a room returns its occupants to Unassigned. |
 | 18 | Attendee room view | Room label, room type and the first names of the people sharing it. "Awaiting room assignment" until then. |
 | 19 | Room SMS | None yet; a "send everyone their room" message belongs in Phase 7. |
+| 20 | Leader columns | Name, fellowship, payment status (label only), roommate status, room assigned yes/no. No phone, email or amounts. |
+| 21 | Dashboard placement | The camp page is the dashboard; room types and camp details moved to Settings. |
+| 22 | Money definitions | Expected and collected count registrations that aren't cancelled; Paystack fees are shown separately; money paid by cancelled registrations is shown as to refund. |
 
 ## Stack
 

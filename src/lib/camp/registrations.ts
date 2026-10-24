@@ -4,13 +4,12 @@ import { roomStatementsForCancel } from "./assignments";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { generateCode, hashCode, normalizeCode, CODE_LENGTH } from "./codes";
-import { groupState, groupStatementsForCancel } from "./groups";
+import { groupStatementsForCancel } from "./groups";
 import { listRoomTypes } from "./rooms";
 import {
   CampError,
   GENDERS,
   type Camp,
-  type GroupState,
   type Payment,
   type Registration,
   type RegistrationInput,
@@ -181,36 +180,6 @@ export async function listPayments(registrationId: string): Promise<Payment[]> {
      FROM camp_payments WHERE registration_id = ? ORDER BY created_at DESC`,
     [checkId(registrationId, "registration")],
   );
-}
-
-export type RegistrationRow = Registration & {
-  flagged: number;
-  group_code: string | null;
-  group_state: GroupState | null;
-  room_label: string | null;
-};
-
-/** Coordinator list. `flagged` counts payments a coordinator should look at. */
-export async function listRegistrations(campId: string): Promise<RegistrationRow[]> {
-  const rows = await query<Omit<RegistrationRow, "group_state"> & { group_locked_at: string | null; deadline: string }>(
-    "app",
-    `SELECT ${COLUMNS},
-       (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = r.id
-          AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
-       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline,
-       x.label AS room_label
-     ${FROM} JOIN camps c ON c.id = r.camp_id
-     LEFT JOIN camp_group_members m ON m.registration_id = r.id
-     LEFT JOIN camp_groups g ON g.id = m.group_id
-     LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
-     LEFT JOIN camp_rooms x ON x.id = a.room_id
-     WHERE r.camp_id = ? ORDER BY r.created_at DESC`,
-    [checkId(campId, "camp")],
-  );
-  return rows.map(({ group_locked_at, deadline, ...r }) => ({
-    ...r,
-    group_state: r.group_code ? groupState({ locked_at: group_locked_at, roommate_deadline_on: deadline }) : null,
-  }));
 }
 
 export type FlaggedPayment = Payment & { full_name: string; phone: string };

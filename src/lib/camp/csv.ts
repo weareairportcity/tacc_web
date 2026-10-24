@@ -43,6 +43,31 @@ export function parseCsv(text: string): string[][] {
 
 export type CsvError = { line: number; message: string };
 
+/**
+ * Writes CSV for Excel: every field quoted, CRLF, and a BOM so names with
+ * accents open correctly. A field starting with = + - @ (or a tab or CR) is
+ * prefixed with ' so a spreadsheet shows it as text instead of running it.
+ */
+export function toCsv(rows: (string | number | null)[][]): string {
+  const cell = (value: string | number | null) => {
+    let text = value === null ? "" : String(value);
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  return `\uFEFF${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
+}
+
+/** A CSV download that browsers save rather than show, and nobody caches. */
+export function csvResponse(csv: string, filename: string) {
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 const HEADERS: Record<string, keyof RoomInput | "room_type"> = {
   label: "label",
   room: "label",

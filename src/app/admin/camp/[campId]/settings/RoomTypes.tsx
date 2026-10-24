@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import type { RoomType } from "@/lib/camp/types";
-import { deleteRoomTypeAction, saveRoomTypeAction } from "../actions";
+import { deleteRoomTypeAction, saveRoomTypeAction } from "../../actions";
 import { ErrorText, Field, buttonClass, inputClass, secondaryButtonClass } from "@/components/camp/ui";
 
 type Draft = { id: string | null; name: string; price: string; capacity: number };
