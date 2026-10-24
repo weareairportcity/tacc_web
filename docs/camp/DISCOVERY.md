@@ -44,6 +44,9 @@ The plaintext `phone_number` column on Supabase `attendees` is still unchecked, 
 | 20 | Leader columns | Name, fellowship, payment status (label only), roommate status, room assigned yes/no. No phone, email or amounts. |
 | 21 | Dashboard placement | The camp page is the dashboard; room types and camp details moved to Settings. |
 | 22 | Money definitions | Expected and collected count registrations that aren't cancelled; Paystack fees are shown separately; money paid by cancelled registrations is shown as to refund. |
+| 23 | Old camp data | Left in Supabase, nothing deleted. Exported read-only on 24 Oct 2026 to `~/tacc-archive/old-camp-2026-10-24/` (outside the repo): 5 camps, 170 attendees, 24 rooms, 54 groups; no phone numbers stored; `camp_admins` doesn't exist; `camp-logos` is empty. Script: `scripts/archive-old-camp.ts`. |
+| 24 | Old camp tables | Public access to be removed with `docs/camp/archive/lock-old-camp-tables.sql` (undo: `unlock-old-camp-tables.sql`), run by hand in the Supabase SQL editor. On 24 Oct the public key already read 0 rows from each table. |
+| 25 | Old addresses | `/camp/*` → `/camps` (new public camp list); `/camp/admin/*` and `/portal-admin-26/*` → `/admin/camp`. Permanent redirects in `next.config.ts`. |
 
 ## Stack
 

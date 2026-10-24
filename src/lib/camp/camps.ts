@@ -76,6 +76,14 @@ export async function listCamps(): Promise<Camp[]> {
   return query<Camp>("app", `SELECT ${COLUMNS} FROM camps ORDER BY starts_on DESC, created_at DESC`);
 }
 
+/** The public camp list: open and closed camps, soonest first. Drafts and archived camps aren't public. */
+export async function listPublicCamps(): Promise<Camp[]> {
+  return query<Camp>(
+    "app",
+    `SELECT ${COLUMNS} FROM camps WHERE status IN ('open', 'closed') ORDER BY starts_on, created_at`,
+  );
+}
+
 export async function getCamp(id: string): Promise<Camp | null> {
   const [camp] = await query<Camp>("app", `SELECT ${COLUMNS} FROM camps WHERE id = ?`, [checkId(id, "camp")]);
   return camp ?? null;

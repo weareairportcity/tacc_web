@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
 
+/**
+ * The retired camp feature (removed in camp Phase 6). Its addresses can't map
+ * to new camps, which are different records, so attendees land on the list of
+ * camps and admins on the new camp admin. Order matters: admin paths first.
+ */
+export const RETIRED_CAMP_REDIRECTS = [
+  { source: "/camp/admin/:path*", destination: "/admin/camp", permanent: true },
+  { source: "/portal-admin-26/:path*", destination: "/admin/camp", permanent: true },
+  { source: "/camp/:path*", destination: "/camps", permanent: true },
+];
+
 const nextConfig: NextConfig = {
+  async redirects() {
+    return RETIRED_CAMP_REDIRECTS;
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
