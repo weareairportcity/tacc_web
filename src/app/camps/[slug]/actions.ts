@@ -7,9 +7,21 @@ import { formatCode, hashCode } from "@/lib/camp/codes";
 import { cedisToPesewas } from "@/lib/camp/money";
 import { checkPayment, startPayment } from "@/lib/camp/payments";
 import { allow, clientIp } from "@/lib/camp/rate-limit";
+import {
+  acceptInvite,
+  cancelInvite,
+  createGroup,
+  declineInvite,
+  invite,
+  joinByCode,
+  leaveGroup,
+  removeMember,
+  searchInvitees,
+  setLocked,
+} from "@/lib/camp/groups";
 import { findByCode, register, resetCode } from "@/lib/camp/registrations";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
-import { CampError, type PaymentStatus, type RegistrationInput } from "@/lib/camp/types";
+import { CampError, type PaymentStatus, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { sendSMS } from "@/lib/mnotify";
 
 /**
@@ -116,4 +128,72 @@ export async function checkPaymentAction(slug: string, reference: string) {
     if (status !== "pending") revalidatePath(`/camps/${camp.slug}/me`);
     return status;
   });
+}
+
+// ─── Roommate groups ─────────────────────────────────────────────────────────
+// Each action acts as the signed-in attendee only; groups.ts re-checks that
+// they're the owner, a member or the invitee before changing anything.
+
+async function signedIn(slug: string) {
+  const camp = await campFor(slug);
+  const me = await currentAttendee(camp.id);
+  if (!me) throw new CampError("Please sign in again.");
+  return { camp, me };
+}
+
+/** Runs a group change, then refreshes the attendee's pages. */
+function groupAction<T>(slug: string, fn: (me: Registration) => Promise<T>) {
+  return run(async () => {
+    const { camp, me } = await signedIn(slug);
+    const result = await fn(me);
+    revalidatePath(`/camps/${camp.slug}`, "layout");
+    return result;
+  });
+}
+
+export async function createGroupAction(slug: string) {
+  return groupAction(slug, async (me) => {
+    await createGroup(me);
+    return null;
+  });
+}
+
+export async function joinGroupAction(slug: string, code: string) {
+  return groupAction(slug, async (me) => {
+    await limit(`group-join-ip:${await clientIp()}`, 20, 15 * MINUTE);
+    await joinByCode(me, String(code));
+    return null;
+  });
+}
+
+export async function leaveGroupAction(slug: string) {
+  return groupAction(slug, (me) => leaveGroup(me).then(() => null));
+}
+
+export async function removeMemberAction(slug: string, registrationId: string) {
+  return groupAction(slug, (me) => removeMember(me, String(registrationId)).then(() => null));
+}
+
+export async function setGroupLockedAction(slug: string, locked: boolean) {
+  return groupAction(slug, (me) => setLocked(me, locked === true).then(() => null));
+}
+
+export async function searchInviteesAction(slug: string, term: string) {
+  return run(async () => searchInvitees((await signedIn(slug)).me, String(term)));
+}
+
+export async function inviteAction(slug: string, registrationId: string) {
+  return groupAction(slug, (me) => invite(me, String(registrationId)).then(() => null));
+}
+
+export async function cancelInviteAction(slug: string, inviteId: string) {
+  return groupAction(slug, (me) => cancelInvite(me, String(inviteId)).then(() => null));
+}
+
+export async function acceptInviteAction(slug: string, inviteId: string) {
+  return groupAction(slug, (me) => acceptInvite(me, String(inviteId)).then(() => null));
+}
+
+export async function declineInviteAction(slug: string, inviteId: string) {
+  return groupAction(slug, (me) => declineInvite(me, String(inviteId)).then(() => null));
 }

@@ -4,12 +4,18 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cancelRegistrationAction } from "../../actions";
 
-/** Two clicks to cancel, like deleting a room. Refunds are done in Paystack. */
-export function CancelButton({ id, name }: { id: string; name: string }) {
+/**
+ * Two clicks to cancel, like deleting a room. Refunds are done in Paystack.
+ * Stays mounted once cancelled so a locked-group warning survives the refresh.
+ */
+export function CancelButton({ id, name, cancelled }: { id: string; name: string; cancelled: boolean }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [pending, startTransition] = useTransition();
+
+  if (cancelled) return warning ? <span className="block max-w-56 text-left text-xs text-amber-700">{warning}</span> : null;
 
   const click = () => {
     if (!confirming) return setConfirming(true);
@@ -17,6 +23,7 @@ export function CancelButton({ id, name }: { id: string; name: string }) {
     startTransition(async () => {
       const result = await cancelRegistrationAction(id);
       if (!result.ok) return setError(result.error);
+      if (result.data) setWarning(result.data);
       router.refresh();
     });
   };

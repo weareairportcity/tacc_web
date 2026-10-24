@@ -112,8 +112,7 @@ export async function importRoomsAction(campId: string, csvText: string) {
 export async function cancelRegistrationAction(id: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    await cancelRegistration(staff.email, id);
-    return null;
+    return (await cancelRegistration(staff.email, id)).warning;
   });
 }
 

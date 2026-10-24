@@ -33,6 +33,10 @@ The plaintext `phone_number` column on Supabase `attendees` is still unchecked, 
 | 9 | Minimum first payment | None. Any instalment from GHS 1 up to the balance. The old column stays unused. |
 | 10 | Underpayment at the due date | Stays Partially Paid, flagged "Past due"; a coordinator decides. |
 | 11 | Attendee URL | `/camps/<slug>` (default, not yet confirmed). |
+| 12 | Roommate lock deadline | No default number of days. Each camp's required "Roommate deadline" date, set by the coordinator; groups become final after the end of that day (Ghana time). |
+| 13 | Owner lock | The owner can lock and unlock their group until the deadline. |
+| 14 | Group codes | 6 characters from the sign-in code alphabet, shown as `7K4-F2Q`. Joining is rate-limited. |
+| 15 | Invite name search | Shows name and fellowship only, and only people who could join (same camp, room type and gender, Fully Paid, in no group). |
 
 ## Stack
 

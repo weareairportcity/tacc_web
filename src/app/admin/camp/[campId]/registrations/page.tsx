@@ -4,7 +4,8 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { formatCedis } from "@/lib/camp/money";
 import { listFlaggedPayments, listRegistrations, todayInGhana } from "@/lib/camp/registrations";
-import { REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
+import { formatGroupCode } from "@/lib/camp/codes";
+import { GROUP_STATE_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
 import { Card, REGISTRATION_STATUS_STYLES } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CancelButton } from "./CancelButton";
@@ -65,6 +66,7 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
               <th className="px-4 py-2 font-medium">Fellowship</th>
               <th className="px-4 py-2 font-medium">Room type</th>
               <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">Group</th>
               <th className="px-4 py-2 text-right font-medium">Paid</th>
               <th className="px-4 py-2 text-right font-medium">Balance</th>
               <th className="px-4 py-2" />
@@ -73,7 +75,7 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
           <tbody className="divide-y divide-slate-100">
             {registrations.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                   No registrations yet.
                 </td>
               </tr>
@@ -98,10 +100,20 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
                     {overdue && <span className="ml-2 text-xs font-medium text-red-600">Past due</span>}
                     {r.flagged > 0 && <AlertTriangle className="ml-2 inline h-4 w-4 text-amber-600" />}
                   </td>
+                  <td className="px-4 py-2">
+                    {r.group_code && r.group_state ? (
+                      <>
+                        <span className="font-mono text-xs">{formatGroupCode(r.group_code)}</span>
+                        <span className="ml-2 text-xs text-slate-500">{GROUP_STATE_LABELS[r.group_state]}</span>
+                      </>
+                    ) : r.status === "fully_paid" ? (
+                      <span className="text-xs text-slate-500">Unmatched</span>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-2 text-right">{formatCedis(r.paid_pesewas)}</td>
                   <td className="px-4 py-2 text-right">{formatCedis(balance)}</td>
                   <td className="px-4 py-2 text-right">
-                    {r.status !== "cancelled" && <CancelButton id={r.id} name={r.full_name} />}
+                    <CancelButton id={r.id} name={r.full_name} cancelled={r.status === "cancelled"} />
                   </td>
                 </tr>
               );

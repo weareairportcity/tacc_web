@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Users } from "lucide-react";
 import { getCampBySlug } from "@/lib/camp/camps";
+import { getGroupFor, listReceivedInvites } from "@/lib/camp/groups";
 import { formatCedis } from "@/lib/camp/money";
 import { listPayments } from "@/lib/camp/registrations";
 import { currentAttendee } from "@/lib/camp/session";
-import { REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
-import { Card, REGISTRATION_STATUS_STYLES, formatDate } from "@/components/camp/ui";
+import { GROUP_STATE_LABELS, REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
+import { Card, REGISTRATION_STATUS_STYLES, buttonClass, formatDate } from "@/components/camp/ui";
 import { PayForm } from "./PayForm";
 import { SignOut } from "./SignOut";
 
@@ -17,7 +20,12 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
   const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
 
-  const payments = await listPayments(me.id);
+  const fullyPaid = me.status === "fully_paid";
+  const [payments, group, invites] = await Promise.all([
+    listPayments(me.id),
+    fullyPaid ? getGroupFor(me.id) : null,
+    fullyPaid ? listReceivedInvites(me) : [],
+  ]);
   const balance = me.price_pesewas - me.paid_pesewas;
   const pending = payments.find((p) => p.status === "pending");
 
@@ -65,7 +73,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </p>
       ) : me.status === "fully_paid" ? (
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          You&apos;re fully paid. Choosing roommates opens here soon.
+          You&apos;re fully paid.
         </p>
       ) : (
         <Card title="Make a payment">
@@ -77,6 +85,31 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
             </p>
           ) : null}
           <PayForm slug={camp.slug} balance={balance} feeBps={camp.fee_bps} dueOn={formatDate(camp.payment_due_on)} />
+        </Card>
+      )}
+
+      {me.status !== "cancelled" && (
+        <Card title="Roommates">
+          {!fullyPaid ? (
+            <p className="text-sm text-slate-500">
+              Once you&apos;re fully paid you can form a group with friends to share a room, by{" "}
+              {formatDate(camp.roommate_deadline_on)}.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="flex items-center gap-2 text-sm text-slate-600">
+                <Users className="h-4 w-4" />
+                {group
+                  ? `You're in a group of ${group.members.length} of ${group.capacity} · ${GROUP_STATE_LABELS[group.state]}`
+                  : invites.length
+                    ? `You have ${invites.length === 1 ? "an invite" : `${invites.length} invites`} to join a group.`
+                    : `Form or join a group by ${formatDate(camp.roommate_deadline_on)}.`}
+              </p>
+              <Link href={`/camps/${camp.slug}/roommates`} className={`${buttonClass} w-full py-3 text-base`}>
+                {group ? "Your group" : "Choose roommates"}
+              </Link>
+            </div>
+          )}
         </Card>
       )}
 

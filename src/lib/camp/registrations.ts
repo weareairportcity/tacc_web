@@ -3,11 +3,13 @@ import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { generateCode, hashCode, normalizeCode, CODE_LENGTH } from "./codes";
+import { groupState, groupStatementsForCancel } from "./groups";
 import { listRoomTypes } from "./rooms";
 import {
   CampError,
   GENDERS,
   type Camp,
+  type GroupState,
   type Payment,
   type Registration,
   type RegistrationInput,
@@ -180,18 +182,30 @@ export async function listPayments(registrationId: string): Promise<Payment[]> {
   );
 }
 
-export type RegistrationRow = Registration & { flagged: number };
+export type RegistrationRow = Registration & {
+  flagged: number;
+  group_code: string | null;
+  group_state: GroupState | null;
+};
 
 /** Coordinator list. `flagged` counts payments a coordinator should look at. */
 export async function listRegistrations(campId: string): Promise<RegistrationRow[]> {
-  return query<RegistrationRow>(
+  const rows = await query<Omit<RegistrationRow, "group_state"> & { group_locked_at: string | null; deadline: string }>(
     "app",
     `SELECT ${COLUMNS},
        (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = r.id
-          AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged
-     ${FROM} WHERE r.camp_id = ? ORDER BY r.created_at DESC`,
+          AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
+       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline
+     ${FROM} JOIN camps c ON c.id = r.camp_id
+     LEFT JOIN camp_group_members m ON m.registration_id = r.id
+     LEFT JOIN camp_groups g ON g.id = m.group_id
+     WHERE r.camp_id = ? ORDER BY r.created_at DESC`,
     [checkId(campId, "camp")],
   );
+  return rows.map(({ group_locked_at, deadline, ...r }) => ({
+    ...r,
+    group_state: r.group_code ? groupState({ locked_at: group_locked_at, roommate_deadline_on: deadline }) : null,
+  }));
 }
 
 export type FlaggedPayment = Payment & { full_name: string; phone: string };
@@ -208,11 +222,16 @@ export async function listFlaggedPayments(campId: string): Promise<FlaggedPaymen
   );
 }
 
-/** Coordinator-only. Payments stay as they are; refunds happen in Paystack. */
-export async function cancelRegistration(actor: string, id: string) {
+/**
+ * Coordinator-only. Payments stay as they are; refunds happen in Paystack.
+ * Also takes the person out of their roommate group. Returns a warning when
+ * that group was already locked.
+ */
+export async function cancelRegistration(actor: string, id: string): Promise<{ warning: string | null }> {
   const before = await getRegistration(id);
   if (!before) throw new CampError("Unknown registration.");
   if (before.status === "cancelled") throw new CampError("This registration is already cancelled.");
+  const group = await groupStatementsForCancel(actor, before);
   await batch("app", [
     { sql: "UPDATE camp_registrations SET status = 'cancelled' WHERE id = ? AND status <> 'cancelled'", params: [id] },
     auditStatement({
@@ -224,5 +243,8 @@ export async function cancelRegistration(actor: string, id: string) {
       before: { status: before.status, paid_pesewas: before.paid_pesewas },
       after: { status: "cancelled" },
     }),
+    // After the status change: the group trigger lets a cancelled person go even from a locked group.
+    ...group.statements,
   ]);
+  return { warning: group.warning };
 }

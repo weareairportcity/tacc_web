@@ -10,10 +10,12 @@ export function auditStatement(entry: {
   entityId: string;
   before?: unknown;
   after?: unknown;
+  /** Write it only if the statement just before it in the batch changed a row. */
+  ifChanged?: boolean;
 }) {
   return {
     sql: `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, before_json, after_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          ${entry.ifChanged ? "SELECT ?, ?, ?, ?, ?, ?, ? WHERE changes() > 0" : "VALUES (?, ?, ?, ?, ?, ?, ?)"}`,
     params: [
       entry.campId,
       entry.actor,

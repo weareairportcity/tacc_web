@@ -114,3 +114,62 @@ export type Payment = {
   flag: string | null;
   paid_at: string | null;
 };
+
+/** open: anyone eligible can join; locked: by its owner, who can unlock; final: the roommate deadline has passed. */
+export type GroupState = "open" | "locked" | "final";
+
+export const GROUP_STATE_LABELS: Record<GroupState, string> = {
+  open: "Open",
+  locked: "Locked",
+  final: "Final",
+};
+
+export type GroupMember = {
+  registration_id: string;
+  full_name: string;
+  fellowship: string;
+  joined_at: string;
+};
+
+export type Group = {
+  id: string;
+  camp_id: string;
+  room_type_id: string;
+  room_type_name: string;
+  gender: Gender;
+  code: string;
+  owner_registration_id: string;
+  locked_at: string | null;
+  capacity: number;
+  roommate_deadline_on: string;
+  state: GroupState;
+  /** Longest-standing first; the owner is usually first. */
+  members: GroupMember[];
+};
+
+/** An invite as its invitee sees it. */
+export type ReceivedInvite = {
+  id: string;
+  created_at: string;
+  group_id: string;
+  owner_name: string;
+  member_count: number;
+  capacity: number;
+};
+
+/** An invite as the group's owner sees it. */
+export type SentInvite = {
+  id: string;
+  created_at: string;
+  registration_id: string;
+  full_name: string;
+  fellowship: string;
+};
+
+/** Name-search result: only what an owner needs to pick the right person. */
+export type Invitee = {
+  id: string;
+  full_name: string;
+  fellowship: string;
+  invited: number;
+};

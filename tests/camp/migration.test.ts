@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 import { WORKER_DIR } from "../setup/constants";
 
-// The down files must undo 0005 then 0004 cleanly so both can apply again.
+// The down files must undo 0006, 0005 then 0004 cleanly so all can apply again.
 // Uses its own throwaway database, not the one the other tests share.
 
 const dir = mkdtempSync(join(tmpdir(), "camp-migration-"));
@@ -35,10 +35,13 @@ const tables = async () => {
 describe("camp migrations", () => {
   it("apply, roll back and re-apply", { timeout: 180_000 }, async () => {
     const foundation = ["camp_audit_log", "camp_room_types", "camp_rooms", "camp_staff", "camps"];
-    const expected = [...foundation, "camp_payments", "camp_rate_limits", "camp_registrations"].sort();
+    const registrations = [...foundation, "camp_payments", "camp_rate_limits", "camp_registrations"].sort();
+    const expected = [...registrations, "camp_group_invites", "camp_group_members", "camp_groups"].sort();
     await apply();
     expect(await tables()).toEqual(expected);
 
+    await down("0006_camp_groups");
+    expect(await tables()).toEqual(registrations);
     await down("0005_camp_registrations");
     expect(await tables()).toEqual(foundation);
     await down("0004_camp_foundation");

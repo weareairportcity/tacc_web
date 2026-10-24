@@ -17,8 +17,8 @@ export function campSecret() {
   return secret;
 }
 
-export function generateCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
+export function generateCode(length = CODE_LENGTH): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
 }
 
@@ -31,6 +31,15 @@ export function normalizeCode(raw: string): string {
 
 /** "ABCDEFGH" → "ABCD-EFGH", easier to read out and copy. */
 export const formatCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
+
+/**
+ * Roommate group codes: 6 characters (32^6 ≈ 10^9), shared openly between
+ * friends, so stored as they are. Joining is rate-limited.
+ */
+export const GROUP_CODE_LENGTH = 6;
+export const generateGroupCode = () => generateCode(GROUP_CODE_LENGTH);
+/** "7K4F2Q" → "7K4-F2Q" */
+export const formatGroupCode = (code: string) => `${code.slice(0, 3)}-${code.slice(3)}`;
 
 export function hashCode(code: string): string {
   return createHmac("sha256", campSecret()).update(`camp-code.${normalizeCode(code)}`).digest("hex");
