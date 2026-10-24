@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCode, hashCode } from "@/lib/camp/codes";
@@ -20,6 +19,7 @@ import {
   setLocked,
 } from "@/lib/camp/groups";
 import { findByCode, register, resetCode } from "@/lib/camp/registrations";
+import { campOrigin as origin } from "@/lib/camp/origin";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
 import { CampError, type PaymentStatus, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { sendSMS } from "@/lib/mnotify";
@@ -54,12 +54,6 @@ async function limit(key: string, max: number, windowMs: number) {
   if (!(await allow(key, max, windowMs))) throw new CampError("Too many attempts. Please wait a few minutes and try again.");
 }
 
-async function origin() {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 const codeText = (campName: string, code: string, url: string) =>
   `TACC ${campName}: your camp sign-in code is ${formatCode(code)}. Keep it private. Sign in at ${url}`;

@@ -8,9 +8,11 @@ import { TEST_PAYSTACK_PORT, TEST_PAYSTACK_SECRET, TEST_WORKER_URL } from "./con
  * before the customer pays); tests then decide what verify answers.
  */
 
-type Transaction = { reference: string; amount: number; currency: string; email: string; status: string };
+type Transaction = { reference: string; amount: number; currency: string; email: string; status: string; created_at: string };
 
 export const transactions = new Map<string, Transaction>();
+/** Texts the Worker sent through the fake mNotify (/mnotify/sms/quick). */
+export const smsSent: { recipient: string[]; message: string }[] = [];
 let failInitialize = false;
 
 export function setTransaction(reference: string, patch: Partial<Transaction>) {
@@ -35,6 +37,11 @@ export function startFakePaystack(): Promise<Server> {
         res.writeHead(status, { "Content-Type": "application/json" });
         res.end(JSON.stringify(data));
       };
+      if (req.method === "POST" && req.url?.startsWith("/mnotify/sms/quick")) {
+        const { recipient, message } = JSON.parse(body);
+        smsSent.push({ recipient, message });
+        return send(200, { status: "success" });
+      }
       if (req.headers.authorization !== `Bearer ${TEST_PAYSTACK_SECRET}`) return send(401, { status: false });
 
       if (req.method === "POST" && req.url === "/transaction/initialize") {
@@ -46,6 +53,7 @@ export function startFakePaystack(): Promise<Server> {
           currency: input.currency,
           email: input.email,
           status: "abandoned",
+          created_at: new Date().toISOString(),
         });
         return send(200, {
           status: true,
@@ -59,6 +67,21 @@ export function startFakePaystack(): Promise<Server> {
         return send(200, {
           status: true,
           data: { ...tx, paid_at: tx.status === "success" ? new Date().toISOString() : null },
+        });
+      }
+      // List transactions in a date range, a page at a time, like Paystack's GET /transaction.
+      if (req.method === "GET" && req.url?.startsWith("/transaction?")) {
+        const q = new URL(req.url, "http://fake").searchParams;
+        const perPage = Number(q.get("perPage") ?? 50);
+        const page = Number(q.get("page") ?? 1);
+        const inRange = [...transactions.values()].filter(
+          (t) => t.created_at >= (q.get("from") ?? "") && t.created_at <= (q.get("to") ?? "~"),
+        );
+        return send(200, {
+          status: true,
+          data: inRange
+            .slice((page - 1) * perPage, page * perPage)
+            .map((t) => ({ ...t, paid_at: t.status === "success" ? t.created_at : null })),
         });
       }
       send(404, { status: false });

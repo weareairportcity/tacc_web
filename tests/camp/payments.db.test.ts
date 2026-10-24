@@ -6,7 +6,9 @@ import { checkPayment, startPayment } from "@/lib/camp/payments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { CampError } from "@/lib/camp/types";
 import { TEST_WORKER_URL } from "../setup/constants";
-import { sendWebhook, setFailInitialize, setTransaction, startFakePaystack, succeed, transactions } from "../setup/paystack";
+import { reconcileWithPaystack } from "@/lib/camp/reconciliation";
+import { TEST_ALERT_PHONE } from "../setup/constants";
+import { sendWebhook, setFailInitialize, setTransaction, smsSent, startFakePaystack, succeed, transactions } from "../setup/paystack";
 import { ACTOR, registered } from "./helpers";
 
 // Payments end to end: src/lib/camp → local Worker → fake Paystack, with
@@ -119,6 +121,17 @@ describe("webhook", () => {
     expect((await getRegistration(id))?.paid_pesewas).toBe(0);
     expect((await listPayments(id))[0]).toMatchObject({ status: "failed", flag: "amount_mismatch" });
     expect(await auditActions(await paymentId(checkout.reference))).toEqual(["payment.flagged"]);
+  });
+
+  it("texts the coordinator when an amount doesn't match", async () => {
+    const { id } = await registered();
+    const checkout = await pay(id, 30000);
+    setTransaction(checkout.reference, { status: "success", amount: 100 });
+    await sendWebhook(checkout.reference);
+    expect(smsSent.find((s) => s.message.includes(checkout.reference))).toEqual({
+      recipient: [`233${TEST_ALERT_PHONE.slice(1)}`],
+      message: `TACC camp: payment ${checkout.reference} needs a look (amount mismatch).`,
+    });
   });
 
   it("fails a payment in the wrong currency", async () => {
@@ -253,5 +266,66 @@ describe("failures", () => {
   it("needs the admin secret to start a payment", async () => {
     const res = await fetch(`${TEST_WORKER_URL}/v1/admin/camp/pay-init`, { method: "POST", body: "{}" });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("checking against Paystack", () => {
+  it("reconciles exactly when every payment matches", async () => {
+    const { camp, id } = await registered();
+    const paid = await pay(id, 20000);
+    succeed(paid.reference);
+    await sendWebhook(paid.reference);
+    await pay(id, 10000); // started, never paid: fine on both sides
+    expect(await reconcileWithPaystack(camp.id)).toEqual({ checked: 2, matched: 2, awaitingRefund: 0, problems: [], complete: true });
+  });
+
+  it("lists a payment Paystack took that was never credited here", async () => {
+    const { camp, id } = await registered();
+    const missed = await pay(id, 20000);
+    succeed(missed.reference); // no webhook, no reconcile job yet
+    const report = await reconcileWithPaystack(camp.id);
+    expect(report.problems).toEqual([
+      {
+        reference: missed.reference,
+        full_name: "Ama Mensah",
+        ours: "pending, GHS 203.98",
+        paystack: "success, GHS 203.98",
+        issue: "Paid on Paystack but not credited here.",
+      },
+    ]);
+    // Once the webhook lands it reconciles.
+    await sendWebhook(missed.reference);
+    expect((await reconcileWithPaystack(camp.id)).problems).toEqual([]);
+  });
+
+  it("counts a late over-balance payment as waiting for a refund, not a mismatch", async () => {
+    const { camp, id } = await registered();
+    const stale = await pay(id, 60000);
+    const fresh = await pay(id, 60000);
+    succeed(fresh.reference);
+    await sendWebhook(fresh.reference);
+    succeed(stale.reference);
+    await sendWebhook(stale.reference);
+    expect(await reconcileWithPaystack(camp.id)).toMatchObject({ matched: 1, awaitingRefund: 1, problems: [] });
+  });
+
+  it("lists a camp payment on Paystack that no camp here knows", async () => {
+    const { camp } = await registered();
+    const ghost = `CAMP-${"F".repeat(16)}`;
+    transactions.set(ghost, {
+      reference: ghost,
+      amount: 5000,
+      currency: "GHS",
+      email: "x@example.com",
+      status: "success",
+      created_at: new Date().toISOString(),
+    });
+    try {
+      expect((await reconcileWithPaystack(camp.id)).problems).toContainEqual(
+        expect.objectContaining({ reference: ghost, issue: "Paid on Paystack but unknown here." }),
+      );
+    } finally {
+      transactions.delete(ghost);
+    }
   });
 });

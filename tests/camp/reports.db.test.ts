@@ -77,6 +77,7 @@ describe("the dashboard", () => {
       collected: 60000 + 60000 + 20000 + 90000,
       outstanding: 40000 + 60000,
       paidByCancelled: 60000,
+      refunded: 0,
       fees: 1191,
       flagged: 0,
     });
@@ -106,6 +107,7 @@ describe("the dashboard", () => {
       { room_type_id: undefined, room_type_name: "Suite", gender: "female", registered: 1, fully_paid: 1, beds: 0, placed: 0 },
     ]);
     expect(d.allocation).toEqual({ placed: 2, waiting: 1, unmatched: 1, groups: { open: 1, locked: 0, final: 0 } });
+    expect(d.groupsTooBig).toEqual([]);
   });
 
   it("breaks counts down by fellowship, PFCC and church", async () => {

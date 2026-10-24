@@ -1,4 +1,4 @@
-import { payCheck, payInit, postReconcile } from "./camp";
+import { payCheck, payInit, paystackTransactions, postReconcile } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms, sendSms } from "./sms";
@@ -107,6 +107,8 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return payCheck(request, env);
     case "/v1/admin/camp/reconcile":
       return postReconcile(request, env);
+    case "/v1/admin/camp/paystack-transactions":
+      return paystackTransactions(request, env);
     case "/v1/admin/sms/run": {
       const { force } = await readJson<{ force?: boolean }>(request);
       return json(await runSms(env, new Date(), Boolean(force)));

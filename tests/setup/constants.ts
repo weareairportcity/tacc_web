@@ -6,4 +6,5 @@ export const WORKER_DIR = new URL("../../workers/soulwinning/", import.meta.url)
 // The local Worker calls this fake Paystack (tests/setup/paystack.ts), never the real one.
 export const TEST_PAYSTACK_PORT = 8792;
 export const TEST_PAYSTACK_SECRET = "sk_test_fake_for_local_tests";
+export const TEST_ALERT_PHONE = "0200000001";
 export const TEST_CAMP_SECRET = "camp-test-secret-at-least-32-characters-long";

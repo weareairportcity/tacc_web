@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   TEST_ADMIN_SECRET,
   TEST_PAYSTACK_PORT,
+  TEST_ALERT_PHONE,
   TEST_PAYSTACK_SECRET,
   TEST_WORKER_PORT,
   TEST_WORKER_URL,
@@ -49,6 +50,10 @@ export default async function setup() {
       `ADMIN_SECRET=${TEST_ADMIN_SECRET}`,
       `PAYSTACK_SECRET_KEY=${TEST_PAYSTACK_SECRET}`,
       `PAYSTACK_API_URL=http://127.0.0.1:${TEST_PAYSTACK_PORT}`,
+      // Coordinator alerts go to the same fake server (tests/setup/paystack.ts records them).
+      "MNOTIFY_API_KEY=fake-mnotify-key",
+      `MNOTIFY_API_URL=http://127.0.0.1:${TEST_PAYSTACK_PORT}/mnotify`,
+      `ALERT_PHONE=${TEST_ALERT_PHONE}`,
       "",
     ].join("\n"),
   );

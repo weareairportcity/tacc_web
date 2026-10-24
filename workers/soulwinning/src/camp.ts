@@ -79,9 +79,14 @@ const campIdOf = async (env: AppEnv, registrationId: string) =>
       .first<{ camp_id: string }>()
   )?.camp_id ?? null;
 
-// The registration's cached balance and status, recomputed from its payments.
-const PAID_SUM = `(SELECT COALESCE(SUM(amount_pesewas), 0) FROM camp_payments
-                   WHERE registration_id = camp_registrations.id AND status = 'success')`;
+/** What a registration has paid: successful payments minus recorded refunds (migration 0008). */
+const netPaid = (registrationId: string) =>
+  `((SELECT COALESCE(SUM(amount_pesewas), 0) FROM camp_payments
+     WHERE registration_id = ${registrationId} AND status = 'success')
+    - (SELECT COALESCE(SUM(amount_pesewas), 0) FROM camp_refunds WHERE registration_id = ${registrationId}))`;
+
+// The registration's cached balance and status, recomputed from its payments and refunds.
+const PAID_SUM = netPaid("camp_registrations.id");
 const refreshRegistration = (env: AppEnv, registrationId: string) =>
   env.APP_DB.prepare(
     `UPDATE camp_registrations SET
@@ -115,12 +120,10 @@ async function credit(env: AppEnv, p: Payment, verified: Verified, raw: string) 
   const campId = await campIdOf(env, p.registration_id);
   const [updated] = await env.APP_DB.batch([
     env.APP_DB.prepare(
-      `UPDATE camp_payments SET status = 'success', flag = NULL, paid_at = ?, checked_at = ?, raw_json = ?
-       WHERE id = ? AND status <> 'success'
-         AND amount_pesewas + (SELECT COALESCE(SUM(amount_pesewas), 0) FROM camp_payments
-                               WHERE registration_id = ? AND status = 'success')
-             <= (SELECT price_pesewas FROM camp_registrations WHERE id = ?)`,
-    ).bind(verified.paid_at ?? now, now, raw, p.id, p.registration_id, p.registration_id),
+      `UPDATE camp_payments SET status = 'success', flag = NULL, paid_at = ?2, checked_at = ?3, raw_json = ?4
+       WHERE id = ?5 AND status <> 'success'
+         AND amount_pesewas + ${netPaid("?1")} <= (SELECT price_pesewas FROM camp_registrations WHERE id = ?1)`,
+    ).bind(p.registration_id, verified.paid_at ?? now, now, raw, p.id),
     // Only when the update above changed the payment, so a repeat logs nothing.
     env.APP_DB.prepare(
       `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, after_json)
@@ -312,7 +315,40 @@ export async function reconcile(env: AppEnv, olderThanMs = RECONCILE_AFTER_MS) {
       console.error("reconcile", p.reference, err);
     }
   }
+  // Rate-limit windows are at most a day long; older counters are dead weight.
+  const pruned = await env.APP_DB.prepare("DELETE FROM camp_rate_limits WHERE window_start < ?")
+    .bind(new Date(Date.now() - 86_400_000).toISOString())
+    .run();
+  outcome.rateLimitsPruned = pruned.meta.changes ?? 0;
   return outcome;
+}
+
+/**
+ * Paystack's own list of camp transactions (references starting CAMP-) in a
+ * date range, for the coordinators' reconciliation report. Only the fields
+ * the report compares; no customer details.
+ */
+export async function paystackTransactions(request: Request, env: AppEnv) {
+  const { from, to } = await readJson<{ from?: unknown; to?: unknown }>(request);
+  const iso = (v: unknown) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
+  const range = { from: iso(from), to: iso(to) };
+  if (!range.from || !range.to) throw new HttpError(400, "from and to dates required");
+
+  type Tx = { reference: string; amount: number; currency: string; status: string; paid_at: string | null };
+  const found: Tx[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const query = new URLSearchParams({ from: range.from, to: range.to, perPage: "100", page: String(page) });
+    const res = await paystack<Tx[]>(env, `/transaction?${query}`);
+    if (!res.ok) throw new HttpError(502, `Paystack: ${res.message || "list failed"}`);
+    const rows = res.data ?? [];
+    for (const t of rows) {
+      if (t.reference?.startsWith("CAMP-")) {
+        found.push({ reference: t.reference, amount: t.amount, currency: t.currency, status: t.status, paid_at: t.paid_at ?? null });
+      }
+    }
+    if (rows.length < 100) return json({ transactions: found, complete: true });
+  }
+  return json({ transactions: found, complete: false });
 }
 
 export async function postReconcile(request: Request, env: AppEnv) {

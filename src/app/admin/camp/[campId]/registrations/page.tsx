@@ -106,7 +106,9 @@ export default async function RegistrationsPage({
               return (
                 <tr key={r.id}>
                   <td className="px-4 py-2">
-                    <div className="font-medium">{r.full_name}</div>
+                    <Link href={`/admin/camp/${camp.id}/registrations/${r.id}`} className="font-medium hover:underline">
+                      {r.full_name}
+                    </Link>
                     <div className="text-xs text-slate-500">
                       {r.phone} · {r.gender}
                     </div>

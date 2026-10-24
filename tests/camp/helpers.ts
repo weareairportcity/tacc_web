@@ -55,3 +55,32 @@ export async function paidUp(camp: Camp, roomTypeId: string, overrides: Partial<
   await query("app", "UPDATE camp_registrations SET paid_pesewas = price_pesewas, status = 'fully_paid' WHERE id = ?", [id]);
   return (await getRegistration(id))!;
 }
+
+/**
+ * Registers someone and records a real successful payment for `amount`
+ * (default: the full price), so refunds and room-type changes, which
+ * recompute paid from payments, see the money.
+ */
+export async function paidWithPayment(
+  camp: Camp,
+  roomTypeId: string,
+  overrides: Partial<RegistrationInput> = {},
+  amount?: number,
+): Promise<Registration> {
+  const { id } = await register(camp, attendee(roomTypeId, overrides));
+  const reg = (await getRegistration(id))!;
+  const paid = amount ?? reg.price_pesewas;
+  await query(
+    "app",
+    `INSERT INTO camp_payments (id, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, status)
+     VALUES (?, ?, ?, ?, 0, ?, 'success')`,
+    [crypto.randomUUID(), id, `TEST-${crypto.randomUUID()}`, paid, paid],
+  );
+  await query(
+    "app",
+    `UPDATE camp_registrations SET paid_pesewas = ?,
+       status = CASE WHEN ? >= price_pesewas THEN 'fully_paid' ELSE 'partially_paid' END WHERE id = ?`,
+    [paid, paid, id],
+  );
+  return (await getRegistration(id))!;
+}

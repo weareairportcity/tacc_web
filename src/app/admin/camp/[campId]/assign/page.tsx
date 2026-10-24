@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { getPoolBoard, listPools } from "@/lib/camp/assignments";
 import { getCamp, ID } from "@/lib/camp/camps";
+import { listRoomSmsPending } from "@/lib/camp/room-sms";
 import { formatGroupCode } from "@/lib/camp/codes";
 import { GENDERS, GROUP_STATE_LABELS, type Gender, type Pool } from "@/lib/camp/types";
 import { Card } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
-import { AssignPicker, Notices, RemoveFromRoom, type RoomOption } from "./AssignControls";
+import { AssignPicker, Notices, RemoveFromRoom, SendRoomSms, type RoomOption } from "./AssignControls";
 
 const poolKey = (p: Pick<Pool, "room_type_id" | "gender">) => `${p.room_type_id}.${p.gender}`;
 const poolName = (p: Pool) => `${p.gender === "male" ? "Men" : "Women"} · ${p.room_type_name}`;
@@ -18,6 +19,9 @@ const STATE_STYLES = {
   locked: "bg-amber-50 text-amber-700",
   final: "bg-slate-100 text-slate-600",
 } as const;
+
+// Texting rooms sends one mNotify request per room, a few at a time.
+export const maxDuration = 60;
 
 /** One pool (gender and room type) at a time: everyone in it can share any of its rooms. */
 export default async function AssignPage({
@@ -31,7 +35,7 @@ export default async function AssignPage({
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
-  const [camp, pools] = await Promise.all([getCamp(campId), listPools(campId)]);
+  const [camp, pools, smsPending] = await Promise.all([getCamp(campId), listPools(campId), listRoomSmsPending(campId)]);
   if (!camp) notFound();
 
   const { pool: wanted } = await searchParams;
@@ -82,6 +86,8 @@ export default async function AssignPage({
           ))}
         </div>
       )}
+
+      {pools.length > 0 && <SendRoomSms campId={camp.id} pending={smsPending.length} />}
 
       {pool && board && (
         // Keyed by pool, so a warning from one pool isn't left showing on another.

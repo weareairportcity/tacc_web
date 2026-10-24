@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { ErrorText, buttonClass, inputClass } from "@/components/camp/ui";
-import { assignGroupAction, assignPersonAction, unassignAction } from "../../actions";
+import { assignGroupAction, assignPersonAction, sendRoomSmsAction, unassignAction } from "../../actions";
 
 /**
  * The last assignment's warning (a partly filled room, an open group). Kept
@@ -129,5 +129,56 @@ export function RemoveFromRoom({ registrationId, name }: { registrationId: strin
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
+  );
+}
+
+/** Two clicks: each press costs one SMS per person. Shows what was sent and what's left. */
+export function SendRoomSms({ campId, pending }: { campId: string; pending: number }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
+  const [busy, startTransition] = useTransition();
+
+  const click = () => {
+    if (!confirming) return setConfirming(true);
+    setConfirming(false);
+    setError("");
+    setResult("");
+    startTransition(async () => {
+      const r = await sendRoomSmsAction(campId);
+      if (!r.ok) return setError(r.error);
+      const { sent, failedRooms, remaining } = r.data;
+      setResult(
+        `Texted ${sent} ${sent === 1 ? "person" : "people"}.` +
+          (failedRooms ? ` ${failedRooms} room(s) failed; press again to retry.` : "") +
+          (remaining ? ` ${remaining} still to text: press again.` : ""),
+      );
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+      <span className="flex-1 text-slate-600">
+        {pending
+          ? `${pending} placed ${pending === 1 ? "person hasn't" : "people haven't"} been texted their room yet.`
+          : "Everyone placed has been texted their room."}
+      </span>
+      {pending > 0 && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={click}
+          onBlur={() => setConfirming(false)}
+          className={confirming ? "rounded-lg bg-red-600 px-3 py-1.5 font-medium text-white" : `${buttonClass} py-1.5`}
+        >
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+          {confirming ? `Send ${Math.min(pending, 250)} texts?` : "Text everyone their room"}
+        </button>
+      )}
+      {result && <p className="w-full text-emerald-700">{result}</p>}
+      <ErrorText>{error}</ErrorText>
+    </div>
   );
 }

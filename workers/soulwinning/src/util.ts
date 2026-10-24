@@ -3,6 +3,8 @@ export type AppEnv = Env & {
   PHOTO_SIGNING_SECRET: string;
   MNOTIFY_API_KEY?: string;
   MNOTIFY_SENDER_ID?: string;
+  /** Tests point this at a fake; production uses mNotify's API. */
+  MNOTIFY_API_URL?: string;
   ALERT_PHONE?: string;
   PAYSTACK_SECRET_KEY?: string;
   /** Tests point this at a fake Paystack. */

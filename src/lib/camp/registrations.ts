@@ -1,10 +1,10 @@
 import { batch, query } from "@/lib/cf";
 import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
-import { roomStatementsForCancel } from "./assignments";
+import { roomStatementsForRemoval } from "./assignments";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { generateCode, hashCode, normalizeCode, CODE_LENGTH } from "./codes";
-import { groupStatementsForCancel } from "./groups";
+import { groupStatementsForRemoval } from "./groups";
 import { listRoomTypes } from "./rooms";
 import {
   CampError,
@@ -205,7 +205,7 @@ export async function cancelRegistration(actor: string, id: string): Promise<{ w
   const before = await getRegistration(id);
   if (!before) throw new CampError("Unknown registration.");
   if (before.status === "cancelled") throw new CampError("This registration is already cancelled.");
-  const group = await groupStatementsForCancel(actor, before);
+  const group = await groupStatementsForRemoval(actor, before, "registration cancelled");
   await batch("app", [
     { sql: "UPDATE camp_registrations SET status = 'cancelled' WHERE id = ? AND status <> 'cancelled'", params: [id] },
     auditStatement({
@@ -219,7 +219,7 @@ export async function cancelRegistration(actor: string, id: string): Promise<{ w
     }),
     // After the status change: the group trigger lets a cancelled person go even from a locked group.
     ...group.statements,
-    ...roomStatementsForCancel(actor, before),
+    ...roomStatementsForRemoval(actor, before, "registration cancelled"),
   ]);
   return { warning: group.warning };
 }

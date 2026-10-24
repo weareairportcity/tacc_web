@@ -27,7 +27,7 @@ export async function sendSms(env: AppEnv, to: string, message: string) {
   if (!env.MNOTIFY_API_KEY) return false;
   try {
     const res = await fetch(
-      `https://api.mnotify.com/api/sms/quick?key=${encodeURIComponent(env.MNOTIFY_API_KEY)}`,
+      `${env.MNOTIFY_API_URL ?? "https://api.mnotify.com/api"}/sms/quick?key=${encodeURIComponent(env.MNOTIFY_API_KEY)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

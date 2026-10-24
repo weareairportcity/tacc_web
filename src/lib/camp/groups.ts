@@ -471,12 +471,13 @@ export async function declineInvite(me: Registration, inviteId: string) {
 // ─── Cancellation ────────────────────────────────────────────────────────────
 
 /**
- * For cancelRegistration: takes the person out of their group (locked or not;
- * the trigger allows it once the registration is cancelled) and closes their
- * invites. Run after the status update, in the same batch. Returns a warning
- * for the coordinator when a locked or final group lost a member.
+ * For a coordinator's cancellation or room-type change: takes the person out
+ * of their group (locked or not; the trigger allows it once the registration
+ * is cancelled or no longer matches the group's room type) and closes their
+ * invites. Run after the registration update, in the same batch. Returns a
+ * warning when a locked or final group lost a member.
  */
-export async function groupStatementsForCancel(actor: string, registration: Registration) {
+export async function groupStatementsForRemoval(actor: string, registration: Registration, reason: string) {
   const group = await getGroupFor(registration.id);
   const statements: { sql: string; params: unknown[] }[] = [
     {
@@ -493,7 +494,7 @@ export async function groupStatementsForCancel(actor: string, registration: Regi
       action: "group.remove",
       entity: "group",
       entityId: group.id,
-      before: { registration_id: registration.id, reason: "registration cancelled" },
+      before: { registration_id: registration.id, reason },
       ifChanged: true,
     }),
     ...afterLeaving(group.id, registration.id),

@@ -276,7 +276,18 @@ export type Breakdown = {
 export type Dashboard = {
   status: Record<RegistrationStatus, number>;
   pastDue: number;
-  money: { expected: number; collected: number; outstanding: number; paidByCancelled: number; fees: number; flagged: number };
+  money: {
+    expected: number;
+    collected: number;
+    outstanding: number;
+    /** Still held for cancelled registrations: refund it in Paystack, then record it. */
+    paidByCancelled: number;
+    refunded: number;
+    fees: number;
+    flagged: number;
+  };
+  /** Groups whose unplaced members need more beds together than any room in their pool has free. */
+  groupsTooBig: { code: string; room_type_name: string; gender: Gender; needs: number; most_free: number }[];
   supply: SupplyRow[];
   allocation: { placed: number; waiting: number; unmatched: number; groups: Record<GroupState, number> };
   byFellowship: Breakdown[];
@@ -293,7 +304,7 @@ const BREAKDOWN = (column: "fellowship" | "pfcc" | "church") =>
 
 export async function getDashboard(campId: string, today = todayInGhana()): Promise<Dashboard> {
   checkId(campId, "camp");
-  const [statusRows, [money], supply, [allocation], groupRows, byFellowship, byPfcc, byChurch, activity] =
+  const [statusRows, [money], supply, [allocation], groupRows, byFellowship, byPfcc, byChurch, activity, tooBig] =
     await Promise.all([
       query<{ status: RegistrationStatus; n: number }>(
         "app",
@@ -311,6 +322,8 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
               WHERE q.camp_id = ?1 AND p.status = 'success') AS fees,
            (SELECT COUNT(*) FROM camp_payments p JOIN camp_registrations q ON q.id = p.registration_id
               WHERE q.camp_id = ?1 AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
+           (SELECT COALESCE(SUM(f.amount_pesewas), 0) FROM camp_refunds f JOIN camp_registrations q ON q.id = f.registration_id
+              WHERE q.camp_id = ?1) AS refunded,
            COALESCE(SUM(r.status <> 'cancelled' AND r.paid_pesewas < r.price_pesewas AND ?2 > c.payment_due_on), 0) AS past_due
          FROM camps c LEFT JOIN camp_registrations r ON r.camp_id = c.id WHERE c.id = ?1`,
         [campId, today],
@@ -358,6 +371,23 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
         "SELECT id, created_at, actor, action, entity, entity_id FROM camp_audit_log WHERE camp_id = ? ORDER BY id DESC LIMIT 20",
         [campId],
       ),
+      query<Dashboard["groupsTooBig"][number]>(
+        "app",
+        `WITH waiting AS (
+           SELECT g.id, g.code, g.room_type_id, g.gender, COUNT(*) AS needs
+           FROM camp_groups g JOIN camp_group_members m ON m.group_id = g.id
+           WHERE g.camp_id = ?1
+             AND NOT EXISTS (SELECT 1 FROM camp_room_assignments a WHERE a.registration_id = m.registration_id)
+           GROUP BY g.id)
+         SELECT w.code, t.name AS room_type_name, w.gender, w.needs,
+           COALESCE((SELECT MAX(x.capacity - (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = x.id))
+                     FROM camp_rooms x WHERE x.camp_id = ?1 AND x.room_type_id = w.room_type_id AND x.gender = w.gender), 0) AS most_free
+         FROM waiting w JOIN camp_room_types t ON t.id = w.room_type_id
+         WHERE w.needs > COALESCE((SELECT MAX(x.capacity - (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = x.id))
+                                   FROM camp_rooms x WHERE x.camp_id = ?1 AND x.room_type_id = w.room_type_id AND x.gender = w.gender), 0)
+         ORDER BY t.price_pesewas, w.code`,
+        [campId],
+      ),
     ]);
 
   const status = Object.fromEntries(REGISTRATION_STATUSES.map((s) => [s, 0])) as Record<RegistrationStatus, number>;
@@ -372,6 +402,7 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
     money: moneyTotals,
     supply,
     allocation: { ...allocation, groups },
+    groupsTooBig: tooBig,
     byFellowship,
     byPfcc,
     byChurch,

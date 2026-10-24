@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AlertTriangle, ArrowLeft, BedDouble, DoorOpen, Settings, Users } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
+import { formatGroupCode } from "@/lib/camp/codes";
 import { formatCedis } from "@/lib/camp/money";
 import { getDashboard, type Breakdown } from "@/lib/camp/reports";
 import { GROUP_STATE_LABELS, REGISTRATION_STATUSES, REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
@@ -136,8 +137,14 @@ export default async function CampDashboard({ params }: { params: Promise<{ camp
           <div className="mt-3 space-y-1 text-xs text-slate-500">
             <p>{percent}% of expected. Fees attendees paid to Paystack: {formatCedis(d.money.fees)} (not counted above).</p>
             {d.money.paidByCancelled > 0 && (
-              <p>Paid by cancelled registrations (refund in Paystack): {formatCedis(d.money.paidByCancelled)}</p>
+              <p className="text-amber-700">
+                Still to refund to cancelled registrations: {formatCedis(d.money.paidByCancelled)}
+              </p>
             )}
+            {d.money.refunded > 0 && <p>Refunded so far: {formatCedis(d.money.refunded)}</p>}
+            <Link href={`/admin/camp/${camp.id}/reconcile`} className="inline-block text-slate-700 underline-offset-2 hover:underline">
+              Check against Paystack
+            </Link>
             {d.money.flagged > 0 && (
               <Link href={people} className="flex items-center gap-1 text-amber-700 hover:underline">
                 <AlertTriangle className="h-3 w-3" /> {d.money.flagged} payment(s) to look at
@@ -187,6 +194,17 @@ export default async function CampDashboard({ params }: { params: Promise<{ camp
           </div>
         )}
       </Card>
+
+      {d.groupsTooBig.length > 0 && (
+        <div className="space-y-1 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {d.groupsTooBig.map((g) => (
+            <p key={g.code} className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" /> Group {formatGroupCode(g.code)} ({g.gender === "male" ? "men" : "women"},{" "}
+              {g.room_type_name}) needs {g.needs} beds together; the most free in one room is {g.most_free}.
+            </p>
+          ))}
+        </div>
+      )}
 
       <Card title="Allocation">
         <dl className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-6">

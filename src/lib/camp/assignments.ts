@@ -211,8 +211,8 @@ export async function unassign(actor: string, registrationId: string) {
   ]);
 }
 
-/** For cancelRegistration: frees the person's bed, in the same batch. */
-export function roomStatementsForCancel(actor: string, registration: Registration) {
+/** For a cancellation or room-type change: frees the person's bed, in the same batch. */
+export function roomStatementsForRemoval(actor: string, registration: Registration, reason: string) {
   return [
     {
       sql: "DELETE FROM camp_room_assignments WHERE registration_id = ? RETURNING room_id",
@@ -224,7 +224,7 @@ export function roomStatementsForCancel(actor: string, registration: Registratio
       action: "room.unassign",
       entity: "registration",
       entityId: registration.id,
-      before: { reason: "registration cancelled" },
+      before: { reason },
       ifChanged: true,
     }),
   ];

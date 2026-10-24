@@ -17,17 +17,20 @@ function formatGhanaPhone(phone: string): string {
   return '233' + digits; // assume missing leading 0
 }
 
-export async function sendSMS(recipient: string, message: string) {
+/** One message to one number, or the same message to several (one mNotify request). */
+export async function sendSMS(recipient: string | string[], message: string) {
   if (!MNOTIFY_API_KEY) {
     console.warn('mNotify API key is not set. Skipping SMS sending.');
     return false;
   }
 
-  const formattedPhone = formatGhanaPhone(recipient);
+  const recipients = (Array.isArray(recipient) ? recipient : [recipient]).map(formatGhanaPhone);
+  // Logged without the full number: Vercel logs aren't the place for phone numbers.
+  const formattedPhone = recipients.length === 1 ? `…${recipients[0].slice(-3)}` : `${recipients.length} recipients`;
   const url = `https://api.mnotify.com/api/sms/quick?key=${MNOTIFY_API_KEY}`;
 
   const payload = {
-    recipient: [formattedPhone], // mNotify expects an array
+    recipient: recipients, // mNotify expects an array
     sender: MNOTIFY_SENDER_ID,
     message: message,
     is_schedule: 'false',

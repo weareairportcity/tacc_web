@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCampRole } from "@/lib/camp/auth";
-import { createCamp, updateCamp } from "@/lib/camp/camps";
+import { createCamp, getCamp, updateCamp } from "@/lib/camp/camps";
 import type { CsvError } from "@/lib/camp/csv";
 import { cedisToPesewas } from "@/lib/camp/money";
 import {
@@ -14,8 +14,11 @@ import {
   updateRoom,
   updateRoomType,
 } from "@/lib/camp/rooms";
+import { changeRoomType, recordRefund } from "@/lib/camp/adjustments";
 import { assignGroup, assignPerson, unassign } from "@/lib/camp/assignments";
 import { cancelRegistration } from "@/lib/camp/registrations";
+import { campOrigin } from "@/lib/camp/origin";
+import { sendRoomSms } from "@/lib/camp/room-sms";
 import { removeStaff, saveStaff } from "@/lib/camp/staff";
 import { CampError, type CampInput, type RoomInput, type Staff } from "@/lib/camp/types";
 
@@ -117,6 +120,29 @@ export async function cancelRegistrationAction(id: string) {
   });
 }
 
+// Each returns a warning for the coordinator, or null.
+
+export async function recordRefundAction(registrationId: string, amountCedis: string, reference: string, note: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    const amount = cedisToPesewas(String(amountCedis));
+    return (
+      await recordRefund(staff.email, String(registrationId), {
+        amount_pesewas: amount,
+        reference: String(reference),
+        note: String(note),
+      })
+    ).warning;
+  });
+}
+
+export async function changeRoomTypeAction(registrationId: string, roomTypeId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    return (await changeRoomType(staff.email, String(registrationId), String(roomTypeId))).warning;
+  });
+}
+
 // ─── Room assignment ─────────────────────────────────────────────────────────
 // Each returns a warning (a partly filled room, an open group) or null.
 
@@ -131,6 +157,16 @@ export async function assignGroupAction(roomId: string, groupId: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     return (await assignGroup(staff.email, String(roomId), String(groupId))).warning;
+  });
+}
+
+/** Texts placed people their room (those not yet told, up to MAX_PER_SEND per press). */
+export async function sendRoomSmsAction(campId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    return sendRoomSms(staff.email, camp, await campOrigin());
   });
 }
 
