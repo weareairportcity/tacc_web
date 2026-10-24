@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BedDouble, Users } from "lucide-react";
+import { ArrowLeft, BedDouble, Users, DoorOpen } from "lucide-react";
 import { query } from "@/lib/cf";
 import type { AuditEntry } from "@/lib/camp/audit";
 import { getCamp, ID } from "@/lib/camp/camps";
@@ -52,6 +52,9 @@ export default async function CampPage({ params }: { params: Promise<{ campId: s
             </Link>
             <Link href={`/admin/camp/${camp.id}/rooms`} className={secondaryButtonClass}>
               <BedDouble className="h-4 w-4" /> Rooms ({rooms})
+            </Link>
+            <Link href={`/admin/camp/${camp.id}/assign`} className={secondaryButtonClass}>
+              <DoorOpen className="h-4 w-4" /> Assign rooms
             </Link>
           </div>
         </div>

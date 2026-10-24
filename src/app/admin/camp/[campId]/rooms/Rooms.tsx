@@ -163,6 +163,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
                     <th className="py-2 pr-3 font-medium">Room</th>
                     <th className="py-2 pr-3 font-medium">Type</th>
                     <th className="py-2 pr-3 font-medium">Gender</th>
+                    <th className="py-2 pr-3 text-right font-medium">In room</th>
                     <th className="py-2 pr-3 text-right font-medium">Beds</th>
                     <th className="py-2" />
                   </tr>
@@ -173,6 +174,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
                       <td className="py-2 pr-3 font-medium">{room.label}</td>
                       <td className="py-2 pr-3">{room.room_type_name}</td>
                       <td className="py-2 pr-3 capitalize">{room.gender}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{room.occupied}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{room.capacity}</td>
                       <td className="py-2 text-right whitespace-nowrap">
                         <button
@@ -201,7 +203,11 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
                           onClick={() => remove(room)}
                           onBlur={() => setConfirming(null)}
                         >
-                          {confirming === room.id ? "Delete?" : <Trash2 className="h-4 w-4" />}
+                          {confirming === room.id ? (
+                            room.occupied ? `Delete? ${room.occupied} go back to Unassigned` : "Delete?"
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </button>
                       </td>
                     </tr>

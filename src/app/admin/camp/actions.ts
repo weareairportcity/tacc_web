@@ -14,6 +14,7 @@ import {
   updateRoom,
   updateRoomType,
 } from "@/lib/camp/rooms";
+import { assignGroup, assignPerson, unassign } from "@/lib/camp/assignments";
 import { cancelRegistration } from "@/lib/camp/registrations";
 import { removeStaff, saveStaff } from "@/lib/camp/staff";
 import { CampError, type CampInput, type RoomInput, type Staff } from "@/lib/camp/types";
@@ -113,6 +114,31 @@ export async function cancelRegistrationAction(id: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     return (await cancelRegistration(staff.email, id)).warning;
+  });
+}
+
+// ─── Room assignment ─────────────────────────────────────────────────────────
+// Each returns a warning (a partly filled room, an open group) or null.
+
+export async function assignPersonAction(roomId: string, registrationId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    return (await assignPerson(staff.email, String(roomId), String(registrationId))).warning;
+  });
+}
+
+export async function assignGroupAction(roomId: string, groupId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    return (await assignGroup(staff.email, String(roomId), String(groupId))).warning;
+  });
+}
+
+export async function unassignAction(registrationId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await unassign(staff.email, String(registrationId));
+    return null;
   });
 }
 

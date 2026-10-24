@@ -67,6 +67,7 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
               <th className="px-4 py-2 font-medium">Room type</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Group</th>
+              <th className="px-4 py-2 font-medium">Room</th>
               <th className="px-4 py-2 text-right font-medium">Paid</th>
               <th className="px-4 py-2 text-right font-medium">Balance</th>
               <th className="px-4 py-2" />
@@ -75,7 +76,7 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
           <tbody className="divide-y divide-slate-100">
             {registrations.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-slate-500">
                   No registrations yet.
                 </td>
               </tr>
@@ -102,14 +103,15 @@ export default async function RegistrationsPage({ params }: { params: Promise<{ 
                   </td>
                   <td className="px-4 py-2">
                     {r.group_code && r.group_state ? (
-                      <>
+                      <span className="whitespace-nowrap">
                         <span className="font-mono text-xs">{formatGroupCode(r.group_code)}</span>
                         <span className="ml-2 text-xs text-slate-500">{GROUP_STATE_LABELS[r.group_state]}</span>
-                      </>
+                      </span>
                     ) : r.status === "fully_paid" ? (
                       <span className="text-xs text-slate-500">Unmatched</span>
                     ) : null}
                   </td>
+                  <td className="px-4 py-2">{r.room_label ?? ""}</td>
                   <td className="px-4 py-2 text-right">{formatCedis(r.paid_pesewas)}</td>
                   <td className="px-4 py-2 text-right">{formatCedis(balance)}</td>
                   <td className="px-4 py-2 text-right">

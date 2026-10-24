@@ -1,7 +1,8 @@
+import { query } from "@/lib/cf";
 import { createCamp, getCamp } from "@/lib/camp/camps";
-import { register } from "@/lib/camp/registrations";
+import { getRegistration, register } from "@/lib/camp/registrations";
 import { createRoomType } from "@/lib/camp/rooms";
-import type { CampInput, RegistrationInput } from "@/lib/camp/types";
+import type { Camp, CampInput, Registration, RegistrationInput } from "@/lib/camp/types";
 
 export const ACTOR = "coordinator@test.local";
 
@@ -46,4 +47,11 @@ export async function registered(overrides: Partial<RegistrationInput> = {}) {
   const { camp, roomTypeId } = await openCamp();
   const { id, code } = await register(camp, attendee(roomTypeId, overrides));
   return { camp, roomTypeId, id, code };
+}
+
+/** Registers someone and marks them Fully Paid directly (payments have their own tests). */
+export async function paidUp(camp: Camp, roomTypeId: string, overrides: Partial<RegistrationInput> = {}): Promise<Registration> {
+  const { id } = await register(camp, attendee(roomTypeId, overrides));
+  await query("app", "UPDATE camp_registrations SET paid_pesewas = price_pesewas, status = 'fully_paid' WHERE id = ?", [id]);
+  return (await getRegistration(id))!;
 }

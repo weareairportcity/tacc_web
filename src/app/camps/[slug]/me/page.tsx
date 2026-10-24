@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Users } from "lucide-react";
+import { BedDouble, Users } from "lucide-react";
+import { getMyRoom } from "@/lib/camp/assignments";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { getGroupFor, listReceivedInvites } from "@/lib/camp/groups";
 import { formatCedis } from "@/lib/camp/money";
@@ -21,10 +22,11 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
   if (!me) redirect(`/camps/${camp.slug}`);
 
   const fullyPaid = me.status === "fully_paid";
-  const [payments, group, invites] = await Promise.all([
+  const [payments, group, invites, room] = await Promise.all([
     listPayments(me.id),
     fullyPaid ? getGroupFor(me.id) : null,
     fullyPaid ? listReceivedInvites(me) : [],
+    fullyPaid ? getMyRoom(me.id) : null,
   ]);
   const balance = me.price_pesewas - me.paid_pesewas;
   const pending = payments.find((p) => p.status === "pending");
@@ -85,6 +87,24 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
             </p>
           ) : null}
           <PayForm slug={camp.slug} balance={balance} feeBps={camp.fee_bps} dueOn={formatDate(camp.payment_due_on)} />
+        </Card>
+      )}
+
+      {fullyPaid && (
+        <Card title="Your room">
+          {room ? (
+            <div className="space-y-1 text-sm">
+              <p className="flex items-center gap-2 text-base font-semibold">
+                <BedDouble className="h-5 w-5 text-emerald-700" /> {room.label}
+              </p>
+              <p className="text-slate-600">
+                {room.room_type_name}
+                {room.roommates.length > 0 && ` · with ${room.roommates.join(", ")}`}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">Awaiting room assignment. A coordinator will place you before camp.</p>
+          )}
         </Card>
       )}
 

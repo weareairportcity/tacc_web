@@ -37,6 +37,10 @@ The plaintext `phone_number` column on Supabase `attendees` is still unchecked, 
 | 13 | Owner lock | The owner can lock and unlock their group until the deadline. |
 | 14 | Group codes | 6 characters from the sign-in code alphabet, shown as `7K4-F2Q`. Joining is rate-limited. |
 | 15 | Invite name search | Shows name and fellowship only, and only people who could join (same camp, room type and gender, Fully Paid, in no group). |
+| 16 | Assigning open groups | Allowed, with a warning that members may change. Later group changes don't move anyone between rooms. |
+| 17 | Occupied rooms | Can't drop below their occupants or change gender or room type until emptied. Deleting a room returns its occupants to Unassigned. |
+| 18 | Attendee room view | Room label, room type and the first names of the people sharing it. "Awaiting room assignment" until then. |
+| 19 | Room SMS | None yet; a "send everyone their room" message belongs in Phase 7. |
 
 ## Stack
 

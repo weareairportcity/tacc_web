@@ -1,5 +1,6 @@
 import { batch, query } from "@/lib/cf";
 import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
+import { roomStatementsForCancel } from "./assignments";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { generateCode, hashCode, normalizeCode, CODE_LENGTH } from "./codes";
@@ -186,6 +187,7 @@ export type RegistrationRow = Registration & {
   flagged: number;
   group_code: string | null;
   group_state: GroupState | null;
+  room_label: string | null;
 };
 
 /** Coordinator list. `flagged` counts payments a coordinator should look at. */
@@ -195,10 +197,13 @@ export async function listRegistrations(campId: string): Promise<RegistrationRow
     `SELECT ${COLUMNS},
        (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = r.id
           AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
-       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline
+       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline,
+       x.label AS room_label
      ${FROM} JOIN camps c ON c.id = r.camp_id
      LEFT JOIN camp_group_members m ON m.registration_id = r.id
      LEFT JOIN camp_groups g ON g.id = m.group_id
+     LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
+     LEFT JOIN camp_rooms x ON x.id = a.room_id
      WHERE r.camp_id = ? ORDER BY r.created_at DESC`,
     [checkId(campId, "camp")],
   );
@@ -224,8 +229,8 @@ export async function listFlaggedPayments(campId: string): Promise<FlaggedPaymen
 
 /**
  * Coordinator-only. Payments stay as they are; refunds happen in Paystack.
- * Also takes the person out of their roommate group. Returns a warning when
- * that group was already locked.
+ * Also takes the person out of their roommate group and their room. Returns a
+ * warning when that group was already locked.
  */
 export async function cancelRegistration(actor: string, id: string): Promise<{ warning: string | null }> {
   const before = await getRegistration(id);
@@ -245,6 +250,7 @@ export async function cancelRegistration(actor: string, id: string): Promise<{ w
     }),
     // After the status change: the group trigger lets a cancelled person go even from a locked group.
     ...group.statements,
+    ...roomStatementsForCancel(actor, before),
   ]);
   return { warning: group.warning };
 }

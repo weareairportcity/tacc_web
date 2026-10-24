@@ -109,7 +109,8 @@ export async function deleteRoomType(actor: string, id: string) {
 
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 
-const ROOM_SELECT = `SELECT r.id, r.camp_id, r.room_type_id, t.name AS room_type_name, r.label, r.gender, r.capacity
+const ROOM_SELECT = `SELECT r.id, r.camp_id, r.room_type_id, t.name AS room_type_name, r.label, r.gender, r.capacity,
+    (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = r.id) AS occupied
   FROM camp_rooms r JOIN camp_room_types t ON t.id = r.room_type_id`;
 
 export async function listRooms(campId: string): Promise<Room[]> {
@@ -162,13 +163,22 @@ export async function createRoom(actor: string, campId: string, raw: RoomInput):
   return id;
 }
 
-// Phase 4 adds the occupancy rules: capacity can't drop below the people
-// assigned, and deleting a room returns its occupants to Unassigned.
-
+/**
+ * An occupied room can't drop below the people in it, or change gender or
+ * type (migration 0007's triggers hold both if two saves race).
+ */
 export async function updateRoom(actor: string, id: string, raw: RoomInput) {
   const before = await getRoom(id);
   if (!before) throw new CampError("Unknown room.");
   const input = await validateRoom(before.camp_id, raw, id);
+  if (input.capacity < before.occupied) {
+    throw new CampError(
+      `${before.label} has ${before.occupied} people in it. Remove some before reducing it to ${input.capacity} beds.`,
+    );
+  }
+  if (before.occupied > 0 && (input.gender !== before.gender || input.room_type_id !== before.room_type_id)) {
+    throw new CampError(`${before.label} has people in it. Empty it before changing its gender or room type.`);
+  }
   await batch("app", [
     {
       sql: "UPDATE camp_rooms SET room_type_id = ?, label = ?, gender = ?, capacity = ? WHERE id = ?",
@@ -178,13 +188,28 @@ export async function updateRoom(actor: string, id: string, raw: RoomInput) {
   ]);
 }
 
+/** Its occupants go back to Unassigned (the placements cascade); the audit entry names them. */
 export async function deleteRoom(actor: string, id: string) {
   const before = await getRoom(id);
   if (!before) throw new CampError("Unknown room.");
+  const occupants = await query<{ registration_id: string; full_name: string }>(
+    "app",
+    `SELECT a.registration_id, r.full_name FROM camp_room_assignments a
+     JOIN camp_registrations r ON r.id = a.registration_id WHERE a.room_id = ?`,
+    [id],
+  );
   await batch("app", [
     { sql: "DELETE FROM camp_rooms WHERE id = ?", params: [id] },
-    auditStatement({ actor, campId: before.camp_id, action: "room.delete", entity: "room", entityId: id, before }),
+    auditStatement({
+      actor,
+      campId: before.camp_id,
+      action: "room.delete",
+      entity: "room",
+      entityId: id,
+      before: { ...before, occupants },
+    }),
   ]);
+  return { unassigned: occupants.length };
 }
 
 /**

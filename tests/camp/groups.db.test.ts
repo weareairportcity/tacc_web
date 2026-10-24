@@ -18,18 +18,11 @@ import {
 } from "@/lib/camp/groups";
 import { cancelRegistration, getRegistration, register } from "@/lib/camp/registrations";
 import { createRoomType } from "@/lib/camp/rooms";
-import type { Camp, Registration, RegistrationInput } from "@/lib/camp/types";
-import { ACTOR, attendee, openCamp } from "./helpers";
+import type { Camp, Registration } from "@/lib/camp/types";
+import { ACTOR, attendee, openCamp, paidUp } from "./helpers";
 
 // Roommate groups end to end: src/lib/camp/groups.ts → local Worker → D1,
 // including the triggers that hold the rules when the code is bypassed.
-
-/** Registers someone and marks them Fully Paid directly (payments are Phase 2's tests). */
-async function paidUp(camp: Camp, roomTypeId: string, overrides: Partial<RegistrationInput> = {}): Promise<Registration> {
-  const { id } = await register(camp, attendee(roomTypeId, overrides));
-  await query("app", "UPDATE camp_registrations SET paid_pesewas = price_pesewas, status = 'fully_paid' WHERE id = ?", [id]);
-  return (await getRegistration(id))!;
-}
 
 /** A camp with a four-bed room type and `n` Fully Paid women for it. */
 async function campWith(n: number) {

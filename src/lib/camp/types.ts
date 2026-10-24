@@ -47,6 +47,8 @@ export type Room = {
   label: string;
   gender: Gender;
   capacity: number;
+  /** People placed in it. */
+  occupied: number;
 };
 
 export type RoomInput = Pick<Room, "room_type_id" | "label" | "gender" | "capacity">;
@@ -173,3 +175,35 @@ export type Invitee = {
   fellowship: string;
   invited: number;
 };
+
+export type Occupant = {
+  registration_id: string;
+  full_name: string;
+  fellowship: string;
+  group_code: string | null;
+};
+
+export type RoomWithOccupants = Room & { occupants: Occupant[] };
+
+/** One gender and room type: everyone in it can share any of its rooms. */
+export type Pool = {
+  room_type_id: string;
+  room_type_name: string;
+  gender: Gender;
+  fully_paid: number;
+  assigned: number;
+  beds: number;
+};
+
+export type WaitingGroup = {
+  id: string;
+  code: string;
+  state: GroupState;
+  capacity: number;
+  members: (GroupMember & { room_label: string | null })[];
+};
+
+export type WaitingPerson = { id: string; full_name: string; fellowship: string };
+
+/** What an attendee sees once placed. */
+export type MyRoom = { label: string; room_type_name: string; roommates: string[] };
