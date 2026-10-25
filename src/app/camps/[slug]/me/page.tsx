@@ -8,6 +8,7 @@ import { formatCedis } from "@/lib/camp/money";
 import { daysUntil, listPayments } from "@/lib/camp/registrations";
 import { currentAttendee } from "@/lib/camp/session";
 import { GROUP_STATE_LABELS } from "@/lib/camp/types";
+import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { Card, formatDate, headlineClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { PayForm } from "./PayForm";
 import { SignOut } from "./SignOut";
@@ -55,8 +56,11 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
     <div className="flex flex-col gap-6 pt-2">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-warm-gray">
-            Hi {firstName} · {camp.name}
+          <p className="flex items-center gap-2 text-sm text-warm-gray">
+            <CampLogo camp={camp} size={24} />
+            <span>
+              Hi {firstName} · {camp.name}
+            </span>
           </p>
           <h1 className={`cm-rise ${headlineClass}`}>{headline}</h1>
         </div>
@@ -69,7 +73,9 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
           This registration has been cancelled. Speak to a camp coordinator if you think this is a mistake.
         </p>
       ) : (
-        <section className="cm-rise flex flex-col gap-5 rounded-2xl bg-white p-6 shadow-seline-hero" style={{ animationDelay: "60ms" }}>
+        <section className="cm-rise flex flex-col overflow-hidden rounded-2xl bg-white shadow-seline-hero" style={{ animationDelay: "60ms" }}>
+          <CampBanner camp={camp} className="h-28" />
+          <div className="flex flex-col gap-5 p-6">
           <div className="flex items-baseline justify-between gap-3">
             <span className="flex flex-col gap-1">
               <span className="text-sm text-warm-gray">{fullyPaid ? "Paid in full" : "Left to pay"}</span>
@@ -115,6 +121,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
               </li>
             ))}
           </ol>
+          </div>
         </section>
       )}
 

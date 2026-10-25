@@ -4,6 +4,7 @@ import { getCamp, ID } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
 import { AdminNav } from "@/components/camp/AdminNav";
 import { CommuneLogo } from "@/components/camp/brand";
+import { CampLogo } from "@/components/camp/photos";
 import { formatDate } from "@/components/camp/ui";
 import { pageStaff } from "../access";
 
@@ -26,6 +27,7 @@ export default async function CampShell({ children, params }: { children: React.
           </span>
         </Link>
         <Link href="/admin/camp" className="cm-press flex items-center gap-2.5 rounded-[10px] border border-stone-border bg-white p-2.5">
+          <CampLogo camp={camp} size={36} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-sm font-medium">{camp.name}</span>
             <span className="text-xs text-warm-gray">

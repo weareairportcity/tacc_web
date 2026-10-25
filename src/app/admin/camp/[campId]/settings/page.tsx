@@ -4,6 +4,7 @@ import { listRoomTypes } from "@/lib/camp/rooms";
 import { headlineClass, titleClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CampForm } from "../../CampForm";
+import { CampPhotos } from "./CampPhotos";
 import { RoomTypes } from "./RoomTypes";
 
 function Section({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
@@ -39,6 +40,12 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
       </header>
       <Section title="The camp" text="What attendees see on the camp page, the dates that drive every reminder, and whether it's live.">
         <CampForm camp={camp} />
+      </Section>
+      <Section
+        title="Logo and photos"
+        text="Give each camp its own look. JPG, PNG or WebP up to 8 MB. Add a credit when the photo isn't yours."
+      >
+        <CampPhotos camp={camp} />
       </Section>
       <Section
         title="Room types"

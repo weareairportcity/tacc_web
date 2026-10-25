@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { registrationOpen } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { currentAttendee } from "@/lib/camp/session";
 import { CHURCHES, PFCC_GROUPS } from "@/lib/fellowships";
+import { CampBackLink } from "@/components/camp/photos";
 import { headlineClass } from "@/components/camp/ui";
 import { RegisterForm } from "./RegisterForm";
 
@@ -20,12 +19,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ slug:
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/camps/${camp.slug}`}
-        className="-ml-1 inline-flex min-h-11 items-center gap-1 self-start text-sm text-ink-black"
-      >
-        <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" /> {camp.name}
-      </Link>
+      <CampBackLink href={`/camps/${camp.slug}`} camp={camp} />
       <div className="flex flex-col gap-3">
         <div className="flex gap-1.5" aria-hidden="true">
           <span className="h-1 flex-1 rounded-full bg-soot" />

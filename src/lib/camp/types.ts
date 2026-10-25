@@ -26,10 +26,21 @@ export type Camp = {
   /** Paystack's fee, passed on to attendees, in basis points (195 = 1.95%). */
   fee_bps: number;
   status: CampStatus;
+  /** Images on R2 (media.theairportcitychurch.com), each with its credit line. Empty means none. */
+  logo_url: string;
+  logo_credit: string;
+  banner_url: string;
+  banner_credit: string;
+  venue_photo_url: string;
+  venue_photo_credit: string;
 };
 
+/** logo: beside the back button and in the sidebar · banner: the wide image up top · venue_photo: "Where we'll be". */
+export const CAMP_PHOTOS = ["logo", "banner", "venue_photo"] as const;
+export type CampPhoto = (typeof CAMP_PHOTOS)[number];
+
 /** What a coordinator fills in; id, slug and created_at are set on save. */
-export type CampInput = Omit<Camp, "id" | "created_at" | "slug">;
+export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | `${CampPhoto}_url` | `${CampPhoto}_credit`>;
 
 export type RoomType = {
   id: string;

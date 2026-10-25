@@ -4,6 +4,7 @@ import { listCamps } from "@/lib/camp/camps";
 import { registrationPhase } from "@/lib/camp/registrations";
 import type { Camp } from "@/lib/camp/types";
 import { AdminTopBar } from "@/components/camp/AdminTopBar";
+import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { CAMP_STATUS_ICONS, formatDate, headlineClass, secondaryButtonClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "./access";
 import { NewCamp } from "./NewCamp";
@@ -57,13 +58,18 @@ export default async function CampAdminHome() {
                 <li key={camp.id} className="cm-rise" style={{ animationDelay: `${i * 50}ms` }}>
                   <Link
                     href={leader ? `/admin/camp/${camp.id}/people` : `/admin/camp/${camp.id}`}
-                    className="cm-press flex h-full flex-col gap-3 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card"
+                    className="cm-press flex h-full flex-col overflow-hidden rounded-2xl border border-stone-border bg-white shadow-seline-card"
                   >
+                    <CampBanner camp={camp} className="h-28" settle={false} />
+                    <span className="flex flex-1 flex-col gap-3 p-5">
                     <span className="flex items-center gap-2 text-[13px] text-warm-gray">
                       <Icon className="h-4 w-4 text-ink-black" strokeWidth={1.6} aria-hidden="true" />
                       {campState(camp)}
                     </span>
-                    <span className="font-display text-2xl leading-tight tracking-[-0.015em]">{camp.name}</span>
+                    <span className="flex items-center gap-3">
+                      <CampLogo camp={camp} size={36} />
+                      <span className="font-display text-2xl leading-tight tracking-[-0.015em]">{camp.name}</span>
+                    </span>
                     <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-warm-gray">
                       <span className="inline-flex items-center gap-1.5">
                         <CalendarDays className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
@@ -79,6 +85,7 @@ export default async function CampAdminHome() {
                     <span className="mt-auto flex items-center justify-between border-t border-stone-border pt-3 text-sm font-medium">
                       {leader ? "Your people" : "Open dashboard"}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </span>
                     </span>
                   </Link>
                 </li>

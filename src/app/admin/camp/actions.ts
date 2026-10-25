@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCampRole } from "@/lib/camp/auth";
-import { createCamp, getCamp, updateCamp } from "@/lib/camp/camps";
+import { createCamp, getCamp, setCampPhoto, updateCamp } from "@/lib/camp/camps";
+import { putMedia } from "@/lib/cf";
 import type { CsvError } from "@/lib/camp/csv";
 import { cedisToPesewas } from "@/lib/camp/money";
 import {
@@ -21,7 +22,7 @@ import { cancelRegistration } from "@/lib/camp/registrations";
 import { campOrigin } from "@/lib/camp/origin";
 import { sendRoomSms } from "@/lib/camp/room-sms";
 import { removeStaff, saveStaff } from "@/lib/camp/staff";
-import { CampError, type CampInput, type Gender, type RoomInput, type Staff } from "@/lib/camp/types";
+import { CAMP_PHOTOS, CampError, type CampInput, type CampPhoto, type Gender, type RoomInput, type Staff } from "@/lib/camp/types";
 
 /**
  * Camp admin actions. Each one checks the caller's camp role itself: server
@@ -56,6 +57,39 @@ export async function saveCampAction(id: string | null, input: CampInput) {
       return existing;
     }
     return createCamp(staff.email, input);
+  });
+}
+
+// ─── Camp photos ─────────────────────────────────────────────────────────────
+
+const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const PHOTO_MAX = 8 * 1024 * 1024;
+
+/** Uploads a camp's logo, banner or venue photo to R2 (media.theairportcitychurch.com) and puts it on the camp. */
+export async function uploadCampPhotoAction(campId: string, kind: CampPhoto, form: FormData) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    if (!CAMP_PHOTOS.includes(kind)) throw new CampError("Unknown photo.");
+    const camp = await getCamp(campId);
+    if (!camp) throw new CampError("Unknown camp.");
+    const file = form.get("file");
+    if (!(file instanceof File) || file.size === 0) throw new CampError("Choose a photo.");
+    const ext = PHOTO_TYPES[file.type];
+    if (!ext) throw new CampError("Use a JPG, PNG or WebP photo.");
+    if (file.size > PHOTO_MAX) throw new CampError("That photo is over 8 MB. Use a smaller one.");
+    // A new key per upload, so the old URL can stay cached forever.
+    const url = await putMedia(`camp-${camp.slug}-${kind.replace("_", "-")}-${Date.now()}.${ext}`, new Uint8Array(await file.arrayBuffer()), file.type);
+    await setCampPhoto(staff.email, camp.id, kind, url, String(form.get("credit") ?? ""));
+    return url;
+  });
+}
+
+/** Changes a photo's credit line, or removes the photo when url is empty. */
+export async function saveCampPhotoAction(campId: string, kind: CampPhoto, url: string, credit: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await setCampPhoto(staff.email, campId, kind, url, credit);
+    return null;
   });
 }
 

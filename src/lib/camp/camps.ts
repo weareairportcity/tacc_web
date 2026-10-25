@@ -1,6 +1,6 @@
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
-import { CAMP_STATUSES, CampError, type Camp, type CampInput } from "./types";
+import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type CampPhoto } from "./types";
 
 /**
  * Camps on D1 (database "tacc"). Every write goes in one batch with its audit
@@ -9,7 +9,8 @@ import { CAMP_STATUSES, CampError, type Camp, type CampInput } from "./types";
  */
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
-  registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status`;
+  registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status,
+  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ID = /^[0-9a-f-]{36}$/i;
@@ -162,5 +163,38 @@ export async function updateCamp(actor: string, id: string, raw: CampInput) {
       ],
     },
     auditStatement({ actor, campId: id, action: "camp.update", entity: "camp", entityId: id, before, after: input }),
+  ]);
+}
+
+/** Where camp photos may live: the church's public media host. */
+const PHOTO_URL = /^https:\/\/media\.theairportcitychurch\.com\/[\w./-]+$/;
+
+/**
+ * Sets (or with an empty url, clears) one of a camp's images and its
+ * credit. Callers upload the file to R2 first (putMedia) and pass its URL.
+ */
+export async function setCampPhoto(actor: string, id: string, kind: CampPhoto, url: string, credit: string) {
+  if (!CAMP_PHOTOS.includes(kind)) throw new CampError("Unknown photo.");
+  const before = await getCamp(id);
+  if (!before) throw new CampError("Unknown camp.");
+  const cleanUrl = String(url ?? "").trim();
+  const cleanCredit = String(credit ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
+  if (cleanUrl && !PHOTO_URL.test(cleanUrl)) throw new CampError("Upload the photo here; links to other sites aren't allowed.");
+  const after = { url: cleanUrl, credit: cleanUrl ? cleanCredit : "" };
+  await batch("app", [
+    {
+      // Column names come from CAMP_PHOTOS above, never from input.
+      sql: `UPDATE camps SET ${kind}_url = ?, ${kind}_credit = ? WHERE id = ?`,
+      params: [after.url, after.credit, id],
+    },
+    auditStatement({
+      actor,
+      campId: id,
+      action: "camp.photo",
+      entity: "camp",
+      entityId: id,
+      before: { kind, url: before[`${kind}_url`], credit: before[`${kind}_credit`] },
+      after: { kind, ...after },
+    }),
   ]);
 }

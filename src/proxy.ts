@@ -7,6 +7,11 @@ import { NextResponse, type NextRequest } from "next/server";
  * soulwinning.theairportcitychurch.com/* serves the current campaign (/gic), so the outreach
  * lives on its own host while staying one deployment.
  *
+ * commune.theairportcitychurch.com is Commune, the camp app: its home is the
+ * camps list, commune…/<camp-slug> is a short link to a camp, and /admin
+ * opens the coordinator side. Once COMMUNE_REDIRECT=1 is set (after the domain
+ * is live in Vercel), www…/camps and www…/admin/camp move there for good.
+ *
  * The Supabase session work is deliberately scoped to /admin only. It costs a
  * network round trip per request, and the public counter is the one page that
  * may be open on hundreds of phones and a projector at once — it must not pay
@@ -18,6 +23,9 @@ const SOULWINNING_HOSTS = new Set([
   "www.soulwinning.theairportcitychurch.com",
   "soulwinning.localhost",
 ]);
+
+const COMMUNE_HOSTS = new Set(["commune.theairportcitychurch.com", "commune.localhost"]);
+const COMMUNE_ORIGIN = "https://commune.theairportcitychurch.com";
 
 export async function proxy(request: NextRequest) {
   const hostname = (request.headers.get("host") ?? "").split(":")[0];
@@ -37,6 +45,27 @@ export async function proxy(request: NextRequest) {
       url.pathname = `/gic${pathname === "/" ? "" : pathname}`;
       return NextResponse.rewrite(url);
     }
+  }
+
+  // ── Commune, the camp app ────────────────────────────────────────────
+  if (COMMUNE_HOSTS.has(hostname)) {
+    if (pathname === "/admin") return NextResponse.redirect(new URL("/admin/camp", request.url));
+    const passThrough =
+      pathname.startsWith("/camps") ||
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/api") ||
+      /\.[a-z0-9]+$/i.test(pathname);
+    if (!passThrough) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/camps${pathname === "/" ? "" : pathname}`;
+      return NextResponse.rewrite(url);
+    }
+  } else if (
+    process.env.COMMUNE_REDIRECT === "1" &&
+    (pathname === "/camps" || pathname.startsWith("/camps/") || pathname === "/admin/camp" || pathname.startsWith("/admin/camp/"))
+  ) {
+    return NextResponse.redirect(`${COMMUNE_ORIGIN}${pathname}${request.nextUrl.search}`, 308);
   }
 
   // ── Admin session refresh ────────────────────────────────────────────
@@ -100,6 +129,11 @@ export const config = {
       source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
       has: [{ type: "header", key: "host", value: "(?:www\\.)?soulwinning\\..+" }],
     },
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico).*)",
+      has: [{ type: "header", key: "host", value: "commune\\..+" }],
+    },
+    "/camps/:path*",
     "/admin/:path*",
   ],
 };

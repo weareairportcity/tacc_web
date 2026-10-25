@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Crown, Lock, LockOpen, Mail, UserPlus } from "lucide-react";
+import { Crown, Lock, LockOpen, Mail, UserPlus } from "lucide-react";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatGroupCode } from "@/lib/camp/codes";
 import { getGroupFor, listReceivedInvites, listSentInvites } from "@/lib/camp/groups";
 import { campOrigin } from "@/lib/camp/origin";
 import { currentAttendee } from "@/lib/camp/session";
+import { CampBackLink } from "@/components/camp/photos";
 import { Card, formatDate, headlineClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import {
@@ -48,9 +48,7 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href={`/camps/${camp.slug}/me`} className="-ml-1 inline-flex min-h-11 items-center gap-1 self-start text-sm">
-        <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" /> Your registration
-      </Link>
+      <CampBackLink href={`/camps/${camp.slug}/me`} camp={camp} label="Your registration" />
       <div className="flex flex-col gap-3">
         <h1 className={`cm-rise ${headlineClass}`}>
           {group ? (

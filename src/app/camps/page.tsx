@@ -3,6 +3,7 @@ import { ArrowRight, CalendarDays, Clock, MapPin } from "lucide-react";
 import { listPublicCamps } from "@/lib/camp/camps";
 import { daysUntil, registrationPhase } from "@/lib/camp/registrations";
 import type { Camp } from "@/lib/camp/types";
+import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { StatusLine, formatDate, headlineClass, titleClass } from "@/components/camp/ui";
 
 /** Where /camp and the old camp links land. Open and upcoming camps first, closed ones after. */
@@ -46,6 +47,7 @@ export default async function CampsIndex() {
                   href={`/camps/${camp.slug}`}
                   className="cm-press flex items-center gap-4 rounded-[10px] border border-stone-border bg-white p-4"
                 >
+                  <CampLogo camp={camp} size={44} />
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="text-[15px] font-medium">{camp.name}</span>
                     <span className="text-[13px] text-warm-gray">
@@ -68,8 +70,10 @@ function CampCard({ camp }: { camp: Camp }) {
   return (
     <Link
       href={`/camps/${camp.slug}`}
-      className="cm-press flex flex-col gap-3 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card"
+      className="cm-press flex flex-col overflow-hidden rounded-2xl border border-stone-border bg-white shadow-seline-card"
     >
+      <CampBanner camp={camp} className="h-40" settle={false} />
+      <span className="flex flex-col gap-3 p-5">
       {phase === "open" ? (
         <StatusLine dot="live" strong="Registration open">
           closes {formatDate(camp.registration_closes_on)}
@@ -79,7 +83,10 @@ function CampCard({ camp }: { camp: Camp }) {
           in {daysUntil(camp.registration_opens_on)} days
         </StatusLine>
       )}
-      <span className={`${titleClass} text-[26px] leading-tight tracking-[-0.02em]`}>{camp.name}</span>
+      <span className="flex items-center gap-3">
+        <CampLogo camp={camp} size={40} />
+        <span className={`${titleClass} text-[26px] leading-tight tracking-[-0.02em]`}>{camp.name}</span>
+      </span>
       <span className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-warm-gray">
         <span className="inline-flex items-center gap-1.5">
           <CalendarDays className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
@@ -95,6 +102,7 @@ function CampCard({ camp }: { camp: Camp }) {
       <span className="flex items-center justify-between border-t border-stone-border pt-3 text-sm font-medium">
         {phase === "open" ? "Register or sign in" : "See what to have ready"}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </span>
       </span>
     </Link>
   );

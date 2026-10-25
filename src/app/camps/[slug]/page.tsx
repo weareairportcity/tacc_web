@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { BedDouble, CalendarDays, Church, Clock, CreditCard, MapPin, Phone, Users } from "lucide-react";
+import { ArrowLeft, BedDouble, CalendarDays, Church, Clock, CreditCard, MapPin, Phone, Users } from "lucide-react";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCedis } from "@/lib/camp/money";
 import { daysUntil, registrationPhase } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { currentAttendee } from "@/lib/camp/session";
 import type { RoomType } from "@/lib/camp/types";
+import { CampBanner, CampLogo, VenuePhoto } from "@/components/camp/photos";
 import { PlacesNote } from "@/components/camp/places";
 import { Card, StatusLine, formatDate, headlineClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
 import { SignIn } from "./SignIn";
@@ -22,8 +23,21 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
   const [firstWord, ...rest] = camp.name.split(" ");
 
   return (
-    <div className="flex flex-col gap-8 pt-4">
+    <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4">
+        <Link href="/camps" className="cm-press -ml-1 inline-flex min-h-11 items-center gap-1 self-start text-sm">
+          <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" /> All camps
+        </Link>
+        {camp.banner_url ? (
+          <div className="relative mb-6">
+            <CampBanner camp={camp} className="h-[220px] rounded-2xl" />
+            <span className="absolute -bottom-6 left-4 rounded-[24%] bg-stone-canvas p-1">
+              <CampLogo camp={camp} size={60} />
+            </span>
+          </div>
+        ) : (
+          <CampLogo camp={camp} size={56} />
+        )}
         {phase === "open" && (
           <StatusLine dot="live" strong="Registration is open">
             closes in {daysUntil(camp.registration_closes_on)} days
@@ -83,6 +97,18 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
         <p className="rounded-[10px] border border-stone-border bg-white p-5 text-[15px] leading-relaxed text-warm-gray">
           This camp isn&apos;t taking new registrations. If you&apos;ve registered, sign in below to pay or see your room.
         </p>
+      )}
+
+      {camp.venue_photo_url && (
+        <section className="flex flex-col gap-3">
+          <h2 className={titleClass}>Where we&apos;ll be</h2>
+          <VenuePhoto camp={camp} className="h-56" />
+          {camp.venue && (
+            <p className="flex items-center gap-2 text-sm text-warm-gray">
+              <MapPin className="h-4 w-4 text-ink-black" strokeWidth={1.6} aria-hidden="true" /> {camp.venue}
+            </p>
+          )}
+        </section>
       )}
 
       {phase !== "upcoming" && (

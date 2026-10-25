@@ -5,13 +5,16 @@ import Link from "next/link";
 import { CreditCard, MessageCircle, Phone, ShieldCheck, Wallet } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import { CommuneLoader } from "@/components/camp/brand";
+import { CampLogo, VenuePhoto } from "@/components/camp/photos";
 import { headlineClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { checkPaymentAction, type PaymentCheck } from "../actions";
 
 const POLL_MS = 4000;
 const GIVE_UP_MS = 2 * 60 * 1000;
 
-export function Processing({ slug, reference }: { slug: string; reference: string }) {
+type CampImages = Parameters<typeof VenuePhoto>[0]["camp"];
+
+export function Processing({ slug, reference, camp, daysToCamp }: { slug: string; reference: string; camp: CampImages; daysToCamp: number }) {
   const [check, setCheck] = useState<PaymentCheck | null>(null);
   const [waitedTooLong, setWaitedTooLong] = useState(false);
 
@@ -33,7 +36,7 @@ export function Processing({ slug, reference }: { slug: string; reference: strin
     };
   }, [slug, reference]);
 
-  if (check?.status === "success") return <Success slug={slug} reference={reference} check={check} />;
+  if (check?.status === "success") return <Success slug={slug} reference={reference} check={check} camp={camp} daysToCamp={daysToCamp} />;
   if (check?.status === "failed") return <Failed slug={slug} reference={reference} check={check} />;
 
   return (
@@ -61,7 +64,7 @@ const SPARKS = [
   ["#3ba6f1", -6, 56],
 ] as const;
 
-function Success({ slug, reference, check }: { slug: string; reference: string; check: PaymentCheck }) {
+function Success({ slug, reference, check, camp, daysToCamp }: { slug: string; reference: string; check: PaymentCheck; camp: CampImages; daysToCamp: number }) {
   const full = check.paid >= check.price;
   return (
     <div className="flex flex-col gap-8 pt-8">
@@ -133,6 +136,17 @@ function Success({ slug, reference, check }: { slug: string; reference: string; 
           </Link>
         )}
       </div>
+
+      <VenuePhoto camp={camp} className="h-48">
+        <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+        <span className="absolute bottom-7 left-4 right-4 flex items-center gap-3 text-white">
+          <CampLogo camp={camp} size={36} />
+          <span className="flex flex-col leading-tight">
+            <span className="font-display text-xl">See you{camp.venue ? ` at ${camp.venue.split(",")[0]}` : " at camp"}</span>
+            <span className="text-[13px] text-white/85">{daysToCamp > 0 ? `${daysToCamp} days to go` : "Camp starts today"}</span>
+          </span>
+        </span>
+      </VenuePhoto>
     </div>
   );
 }

@@ -100,3 +100,8 @@
   .cm-loader .cm-a { animation: none; stroke-dashoffset: 0; }
   .cm-toggle, .cm-toggle > span { transition: none; }
 }
+
+/* A camp banner settles in once: a slow, small zoom-out. */
+@keyframes cm-ken { from { transform: scale(1.06); } to { transform: none; } }
+.cm-ken { animation: cm-ken 1600ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@media (prefers-reduced-motion: reduce) { .cm-ken { animation: none; } }
