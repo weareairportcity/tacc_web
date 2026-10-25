@@ -279,6 +279,23 @@ describe("checking against Paystack", () => {
     expect(await reconcileWithPaystack(camp.id)).toEqual({ checked: 2, matched: 2, awaitingRefund: 0, problems: [], complete: true });
   });
 
+  it("skips sample payments, but still flags a credited one Paystack never saw", async () => {
+    const { camp, id } = await registered();
+    const insert = (provider: string, reference: string) =>
+      query(
+        "app",
+        `INSERT INTO camp_payments (id, registration_id, provider, reference, amount_pesewas, fee_pesewas, charged_pesewas, status)
+         VALUES (?, ?, ?, ?, 10000, 0, 10000, 'success')`,
+        [crypto.randomUUID(), id, provider, reference],
+      );
+    await insert("sample", `SAMPLE-${crypto.randomUUID().slice(0, 12)}`);
+    expect(await reconcileWithPaystack(camp.id)).toMatchObject({ checked: 0, problems: [] });
+    await insert("paystack", "CAMP-00000000DEADBEEF");
+    const report = await reconcileWithPaystack(camp.id);
+    expect(report.checked).toBe(1);
+    expect(report.problems).toEqual([expect.objectContaining({ reference: "CAMP-00000000DEADBEEF", issue: "Credited here but not paid on Paystack." })]);
+  });
+
   it("lists a payment Paystack took that was never credited here", async () => {
     const { camp, id } = await registered();
     const missed = await pay(id, 20000);

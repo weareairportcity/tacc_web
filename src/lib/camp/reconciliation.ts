@@ -48,7 +48,8 @@ export async function reconcileWithPaystack(campId: string, now = new Date()): P
       "app",
       `SELECT p.reference, r.full_name, p.amount_pesewas, p.charged_pesewas, p.status, p.flag
        FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
-       WHERE r.camp_id = ? ORDER BY p.created_at`,
+       -- Sample payments (test camps) never went through Paystack, so there's nothing to check them against.
+       WHERE r.camp_id = ? AND p.provider <> 'sample' ORDER BY p.created_at`,
       [camp.id],
     ),
     post<{ transactions: PaystackTx[]; complete: boolean }>("/v1/admin/camp/paystack-transactions", {
