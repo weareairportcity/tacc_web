@@ -1,0 +1,102 @@
+/*
+ * Commune (the camp app) motion and small bits Tailwind can't say cleanly.
+ * Easing is one strong ease-out everywhere; every animation has a
+ * reduced-motion fallback at the bottom.
+ */
+
+.cm-press {
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.cm-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@keyframes cm-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.cm-rise { animation: cm-rise 480ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+@keyframes cm-grow {
+  from { transform: scaleX(0); }
+}
+.cm-grow { transform-origin: left; animation: cm-grow 900ms cubic-bezier(0.23, 1, 0.32, 1) 200ms both; }
+
+@keyframes cm-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 166, 241, 0.5); }
+  60% { box-shadow: 0 0 0 5px rgba(59, 166, 241, 0); }
+}
+.cm-pulse { animation: cm-pulse 2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+
+@keyframes cm-breathe {
+  0%, 100% { opacity: 0.45; transform: scale(0.94); }
+  50% { opacity: 1; transform: none; }
+}
+.cm-breathe { animation: cm-breathe 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+
+@keyframes cm-draw { to { stroke-dashoffset: 0; } }
+.cm-ring { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cm-draw 700ms cubic-bezier(0.77, 0, 0.175, 1) 150ms forwards; }
+.cm-tick { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cm-draw 420ms cubic-bezier(0.23, 1, 0.32, 1) 750ms forwards; }
+
+@keyframes cm-drop {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+.cm-drop { animation: cm-drop 360ms cubic-bezier(0.23, 1, 0.32, 1) 750ms both; }
+
+@keyframes cm-burst {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+.cm-spark {
+  position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  border-radius: 9999px; opacity: 0;
+  animation: cm-burst 900ms cubic-bezier(0.23, 1, 0.32, 1) 900ms both;
+}
+
+/* The loader: the four heads of the logo arrive, the cyan one nods, the arm draws in, then all fade. */
+@keyframes cm-head {
+  0% { opacity: 0; transform: translateY(5px) scale(0.6); }
+  14% { opacity: 1; transform: none; }
+  72% { opacity: 1; transform: none; }
+  86%, 100% { opacity: 0; transform: scale(0.85); }
+}
+@keyframes cm-nod {
+  0%, 14% { transform: none; }
+  24% { transform: translateY(-2px); }
+  34%, 100% { transform: none; }
+}
+@keyframes cm-arm {
+  0%, 18% { stroke-dashoffset: 1; opacity: 1; }
+  44%, 72% { stroke-dashoffset: 0; opacity: 1; }
+  86%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+.cm-loader .cm-h { transform-box: fill-box; transform-origin: center; animation: cm-head 2400ms cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.cm-loader .cm-n { transform-box: fill-box; transform-origin: center; animation: cm-nod 2400ms cubic-bezier(0.23, 1, 0.32, 1) 240ms infinite; }
+.cm-loader .cm-a { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cm-arm 2400ms cubic-bezier(0.77, 0, 0.175, 1) infinite; }
+
+@keyframes cm-digit {
+  from { opacity: 0; transform: translateY(40%); }
+  to { opacity: 1; transform: none; }
+}
+.cm-digit { display: inline-block; animation: cm-digit 520ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+.cm-toggle { transition: background-color 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.cm-toggle > span { transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+
+@media (hover: hover) and (pointer: fine) {
+  .cm-hover:hover { background-color: #f2f1f0; }
+  .cm-row:hover { background-color: #fafaf9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-rise, .cm-grow, .cm-pulse, .cm-breathe, .cm-drop, .cm-digit { animation: none; }
+  .cm-breathe { opacity: 1; }
+  .cm-ring, .cm-tick { animation: none; stroke-dashoffset: 0; }
+  .cm-spark { display: none; }
+  .cm-press:active:not(:disabled) { transform: none; }
+  .cm-loader .cm-h, .cm-loader .cm-n { animation: none; opacity: 1; }
+  .cm-loader .cm-a { animation: none; stroke-dashoffset: 0; }
+  .cm-toggle, .cm-toggle > span { transition: none; }
+}

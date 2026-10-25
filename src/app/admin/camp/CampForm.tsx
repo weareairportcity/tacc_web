@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
+import { CommuneLoader } from "@/components/camp/brand";
 import { CAMP_STATUSES, type Camp, type CampInput } from "@/lib/camp/types";
 import { saveCampAction } from "./actions";
-import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
+import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 
 const EMPTY: CampInput = {
   name: "",
@@ -20,14 +21,21 @@ const EMPTY: CampInput = {
   status: "draft",
 };
 
-const DATE_FIELDS: { key: keyof CampInput; label: string }[] = [
+const DATE_FIELDS: { key: keyof CampInput; label: string; hint?: string }[] = [
   { key: "starts_on", label: "Camp starts" },
   { key: "ends_on", label: "Camp ends" },
-  { key: "registration_opens_on", label: "Registration opens" },
+  { key: "registration_opens_on", label: "Registration opens", hint: "Before this, the camp page shows a countdown." },
   { key: "registration_closes_on", label: "Registration closes" },
-  { key: "payment_due_on", label: "Full payment due" },
-  { key: "roommate_deadline_on", label: "Roommate groups lock" },
+  { key: "payment_due_on", label: "Full payment due", hint: "Shown to attendees with what they still owe." },
+  { key: "roommate_deadline_on", label: "Roommate groups lock", hint: "After this, groups are final and you assign rooms." },
 ];
+
+const STATUS_HINTS: Record<string, string> = {
+  draft: "Draft: only coordinators can see it.",
+  open: "Open: shown on /camps. Takes registrations between the dates above.",
+  closed: "Closed: no new registrations. People can still pay and sign in.",
+  archived: "Archived: hidden from attendees.",
+};
 
 /** Create a camp (no `camp`) or edit one. */
 export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void }) {
@@ -61,7 +69,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Camp name">
           <input
@@ -72,11 +80,11 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             placeholder="Mid Year Camp 2027"
           />
         </Field>
-        <Field label="Venue">
+        <Field label="Venue" hint="Where attendees should go, e.g. Anagkazo Bible School.">
           <input className={inputClass} value={values.venue} onChange={(e) => set("venue", e.target.value)} />
         </Field>
-        {DATE_FIELDS.map(({ key, label }) => (
-          <Field key={key} label={label}>
+        {DATE_FIELDS.map(({ key, label, hint }) => (
+          <Field key={key} label={label} hint={hint}>
             <input
               required
               type="date"
@@ -86,7 +94,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             />
           </Field>
         ))}
-        <Field label="Paystack fee added to each payment (%)">
+        <Field label="Paystack fee added to each payment (%)" hint="Attendees see it before they pay. 0 means the church covers it.">
           <input
             required
             type="number"
@@ -98,7 +106,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             onChange={(e) => set("fee_bps", Math.round(Number(e.target.value) * 100))}
           />
         </Field>
-        <Field label="Status">
+        <Field label="Status" hint={STATUS_HINTS[values.status]}>
           <select
             className={inputClass}
             value={values.status}
@@ -113,12 +121,16 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
         </Field>
       </div>
       <ErrorText>{error}</ErrorText>
-      <div className="flex items-center gap-3">
-        <button type="submit" disabled={pending} className={buttonClass}>
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="submit" disabled={pending} aria-busy={pending} className={primaryButtonClass}>
+          {pending && <CommuneLoader size={20} label={null} />}
           {camp ? "Save changes" : "Create camp"}
         </button>
-        {saved && <span className="text-sm text-emerald-700">Saved</span>}
+        {saved && (
+          <span role="status" className="flex items-center gap-1.5 text-sm">
+            <Check className="h-4 w-4" aria-hidden="true" /> Saved
+          </span>
+        )}
       </div>
     </form>
   );

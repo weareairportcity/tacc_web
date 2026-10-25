@@ -9,13 +9,13 @@ export function NewCamp() {
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <button className={buttonClass} onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" /> New camp
+      <button className={`${buttonClass} self-start`} onClick={() => setOpen(true)}>
+        <Plus className="h-4 w-4" aria-hidden="true" /> New camp
       </button>
     );
   }
   return (
-    <Card title="New camp">
+    <Card lifted title="New camp" action={<button type="button" onClick={() => setOpen(false)} className="min-h-10 text-sm text-warm-gray hover:text-ink-black">Cancel</button>}>
       <CampForm />
     </Card>
   );

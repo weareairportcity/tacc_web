@@ -1,8 +1,9 @@
 "use client";
 
+import { CommuneLoader } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import type { RoomType } from "@/lib/camp/types";
 import { deleteRoomTypeAction, saveRoomTypeAction } from "../../actions";
@@ -29,18 +30,18 @@ export function RoomTypes({ campId, roomTypes }: { campId: string; roomTypes: Ro
   return (
     <div className="space-y-4">
       {roomTypes.length === 0 && !draft && (
-        <p className="text-sm text-slate-500">No room types yet. Add one, e.g. Hostel, 4 beds, GHS 600.</p>
+        <p className="text-sm text-warm-gray">No room types yet. Add one, e.g. Hostel, 4 beds, GHS 600.</p>
       )}
       {roomTypes.length > 0 && (
-        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        <ul className="divide-y divide-stone-border rounded-[10px] border border-stone-border">
           {roomTypes.map((type) => (
             <li key={type.id} className="flex items-center gap-3 px-4 py-3 text-sm">
               <span className="flex-1 font-medium">{type.name}</span>
-              <span className="text-slate-500">{type.capacity} beds</span>
+              <span className="text-warm-gray">{type.capacity} beds</span>
               <span className="w-28 text-right tabular-nums">{formatCedis(type.price_pesewas)}</span>
               <button
                 aria-label={`Edit ${type.name}`}
-                className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded p-1.5 text-ash-gray hover:bg-stone-canvas hover:text-ink-black"
                 onClick={() =>
                   setDraft({
                     id: type.id,
@@ -55,7 +56,7 @@ export function RoomTypes({ campId, roomTypes }: { campId: string; roomTypes: Ro
               <button
                 aria-label={`Delete ${type.name}`}
                 disabled={pending}
-                className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                className="rounded p-1.5 text-ash-gray hover:bg-stone-canvas hover:text-ink-black"
                 onClick={() => act(() => deleteRoomTypeAction(type.id))}
               >
                 <Trash2 className="h-4 w-4" />
@@ -67,7 +68,7 @@ export function RoomTypes({ campId, roomTypes }: { campId: string; roomTypes: Ro
 
       {draft ? (
         <form
-          className="grid gap-3 rounded-lg border border-slate-200 p-4 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end"
+          className="grid gap-3 rounded-[10px] border border-stone-border p-4 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
             act(() => saveRoomTypeAction(campId, draft.id, draft), () => setDraft(null));
@@ -104,7 +105,7 @@ export function RoomTypes({ campId, roomTypes }: { campId: string; roomTypes: Ro
           </Field>
           <div className="flex gap-2">
             <button type="submit" disabled={pending} className={buttonClass}>
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {pending && <CommuneLoader size={18} label={null} />}
               Save
             </button>
             <button type="button" className={secondaryButtonClass} onClick={() => setDraft(null)}>

@@ -1,14 +1,26 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { Card } from "@/components/camp/ui";
+import { headlineClass, titleClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CampForm } from "../../CampForm";
 import { RoomTypes } from "./RoomTypes";
 
-/** Room types and camp details, moved here when the camp page became the dashboard. */
+function Section({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-wrap gap-x-10 gap-y-4 border-t border-stone-border py-7">
+      <div className="flex max-w-[280px] flex-[1_1_220px] flex-col gap-1.5">
+        <h2 className={titleClass}>{title}</h2>
+        <p className="text-[13px] leading-relaxed text-warm-gray">{text}</p>
+      </div>
+      <div className="flex min-w-0 flex-[999_1_420px] flex-col gap-4 rounded-[10px] border border-stone-border bg-white p-6 shadow-seline-card">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Room types and camp details, label on the left and the form on the right. */
 export default async function CampSettingsPage({ params }: { params: Promise<{ campId: string }> }) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
@@ -19,21 +31,21 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
   if (!camp) notFound();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href={`/admin/camp/${camp.id}`} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" /> {camp.name}
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold">Settings</h1>
-      </div>
-
-      <Card title="Room types">
-        <RoomTypes campId={camp.id} roomTypes={roomTypes} />
-      </Card>
-
-      <Card title="Camp details">
+    <div className="flex flex-col">
+      <header className="pb-6">
+        <h1 className={headlineClass}>
+          Camp <span className="text-cyan-edge">settings</span>
+        </h1>
+      </header>
+      <Section title="The camp" text="What attendees see on the camp page, the dates that drive every reminder, and whether it's live.">
         <CampForm camp={camp} />
-      </Card>
+      </Section>
+      <Section
+        title="Room types"
+        text="Each has a price and beds per room. People pick one when they register. Places left for each one is on Rooms."
+      >
+        <RoomTypes campId={camp.id} roomTypes={roomTypes} />
+      </Section>
     </div>
   );
 }

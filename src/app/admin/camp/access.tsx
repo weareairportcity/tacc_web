@@ -1,3 +1,4 @@
+import { CircleSlash } from "lucide-react";
 import { currentStaff } from "@/lib/camp/auth";
 import { assertRole } from "@/lib/camp/roles";
 import type { Staff, StaffRole } from "@/lib/camp/types";
@@ -17,10 +18,11 @@ export async function pageStaff(...allowed: StaffRole[]): Promise<Staff | null> 
 
 export function NoAccess() {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-      <h1 className="text-lg font-semibold">No access</h1>
-      <p className="mt-2 text-sm text-slate-500">
-        Your account isn&apos;t set up for camp admin. Ask a camp admin to add your email.
+    <div className="mx-auto mt-10 flex max-w-md flex-col items-center gap-3 rounded-[10px] border border-stone-border bg-white p-8 text-center">
+      <CircleSlash className="h-6 w-6" strokeWidth={1.5} aria-hidden="true" />
+      <h1 className="font-display text-2xl">No access</h1>
+      <p className="text-sm leading-relaxed text-warm-gray">
+        Your account isn&apos;t set up for Commune. Ask a camp admin to add your email.
       </p>
     </div>
   );

@@ -1,24 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, Lock, LockOpen } from "lucide-react";
 import { getPoolBoard, listPools } from "@/lib/camp/assignments";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { listRoomSmsPending } from "@/lib/camp/room-sms";
 import { formatGroupCode } from "@/lib/camp/codes";
 import { GENDERS, GROUP_STATE_LABELS, type Gender, type Pool } from "@/lib/camp/types";
-import { Card } from "@/components/camp/ui";
+import { Card, headlineClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
 import { AssignPicker, Notices, RemoveFromRoom, SendRoomSms, type RoomOption } from "./AssignControls";
 
 const poolKey = (p: Pick<Pool, "room_type_id" | "gender">) => `${p.room_type_id}.${p.gender}`;
 const poolName = (p: Pool) => `${p.gender === "male" ? "Men" : "Women"} · ${p.room_type_name}`;
-
-const STATE_STYLES = {
-  open: "bg-emerald-50 text-emerald-700",
-  locked: "bg-amber-50 text-amber-700",
-  final: "bg-slate-100 text-slate-600",
-} as const;
 
 // Texting rooms sends one mNotify request per room, a few at a time.
 export const maxDuration = 60;
@@ -51,19 +45,16 @@ export default async function AssignPage({
   const tooBig = board?.groups.filter((g) => g.members.filter((m) => !m.room_label).length > mostFree) ?? [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href={`/admin/camp/${camp.id}`} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" /> {camp.name}
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold">Assign rooms</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Only Fully Paid people can be placed, in rooms of their gender and room type.
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-col gap-1.5">
+        <h1 className={headlineClass}>
+          Assign <span className="text-cyan-edge">rooms</span>
+        </h1>
+        <p className="text-sm text-warm-gray">Only fully paid people, in rooms of their gender and room type.</p>
+      </header>
 
       {pools.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        <p className="rounded-[10px] border border-stone-border bg-white p-4 text-sm text-warm-gray">
           Nobody is fully paid yet, and there are no rooms.
         </p>
       ) : (
@@ -73,12 +64,12 @@ export default async function AssignPage({
               key={poolKey(p)}
               href={`?pool=${poolKey(p)}`}
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm",
-                p === pool ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white hover:bg-slate-50",
+                "cm-press flex h-10 items-center gap-1 rounded-full border px-4 text-sm",
+                p === pool ? "border-soot bg-soot text-white" : "border-stone-border bg-white hover:bg-stone-canvas",
               )}
             >
               <span className="font-medium">{poolName(p)}</span>
-              <span className={p === pool ? "text-slate-300" : "text-slate-500"}>
+              <span className={p === pool ? "text-ash-gray" : "text-warm-gray"}>
                 {" "}
                 · {p.assigned} of {p.fully_paid} placed · {p.beds} beds
               </span>
@@ -93,7 +84,7 @@ export default async function AssignPage({
         // Keyed by pool, so a warning from one pool isn't left showing on another.
         <Notices key={poolKey(pool)}>
           {(waiting > freeBeds || tooBig.length > 0) && (
-            <div className="mb-4 space-y-1 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <div className="mb-4 space-y-1 rounded-[10px] border border-stone-border bg-white p-3 text-sm text-ink-black">
               {waiting > freeBeds && (
                 <p className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" /> Short of beds: {waiting} waiting, {freeBeds} free.
@@ -112,33 +103,38 @@ export default async function AssignPage({
             <div className="space-y-6">
               <Card title={`Groups waiting (${board.groups.length})`}>
                 {board.groups.length === 0 ? (
-                  <p className="text-sm text-slate-500">No groups waiting.</p>
+                  <p className="text-sm text-warm-gray">No groups waiting.</p>
                 ) : (
-                  <ul className="divide-y divide-slate-100">
+                  <ul className="divide-y divide-stone-border">
                     {board.groups.map((g) => {
                       const unplaced = g.members.filter((m) => !m.room_label).length;
                       return (
                         <li key={g.id} className="space-y-2 py-3">
                           <div className="flex flex-wrap items-center gap-2 text-sm">
                             <span className="font-mono">{formatGroupCode(g.code)}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATE_STYLES[g.state]}`}>
+                            <span className="inline-flex items-center gap-1 text-[13px]">
+                              {g.state === "open" ? (
+                                <LockOpen className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" />
+                              ) : (
+                                <Lock className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" />
+                              )}
                               {GROUP_STATE_LABELS[g.state]}
                             </span>
-                            <span className="text-slate-500">
+                            <span className="text-warm-gray">
                               {g.members.length} of {g.capacity}
                             </span>
                           </div>
-                          <p className="text-sm text-slate-600">
+                          <p className="text-sm text-warm-gray">
                             {g.members.map((m, i) => (
                               <span key={m.registration_id}>
                                 {i > 0 && ", "}
                                 {m.full_name}
-                                {m.room_label && <span className="text-slate-400"> ({m.room_label})</span>}
+                                {m.room_label && <span className="text-ash-gray"> ({m.room_label})</span>}
                               </span>
                             ))}
                           </p>
                           {g.state === "open" && (
-                            <p className="text-xs text-amber-700">Still open: its members may change.</p>
+                            <p className="text-xs text-ink-black">Still open: its members may change.</p>
                           )}
                           <AssignPicker kind="group" id={g.id} need={unplaced} rooms={options} />
                         </li>
@@ -150,14 +146,14 @@ export default async function AssignPage({
 
               <Card title={`Unmatched people (${board.people.length})`}>
                 {board.people.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nobody unmatched.</p>
+                  <p className="text-sm text-warm-gray">Nobody unmatched.</p>
                 ) : (
-                  <ul className="divide-y divide-slate-100">
+                  <ul className="divide-y divide-stone-border">
                     {board.people.map((p) => (
                       <li key={p.id} className="space-y-2 py-3">
                         <p className="text-sm">
                           <span className="font-medium">{p.full_name}</span>
-                          <span className="text-slate-500"> · {p.fellowship}</span>
+                          <span className="text-warm-gray"> · {p.fellowship}</span>
                         </p>
                         <AssignPicker kind="person" id={p.id} need={1} rooms={options} />
                       </li>
@@ -169,22 +165,32 @@ export default async function AssignPage({
 
             <Card title={`Rooms (${board.rooms.length})`}>
               {board.rooms.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-warm-gray">
                   No {poolName(pool).toLowerCase()} rooms yet.{" "}
                   <Link href={`/admin/camp/${camp.id}/rooms`} className="underline">
                     Add rooms
                   </Link>
                 </p>
               ) : (
-                <ul className="divide-y divide-slate-100">
+                <ul className="divide-y divide-stone-border">
                   {board.rooms.map((r) => (
                     <li key={r.id} className="py-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{r.label}</span>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="flex items-center gap-3">
+                          <span className="font-medium">{r.label}</span>
+                          <span className="flex gap-1" aria-hidden="true">
+                            {Array.from({ length: Math.min(r.capacity, 12) }, (_, i) => (
+                              <span
+                                key={i}
+                                className={cn("h-3 w-3 rounded-full", i < r.occupied ? "bg-soot" : "border-[1.5px] border-stone-muted")}
+                              />
+                            ))}
+                          </span>
+                        </span>
                         <span
                           className={cn(
                             "tabular-nums",
-                            r.occupied === r.capacity ? "text-emerald-700" : r.occupied ? "text-amber-700" : "text-slate-500",
+                            r.occupied === r.capacity ? "text-ink-black" : r.occupied ? "text-ink-black" : "text-warm-gray",
                           )}
                         >
                           {r.occupied} of {r.capacity}
@@ -193,11 +199,11 @@ export default async function AssignPage({
                       {r.occupants.length > 0 && (
                         <ul className="mt-1 space-y-1">
                           {r.occupants.map((o) => (
-                            <li key={o.registration_id} className="flex items-center justify-between gap-2 text-sm text-slate-600">
+                            <li key={o.registration_id} className="flex items-center justify-between gap-2 text-sm text-warm-gray">
                               <span>
                                 {o.full_name}
                                 {o.group_code && (
-                                  <span className="ml-2 font-mono text-xs text-slate-400">{formatGroupCode(o.group_code)}</span>
+                                  <span className="ml-2 font-mono text-xs text-ash-gray">{formatGroupCode(o.group_code)}</span>
                                 )}
                               </span>
                               <RemoveFromRoom registrationId={o.registration_id} name={o.full_name} />

@@ -1,8 +1,9 @@
 "use client";
 
+import { CommuneLoader } from "@/components/camp/brand";
 import { createContext, useContext, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { ErrorText, buttonClass, inputClass } from "@/components/camp/ui";
 import { assignGroupAction, assignPersonAction, sendRoomSmsAction, unassignAction } from "../../actions";
 
@@ -18,7 +19,7 @@ export function Notices({ children }: { children: React.ReactNode }) {
   return (
     <NoticeContext.Provider value={setNotice}>
       {notice && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="mb-4 flex items-start gap-2 rounded-[10px] border border-stone-border bg-white p-3 text-sm text-ink-black">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
           <span className="flex-1">{notice}</span>
           <button type="button" aria-label="Dismiss" onClick={() => setNotice("")}>
@@ -53,7 +54,7 @@ export function AssignPicker({
   const [pending, startTransition] = useTransition();
 
   if (!fits.length) {
-    return <p className="text-xs text-amber-700">No room has {need} free bed{need === 1 ? "" : "s"}.</p>;
+    return <p className="text-xs text-ink-black">No room has {need} free bed{need === 1 ? "" : "s"}.</p>;
   }
 
   const assign = () => {
@@ -85,7 +86,7 @@ export function AssignPicker({
           ))}
         </select>
         <button type="button" disabled={!roomId || pending} onClick={assign} className={`${buttonClass} py-1.5`}>
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {pending && <CommuneLoader size={18} label={null} />}
           Assign
         </button>
       </div>
@@ -121,13 +122,13 @@ export function RemoveFromRoom({ registrationId, name }: { registrationId: strin
         aria-label={`Remove ${name} from the room`}
         className={
           confirming
-            ? "rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white"
-            : "rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            ? "rounded-md bg-ink-black px-2 py-1 text-xs font-medium text-white"
+            : "rounded-md px-2 py-1 text-xs text-warm-gray hover:bg-stone-canvas hover:text-ink-black"
         }
       >
         {confirming ? "Remove?" : "Remove"}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-ink-black">{error}</span>}
     </span>
   );
 }
@@ -159,8 +160,8 @@ export function SendRoomSms({ campId, pending }: { campId: string; pending: numb
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
-      <span className="flex-1 text-slate-600">
+    <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-stone-border bg-white p-3 text-sm">
+      <span className="flex-1 text-warm-gray">
         {pending
           ? `${pending} placed ${pending === 1 ? "person hasn't" : "people haven't"} been texted their room yet.`
           : "Everyone placed has been texted their room."}
@@ -171,13 +172,13 @@ export function SendRoomSms({ campId, pending }: { campId: string; pending: numb
           disabled={busy}
           onClick={click}
           onBlur={() => setConfirming(false)}
-          className={confirming ? "rounded-lg bg-red-600 px-3 py-1.5 font-medium text-white" : `${buttonClass} py-1.5`}
+          className={confirming ? "rounded-[10px] bg-ink-black px-3 py-1.5 font-medium text-white" : `${buttonClass} py-1.5`}
         >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+          {busy && <CommuneLoader size={18} label={null} />}
           {confirming ? `Send ${Math.min(pending, 250)} texts?` : "Text everyone their room"}
         </button>
       )}
-      {result && <p className="w-full text-emerald-700">{result}</p>}
+      {result && <p className="w-full text-ink-black">{result}</p>}
       <ErrorText>{error}</ErrorText>
     </div>
   );

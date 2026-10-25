@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
+import { CircleCheck } from "lucide-react";
+import { CommuneLoader } from "@/components/camp/brand";
+import { ErrorText, Field, inputClass, secondaryButtonClass } from "@/components/camp/ui";
 import { forgotCodeAction, signInAction } from "./actions";
 
 export function SignIn({ slug }: { slug: string }) {
@@ -38,14 +39,14 @@ export function SignIn({ slug }: { slug: string }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} className="flex flex-col gap-3.5">
       {mode === "code" ? (
-        <Field label="Your sign-in code">
+        <Field label="Your sign-in code" hint="It was texted to you when you registered. Dashes and spaces are fine.">
           <input
             required
-            autoComplete="off"
+            autoComplete="one-time-code"
             autoCapitalize="characters"
-            className={`${inputClass} font-mono uppercase tracking-widest`}
+            className={`${inputClass} font-mono uppercase tracking-[0.15em]`}
             placeholder="ABCD-EFGH"
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -57,6 +58,7 @@ export function SignIn({ slug }: { slug: string }) {
             required
             type="tel"
             inputMode="tel"
+            autoComplete="tel"
             className={inputClass}
             placeholder="055 111 2222"
             value={value}
@@ -66,19 +68,20 @@ export function SignIn({ slug }: { slug: string }) {
       )}
       <ErrorText>{error}</ErrorText>
       {sent && (
-        <p className="text-sm text-emerald-700">
+        <p role="status" className="flex items-start gap-2 text-sm leading-snug">
+          <CircleCheck className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden="true" />
           If that number is registered, we&apos;ve texted it a new code. Your old code no longer works.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending} className={buttonClass}>
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+        <button type="submit" disabled={pending} aria-busy={pending} className={`${secondaryButtonClass} h-11 px-5`}>
+          {pending && <CommuneLoader size={20} label={null} />}
           {mode === "code" ? "Sign in" : "Text me a new code"}
         </button>
         <button
           type="button"
           onClick={() => switchTo(mode === "code" ? "forgot" : "code")}
-          className="text-sm text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline"
+          className="min-h-11 text-sm text-warm-gray underline decoration-stone-muted underline-offset-[3px] hover:text-ink-black"
         >
           {mode === "code" ? "Forgot your code?" : "I have my code"}
         </button>

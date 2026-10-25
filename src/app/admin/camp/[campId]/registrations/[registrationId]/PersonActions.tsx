@@ -1,8 +1,9 @@
 "use client";
 
+import { CommuneLoader } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { RoomType } from "@/lib/camp/types";
 import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
@@ -29,7 +30,7 @@ function useAdjust() {
     <>
       <ErrorText>{error}</ErrorText>
       {warning && (
-        <p className="flex items-start gap-2 text-sm text-amber-700">
+        <p className="flex items-start gap-2 text-sm text-ink-black">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" /> {warning}
         </p>
       )}
@@ -59,7 +60,7 @@ export function RecordRefund({ registrationId, paid }: { registrationId: string;
       }}
       className="space-y-3"
     >
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-warm-gray">
         Refund in the Paystack dashboard first, then record it here. Up to {formatCedis(paid)}.
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -75,7 +76,7 @@ export function RecordRefund({ registrationId, paid }: { registrationId: string;
       </div>
       {notices}
       <button type="submit" disabled={pending || paid === 0} className={buttonClass}>
-        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+        {pending && <CommuneLoader size={18} label={null} />}
         Record refund
       </button>
     </form>
@@ -100,7 +101,7 @@ export function ChangeRoomType({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-warm-gray">
         The new price applies. They leave their roommate group and room, which belong to the old room type.
       </p>
       <div className="flex flex-wrap gap-2">
@@ -130,9 +131,9 @@ export function ChangeRoomType({
             setConfirming(false);
             run(() => changeRoomTypeAction(registrationId, roomTypeId), () => setRoomTypeId(""));
           }}
-          className={confirming ? "rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white" : buttonClass}
+          className={confirming ? "rounded-[10px] bg-ink-black px-4 py-2 text-sm font-medium text-white" : buttonClass}
         >
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {pending && <CommuneLoader size={18} label={null} />}
           {confirming ? "Change it?" : "Change room type"}
         </button>
       </div>

@@ -18,7 +18,7 @@ import {
   searchInvitees,
   setLocked,
 } from "@/lib/camp/groups";
-import { findByCode, register, resetCode } from "@/lib/camp/registrations";
+import { findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
 import { campOrigin as origin } from "@/lib/camp/origin";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
 import { CampError, type PaymentStatus, type Registration, type RegistrationInput } from "@/lib/camp/types";
@@ -113,14 +113,25 @@ export async function payAction(slug: string, amountCedis: string) {
   });
 }
 
+export type PaymentCheck = { status: PaymentStatus; amount: number; fee: number; paid: number; price: number };
+
+/** The payment's state plus the attendee's totals after it, for the "payment received" screen. */
 export async function checkPaymentAction(slug: string, reference: string) {
-  return run<PaymentStatus>(async () => {
+  return run<PaymentCheck>(async () => {
     const camp = await campFor(slug);
     const me = await currentAttendee(camp.id);
     if (!me) throw new CampError("Please sign in again.");
     const status = await checkPayment(me.id, String(reference));
     if (status !== "pending") revalidatePath(`/camps/${camp.slug}/me`);
-    return status;
+    const [fresh, payments] = await Promise.all([getRegistration(me.id), listPayments(me.id)]);
+    const payment = payments.find((p) => p.reference === reference);
+    return {
+      status,
+      amount: payment?.amount_pesewas ?? 0,
+      fee: payment?.fee_pesewas ?? 0,
+      paid: fresh?.paid_pesewas ?? me.paid_pesewas,
+      price: fresh?.price_pesewas ?? me.price_pesewas,
+    };
   });
 }
 

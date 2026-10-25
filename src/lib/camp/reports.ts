@@ -263,6 +263,8 @@ export type SupplyRow = {
   fully_paid: number;
   beds: number;
   placed: number;
+  /** What the venue last said is left for this gender; null = no limit. */
+  places_left: number | null;
 };
 
 export type Breakdown = {
@@ -332,7 +334,9 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
         "app",
         `WITH combos AS (
            SELECT room_type_id, gender FROM camp_registrations WHERE camp_id = ?1 AND status <> 'cancelled'
-           UNION SELECT room_type_id, gender FROM camp_rooms WHERE camp_id = ?1)
+           UNION SELECT room_type_id, gender FROM camp_rooms WHERE camp_id = ?1
+           UNION SELECT p.room_type_id, p.gender FROM camp_room_type_places p
+             JOIN camp_room_types y ON y.id = p.room_type_id WHERE y.camp_id = ?1)
          SELECT k.room_type_id, t.name AS room_type_name, k.gender,
            (SELECT COUNT(*) FROM camp_registrations r WHERE r.camp_id = ?1 AND r.room_type_id = k.room_type_id
               AND r.gender = k.gender AND r.status <> 'cancelled') AS registered,
@@ -341,7 +345,9 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
            (SELECT COALESCE(SUM(capacity), 0) FROM camp_rooms x WHERE x.camp_id = ?1
               AND x.room_type_id = k.room_type_id AND x.gender = k.gender) AS beds,
            (SELECT COUNT(*) FROM camp_room_assignments a JOIN camp_rooms x ON x.id = a.room_id
-              WHERE x.camp_id = ?1 AND x.room_type_id = k.room_type_id AND x.gender = k.gender) AS placed
+              WHERE x.camp_id = ?1 AND x.room_type_id = k.room_type_id AND x.gender = k.gender) AS placed,
+           (SELECT places_left FROM camp_room_type_places p
+              WHERE p.room_type_id = k.room_type_id AND p.gender = k.gender) AS places_left
          FROM combos k JOIN camp_room_types t ON t.id = k.room_type_id
          ORDER BY t.price_pesewas, t.name, k.gender`,
         [campId],
@@ -408,4 +414,17 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
     byChurch,
     activity,
   };
+}
+
+/** The two numbers the camp sidebar shows: people registered (not cancelled) and fully paid people waiting for a room. */
+export async function navCounts(campId: string): Promise<{ people: number; waiting: number }> {
+  const [row] = await query<{ people: number; waiting: number }>(
+    "app",
+    `SELECT COALESCE(SUM(r.status <> 'cancelled'), 0) AS people,
+            COALESCE(SUM(r.status = 'fully_paid' AND a.room_id IS NULL), 0) AS waiting
+     FROM camp_registrations r LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
+     WHERE r.camp_id = ?`,
+    [campId],
+  );
+  return row ?? { people: 0, waiting: 0 };
 }

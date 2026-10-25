@@ -1,8 +1,9 @@
 "use client";
 
+import { CommuneLoader } from "@/components/camp/brand";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { Pencil, Plus, Trash2, Upload } from "lucide-react";
 import type { CsvError } from "@/lib/camp/csv";
 import type { Gender, Room, RoomInput, RoomType } from "@/lib/camp/types";
 import { deleteRoomAction, importRoomsAction, saveRoomAction } from "../../actions";
@@ -59,7 +60,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
 
   if (roomTypes.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+      <p className="rounded-[10px] border border-dashed border-stone-muted bg-white p-8 text-center text-sm text-warm-gray">
         Add a room type on the camp page before adding rooms.
       </p>
     );
@@ -83,7 +84,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
           {draft && (
             <form
               onSubmit={save}
-              className="grid gap-3 rounded-lg border border-slate-200 p-4 sm:grid-cols-[1fr_1fr_8rem_6rem_auto] sm:items-end"
+              className="grid gap-3 rounded-[10px] border border-stone-border p-4 sm:grid-cols-[1fr_1fr_8rem_6rem_auto] sm:items-end"
             >
               <Field label="Label">
                 <input
@@ -133,7 +134,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
               </Field>
               <div className="flex gap-2">
                 <button type="submit" disabled={pending} className={buttonClass}>
-                  {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pending && <CommuneLoader size={18} label={null} />}
                   Save
                 </button>
                 <button type="button" className={secondaryButtonClass} onClick={() => setDraft(null)}>
@@ -154,11 +155,11 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
           )}
 
           {rooms.length === 0 ? (
-            <p className="text-sm text-slate-500">No rooms yet. Add them one by one or import the venue&apos;s list.</p>
+            <p className="text-sm text-warm-gray">No rooms yet. Add them one by one or import the venue&apos;s list.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <thead className="text-left text-xs text-ash-gray">
                   <tr>
                     <th className="py-2 pr-3 font-medium">Room</th>
                     <th className="py-2 pr-3 font-medium">Type</th>
@@ -168,7 +169,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
                     <th className="py-2" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-stone-border">
                   {shown.map((room) => (
                     <tr key={room.id}>
                       <td className="py-2 pr-3 font-medium">{room.label}</td>
@@ -179,7 +180,7 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
                       <td className="py-2 text-right whitespace-nowrap">
                         <button
                           aria-label={`Edit ${room.label}`}
-                          className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          className="rounded p-1.5 text-ash-gray hover:bg-stone-canvas hover:text-ink-black"
                           onClick={() =>
                             setDraft({
                               id: room.id,
@@ -197,8 +198,8 @@ export function Rooms({ campId, rooms, roomTypes }: { campId: string; rooms: Roo
                           disabled={pending}
                           className={
                             confirming === room.id
-                              ? "rounded bg-red-600 px-2 py-1 text-xs font-medium text-white"
-                              : "rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              ? "rounded bg-ink-black px-2 py-1 text-xs font-medium text-white"
+                              : "rounded p-1.5 text-ash-gray hover:bg-stone-canvas hover:text-ink-black"
                           }
                           onClick={() => remove(room)}
                           onBlur={() => setConfirming(null)}
@@ -244,13 +245,13 @@ function ImportRooms({ campId, roomTypes }: { campId: string; roomTypes: RoomTyp
   return (
     <Card title="Import from CSV">
       <div className="space-y-3 text-sm">
-        <p className="text-slate-500">
+        <p className="text-warm-gray">
           Columns: <code>label, room type, gender, capacity</code>. Room type must match one of:{" "}
           {roomTypes.map((t) => t.name).join(", ")}. Capacity is optional and defaults to the room type&apos;s beds.
           The whole file is checked first; nothing is saved unless every row is valid.
         </p>
         <label className={`${secondaryButtonClass} cursor-pointer`}>
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {pending ? <CommuneLoader size={18} label={null} /> : <Upload className="h-4 w-4" />}
           Choose CSV file
           <input
             type="file"
@@ -263,11 +264,11 @@ function ImportRooms({ campId, roomTypes }: { campId: string; roomTypes: RoomTyp
             }}
           />
         </label>
-        {message && <p className="text-emerald-700">{message}</p>}
+        {message && <p className="text-ink-black">{message}</p>}
         {errors.length > 0 && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-            <p className="font-medium text-red-700">Nothing was imported. Fix these and try again:</p>
-            <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto text-red-700">
+          <div className="rounded-[10px] border border-stone-border bg-white p-3">
+            <p className="font-medium text-ink-black">Nothing was imported. Fix these and try again:</p>
+            <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto text-ink-black">
               {errors.map((err, i) => (
                 <li key={i}>
                   {err.line > 0 && <span className="font-mono">Line {err.line}: </span>}

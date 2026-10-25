@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { Lock } from "lucide-react";
 import { cedisToPesewas, feeFor, formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
-import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
+import { CommuneLoader } from "@/components/camp/brand";
+import { ErrorText, Field, primaryButtonClass } from "@/components/camp/ui";
+import { cn } from "@/lib/utils";
 import { payAction } from "../actions";
 
 /** Any amount up to the balance. Shows the fee before sending the attendee to Paystack. */
@@ -21,6 +23,13 @@ export function PayForm({ slug, balance, feeBps, dueOn }: { slug: string; balanc
   const valid = pesewas !== null && pesewas >= 100 && pesewas <= balance;
   const fee = valid ? feeFor(pesewas!, feeBps) : 0;
 
+  // Quick picks: half, the rest. Only offered when they make sense.
+  const half = Math.round(balance / 2 / 100) * 100;
+  const quick = [
+    ...(half >= 100 && half < balance ? [{ label: "Half", value: half }] : []),
+    { label: "All of it", value: balance },
+  ];
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -32,30 +41,57 @@ export function PayForm({ slug, balance, feeBps, dueOn }: { slug: string; balanc
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3">
-      <Field label={`Amount in GHS (up to ${formatCedis(balance)})`}>
-        <input
-          required
-          inputMode="decimal"
-          className={inputClass}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
+    <form onSubmit={submit} className="flex flex-col gap-3.5">
+      <Field label="How much?" hint={`Any amount up to ${formatCedis(balance)}. The full amount is due by ${dueOn}.`}>
+        <span className="flex h-12 items-center gap-2 rounded-[6px] border border-stone-muted bg-white px-3.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-cyan-signal">
+          <span className="text-warm-gray">GHS</span>
+          <input
+            required
+            inputMode="decimal"
+            className="h-full min-w-0 flex-1 bg-transparent text-lg tabular-nums outline-none"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </span>
       </Field>
-      {valid ? (
-        <p className="text-sm text-slate-600">
-          {formatCedis(pesewas!)} + {formatCedis(fee)} Paystack fee ={" "}
-          <span className="font-semibold text-slate-900">{formatCedis(pesewas! + fee)}</span>
-        </p>
-      ) : (
-        <p className="text-sm text-slate-500">Enter an amount from GHS 1.00 to {formatCedis(balance)}.</p>
-      )}
-      <p className="text-sm text-slate-500">Pay in parts if you like. The full amount is due by {dueOn}.</p>
+      <div className="flex gap-2">
+        {quick.map((q) => (
+          <button
+            key={q.label}
+            type="button"
+            onClick={() => setAmount(pesewasToCedisInput(q.value))}
+            className={cn(
+              "cm-press h-10 flex-1 rounded-full border text-sm",
+              pesewas === q.value ? "border-soot bg-soot text-white" : "border-stone-border bg-white",
+            )}
+          >
+            {q.label} · {formatCedis(q.value)}
+          </button>
+        ))}
+      </div>
+      <dl className="flex flex-col gap-1.5 rounded-[10px] bg-stone-canvas p-4 text-sm tabular-nums">
+        <div className="flex justify-between">
+          <dt className="text-warm-gray">Payment</dt>
+          <dd>{valid ? formatCedis(pesewas!) : "—"}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-warm-gray">Paystack fee</dt>
+          <dd>{valid ? formatCedis(fee) : "—"}</dd>
+        </div>
+        <div className="flex justify-between border-t border-stone-border pt-1.5 font-medium">
+          <dt>You pay</dt>
+          <dd>{valid ? formatCedis(pesewas! + fee) : "—"}</dd>
+        </div>
+      </dl>
+      {!valid && <p className="text-[13px] text-warm-gray">Enter an amount from GHS 1.00 to {formatCedis(balance)}.</p>}
       <ErrorText>{error}</ErrorText>
-      <button type="submit" disabled={pending || !valid} className={`${buttonClass} w-full py-3 text-base`}>
-        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-        Pay with Paystack
+      <button type="submit" disabled={pending || !valid} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
+        {pending && <CommuneLoader size={22} label={null} />}
+        {pending ? "Opening Paystack…" : valid ? `Pay ${formatCedis(pesewas! + fee)}` : "Pay"}
       </button>
+      <p className="flex items-center justify-center gap-1.5 text-[13px] text-warm-gray">
+        <Lock className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" /> MoMo or card · secured by Paystack
+      </p>
     </form>
   );
 }

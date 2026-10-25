@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { formatGroupCode } from "@/lib/camp/codes";
 import { formatCedis } from "@/lib/camp/money";
 import { listFlaggedPayments, todayInGhana } from "@/lib/camp/registrations";
 import { ROOMMATE_LABELS, filtersToQuery, listPeople, parsePeopleFilters } from "@/lib/camp/reports";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
 import { PeopleFilters } from "@/components/camp/PeopleFilters";
-import { Card, REGISTRATION_STATUS_STYLES } from "@/components/camp/ui";
+import { Card, RegistrationStatus, headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CancelButton } from "./CancelButton";
 
@@ -42,27 +41,26 @@ export default async function RegistrationsPage({
   const pastDue = todayInGhana() > camp.payment_due_on;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href={`/admin/camp/${camp.id}`} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" /> {camp.name}
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold">People ({people.length})</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Public page: <span className="font-mono">/camps/{camp.slug}</span>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className={headlineClass}>
+          {people.length} <span className="text-cyan-edge">{people.length === 1 ? "person" : "people"}</span>
+        </h1>
+        <p className="text-sm text-warm-gray">
+          Public page: <span className="font-mono text-ink-black">/camps/{camp.slug}</span>
         </p>
-      </div>
+      </header>
 
       {flagged.length > 0 && (
-        <Card title={`Payments to look at (${flagged.length})`}>
-          <ul className="space-y-2 text-sm">
+        <Card lifted title={`${flagged.length} payment${flagged.length === 1 ? "" : "s"} to look at`}>
+          <ul className="flex flex-col gap-2 text-sm">
             {flagged.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTriangle className="h-4 w-4 text-ink-black" />
                 <span className="font-medium">{p.full_name}</span>
                 <span className="font-mono text-xs">{p.reference}</span>
                 <span>{formatCedis(p.charged_pesewas)}</span>
-                <span className="text-slate-500">{FLAG_LABELS[p.flag ?? ""] ?? p.flag}</span>
+                <span className="text-warm-gray">{FLAG_LABELS[p.flag ?? ""] ?? p.flag}</span>
               </li>
             ))}
           </ul>
@@ -77,25 +75,25 @@ export default async function RegistrationsPage({
         showChurch
       />
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-[10px] border border-stone-border bg-white">
         <table className="w-full text-sm">
-          <thead className="border-b border-slate-100 text-left text-slate-500">
+          <thead className="border-b border-stone-border text-left text-xs text-warm-gray">
             <tr>
-              <th className="px-4 py-2 font-medium">Name</th>
-              <th className="px-4 py-2 font-medium">Fellowship</th>
-              <th className="px-4 py-2 font-medium">Room type</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Group</th>
-              <th className="px-4 py-2 font-medium">Room</th>
-              <th className="px-4 py-2 text-right font-medium">Paid</th>
-              <th className="px-4 py-2 text-right font-medium">Balance</th>
-              <th className="px-4 py-2" />
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Name</th>
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Fellowship</th>
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Room type</th>
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Status</th>
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Group</th>
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Room</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Paid</th>
+              <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Balance</th>
+              <th className="whitespace-nowrap px-3 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-stone-border">
             {people.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-warm-gray">
                   {filtersToQuery(filters) ? "Nobody matches these filters." : "No registrations yet."}
                 </td>
               </tr>
@@ -104,38 +102,38 @@ export default async function RegistrationsPage({
               const balance = r.price_pesewas - r.paid_pesewas;
               const overdue = pastDue && balance > 0 && r.status !== "cancelled";
               return (
-                <tr key={r.id}>
-                  <td className="px-4 py-2">
+                <tr key={r.id} className="cm-row">
+                  <td className="whitespace-nowrap px-3 py-3">
                     <Link href={`/admin/camp/${camp.id}/registrations/${r.id}`} className="font-medium hover:underline">
                       {r.full_name}
                     </Link>
-                    <div className="text-xs text-slate-500">
-                      {r.phone} · {r.gender}
+                    <div className="text-xs text-warm-gray">
+                      0{r.phone.slice(3, 5)} {r.phone.slice(5, 8)} {r.phone.slice(8)} · {r.gender}
                     </div>
                   </td>
-                  <td className="px-4 py-2">{r.fellowship}</td>
-                  <td className="px-4 py-2">{r.room_type_name}</td>
-                  <td className="px-4 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${REGISTRATION_STATUS_STYLES[r.status]}`}>
-                      {REGISTRATION_STATUS_LABELS[r.status]}
+                  <td className="whitespace-nowrap px-3 py-3">{r.fellowship}</td>
+                  <td className="whitespace-nowrap px-3 py-3">{r.room_type_name}</td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <span className="flex items-center gap-2">
+                      <RegistrationStatus status={r.status} paid={r.paid_pesewas} price={r.price_pesewas} />
+                      {overdue && <span className="text-xs font-medium">· past due</span>}
+                      {r.flagged > 0 && <AlertTriangle className="h-4 w-4" strokeWidth={1.7} aria-label="Payment to look at" />}
                     </span>
-                    {overdue && <span className="ml-2 text-xs font-medium text-red-600">Past due</span>}
-                    {r.flagged > 0 && <AlertTriangle className="ml-2 inline h-4 w-4 text-amber-600" />}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="whitespace-nowrap px-3 py-3">
                     {r.group_code ? (
                       <span className="whitespace-nowrap">
                         <span className="font-mono text-xs">{formatGroupCode(r.group_code)}</span>
-                        {r.roommate && <span className="ml-2 text-xs text-slate-500">{ROOMMATE_LABELS[r.roommate]}</span>}
+                        {r.roommate && <span className="ml-2 text-xs text-warm-gray">{ROOMMATE_LABELS[r.roommate]}</span>}
                       </span>
                     ) : r.roommate ? (
-                      <span className="text-xs text-slate-500">{ROOMMATE_LABELS[r.roommate]}</span>
+                      <span className="text-xs text-warm-gray">{ROOMMATE_LABELS[r.roommate]}</span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-2">{r.room_label ?? ""}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCedis(r.paid_pesewas)}</td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatCedis(balance)}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="whitespace-nowrap px-3 py-3">{r.room_label ?? ""}</td>
+                  <td className="whitespace-nowrap px-3 py-3 tabular-nums text-right">{formatCedis(r.paid_pesewas)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 tabular-nums text-right">{formatCedis(balance)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">
                     <CancelButton id={r.id} name={r.full_name} cancelled={r.status === "cancelled"} />
                   </td>
                 </tr>

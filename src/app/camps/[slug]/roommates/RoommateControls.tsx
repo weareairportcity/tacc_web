@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, LockOpen, Search } from "lucide-react";
+import { Check, Copy, Lock, LockOpen, Search, Share2 } from "lucide-react";
 import type { Invitee } from "@/lib/camp/types";
-import { ErrorText, Field, buttonClass, inputClass, secondaryButtonClass } from "@/components/camp/ui";
+import { CommuneLoader } from "@/components/camp/brand";
+import { ErrorText, Field, buttonClass, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import {
   acceptInviteAction,
   cancelInviteAction,
@@ -19,7 +20,8 @@ import {
   type ActionResult,
 } from "../actions";
 
-const linkButton = "text-xs text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline disabled:opacity-50";
+const linkButton =
+  "min-h-10 px-1 text-[13px] text-warm-gray underline decoration-stone-muted underline-offset-[3px] hover:text-ink-black disabled:opacity-50";
 
 /** Runs a server action, shows its error, and refreshes the page on success. */
 function useGroupAction() {
@@ -37,13 +39,13 @@ function useGroupAction() {
   return { act, error, pending };
 }
 
-const Spinner = ({ on }: { on: boolean }) => (on ? <Loader2 className="h-4 w-4 animate-spin" /> : null);
+const Spinner = ({ on }: { on: boolean }) => (on ? <CommuneLoader size={20} label={null} /> : null);
 
 export function CreateGroup({ slug }: { slug: string }) {
   const { act, error, pending } = useGroupAction();
   return (
-    <div className="space-y-2">
-      <button type="button" disabled={pending} onClick={() => act(() => createGroupAction(slug))} className={buttonClass}>
+    <div className="flex flex-col gap-2">
+      <button type="button" disabled={pending} onClick={() => act(() => createGroupAction(slug))} className={`${primaryButtonClass} w-full`}>
         <Spinner on={pending} />
         Start a group
       </button>
@@ -61,7 +63,7 @@ export function JoinGroup({ slug }: { slug: string }) {
         e.preventDefault();
         act(() => joinGroupAction(slug, code));
       }}
-      className="space-y-3"
+      className="flex flex-col gap-3"
     >
       <Field label="Group code from a friend">
         <input
@@ -75,7 +77,7 @@ export function JoinGroup({ slug }: { slug: string }) {
         />
       </Field>
       <ErrorText>{error}</ErrorText>
-      <button type="submit" disabled={pending} className={buttonClass}>
+      <button type="submit" disabled={pending} className={`${secondaryButtonClass} h-11 px-5`}>
         <Spinner on={pending} />
         Join group
       </button>
@@ -126,7 +128,7 @@ function ConfirmButton({
         setConfirming(false);
         onConfirm();
       }}
-      className={confirming ? "rounded-md bg-red-600 px-3 py-2 text-xs font-medium text-white" : className}
+      className={confirming ? "cm-press inline-flex h-10 items-center rounded-full bg-ink-black px-4 text-[13px] font-medium text-white" : className}
     >
       {confirming ? confirmLabel : label}
     </button>
@@ -175,7 +177,7 @@ export function LockToggle({ slug, locked }: { slug: string; locked: boolean }) 
         onClick={() => act(() => setGroupLockedAction(slug, !locked))}
         className={locked ? secondaryButtonClass : buttonClass}
       >
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+        {pending ? <CommuneLoader size={20} label={null} /> : locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
         {locked ? "Unlock group" : "Lock group"}
       </button>
       <ErrorText>{error}</ErrorText>
@@ -201,7 +203,7 @@ export function InviteSearch({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <form onSubmit={search} className="flex gap-2">
         <input
           className={inputClass}
@@ -212,26 +214,26 @@ export function InviteSearch({ slug }: { slug: string }) {
           onChange={(e) => setTerm(e.target.value)}
         />
         <button type="submit" disabled={searching || term.trim().length < 2} className={secondaryButtonClass}>
-          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {searching ? <CommuneLoader size={18} label={null} /> : <Search className="h-4 w-4" />}
           Search
         </button>
       </form>
       <ErrorText>{searchError || error}</ErrorText>
       {results &&
         (results.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm leading-relaxed text-warm-gray">
             Nobody found. Only people who are fully paid, booked the same room type and aren&apos;t in a group show up.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100 text-sm">
+          <ul className="flex flex-col text-sm">
             {results.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+              <li key={p.id} className="flex items-center justify-between gap-3 border-t border-stone-border py-2.5">
                 <span>
                   <span className="font-medium">{p.full_name}</span>
-                  <span className="text-slate-500"> · {p.fellowship}</span>
+                  <span className="text-warm-gray"> · {p.fellowship}</span>
                 </span>
                 {p.invited ? (
-                  <span className="text-xs text-slate-500">Invited</span>
+                  <span className="flex items-center gap-1 text-[13px] text-warm-gray"><Check className="h-3.5 w-3.5" aria-hidden="true" />Invited</span>
                 ) : (
                   <button
                     type="button"
@@ -265,5 +267,39 @@ export function SentInviteCancel({ slug, inviteId }: { slug: string; inviteId: s
       </button>
       <ErrorText>{error}</ErrorText>
     </span>
+  );
+}
+
+/** Copy the group code, or share it on WhatsApp (or the phone's share sheet). */
+export function ShareCode({ code, campName, url }: { code: string; campName: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  const text = `Join my room for ${campName}. Sign in at ${url}, open Roommates and enter code ${code}`;
+  const copy = async () => {
+    await navigator.clipboard?.writeText(code).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3 rounded-[10px] bg-stone-canvas px-4 py-3">
+        <span className="flex flex-col">
+          <span className="text-[13px] text-warm-gray">Group code</span>
+          <span className="font-mono text-2xl font-medium tracking-[0.15em]">{code}</span>
+        </span>
+        <button type="button" onClick={copy} className={`${secondaryButtonClass} h-10`} aria-live="polite">
+          {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <a
+        href={`https://wa.me/?text=${encodeURIComponent(text)}`}
+        target="_blank"
+        rel="noreferrer"
+        className={`${primaryButtonClass} w-full`}
+      >
+        <Share2 className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" />
+        Share on WhatsApp
+      </a>
+    </div>
   );
 }

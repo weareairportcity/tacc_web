@@ -43,6 +43,17 @@ export function registrationOpen(camp: Camp, today = todayInGhana()) {
   return camp.status === "open" && today >= camp.registration_opens_on && today <= camp.registration_closes_on;
 }
 
+/** Where a camp is in its registration window, for what attendees see. */
+export function registrationPhase(camp: Camp, today = todayInGhana()): "upcoming" | "open" | "closed" {
+  if (camp.status === "open" && today < camp.registration_opens_on) return "upcoming";
+  return registrationOpen(camp, today) ? "open" : "closed";
+}
+
+/** Whole days from today to a YYYY-MM-DD date (0 if it's today or past). */
+export function daysUntil(date: string, today = todayInGhana()) {
+  return Math.max(0, Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000));
+}
+
 /** Trims and checks the form. Throws CampError with every problem at once. */
 export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType[]) {
   const problems: string[] = [];

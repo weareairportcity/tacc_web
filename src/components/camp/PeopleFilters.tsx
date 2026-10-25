@@ -3,6 +3,7 @@ import { Download, Search } from "lucide-react";
 import { CHURCHES, FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
 import { ROOMMATE_LABELS, ROOMMATE_STATUSES, filtersToQuery, type PeopleFilters as Filters } from "@/lib/camp/reports";
 import { REGISTRATION_STATUSES, REGISTRATION_STATUS_LABELS, type RoomType } from "@/lib/camp/types";
+import { cn } from "@/lib/utils";
 import { buttonClass, inputClass, secondaryButtonClass } from "./ui";
 
 /**
@@ -27,7 +28,7 @@ export function PeopleFilters({
   hide?: ("fellowship" | "pfcc")[];
 }) {
   const select = (name: keyof Filters, label: string, options: [string, string][]) => (
-    <select name={name} aria-label={label} defaultValue={filters[name] ?? ""} className={`${inputClass} py-1.5`}>
+    <select name={name} aria-label={label} defaultValue={filters[name] ?? ""} className={cn(inputClass, filters[name] && "border-soot")}>
       <option value="">{label}: all</option>
       {options.map(([value, text]) => (
         <option key={value} value={value}>
@@ -39,11 +40,11 @@ export function PeopleFilters({
   const active = filtersToQuery(filters) !== "";
 
   return (
-    <form method="get" className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+    <form method="get" role="search" className="flex flex-col gap-3 rounded-[10px] border border-stone-border bg-white p-3.5">
       <div className="flex gap-2">
         <input name="q" defaultValue={filters.q ?? ""} placeholder={searchLabel} aria-label={searchLabel} className={inputClass} />
         <button type="submit" className={buttonClass}>
-          <Search className="h-4 w-4" /> Filter
+          <Search className="h-4 w-4" aria-hidden="true" /> Filter
         </button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -64,10 +65,10 @@ export function PeopleFilters({
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <a href={exportHref} className={secondaryButtonClass}>
-          <Download className="h-4 w-4" /> Export CSV
+          <Download className="h-4 w-4" aria-hidden="true" /> Export these as CSV
         </a>
         {active && (
-          <Link href="?" className="text-sm text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline">
+          <Link href="?" className="text-sm text-warm-gray underline-offset-2 hover:text-ink-black hover:underline">
             Clear filters
           </Link>
         )}

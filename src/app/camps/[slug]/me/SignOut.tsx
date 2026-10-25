@@ -11,7 +11,7 @@ export function SignOut() {
       type="button"
       disabled={pending}
       onClick={() => startTransition(() => signOutAction())}
-      className={secondaryButtonClass}
+      className={`${secondaryButtonClass} h-9 flex-none px-3.5 text-[13px]`}
     >
       Sign out
     </button>

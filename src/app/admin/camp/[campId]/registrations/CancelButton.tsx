@@ -15,7 +15,7 @@ export function CancelButton({ id, name, cancelled }: { id: string; name: string
   const [warning, setWarning] = useState("");
   const [pending, startTransition] = useTransition();
 
-  if (cancelled) return warning ? <span className="block max-w-56 text-left text-xs text-amber-700">{warning}</span> : null;
+  if (cancelled) return warning ? <span className="block max-w-56 text-left text-xs text-ink-black">{warning}</span> : null;
 
   const click = () => {
     if (!confirming) return setConfirming(true);
@@ -38,13 +38,13 @@ export function CancelButton({ id, name, cancelled }: { id: string; name: string
         aria-label={`Cancel ${name}'s registration`}
         className={
           confirming
-            ? "rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white"
-            : "rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            ? "rounded-md bg-ink-black px-2 py-1 text-xs font-medium text-white"
+            : "rounded-md px-2 py-1 text-xs text-warm-gray hover:bg-stone-canvas hover:text-ink-black"
         }
       >
         {confirming ? "Cancel registration?" : "Cancel"}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-ink-black">{error}</span>}
     </span>
   );
 }
