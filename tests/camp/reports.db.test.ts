@@ -15,7 +15,7 @@ import {
   type PeopleFilters,
 } from "@/lib/camp/reports";
 import { assertRole } from "@/lib/camp/roles";
-import { createRoom, createRoomType } from "@/lib/camp/rooms";
+import { createRoom, createRoomType, setPlacesLeft } from "@/lib/camp/rooms";
 import type { Camp, Registration, Staff } from "@/lib/camp/types";
 import { ACTOR, attendee, openCamp, paidUp } from "./helpers";
 
@@ -102,12 +102,21 @@ describe("the dashboard", () => {
   it("shows room supply and demand by room type and gender", async () => {
     const d = await getDashboard(camp.id);
     expect(d.supply.map((s) => ({ ...s, room_type_id: undefined }))).toEqual([
-      { room_type_id: undefined, room_type_name: "Hostel", gender: "female", registered: 3, fully_paid: 2, beds: 4, placed: 2 },
-      { room_type_id: undefined, room_type_name: "Hostel", gender: "male", registered: 1, fully_paid: 0, beds: 4, placed: 0 },
-      { room_type_id: undefined, room_type_name: "Suite", gender: "female", registered: 1, fully_paid: 1, beds: 0, placed: 0 },
+      { room_type_id: undefined, room_type_name: "Hostel", gender: "female", registered: 3, fully_paid: 2, beds: 4, placed: 2, places_left: null },
+      { room_type_id: undefined, room_type_name: "Hostel", gender: "male", registered: 1, fully_paid: 0, beds: 4, placed: 0, places_left: null },
+      { room_type_id: undefined, room_type_name: "Suite", gender: "female", registered: 1, fully_paid: 1, beds: 0, placed: 0, places_left: null },
     ]);
     expect(d.allocation).toEqual({ placed: 2, waiting: 1, unmatched: 1, groups: { open: 1, locked: 0, final: 0 } });
     expect(d.groupsTooBig).toEqual([]);
+  });
+
+  it("shows places left from the venue next to supply", async () => {
+    const before = await getDashboard(camp.id);
+    const hostel = before.supply.find((s) => s.room_type_name === "Hostel" && s.gender === "male")!;
+    await setPlacesLeft(ACTOR, hostel.room_type_id, "male", 7);
+    const d = await getDashboard(camp.id);
+    expect(d.supply.find((s) => s.room_type_id === hostel.room_type_id && s.gender === "male")?.places_left).toBe(7);
+    await setPlacesLeft(ACTOR, hostel.room_type_id, "male", null);
   });
 
   it("breaks counts down by fellowship, PFCC and church", async () => {
