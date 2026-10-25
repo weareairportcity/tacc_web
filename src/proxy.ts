@@ -9,8 +9,8 @@ import { NextResponse, type NextRequest } from "next/server";
  *
  * commune.theairportcitychurch.com is Commune, the camp app: its home is the
  * camps list, commune…/<camp-slug> is a short link to a camp, and /admin
- * opens the coordinator side. Once COMMUNE_REDIRECT=1 is set (after the domain
- * is live in Vercel), www…/camps and www…/admin/camp move there for good.
+ * opens the coordinator side. www…/camps and www…/admin/camp move there for
+ * good (set COMMUNE_REDIRECT=0 to pause that, e.g. if the domain ever breaks).
  *
  * The Supabase session work is deliberately scoped to /admin only. It costs a
  * network round trip per request, and the public counter is the one page that
@@ -62,7 +62,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.rewrite(url);
     }
   } else if (
-    process.env.COMMUNE_REDIRECT === "1" &&
+    process.env.COMMUNE_REDIRECT !== "0" &&
     (pathname === "/camps" || pathname.startsWith("/camps/") || pathname === "/admin/camp" || pathname.startsWith("/admin/camp/"))
   ) {
     return NextResponse.redirect(`${COMMUNE_ORIGIN}${pathname}${request.nextUrl.search}`, 308);
