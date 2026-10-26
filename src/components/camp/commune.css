@@ -157,3 +157,8 @@ dialog.cm-sheet::backdrop { background: rgba(12, 10, 9, 0.22); transition: backg
   .cm-toast { transition: opacity 160ms ease; transform: none; }
   .cm-pop, .cm-up, .cm-scanline { animation: none; }
 }
+
+/* Bars in a small column chart rise from the baseline. */
+@keyframes cm-grow-y { from { transform: scaleY(0); } }
+.cm-grow-y { transform-origin: bottom; animation: cm-grow-y 700ms cubic-bezier(0.23, 1, 0.32, 1) 150ms both; }
+@media (prefers-reduced-motion: reduce) { .cm-grow-y { animation: none; } }

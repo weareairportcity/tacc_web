@@ -255,13 +255,16 @@ export function AssignBoard({
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span className="font-display text-xl">{r.label}</span>
-                      <Beds capacity={r.capacity} taken={r.occupied} />
+                      <Beds capacity={r.capacity} taken={r.occupied} arrived={r.occupants.filter((o) => o.checked_in).length} />
                     </span>
                     <ul className="flex flex-col text-[13px]">
                       {r.occupants.length === 0 && <li className="text-warm-gray">Empty</li>}
                       {r.occupants.map((o) => (
                         <li key={o.registration_id} className="group flex min-h-7 items-center justify-between gap-1">
-                          <span className="truncate">{o.full_name}</span>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <Arrived on={!!o.checked_in} />
+                            <span className="truncate">{o.full_name}</span>
+                          </span>
                           <button
                             type="button"
                             onClick={() => takeOut(o.registration_id, o.full_name, r.id, r.label)}
@@ -305,12 +308,21 @@ export function AssignBoard({
   );
 }
 
-export function Beds({ capacity, taken }: { capacity: number; taken: number }) {
+/** One dot per bed: blue taken, green when that person has arrived, empty free. */
+export function Beds({ capacity, taken, arrived = 0 }: { capacity: number; taken: number; arrived?: number }) {
   return (
-    <span className="flex gap-1" role="img" aria-label={`${taken} of ${capacity} beds taken`}>
+    <span className="flex gap-1" role="img" aria-label={`${taken} of ${capacity} beds taken${arrived ? `, ${arrived} arrived` : ""}`}>
       {Array.from({ length: Math.min(capacity, 10) }, (_, i) => (
-        <span key={i} className={cn("h-[11px] w-[11px] rounded-full", i < taken ? "bg-cyan-edge" : "border-[1.5px] border-stone-muted")} />
+        <span
+          key={i}
+          className={cn("h-[11px] w-[11px] rounded-full", i < arrived ? "bg-st-paid" : i < taken ? "bg-cyan-edge" : "border-[1.5px] border-stone-muted")}
+        />
       ))}
     </span>
   );
+}
+
+/** An occupant's name with a green dot once they've checked in. */
+export function Arrived({ on }: { on: boolean }) {
+  return on ? <span className="h-2 w-2 flex-none rounded-full bg-st-paid" role="img" aria-label="Arrived" /> : null;
 }

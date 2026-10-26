@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { RegistrationStatus } from "@/lib/camp/types";
@@ -138,6 +138,13 @@ export function PeopleView({
   const [ready, setReady] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [person, setPerson] = useState<string | null>(() => new URLSearchParams(initialQuery).get("person"));
+  // "Find a person" in the top bar can open someone while this page is already showing.
+  const urlPerson = useSearchParams().get("person");
+  const [seenUrlPerson, setSeenUrlPerson] = useState(urlPerson);
+  if (urlPerson !== seenUrlPerson) {
+    setSeenUrlPerson(urlPerson);
+    if (urlPerson) setPerson(urlPerson);
+  }
   const [sheet, setSheet] = useState<"filters" | "pay" | "text" | null>(null);
   const [views, setViews] = useState(initialViews);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -414,8 +421,10 @@ export function PeopleView({
                       <Status status={r.status} />
                     </td>
                     <td className="px-3 py-3 text-[#57534e] max-lg:hidden">
-                      {r.checked_in && <Check className="mr-1 inline h-3.5 w-3.5 text-st-paid" strokeWidth={2.4} aria-label="Arrived" />}
-                      {r.room ?? <span className="text-ash-gray">—</span>}
+                      <span className="inline-flex items-center gap-1.5">
+                        {r.checked_in && <span className="h-2 w-2 rounded-full bg-st-paid" role="img" aria-label="Arrived" />}
+                        {r.room ?? <span className="text-ash-gray">—</span>}
+                      </span>
                     </td>
                     {!leader && <td className={cn("py-3 pl-3 pr-4 text-right tabular-nums", out ? "font-semibold" : "text-ash-gray")}>{out ? formatCedis(out) : "—"}</td>}
                   </tr>

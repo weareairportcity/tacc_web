@@ -247,6 +247,8 @@ export type Occupant = {
   full_name: string;
   fellowship: string;
   group_code: string | null;
+  /** Arrived at camp (checked in). */
+  checked_in: 0 | 1;
 };
 
 export type RoomWithOccupants = Room & { occupants: Occupant[] };

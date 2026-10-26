@@ -10,7 +10,7 @@ import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { assignPersonAction, deleteRoomAction, importRoomsAction, saveRoomAction, unassignAction } from "../../actions";
-import { Beds } from "./AssignBoard";
+import { Arrived, Beds } from "./AssignBoard";
 
 type Draft = { id: string | null; label: string; room_type_id: string; gender: Gender; capacity: number };
 
@@ -70,6 +70,11 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
         <span className="text-[13px] text-warm-gray">
           {shown.length} rooms · {beds} beds
         </span>
+        <span className="flex items-center gap-3 text-xs text-warm-gray max-md:hidden" aria-hidden="true">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-cyan-edge" />Taken</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-st-paid" />Arrived</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-stone-muted" />Free</span>
+        </span>
         <span className="ml-auto flex gap-2">
           <button type="button" onClick={() => setImporting(true)} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
             <Upload className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Import
@@ -97,13 +102,22 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
             >
               <span className="flex w-full items-center justify-between gap-2">
                 <span className="font-display text-xl">{r.label}</span>
-                <Beds capacity={r.capacity} taken={r.occupied} />
+                <Beds capacity={r.capacity} taken={r.occupied} arrived={r.occupants.filter((o) => o.checked_in).length} />
               </span>
               <span className="text-xs text-warm-gray">
                 {r.room_type_name} · {r.gender === "male" ? "Men" : "Women"}
               </span>
               <span className="flex flex-col text-[13px]">
-                {r.occupants.length ? r.occupants.map((o) => <span key={o.registration_id} className="truncate">{o.full_name}</span>) : <span className="text-warm-gray">Empty</span>}
+                {r.occupants.length ? (
+                  r.occupants.map((o) => (
+                    <span key={o.registration_id} className="flex items-center gap-1.5">
+                      <Arrived on={!!o.checked_in} />
+                      <span className="truncate">{o.full_name}</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-warm-gray">Empty</span>
+                )}
               </span>
             </button>
           ))}
@@ -171,7 +185,10 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
                 <h3 className="mb-1 text-[13px] font-semibold">In this room</h3>
                 {editing.occupants.map((o) => (
                   <div key={o.registration_id} className="flex min-h-11 items-center gap-3 border-t border-[#f0efee] text-sm">
-                    <span className="flex-1">{o.full_name}</span>
+                    <span className="flex flex-1 items-center gap-1.5">
+                      <Arrived on={!!o.checked_in} />
+                      {o.full_name}
+                    </span>
                     <button
                       type="button"
                       disabled={pending}

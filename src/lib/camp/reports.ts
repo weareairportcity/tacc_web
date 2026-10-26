@@ -604,3 +604,79 @@ export function listBulkPayments(campId: string): Promise<BulkPaymentRow[]> {
     [checkId(campId, "camp")],
   );
 }
+
+// ─── Find a person (top bar) ─────────────────────────────────────────────────
+
+export type FoundPerson = { id: string; full_name: string; fellowship: string; status: RegistrationStatus; room_label: string | null };
+
+/** Up to 8 people whose name (or, for coordinators, phone) matches, for the search box as you type. */
+export async function findPeople(campId: string, raw: string, scope: Scope = { kind: "all" }): Promise<FoundPerson[]> {
+  const q = String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (q.length < 2) return [];
+  const scoped = scopeSql(scope);
+  const where = filterSql({ q }, { phoneSearch: scope.kind === "all" });
+  return query<FoundPerson>(
+    "app",
+    `SELECT r.id, r.full_name, r.fellowship, r.status, ${scope.kind === "all" ? "x.label" : "NULL"} AS room_label
+     ${PEOPLE_FROM}
+     WHERE r.camp_id = ?${scoped.sql}${where.sql}
+     ORDER BY CASE WHEN r.full_name LIKE ? THEN 0 ELSE 1 END, r.full_name COLLATE NOCASE LIMIT 8`,
+    [checkId(campId, "camp"), ...scoped.params, ...where.params, `${q.replace(/[\\%_]/g, "")}%`],
+  );
+}
+
+// ─── Today (the overview) ────────────────────────────────────────────────────
+
+export type TodayNumbers = {
+  newToday: number;
+  moneyToday: number;
+  /** People with something left to pay. */
+  outstandingPeople: number;
+  arrived: number;
+  /** Registrations per day for the last 14 days, oldest first. */
+  perDay: { day: string; n: number }[];
+  latestPayments: { registration_id: string; full_name: string; amount_pesewas: number; paid_at: string; by: string }[];
+};
+
+export async function getTodayNumbers(campId: string, today = todayInGhana()): Promise<TodayNumbers> {
+  checkId(campId, "camp");
+  const from = new Date(Date.parse(`${today}T00:00:00Z`) - 13 * 86_400_000).toISOString().slice(0, 10);
+  const [[totals], days, latest] = await Promise.all([
+    query<{ new_today: number; money_today: number; outstanding_people: number; arrived: number }>(
+      "app",
+      `SELECT
+         (SELECT COUNT(*) FROM camp_registrations WHERE camp_id = ?1 AND substr(created_at, 1, 10) = ?2) AS new_today,
+         (SELECT COALESCE(SUM(p.amount_pesewas), 0) FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+            WHERE r.camp_id = ?1 AND p.status = 'success' AND substr(p.paid_at, 1, 10) = ?2) AS money_today,
+         (SELECT COUNT(*) FROM camp_registrations WHERE camp_id = ?1 AND status IN ('registered', 'partially_paid')) AS outstanding_people,
+         (SELECT COUNT(*) FROM camp_registrations WHERE camp_id = ?1 AND checked_in_at IS NOT NULL) AS arrived`,
+      [campId, today],
+    ),
+    query<{ day: string; n: number }>(
+      "app",
+      `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS n FROM camp_registrations
+       WHERE camp_id = ? AND substr(created_at, 1, 10) >= ? GROUP BY day`,
+      [campId, from],
+    ),
+    query<TodayNumbers["latestPayments"][number]>(
+      "app",
+      `SELECT p.registration_id, r.full_name, p.amount_pesewas, p.paid_at,
+         CASE WHEN p.bulk_id IS NOT NULL THEN 'coordinator' WHEN p.payer_name <> '' THEN p.payer_name ELSE '' END AS by
+       FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+       WHERE r.camp_id = ? AND p.status = 'success' AND p.paid_at IS NOT NULL ORDER BY p.paid_at DESC LIMIT 5`,
+      [campId],
+    ),
+  ]);
+  const perDay = Array.from({ length: 14 }, (_, i) => {
+    const day = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
+    return { day, n: days.find((d) => d.day === day)?.n ?? 0 };
+  });
+  return {
+    newToday: totals?.new_today ?? 0,
+    moneyToday: totals?.money_today ?? 0,
+    outstandingPeople: totals?.outstanding_people ?? 0,
+    arrived: totals?.arrived ?? 0,
+    perDay,
+    latestPayments: latest,
+  };
+}

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { findPeople, scopeFor } from "@/lib/camp/reports";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
@@ -61,6 +62,17 @@ async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   } catch (err) {
     if (err instanceof CampError) return { ok: false, error: err.message };
     console.error("camp admin action failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+/** Like run, for actions that only read: nothing changed, so nothing to refresh. */
+async function look<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
+  try {
+    return { ok: true, data: await fn() };
+  } catch (err) {
+    if (err instanceof CampError) return { ok: false, error: err.message };
+    console.error("camp admin lookup failed", err);
     return { ok: false, error: "Something went wrong. Please try again." };
   }
 }
@@ -283,7 +295,7 @@ async function personIn(campId: string, registrationId: string) {
 
 /** Everything the person panel shows. */
 export async function getPersonAction(campId: string, registrationId: string) {
-  return run(async () => {
+  return look(async () => {
     await requireCampRole("coordinator");
     const person = await personIn(campId, registrationId);
     const [payments, refunds, group, room, details, requests, arrival, roomTypes] = await Promise.all([
@@ -335,7 +347,7 @@ export async function refundPersonAction(campId: string, registrationId: string,
 
 /** A link a parent or sponsor can open to pay this registration without signing in. */
 export async function payLinkAction(campId: string, registrationId: string) {
-  return run(async () => {
+  return look(async () => {
     await requireCampRole("coordinator");
     const person = await personIn(campId, registrationId);
     const camp = await getCamp(person.camp_id);
@@ -399,7 +411,7 @@ export async function undoCheckInAction(campId: string, registrationId: string) 
 }
 
 export async function findArrivalsAction(campId: string, term: string) {
-  return run(async () => {
+  return look(async () => {
     await requireCampRole("coordinator");
     return findArrivals(String(campId), String(term));
   });
@@ -456,8 +468,16 @@ export async function setMyPhoneAction(phone: string) {
 
 /** The return page after paying for several people. */
 export async function checkBulkAction(campId: string, reference: string) {
-  return run(async () => {
+  return look(async () => {
     await requireCampRole("coordinator");
     return checkBulkPayment(String(campId), String(reference));
+  });
+}
+
+/** The top bar's "Find a person", as you type. Leaders search their own group only. */
+export async function findPeopleAction(campId: string, term: string) {
+  return look(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    return findPeople(String(campId), String(term), scopeFor(staff));
   });
 }

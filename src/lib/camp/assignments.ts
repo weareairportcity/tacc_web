@@ -274,7 +274,8 @@ export async function getPoolBoard(campId: string, roomTypeId: string, gender: G
     ),
     query<Occupant & { room_id: string }>(
       "app",
-      `SELECT a.room_id, r.id AS registration_id, r.full_name, r.fellowship, g.code AS group_code
+      `SELECT a.room_id, r.id AS registration_id, r.full_name, r.fellowship, g.code AS group_code,
+         r.checked_in_at IS NOT NULL AS checked_in
        FROM camp_room_assignments a
        JOIN camp_rooms x ON x.id = a.room_id
        JOIN camp_registrations r ON r.id = a.registration_id
@@ -371,7 +372,8 @@ export async function listRoomsWithOccupants(campId: string): Promise<RoomWithOc
     ),
     query<Occupant & { room_id: string }>(
       "app",
-      `SELECT a.room_id, r.id AS registration_id, r.full_name, r.fellowship, g.code AS group_code
+      `SELECT a.room_id, r.id AS registration_id, r.full_name, r.fellowship, g.code AS group_code,
+         r.checked_in_at IS NOT NULL AS checked_in
        FROM camp_room_assignments a
        JOIN camp_rooms x ON x.id = a.room_id
        JOIN camp_registrations r ON r.id = a.registration_id

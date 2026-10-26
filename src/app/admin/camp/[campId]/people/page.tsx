@@ -61,8 +61,11 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
   const [roomTypes, views] = await Promise.all([leader ? [] : listRoomTypes(camp.id), listViews(camp.id, staff.email)]);
   const scope = leader ? scopeFor(staff) : null;
 
+  const query = new URLSearchParams(await searchParams).toString();
   return (
     <PeopleView
+      // A new search from the top bar starts the page fresh.
+      key={new URLSearchParams(query).get("q") ?? ""}
       campId={camp.id}
       leader={leader}
       scopeName={scope && scope.kind !== "all" ? scope.value : null}
@@ -70,7 +73,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
       roomTypes={roomTypes.map((t) => t.name)}
       pfccs={PFCC_GROUPS.map((g) => ({ pfcc: g.pfcc, fellowships: g.fellowships.map((f) => f.name) }))}
       views={views}
-      initialQuery={new URLSearchParams(await searchParams).toString()}
+      initialQuery={query}
     />
   );
 }

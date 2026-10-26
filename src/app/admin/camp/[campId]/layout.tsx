@@ -4,7 +4,7 @@ import { getCamp, ID, listCamps } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
 import { CommuneLogo } from "@/components/camp/brand";
 import { CampLogo } from "@/components/camp/photos";
-import { BottomBar, FindPerson, Rail } from "@/components/camp/shell/nav";
+import { BottomBar, FindPerson, PhoneSearch, Rail } from "@/components/camp/shell/nav";
 import { SignOutButton } from "@/components/camp/SignOutButton";
 import { ToastProvider } from "@/components/camp/toast";
 import { pageStaff } from "../access";
@@ -67,17 +67,8 @@ export default async function CampShell({ children, params }: { children: React.
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-stone-border bg-stone-canvas/95 px-4 backdrop-blur-sm lg:px-7">
             {switcher}
-            <FindPerson base={base} className="ml-auto w-full max-w-[420px] max-sm:hidden lg:ml-0" />
-            <Link
-              href={`${base}/people?focus=search`}
-              aria-label="Find a person"
-              className="cm-press ml-auto flex h-11 w-11 items-center justify-center rounded-full border border-stone-border bg-white sm:hidden"
-            >
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="6.5" />
-                <path d="M20 20l-4.2-4.2" />
-              </svg>
-            </Link>
+            <FindPerson base={base} campId={camp.id} leader={leader} className="ml-auto w-full max-w-[420px] max-sm:hidden lg:ml-0" />
+            <PhoneSearch base={base} campId={camp.id} leader={leader} />
           </header>
           <main className="w-full max-w-[1080px] flex-1 px-4 pb-32 pt-6 lg:px-7 lg:pb-16">{children}</main>
         </div>
