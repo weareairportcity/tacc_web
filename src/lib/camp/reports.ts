@@ -46,6 +46,20 @@ function scopeSql(scope: Scope): { sql: string; params: unknown[] } {
   return { sql: ` AND r.${scope.kind === "fellowship" ? "fellowship" : "pfcc"} = ?`, params: [scope.value] };
 }
 
+/** The ids, of these, that are in this camp and in scope: what a leader sends can't reach anyone else. */
+export async function idsInScope(campId: string, ids: string[], scope: Scope) {
+  const wanted = [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 100);
+  if (!wanted.length) return [];
+  const s = scopeSql(scope);
+  const rows = await query<{ id: string }>(
+    "app",
+    `SELECT r.id FROM camp_registrations r WHERE r.camp_id = ?${s.sql} AND r.id IN (${wanted.map(() => "?").join(",")})`,
+    [checkId(campId, "camp"), ...s.params, ...wanted],
+  );
+  const found = new Set(rows.map((r) => r.id));
+  return wanted.filter((id) => found.has(id));
+}
+
 // ─── People ──────────────────────────────────────────────────────────────────
 
 export const ROOMMATE_STATUSES = ["unmatched", "in_group", "locked"] as const;

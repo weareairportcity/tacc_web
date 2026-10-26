@@ -25,7 +25,7 @@ export default async function CampShell({ children, params }: { children: React.
   const [counts, camps, open] = await Promise.all([
     leader ? { requests: 0 } : navCounts(camp.id),
     listCamps(),
-    leader ? [] : listMyOpenBulkPayments(camp.id, staff.email).catch(() => []),
+    listMyOpenBulkPayments(camp.id, staff.email).catch(() => []),
   ]);
   const base = `/admin/camp/${camp.id}`;
   const switchable = camps.filter((c) => c.status !== "archived" && (!leader || c.status !== "draft"));
@@ -80,7 +80,7 @@ export default async function CampShell({ children, params }: { children: React.
           <main className="w-full max-w-[1080px] flex-1 px-4 pb-32 pt-6 lg:px-7 lg:pb-16">{children}</main>
         </div>
       </div>
-      {!leader && <OpenPayments campId={camp.id} payments={open} />}
+      <OpenPayments campId={camp.id} payments={open} />
       <BottomBar base={base} leader={leader} requests={counts.requests} />
     </ToastProvider>
   );

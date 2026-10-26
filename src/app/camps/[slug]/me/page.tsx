@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeftRight, Check, ChevronRight, CircleSlash, Clock, Download, HeartPulse, RotateCcw, UserRound, Users } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronRight, CircleSlash, Clock, Download, HeartPulse, MessageSquareHeart, RotateCcw, UserRound, Users } from "lucide-react";
 import { getMyRoom } from "@/lib/camp/assignments";
 import { getCampBySlug } from "@/lib/camp/camps";
+import { feedbackOpen, hasAnswered } from "@/lib/camp/feedback";
 import { getGroupFor, listReceivedInvites } from "@/lib/camp/groups";
 import { formatCedis } from "@/lib/camp/money";
 import { passQrSvg } from "@/lib/camp/pass";
+import { makeToken } from "@/lib/camp/tokens";
 import { getPrivateDetails } from "@/lib/camp/profile";
 import { daysUntil, listPayments } from "@/lib/camp/registrations";
 import { listMyRequests } from "@/lib/camp/requests";
@@ -28,7 +30,9 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
 
   const fullyPaid = me.status === "fully_paid";
   const cancelled = me.status === "cancelled";
-  const [payments, group, invites, room, details, requests, qr] = await Promise.all([
+  // After camp, people who arrived are asked how it went.
+  const askFeedback = !cancelled && !!me.checked_in_at && feedbackOpen(camp);
+  const [payments, group, invites, room, details, requests, qr, answered] = await Promise.all([
     listPayments(me.id),
     fullyPaid ? getGroupFor(me.id) : null,
     fullyPaid ? listReceivedInvites(me) : [],
@@ -36,6 +40,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
     getPrivateDetails(me.id),
     listMyRequests(me),
     cancelled ? null : passQrSvg(camp.id, me.id),
+    askFeedback ? hasAnswered(camp.id, me.id) : true,
   ]);
   const balance = me.price_pesewas - me.paid_pesewas;
   const share = me.price_pesewas > 0 ? me.paid_pesewas / me.price_pesewas : 1;
@@ -87,6 +92,20 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </div>
         <SignOut />
       </div>
+
+      {!answered && (
+        <Link
+          href={`/camps/${camp.slug}/feedback/${makeToken("feedback", me.id)}`}
+          className="cm-rise cm-press flex items-center gap-3.5 rounded-2xl bg-white p-5 shadow-seline-hero"
+        >
+          <MessageSquareHeart className="h-6 w-6 flex-none text-cyan-deep" strokeWidth={1.5} aria-hidden="true" />
+          <span className="flex flex-1 flex-col">
+            <span className="text-[17px] font-medium">How was camp?</span>
+            <span className="text-sm text-warm-gray">Two minutes, and no name needed.</span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
+        </Link>
+      )}
 
       {cancelled ? (
         <p className="flex items-start gap-2.5 rounded-[10px] border border-stone-border bg-white p-5 text-[15px] leading-relaxed">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
+import { actorName } from "@/lib/camp/history-words";
 import { formatCedis } from "@/lib/camp/money";
 import { reconcileWithPaystack } from "@/lib/camp/reconciliation";
 import { listFlaggedPayments } from "@/lib/camp/registrations";
@@ -106,14 +107,14 @@ export default async function MoneyPage({ params }: { params: Promise<{ campId: 
         </Section>
       )}
 
-      <Section title="Paid by coordinators">
+      <Section title="Paid by coordinators and leaders">
         {bulks.length === 0 && <li className="px-4 py-3.5 text-sm text-warm-gray">None yet. Select people on People, then Pay for them.</li>}
         {bulks.map((b) => (
           <li key={b.id} className="border-t border-stone-border first:border-t-0">
             <Link href={`/admin/camp/${camp.id}/money/paid?reference=${encodeURIComponent(b.reference)}`} className="cm-row flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
             <span className="w-28 text-warm-gray">{formatDate((b.paid_at ?? b.created_at).slice(0, 10))}</span>
             <span className="min-w-0 flex-1">
-              <strong className="font-medium">{b.paid_by.split("@")[0]}</strong> for {b.count} {b.count === 1 ? "person" : "people"}
+              <strong className="font-medium">{actorName(b.paid_by, null)}</strong> for {b.count} {b.count === 1 ? "person" : "people"}
               {b.note && <span className="text-warm-gray"> · {b.note}</span>}
               <span className="block truncate text-[13px] text-warm-gray">{b.people}</span>
             </span>

@@ -8,7 +8,9 @@ import { CampError, type RegistrationStatus } from "./types";
  * Arriving at camp, and collecting the camp T-shirt. Someone scans the QR on
  * the attendee's pass (a signed link, see tokens.ts) or finds them by name.
  * Coordinators can do it for anyone; a fellowship or PFCC leader only for
- * their own people. Doing it twice is harmless; Undo clears it.
+ * their own people. Doing it twice is harmless; Undo clears it. With no
+ * signal, the scanning phone keeps scans and sends them later with the time
+ * they happened (syncScans), checking against its copy of the list (scanRoster).
  */
 
 export type ScanMode = "checkin" | "shirt";
@@ -69,19 +71,36 @@ async function personFor(campId: string, registrationId: string, scope: Scope) {
 const COLUMNS = { checkin: ["checked_in_at", "checked_in_by"], shirt: ["shirt_given_at", "shirt_given_by"] } as const;
 const ACTIONS = { checkin: "registration.check_in", shirt: "registration.shirt_given" } as const;
 
-/** Checks someone in, or marks their T-shirt given. `already` when it was done before. */
-export async function markScan(actor: string, campId: string, registrationId: string, mode: ScanMode, scope: Scope = ALL) {
+const DAY = 24 * 60 * 60 * 1000;
+
+/** When a scan kept on a phone really happened: not in the future, and no older than a week. */
+export function scanTime(at: unknown, now = Date.now()): string | null {
+  const t = typeof at === "string" ? Date.parse(at) : NaN;
+  if (!Number.isFinite(t) || t > now || t < now - 7 * DAY) return null;
+  return new Date(t).toISOString();
+}
+
+/** Checks someone in, or marks their T-shirt given. `already` when it was done before. `at`: when, for a scan sent late. */
+export async function markScan(actor: string, campId: string, registrationId: string, mode: ScanMode, scope: Scope = ALL, at: string | null = null) {
   const person = await personFor(campId, registrationId, scope);
   if (person.status === "cancelled") throw new CampError(`${person.full_name}'s registration is cancelled.`);
   const done = mode === "checkin" ? person.checked_in_at : person.shirt_given_at;
   if (done) return { person: forViewer(person, scope), already: true };
-  const [at, by] = COLUMNS[mode];
+  const [column, by] = COLUMNS[mode];
   await batch("app", [
     {
-      sql: `UPDATE camp_registrations SET ${at} = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ${by} = ? WHERE id = ? AND ${at} IS NULL`,
-      params: [actor, person.id],
+      sql: `UPDATE camp_registrations SET ${column} = COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), ${by} = ? WHERE id = ? AND ${column} IS NULL`,
+      params: [at, actor, person.id],
     },
-    auditStatement({ actor, campId, action: ACTIONS[mode], entity: "registration", entityId: person.id, after: mode === "shirt" ? { size: person.shirt_size } : undefined, ifChanged: true }),
+    auditStatement({
+      actor,
+      campId,
+      action: ACTIONS[mode],
+      entity: "registration",
+      entityId: person.id,
+      after: mode === "shirt" || at ? { ...(mode === "shirt" ? { size: person.shirt_size } : {}), ...(at ? { scanned_at: at, sent_late: true } : {}) } : undefined,
+      ifChanged: true,
+    }),
   ]);
   return { person: forViewer((await getArrival(person.id))!, scope), already: false };
 }
@@ -150,4 +169,47 @@ export async function findArrivals(campId: string, term: string, scope: Scope = 
     [checkId(campId, "camp"), ...s.params, `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`],
   );
   return rows.map((p) => forViewer(p, scope));
+}
+
+/** What a scanning phone keeps, so it can check people in with no signal. No phones, health notes or roommates. */
+export type RosterPerson = {
+  id: string;
+  full_name: string;
+  fellowship: string;
+  status: RegistrationStatus;
+  room_label: string | null;
+  shirt_size: string;
+  checked_in_at: string | null;
+  shirt_given_at: string | null;
+};
+
+export async function scanRoster(campId: string, scope: Scope = ALL) {
+  const s = scopeSql(scope);
+  return query<RosterPerson>(
+    "app",
+    `SELECT r.id, r.full_name, r.fellowship, r.status, x.label AS room_label, r.shirt_size, r.checked_in_at, r.shirt_given_at
+     FROM camp_registrations r
+     LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
+     LEFT JOIN camp_rooms x ON x.id = a.room_id
+     WHERE r.camp_id = ?${s.sql} ORDER BY r.full_name LIMIT 5000`,
+    [checkId(campId, "camp"), ...s.params],
+  );
+}
+
+export type QueuedScan = { key: string; id: string; mode: ScanMode; at: string };
+export type SyncedScan = { key: string; ok: true; name: string; already: boolean } | { key: string; ok: false; error: string };
+
+/** Scans a phone kept while it had no signal, in the order they happened. Each one stands alone. */
+export async function syncScans(actor: string, campId: string, scans: QueuedScan[], scope: Scope = ALL): Promise<SyncedScan[]> {
+  const out: SyncedScan[] = [];
+  for (const scan of [...scans].sort((a, b) => String(a.at).localeCompare(String(b.at)))) {
+    try {
+      const r = await markScan(actor, campId, scan.id, scan.mode, scope, scanTime(scan.at));
+      out.push({ key: scan.key, ok: true, name: r.person.full_name, already: r.already });
+    } catch (err) {
+      if (!(err instanceof CampError)) throw err;
+      out.push({ key: scan.key, ok: false, error: err.message });
+    }
+  }
+  return out;
 }

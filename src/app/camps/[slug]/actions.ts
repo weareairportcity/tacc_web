@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCode, hashCode } from "@/lib/camp/codes";
+import { submitFeedback, type FeedbackInput } from "@/lib/camp/feedback";
 import { cedisToPesewas } from "@/lib/camp/money";
 import { cancelPayment, checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import { allow, clientIp } from "@/lib/camp/rate-limit";
@@ -320,5 +321,19 @@ export async function checkLinkPaymentAction(slug: string, token: string, refere
     const reg = id ? await getRegistration(id) : null;
     if (!reg || reg.camp_id !== camp.id) throw new CampError("This pay link isn't valid.");
     return checkPayment(reg.id, String(reference));
+  });
+}
+
+/** The after-camp feedback form. The link names who it's for; the answer is saved without it. */
+export async function submitFeedbackAction(slug: string, token: string, input: FeedbackInput) {
+  return run(async () => {
+    const camp = await campFor(slug);
+    await limit(`feedback:${await clientIp()}`, 30, 60 * MINUTE);
+    await submitFeedback(camp, String(token), {
+      rating: Number(input?.rating),
+      best: String(input?.best ?? ""),
+      change: String(input?.change ?? ""),
+    });
+    return null;
   });
 }

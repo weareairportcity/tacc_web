@@ -2,12 +2,14 @@
  * Commune's service worker. Network first, always: with signal, every
  * refresh is the latest version; without it, the last copy of a page (your
  * registration and pass, say) opens from the phone. Hashed build files are
- * cached for good since they never change. Registered at "/" only on
+ * cached for good since they never change. The check-in page is kept under
+ * one address whatever pass it was opened with, so a pass scanned by the
+ * camera app with no signal still opens it. Registered at "/" only on
  * commune.theairportcitychurch.com, where every path is Commune.
  */
 
 const WORKER = `
-const CACHE = "commune-v1";
+const CACHE = "commune-v2";
 const OFFLINE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline · Commune</title><body style="margin:0;background:#fafaf9;font:16px/1.6 system-ui,sans-serif;color:#0c0a09;display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center"><div><p style="font-size:22px;margin:0 0 8px">No signal</p><p style="margin:0;color:#78716c">Open this page once while online and it will work offline next time.</p></div>';
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -34,17 +36,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Check-in (…/check-in?t=PASS): one copy, whichever pass opened it. The page reads the pass from the address.
+  const key = request.mode === "navigate" && url.pathname.endsWith("/check-in") ? url.origin + url.pathname : request;
   event.respondWith(
     fetch(request)
       .then((res) => {
         if (res.ok && res.type === "basic") {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
+          caches.open(CACHE).then((c) => c.put(key, copy));
         }
         return res;
       })
       .catch(() =>
-        caches.match(request).then((hit) => hit || (request.mode === "navigate" ? new Response(OFFLINE, { headers: { "Content-Type": "text/html; charset=utf-8" } }) : Response.error())),
+        caches.match(key).then((hit) => hit || (request.mode === "navigate" ? new Response(OFFLINE, { headers: { "Content-Type": "text/html; charset=utf-8" } }) : Response.error())),
       ),
   );
 });

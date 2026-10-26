@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Clock } from "lucide-react";
 import type { BulkReceipt } from "@/lib/camp/reports";
+import { actorName } from "@/lib/camp/history-words";
 import { formatCedis } from "@/lib/camp/money";
 import { CommuneLoader } from "@/components/camp/brand";
 import { headlineClass, primaryButtonClass } from "@/components/camp/ui";
@@ -20,7 +22,8 @@ const when = (iso: string) =>
  * and the receipt for one of those payments (from Money). Waits for Paystack
  * to confirm; the webhook is what really credits it.
  */
-export function BulkPaid({ campId, reference }: { campId: string; reference: string }) {
+export function BulkPaid({ campId, reference, leader }: { campId: string; reference: string; leader: boolean }) {
+  const router = useRouter();
   const [state, setState] = useState<State>(null);
   useEffect(() => {
     let tries = 0;
@@ -30,10 +33,12 @@ export function BulkPaid({ campId, reference }: { campId: string; reference: str
       if (!r.ok) return setState({ error: r.error });
       setState(r.data);
       if (r.data.status === "pending" && ++tries < 30) timer = setTimeout(check, 4000);
+      // Settled: the "still processing" card on every page goes.
+      else if (r.data.status !== "pending") router.refresh();
     };
     check();
     return () => clearTimeout(timer);
-  }, [campId, reference]);
+  }, [campId, reference, router]);
 
   const receipt = state && "receipt" in state ? state.receipt : null;
   const done = state && "status" in state && state.status === "success";
@@ -102,7 +107,7 @@ export function BulkPaid({ campId, reference }: { campId: string; reference: str
             </div>
           </dl>
           <p className="flex flex-wrap gap-x-3 gap-y-1 px-5 py-3.5 text-[13px] text-warm-gray">
-            <span>{receipt.paid_by.split("@")[0]}</span>
+            <span>{actorName(receipt.paid_by, null)}</span>
             <span>{when(receipt.paid_at ?? receipt.created_at)}</span>
             {receipt.note && <span>{receipt.note}</span>}
             <span className="font-mono">{receipt.reference}</span>
@@ -114,9 +119,11 @@ export function BulkPaid({ campId, reference }: { campId: string; reference: str
         <Link href={`/admin/camp/${campId}/people`} className={`${primaryButtonClass} h-12`}>
           Back to People
         </Link>
-        <Link href={`/admin/camp/${campId}/money`} className="cm-press inline-flex h-12 items-center rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
-          Money
-        </Link>
+        {!leader && (
+          <Link href={`/admin/camp/${campId}/money`} className="cm-press inline-flex h-12 items-center rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
+            Money
+          </Link>
+        )}
       </div>
     </div>
   );

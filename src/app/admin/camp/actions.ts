@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { findPeople, getBulkReceipt, scopeFor } from "@/lib/camp/reports";
+import { findPeople, getBulkReceipt, idsInScope, scopeFor } from "@/lib/camp/reports";
 import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
@@ -25,9 +25,9 @@ import { changeRoomType, recordRefund } from "@/lib/camp/adjustments";
 import { assignGroup, assignPerson, getMyRoom, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { listRefunds } from "@/lib/camp/adjustments";
-import { arrivalCounts, findArrivals, getArrival, markScan, undoScan, type ScanMode } from "@/lib/camp/checkin";
+import { arrivalCounts, findArrivals, getArrival, markScan, scanRoster, syncScans, undoScan, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
 import { getGroupFor } from "@/lib/camp/groups";
-import { cancelPayment, checkBulkPayment, listOpenPaymentsFor, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
+import { cancelPayment, checkBulkPayment, listOpenPaymentsByReference, listOpenPaymentsFor, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
 import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
 import { approveRefund, approveRoomChange, declineRequest, listMyRequests } from "@/lib/camp/requests";
 import { deleteView, saveView } from "@/lib/camp/views";
@@ -35,6 +35,7 @@ import { makeToken, readToken } from "@/lib/camp/tokens";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { campOrigin } from "@/lib/camp/origin";
 import { sendRoomSms } from "@/lib/camp/room-sms";
+import { sendThanks } from "@/lib/camp/feedback";
 import { removeStaff, saveStaff, setStaffPhone } from "@/lib/camp/staff";
 import {
   CAMP_PHOTOS,
@@ -259,6 +260,16 @@ export async function sendRoomSmsAction(campId: string) {
   });
 }
 
+/** After camp: texts everyone who arrived a thank-you with their feedback link (not yet texted, up to MAX_PER_SEND). */
+export async function sendThanksAction(campId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    return sendThanks(staff.email, camp, await campOrigin());
+  });
+}
+
 export async function unassignAction(registrationId: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
@@ -356,20 +367,34 @@ export async function payLinkAction(campId: string, registrationId: string) {
   });
 }
 
-/** One Paystack checkout for several people's balances. Returns where to send the coordinator. */
-export async function payForPeopleAction(campId: string, registrationIds: string[], note: string) {
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * One Paystack checkout for several people's balances. Returns where to send
+ * the payer. Leaders pay for their own people only; with no email on
+ * Commune, they give one for Paystack's receipt.
+ */
+export async function payForPeopleAction(campId: string, registrationIds: string[], note: string, payerEmail = "") {
   return run(async () => {
-    const staff = await requireCampRole("coordinator");
+    const staff = await requireCampRole("coordinator", "leader");
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
+    const ids = Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 100) : [];
+    const leader = staff.role === "leader";
+    const email = leader ? String(payerEmail ?? "").trim().toLowerCase() : staff.email;
+    if (leader && !EMAIL.test(email)) throw new CampError("Enter your email for the Paystack receipt.");
+    if (leader && (await idsInScope(camp.id, ids, scopeFor(staff))).length !== new Set(ids).size) throw new CampError(`You can only pay for people in ${staff.scope_value}.`);
     const checkout = await startBulkPayment({
       campId: camp.id,
-      registrationIds: Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 100) : [],
+      registrationIds: ids,
       paidBy: staff.email,
-      payerEmail: staff.email,
+      payerEmail: email,
       note: String(note ?? ""),
       callbackUrl: `${await campOrigin()}/admin/camp/${camp.id}/money/paid`,
     });
+    await batch("app", [
+      auditStatement({ actor: staff.email, campId: camp.id, action: "payment.bulk_start", entity: "bulk_payment", entityId: checkout.reference, after: { people: ids.length, amount: checkout.amount_pesewas } }),
+    ]);
     return checkout.authorization_url;
   });
 }
@@ -425,6 +450,35 @@ export async function checkInAction(campId: string, tokenOrId: string) {
 
 export async function undoCheckInAction(campId: string, registrationId: string) {
   return undoScanAction(campId, registrationId, "checkin");
+}
+
+/** The scanning phone's copy of the list, for checking people in with no signal. */
+export async function scanRosterAction(campId: string) {
+  return look(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    return scanRoster(String(campId), scopeFor(staff));
+  });
+}
+
+/** Scans a phone kept with no signal: the pass (or id) scanned, the job, and when it happened. */
+export async function syncScansAction(campId: string, scans: { key: string; target: string; mode: ScanMode; at: string }[]) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    const scope = scopeFor(staff);
+    const list = Array.isArray(scans) ? scans.slice(0, 100) : [];
+    const bad: SyncedScan[] = [];
+    const good = list.flatMap((s) => {
+      const key = String(s?.key ?? "").slice(0, 64);
+      try {
+        return [{ key, id: scanTarget(String(s?.target ?? "")), mode: modeOf(s?.mode), at: String(s?.at ?? "") }];
+      } catch (err) {
+        bad.push({ key, ok: false, error: err instanceof CampError ? err.message : "That QR isn't a Commune pass." });
+        return [];
+      }
+    });
+    const results = [...bad, ...(await syncScans(staff.email, String(campId), good, scope))];
+    return { results, counts: await arrivalCounts(String(campId), scope) };
+  });
 }
 
 export async function findArrivalsAction(campId: string, term: string) {
@@ -486,7 +540,10 @@ export async function setMyPhoneAction(phone: string) {
 /** The return page after paying for several people. */
 export async function checkBulkAction(campId: string, reference: string) {
   return look(async () => {
-    await requireCampRole("coordinator");
+    const staff = await requireCampRole("coordinator", "leader");
+    // A leader sees only the payments they made themselves.
+    const mine = await getBulkReceipt(String(campId), String(reference));
+    if (staff.role === "leader" && mine?.paid_by !== staff.email) throw new CampError("That payment isn't one of yours.");
     const check = await checkBulkPayment(String(campId), String(reference));
     return { ...check, receipt: await getBulkReceipt(String(campId), String(reference)) };
   });
@@ -520,11 +577,20 @@ export async function turnOffLeaderCodeAction(id: string) {
 
 // ─── Payments still processing ───────────────────────────────────────────────
 
+/** A leader may give up on their own checkout, or one that's only for their people. */
+async function leaderMayCancel(staff: Staff, campId: string, reference: string) {
+  const bulk = await getBulkReceipt(campId, reference);
+  if (bulk) return bulk.paid_by === staff.email || (await idsInScope(campId, bulk.people.map((p) => p.id), scopeFor(staff))).length === bulk.people.length;
+  const [single] = await listOpenPaymentsByReference(campId, reference);
+  return !!single && (await idsInScope(campId, [single.registration_id], scopeFor(staff))).length === 1;
+}
+
 /** What's holding up "Pay for them": checkouts still processing for these people. */
 export async function openPaymentsForAction(campId: string, registrationIds: string[]) {
   return look(async () => {
-    const staff = await requireCampRole("coordinator");
-    const payments = await listOpenPaymentsFor(String(campId), Array.isArray(registrationIds) ? registrationIds.map(String) : []);
+    const staff = await requireCampRole("coordinator", "leader");
+    const ids = Array.isArray(registrationIds) ? registrationIds.map(String) : [];
+    const payments = await listOpenPaymentsFor(String(campId), await idsInScope(String(campId), ids, scopeFor(staff)));
     return { me: staff.email, payments };
   });
 }
@@ -532,7 +598,8 @@ export async function openPaymentsForAction(campId: string, registrationIds: str
 /** "Cancel it": gives up on an unfinished checkout once Paystack confirms nobody paid. Logged. */
 export async function cancelPaymentAction(campId: string, reference: string) {
   return run(async () => {
-    const staff = await requireCampRole("coordinator");
+    const staff = await requireCampRole("coordinator", "leader");
+    if (staff.role === "leader" && !(await leaderMayCancel(staff, String(campId), String(reference)))) throw new CampError("That payment isn't for your people.");
     const { status } = await cancelPayment(String(campId), String(reference));
     await batch("app", [
       auditStatement({ actor: staff.email, campId: String(campId), action: "payment.cancel", entity: "payment", entityId: String(reference), after: { status } }),

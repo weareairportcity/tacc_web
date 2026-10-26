@@ -6,10 +6,11 @@ import { campSecret } from "./codes";
  * be made up or pointed at someone else:
  *   pay      a pay link a parent or sponsor can open without signing in
  *   checkin  the QR on the attendee's pass, which a coordinator scans
+ *   feedback the after-camp feedback link in the thank-you text
  * Each purpose has its own signature, so a pay link can't check anyone in.
  */
 
-export type TokenPurpose = "pay" | "checkin";
+export type TokenPurpose = "pay" | "checkin" | "feedback";
 
 const sign = (purpose: TokenPurpose, id: string) =>
   createHmac("sha256", campSecret()).update(`camp-${purpose}.${id}`).digest("base64url").slice(0, 22);

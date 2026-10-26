@@ -287,6 +287,11 @@ export function PeopleView({
           </span>
           <StackedBar parts={statusParts(Object.fromEntries(["fully_paid", "partially_paid", "registered"].map((s) => [s, rows.filter((r) => r.status === s).length])), false)} />
           <Legend parts={statusParts(Object.fromEntries(["fully_paid", "partially_paid", "registered"].map((s) => [s, rows.filter((r) => r.status === s).length])), false)} />
+          {rows.some((r) => outstandingOf(r) > 0) && (
+            <p className="flex items-center gap-2 border-t border-stone-border pt-3 text-[13px] text-warm-gray">
+              <CreditCard className="h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> Paying from a fellowship fund? Tick people below, then Pay for them.
+            </p>
+          )}
         </section>
       )}
 
@@ -370,17 +375,15 @@ export function PeopleView({
           <table className="w-full border-collapse text-sm">
             <thead className="max-sm:sr-only">
               <tr className="text-left text-xs text-warm-gray">
-                {!leader && (
-                  <th className="w-10 py-3 pl-4">
-                    <input
-                      type="checkbox"
-                      aria-label={allShownPicked ? "Unselect everyone shown" : "Select everyone shown"}
-                      checked={allShownPicked}
-                      onChange={() => setSelected(allShownPicked ? new Set() : new Set(shown.map((r) => r.id)))}
-                      className="h-[18px] w-[18px] accent-soot"
-                    />
-                  </th>
-                )}
+                <th className="w-10 py-3 pl-4">
+                  <input
+                    type="checkbox"
+                    aria-label={allShownPicked ? "Unselect everyone shown" : "Select everyone shown"}
+                    checked={allShownPicked}
+                    onChange={() => setSelected(allShownPicked ? new Set() : new Set(shown.map((r) => r.id)))}
+                    className="h-[18px] w-[18px] accent-soot"
+                  />
+                </th>
                 <th className="px-3 py-3 font-medium">Name</th>
                 <th className="px-3 py-3 font-medium max-md:hidden">{leader ? "Fellowship" : "Fellowship · room type"}</th>
                 <th className="px-3 py-3 font-medium max-sm:hidden">Payment</th>
@@ -395,17 +398,17 @@ export function PeopleView({
                 return (
                   <tr
                     key={r.id}
-                    className={cn("border-t border-stone-border first:border-t-0 sm:first:border-t", on ? "bg-cyan-tint" : "cm-row", !leader && "cursor-pointer")}
+                    className={cn("cursor-pointer border-t border-stone-border first:border-t-0 sm:first:border-t", on ? "bg-cyan-tint" : "cm-row")}
                     onClick={(e) => {
-                      if (leader || (e.target as HTMLElement).closest("input,a,button")) return;
-                      setPerson(r.id);
+                      if ((e.target as HTMLElement).closest("input,a,button")) return;
+                      // Leaders have no person panel: a tap picks the row.
+                      if (leader) toggle(r.id);
+                      else setPerson(r.id);
                     }}
                   >
-                    {!leader && (
-                      <td className="w-10 py-3 pl-4 align-middle">
-                        <input type="checkbox" aria-label={`Select ${r.full_name}`} checked={on} onChange={() => toggle(r.id)} className="h-5 w-5 accent-soot sm:h-[18px] sm:w-[18px]" />
-                      </td>
-                    )}
+                    <td className="w-10 py-3 pl-4 align-middle">
+                      <input type="checkbox" aria-label={`Select ${r.full_name}`} checked={on} onChange={() => toggle(r.id)} className="h-5 w-5 accent-soot sm:h-[18px] sm:w-[18px]" />
+                    </td>
                     <td className="px-3 py-3">
                       {leader ? (
                         <span className="font-medium">{r.full_name}</span>
@@ -463,9 +466,11 @@ export function PeopleView({
               <CreditCard className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Pay for them
             </button>
           )}
-          <button type="button" onClick={() => setSheet("text")} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-[#44403c] px-4 font-medium">
-            <MessageSquare className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Text them
-          </button>
+          {!leader && (
+            <button type="button" onClick={() => setSheet("text")} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-[#44403c] px-4 font-medium">
+              <MessageSquare className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Text them
+            </button>
+          )}
           <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="flex h-10 w-10 items-center justify-center rounded-full text-stone-muted">
             <X className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
           </button>
@@ -495,9 +500,9 @@ export function PeopleView({
         ))}
       </Sheet>
 
+      <PaySheet open={sheet === "pay"} onClose={() => setSheet(null)} campId={campId} people={pickedOwing} leader={leader} />
       {!leader && (
         <>
-          <PaySheet open={sheet === "pay"} onClose={() => setSheet(null)} campId={campId} people={pickedOwing} />
           <TextSheet
             open={sheet === "text"}
             onClose={() => setSheet(null)}
@@ -695,8 +700,21 @@ function ViewsMenu({
   );
 }
 
-function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[] }) {
+const EMAIL_KEY = "commune.payEmail";
+
+function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[]; leader: boolean }) {
   const [note, setNote] = useState("");
+  // Leaders have no email on Commune, and Paystack sends its receipt to one. Remembered on this phone.
+  const [email, setEmail] = useState("");
+  useEffect(() => {
+    if (!leader || !open) return;
+    try {
+      const saved = localStorage.getItem(EMAIL_KEY);
+      // Browser storage is only readable here, after the first render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved) setEmail((e) => e || saved);
+    } catch {}
+  }, [leader, open]);
   const [error, setError] = useState("");
   const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
   const [pending, start] = useTransition();
@@ -716,7 +734,13 @@ function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: (
             start(async () => {
               setError("");
               setBlockers(null);
-              const r = await payForPeopleAction(campId, people.map((p) => p.id), note);
+              if (leader) {
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Enter your email for the Paystack receipt.");
+                try {
+                  localStorage.setItem(EMAIL_KEY, email.trim());
+                } catch {}
+              }
+              const r = await payForPeopleAction(campId, people.map((p) => p.id), note, leader ? email : "");
               if (!r.ok) {
                 setError(r.error);
                 const open = await openPaymentsForAction(campId, people.map((p) => p.id));
@@ -749,6 +773,12 @@ function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: (
         Note (optional)
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Zion fellowship fund" className={inputClass} />
       </label>
+      {leader && (
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
+          Your email, for the Paystack receipt
+          <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+        </label>
+      )}
       <ErrorText>{error}</ErrorText>
       {blockers && blockers.payments.length > 0 && <Blockers campId={campId} me={blockers.me} payments={blockers.payments} />}
     </Sheet>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Clock, CreditCard, Inbox, Settings } from "lucide-react";
+import { ChevronRight, Clock, CreditCard, Inbox, MessageSquareHeart, Settings } from "lucide-react";
 import { ID } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
 import { SignOutButton } from "@/components/camp/SignOutButton";
@@ -19,6 +19,7 @@ export default async function MorePage({ params }: { params: Promise<{ campId: s
     { href: `${base}/requests`, icon: Inbox, label: "Requests", count: requests },
     { href: `${base}/money`, icon: CreditCard, label: "Money", count: 0 },
     { href: `${base}/history`, icon: Clock, label: "History", count: 0 },
+    { href: `${base}/feedback`, icon: MessageSquareHeart, label: "Feedback", count: 0 },
     { href: `${base}/settings`, icon: Settings, label: "Settings", count: 0 },
   ];
   return (

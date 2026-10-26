@@ -11,13 +11,14 @@ import { CheckIn } from "./CheckIn";
  * app works too; on Android the page can scan by itself. Leaders see and
  * scan their own fellowship or PFCC only.
  */
-export default async function CheckInPage({ params, searchParams }: { params: Promise<{ campId: string }>; searchParams: Promise<{ t?: string; mode?: string }> }) {
+export default async function CheckInPage({ params, searchParams }: { params: Promise<{ campId: string }>; searchParams: Promise<{ mode?: string }> }) {
   const staff = await pageStaff("coordinator", "leader");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
   const scope = scopeFor(staff);
-  const { t, mode } = await searchParams;
+  // The pass token (?t=) is read in the browser, so the page also works from the phone's saved copy.
+  const { mode } = await searchParams;
   const [camp, counts, recentIn, recentShirts] = await Promise.all([
     getCamp(campId),
     arrivalCounts(campId, scope),
@@ -30,7 +31,6 @@ export default async function CheckInPage({ params, searchParams }: { params: Pr
       campId={camp.id}
       counts={counts}
       recent={{ checkin: recentIn, shirt: recentShirts }}
-      token={t ?? null}
       initialMode={mode === "shirt" ? "shirt" : null}
       leader={staff.role === "leader"}
     />

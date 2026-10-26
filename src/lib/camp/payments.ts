@@ -139,3 +139,13 @@ export function listOpenPaymentsFor(campId: string, registrationIds: string[]) {
     [checkId(campId, "camp"), ...ids],
   );
 }
+
+/** A single (not pay-for-people) payment still processing, by its reference: whose it is. */
+export function listOpenPaymentsByReference(campId: string, reference: string) {
+  return query<{ registration_id: string }>(
+    "app",
+    `SELECT p.registration_id FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+     WHERE r.camp_id = ? AND p.reference = ? AND p.status = 'pending' AND p.bulk_id IS NULL`,
+    [checkId(campId, "camp"), String(reference)],
+  );
+}

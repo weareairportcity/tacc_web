@@ -2,15 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CircleAlert, HeartPulse, ScanLine, Search, Shirt } from "lucide-react";
-import type { Arrival, ScanCounts, ScanMode } from "@/lib/camp/checkin";
+import { Camera, Check, CircleAlert, CloudOff, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
+import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
+import { Busy } from "@/components/camp/brand";
 import { formatCedis } from "@/lib/camp/money";
 import { useToast } from "@/components/camp/toast";
 import { RegistrationStatus, StackedBar, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { findArrivalsAction, scanAction, undoScanAction } from "../../actions";
+import { idOf, useOfflineScans, type Problem } from "./offline";
 
-type Result = { person: Arrival; already: boolean; mode: ScanMode } | { error: string };
+type Result =
+  | { person: Arrival; already: boolean; mode: ScanMode }
+  // Kept on the phone with no signal. `person` is from the phone's copy of the list, if it knows them.
+  | { kept: true; person: RosterPerson | null; already: boolean; key: string | null; mode: ScanMode }
+  | { error: string };
+type Found = Pick<Arrival, "id" | "full_name" | "fellowship" | "room_label" | "shirt_size" | "checked_in_at" | "shirt_given_at">;
 
 // BarcodeDetector is in Chrome on Android; elsewhere the phone's camera app opens the pass link instead.
 type Detector = { detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]> };
@@ -47,14 +54,12 @@ export function CheckIn({
   campId,
   counts: initial,
   recent,
-  token,
   initialMode,
   leader,
 }: {
   campId: string;
   counts: ScanCounts;
   recent: Record<ScanMode, Arrival[]>;
-  token: string | null;
   initialMode: ScanMode | null;
   leader: boolean;
 }) {
@@ -78,11 +83,21 @@ export function CheckIn({
     () => false,
   );
   const [term, setTerm] = useState("");
-  const [found, setFound] = useState<Arrival[]>([]);
+  const [found, setFound] = useState<Found[]>([]);
   const [pending, start] = useTransition();
   const video = useRef<HTMLVideoElement>(null);
   const busy = useRef(false);
   const w = WORDS[mode];
+  const bump = (m: ScanMode, by: number) => setCounts((c) => (m === "checkin" ? { ...c, here: Math.max(0, c.here + by) } : { ...c, shirts: Math.max(0, c.shirts + by) }));
+  const offline = useOfflineScans(campId, (fresh, results) => {
+    setCounts(fresh);
+    const failed = results.filter((r) => r.error).length;
+    const sent = results.length - failed;
+    if (sent) toast(`Sent ${sent} ${sent === 1 ? "scan" : "scans"} kept on this phone`);
+    if (failed) toast(`${failed} couldn't be saved. See the list above.`, { tone: "error" });
+    router.refresh();
+  });
+  const { keep } = offline;
 
   const pick = (m: ScanMode) => {
     setChosen(m);
@@ -92,10 +107,39 @@ export function CheckIn({
     } catch {}
   };
 
+  // No signal: the scan stays on the phone and goes up later.
+  const keepScan = useCallback(
+    (value: string, m: ScanMode) => {
+      if (!idOf(value)) {
+        setResult({ error: "That QR isn't a Commune pass." });
+        navigator.vibrate?.([80, 60, 80]);
+        return;
+      }
+      const k = keep(value, m);
+      if (k.person?.status === "cancelled") {
+        if (k.key) offline.drop(k.key);
+        setResult({ error: `${k.person.full_name}'s registration is cancelled.` });
+        return;
+      }
+      setResult({ kept: true, person: k.person, already: k.already, key: k.key, mode: m });
+      if (!k.already) bump(m, 1);
+      navigator.vibrate?.(k.already ? [40, 60, 40] : 60);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [keep],
+  );
+
   const scan = useCallback(
     (value: string, m: ScanMode) =>
       start(async () => {
-        const r = await scanAction(campId, value, m);
+        if (!navigator.onLine) return keepScan(value, m);
+        let r;
+        try {
+          r = await scanAction(campId, value, m);
+        } catch {
+          // The request never got through.
+          return keepScan(value, m);
+        }
         if (!r.ok) {
           setResult({ error: r.error });
           navigator.vibrate?.([80, 60, 80]);
@@ -106,20 +150,24 @@ export function CheckIn({
         navigator.vibrate?.(r.data.already ? [40, 60, 40] : 60);
         router.refresh();
       }),
-    [campId, router],
+    [campId, router, keepScan],
   );
 
-  // Opened from a phone camera scanning a pass: do this phone's job straight away.
+  // Opened from a phone camera scanning a pass: do this phone's job straight away. Read from the
+  // address itself, since with no signal this page can be the phone's saved copy.
+  const opened = useRef(false);
   useEffect(() => {
-    if (token) {
-      scan(token, initialMode ?? savedMode());
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-  }, [token, scan, initialMode]);
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get("t");
+    if (!t || opened.current) return;
+    opened.current = true;
+    scan(t, q.get("mode") === "shirt" ? "shirt" : (initialMode ?? savedMode()));
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [scan, initialMode]);
 
-  // The counts keep themselves current while the page is open.
+  // The counts keep themselves current while the page is open (and there's signal).
   useEffect(() => {
-    const timer = setInterval(() => router.refresh(), 20_000);
+    const timer = setInterval(() => navigator.onLine && router.refresh(), 20_000);
     return () => clearInterval(timer);
   }, [router]);
 
@@ -162,14 +210,23 @@ export function CheckIn({
   useEffect(() => {
     if (term.trim().length < 2) return;
     const timer = setTimeout(async () => {
-      const r = await findArrivalsAction(campId, term);
-      if (r.ok) setFound(r.data);
+      if (!navigator.onLine) return setFound(offline.find(term));
+      const r = await findArrivalsAction(campId, term).catch(() => null);
+      setFound(r?.ok ? r.data : offline.find(term));
     }, 200);
     return () => clearTimeout(timer);
-  }, [term, campId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [term, campId, offline.find]);
 
-  const undo = (person: Arrival, m: ScanMode) =>
+  const undo = (person: Pick<Arrival, "id" | "full_name">, m: ScanMode, key?: string | null) =>
     start(async () => {
+      // Not sent yet: it's just taken off the phone.
+      if (key && offline.drop(key)) {
+        bump(m, -1);
+        setResult(null);
+        toast(`${person.full_name.split(" ")[0]}: ${WORDS[m].undo}`);
+        return;
+      }
       const r = await undoScanAction(campId, person.id, m);
       if (!r.ok) return toast(r.error, { tone: "error" });
       setCounts(r.data);
@@ -201,6 +258,8 @@ export function CheckIn({
           ))}
         </div>
       </header>
+
+      <OfflineStrip online={offline.online} waiting={offline.queue.length} sending={offline.sending} problems={offline.problems} onClear={offline.clearProblems} />
 
       <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero" aria-live="polite">
         <span className="flex items-baseline gap-2.5">
@@ -234,7 +293,7 @@ export function CheckIn({
           result={result}
           leader={leader}
           pending={pending}
-          onUndo={(p, m) => undo(p, m)}
+          onUndo={(p, m, key) => undo(p, m, key)}
           onNext={() => {
             setResult(null);
             if (canScan) setScanning(true);
@@ -334,7 +393,114 @@ export function CheckIn({
   );
 }
 
-function ResultCard({ result, leader, onUndo, onNext, pending }: { result: Result; leader: boolean; onUndo: (p: Arrival, m: ScanMode) => void; onNext: () => void; pending: boolean }) {
+/** No signal, scans waiting to go up, or scans the server turned down. Nothing shows when all is well. */
+function OfflineStrip({ online, waiting, sending, problems, onClear }: { online: boolean; waiting: number; sending: boolean; problems: Problem[]; onClear: () => void }) {
+  if (online && !waiting && !problems.length) return null;
+  const scans = (n: number) => `${n} ${n === 1 ? "scan" : "scans"}`;
+  return (
+    <div className="flex flex-col gap-2" aria-live="polite">
+      {(!online || waiting > 0) && (
+        <p className={cn("flex min-h-12 items-center gap-2.5 rounded-[12px] px-4 py-2.5 text-sm", online ? "bg-white shadow-seline-card" : "bg-soot text-white")}>
+          {online ? (
+            <Busy pending={sending} text={`Sending ${scans(waiting)}…`}>
+              {`${scans(waiting)} waiting to send`}
+            </Busy>
+          ) : (
+            <>
+              <CloudOff className="h-[18px] w-[18px] flex-none" strokeWidth={1.7} aria-hidden="true" />
+              <span className="flex-1">
+                <strong className="font-semibold">No signal.</strong> Keep scanning: scans stay on this phone and send when signal is back.
+              </span>
+              {waiting > 0 && <span className="tabular-nums text-stone-muted">{waiting} kept</span>}
+            </>
+          )}
+        </p>
+      )}
+      {problems.length > 0 && (
+        <section role="alert" className="flex flex-col gap-2 rounded-[12px] border-2 border-soot bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[15px] font-semibold">{problems.length === 1 ? "1 scan wasn't saved" : `${problems.length} scans weren't saved`}</h2>
+            <button type="button" onClick={onClear} aria-label="Dismiss" className="flex h-9 w-9 items-center justify-center rounded-full text-warm-gray">
+              <X className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </div>
+          <ul className="flex flex-col text-sm">
+            {problems.map((p) => (
+              <li key={p.key} className="border-t border-stone-border py-2 first:border-t-0">
+                <span className="font-medium">{p.name ?? "A pass"}</span>
+                <span className="text-warm-gray"> · {p.mode === "shirt" ? "T-shirt" : "check-in"} · {p.error}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ResultCard({
+  result,
+  leader,
+  onUndo,
+  onNext,
+  pending,
+}: {
+  result: Result;
+  leader: boolean;
+  onUndo: (p: Pick<Arrival, "id" | "full_name">, m: ScanMode, key?: string | null) => void;
+  onNext: () => void;
+  pending: boolean;
+}) {
+  if ("kept" in result) {
+    const p = result.person;
+    const w = WORDS[result.mode];
+    return (
+      <section role="status" className="cm-pop flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero">
+        <div className="flex items-center gap-3.5">
+          <span className={cn("flex h-[52px] w-[52px] flex-none items-center justify-center rounded-full", result.already ? "bg-soot" : "bg-st-paid")}>
+            <CloudOff className="h-6 w-6 text-white" strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <span className="flex flex-col gap-0.5">
+            <span className="font-display text-[24px] leading-tight tracking-[-0.017em]">{p?.full_name ?? "Pass kept"}</span>
+            <span className="text-sm">{result.already ? w.already : p ? `${w.done}. Sends when there's signal.` : "Not on this phone's list yet. It's checked when there's signal."}</span>
+          </span>
+        </div>
+        {p &&
+          (result.mode === "shirt" ? (
+            <div className="flex items-center justify-between rounded-[12px] bg-stone-canvas px-4 py-3">
+              <span className="text-sm text-warm-gray">Size</span>
+              <span className="font-display text-[40px] leading-none">{p.shirt_size || "Not given"}</span>
+            </div>
+          ) : (
+            <dl className="grid grid-cols-2 gap-2.5 text-sm">
+              <div className="rounded-[10px] bg-stone-canvas p-3">
+                <dt className="text-xs text-warm-gray">Room</dt>
+                <dd className="font-display text-[22px]">{p.room_label ?? "None yet"}</dd>
+              </div>
+              <div className="rounded-[10px] bg-stone-canvas p-3">
+                <dt className="text-xs text-warm-gray">Fellowship</dt>
+                <dd className="leading-snug">{p.fellowship}</dd>
+              </div>
+            </dl>
+          ))}
+        <div className="flex gap-2">
+          {!result.already && result.key && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => onUndo({ id: p?.id ?? "", full_name: p?.full_name ?? "Pass" }, result.mode, result.key)}
+              className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium"
+            >
+              Undo
+            </button>
+          )}
+          <button type="button" onClick={onNext} className={`${primaryButtonClass} h-12 flex-1`}>
+            <ScanLine className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Next person
+          </button>
+        </div>
+      </section>
+    );
+  }
   if ("error" in result) {
     return (
       <section role="alert" className="cm-pop flex flex-col gap-4 rounded-2xl border-2 border-soot bg-white p-5">

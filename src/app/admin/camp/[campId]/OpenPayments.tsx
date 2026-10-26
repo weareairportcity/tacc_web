@@ -2,11 +2,12 @@
 
 import type { OpenPayment } from "@/lib/camp/payments";
 import { OpenPaymentCard, OpenPaymentDock } from "@/components/camp/OpenPayment";
+import { actorName } from "@/lib/camp/history-words";
 import { cancelPaymentAction } from "../actions";
 
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
-/** The coordinator's own pay-for-people checkouts that haven't finished, floating on every page. */
+/** The coordinator's or leader's own pay-for-people checkouts that haven't finished, floating on every page. */
 export function OpenPayments({ campId, payments }: { campId: string; payments: OpenPayment[] }) {
   if (!payments.length) return null;
   return (
@@ -38,7 +39,7 @@ export function Blockers({ campId, me, payments }: { campId: string; me: string;
               ? `${p.full_name}'s own payment`
               : p.paid_by === me
                 ? `Your payment for ${people(p.people)}`
-                : `${p.paid_by.split("@")[0]} paying for ${people(p.people)}`
+                : `${actorName(p.paid_by, null)} paying for ${people(p.people)}`
           }
           canResume={p.kind === "bulk" && p.paid_by === me}
           onCancel={(ref) => cancelPaymentAction(campId, ref)}
