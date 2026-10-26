@@ -1,4 +1,5 @@
-import { payCheck, payInit, paystackTransactions, postReconcile } from "./camp";
+import { sendDailySummaries } from "./camp-summary";
+import { bulkCheck, bulkInit, payCheck, payInit, paystackTransactions, postReconcile, refund } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms, sendSms } from "./sms";
@@ -109,6 +110,17 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return postReconcile(request, env);
     case "/v1/admin/camp/paystack-transactions":
       return paystackTransactions(request, env);
+    case "/v1/admin/camp/bulk-init":
+      return bulkInit(request, env);
+    case "/v1/admin/camp/bulk-check":
+      return bulkCheck(request, env);
+    case "/v1/admin/camp/refund":
+      return refund(request, env);
+    case "/v1/admin/camp/summary": {
+      // Tests and a manual "send it now": ignores the hour, still once a day.
+      const { at } = await readJson<{ at?: string }>(request);
+      return json(await sendDailySummaries(env, at ? new Date(at) : new Date(), true));
+    }
     case "/v1/admin/sms/run": {
       const { force } = await readJson<{ force?: boolean }>(request);
       return json(await runSms(env, new Date(), Boolean(force)));

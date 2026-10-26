@@ -151,19 +151,67 @@ export function PaidCircle({ paid, price, className }: { paid: number; price: nu
   );
 }
 
-/** Registration status as words with a paid circle, for tables and headers. */
-export function RegistrationStatus({ status, paid, price }: { status: string; paid: number; price: number }) {
-  if (status === "cancelled") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-warm-gray">
-        <CircleSlash className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" /> Cancelled
-      </span>
-    );
-  }
-  const label = status === "fully_paid" ? "Fully paid" : status === "partially_paid" ? "Part paid" : "Nothing paid";
+/** Payment status colours (globals.css). Always shown next to words, never alone. */
+export const STATUS_COLOR: Record<string, string> = {
+  fully_paid: "bg-st-paid",
+  partially_paid: "bg-st-part",
+  registered: "bg-st-none",
+  cancelled: "bg-st-cancel",
+};
+export const STATUS_WORD: Record<string, string> = {
+  fully_paid: "Fully paid",
+  partially_paid: "Part paid",
+  registered: "Nothing paid",
+  cancelled: "Cancelled",
+};
+
+/** Registration status as a coloured square and words, for tables and headers. */
+export function RegistrationStatus({ status }: { status: string; paid?: number; price?: number }) {
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <PaidCircle paid={paid} price={price} /> {label}
+    <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", status === "cancelled" && "text-warm-gray")}>
+      <span className={cn("h-2 w-2 flex-none rounded-[2px]", STATUS_COLOR[status])} aria-hidden="true" />
+      {STATUS_WORD[status] ?? status}
     </span>
   );
+}
+
+export type BarPart = { key: string; value: number; color: string; label: string };
+
+/** A stacked bar with a 2px gap between parts. The legend beside it carries the numbers. */
+export function StackedBar({ parts, className, label }: { parts: BarPart[]; className?: string; label?: string }) {
+  const shown = parts.filter((p) => p.value > 0);
+  return (
+    <span
+      role="img"
+      aria-label={label ?? parts.map((p) => `${p.value} ${p.label.toLowerCase()}`).join(", ")}
+      className={cn("flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full", !shown.length && "bg-stone-border", className)}
+    >
+      {shown.map((p) => (
+        <span key={p.key} className={cn("cm-grow", p.color)} style={{ flex: p.value }} />
+      ))}
+    </span>
+  );
+}
+
+export function Legend({ parts, columns, format = (n) => String(n) }: { parts: BarPart[]; columns?: 1 | 2; format?: (n: number) => string }) {
+  return (
+    <ul className={cn("text-[13px] tabular-nums", columns ? `grid gap-x-3 gap-y-1.5 ${columns === 2 ? "grid-cols-2" : "grid-cols-1"}` : "flex flex-wrap gap-x-4 gap-y-1.5")}>
+      {parts.map((p) => (
+        <li key={p.key} className="flex items-center gap-2">
+          <span className={cn("h-2.5 w-2.5 flex-none rounded-[3px]", p.color, p.color === "bg-stone-border" && "ring-1 ring-inset ring-stone-muted")} aria-hidden="true" />
+          {p.label} <strong className="font-semibold">{format(p.value)}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Fully paid, part paid, nothing paid (and cancelled) as bar parts. */
+export function statusParts(counts: Partial<Record<string, number>>, withCancelled = true): BarPart[] {
+  return (["fully_paid", "partially_paid", "registered", ...(withCancelled ? ["cancelled"] : [])] as const).map((k) => ({
+    key: k,
+    value: counts[k] ?? 0,
+    color: STATUS_COLOR[k],
+    label: STATUS_WORD[k],
+  }));
 }

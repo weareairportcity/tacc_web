@@ -13,7 +13,13 @@ type Transaction = { reference: string; amount: number; currency: string; email:
 export const transactions = new Map<string, Transaction>();
 /** Texts the Worker sent through the fake mNotify (/mnotify/sms/quick). */
 export const smsSent: { recipient: string[]; message: string }[] = [];
+/** Refunds the Worker asked for (POST /refund). */
+export const refundsAsked: { transaction: string; amount: number }[] = [];
 let failInitialize = false;
+let failRefund = false;
+export const setFailRefund = (fail: boolean) => {
+  failRefund = fail;
+};
 
 export function setTransaction(reference: string, patch: Partial<Transaction>) {
   const current = transactions.get(reference);
@@ -59,6 +65,16 @@ export function startFakePaystack(): Promise<Server> {
           status: true,
           data: { authorization_url: `https://checkout.paystack.test/${input.reference}`, reference: input.reference },
         });
+      }
+      if (req.method === "POST" && req.url === "/refund") {
+        if (failRefund) return send(400, { status: false, message: "Refund failed" });
+        const input = JSON.parse(body);
+        const tx = transactions.get(input.transaction);
+        if (!tx || tx.status !== "success") return send(400, { status: false, message: "Transaction not found" });
+        const done = refundsAsked.filter((r) => r.transaction === input.transaction).reduce((sum, r) => sum + r.amount, 0);
+        if (done + input.amount > tx.amount) return send(400, { status: false, message: "Refund amount is more than the transaction" });
+        refundsAsked.push({ transaction: input.transaction, amount: input.amount });
+        return send(200, { status: true, data: { id: refundsAsked.length, status: "pending" } });
       }
       const verify = req.url?.match(/^\/transaction\/verify\/(.+)$/);
       if (req.method === "GET" && verify) {

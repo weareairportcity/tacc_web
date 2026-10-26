@@ -18,7 +18,7 @@ export default async function CampsIndex() {
         <h1 className={headlineClass}>
           Find your <span className="text-cyan-edge">camp</span>
         </h1>
-        <p className="text-[15px] leading-relaxed text-warm-gray">Register, pay in parts and choose who you share a room with.</p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">Register, pay, and choose who you share a room with.</p>
       </div>
 
       {current.length === 0 && closed.length === 0 && (

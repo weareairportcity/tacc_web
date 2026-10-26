@@ -346,3 +346,195 @@ describe("checking against Paystack", () => {
     }
   });
 });
+
+// ─── Commune v2: paying for several people, refunds through Paystack, requests ─
+
+import { checkBulkPayment, refundThroughPaystack, startBulkPayment, startPaymentFor } from "@/lib/camp/payments";
+import { approveRefund, approveRoomChange, askForRefund, askForRoomChange, declineRequest, listRequests } from "@/lib/camp/requests";
+import { cancelMine } from "@/lib/camp/profile";
+import { createRoomType } from "@/lib/camp/rooms";
+import { listBulkPayments } from "@/lib/camp/reports";
+import { refundsAsked, setFailRefund } from "../setup/paystack";
+import { openCamp, attendee as attendeeInput } from "./helpers";
+import { register } from "@/lib/camp/registrations";
+
+const newPerson = async (camp: Awaited<ReturnType<typeof openCamp>>["camp"], roomTypeId: string) =>
+  (await getRegistration((await register(camp, attendeeInput(roomTypeId))).id))!;
+
+/** Pays `amount` for a registration through the fake Paystack, end to end. */
+async function payFor(id: string, amount: number) {
+  const checkout = await pay(id, amount);
+  succeed(checkout.reference);
+  await checkPayment(id, checkout.reference);
+  return checkout;
+}
+
+describe("paying for several people", () => {
+  it("clears each person's balance with one checkout, with the fee on the total", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const b = await newPerson(camp, roomTypeId);
+    await payFor(b.id, 20000);
+    const checkout = await startBulkPayment({
+      campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "coord@test.local", note: "Zion fund", callbackUrl: CALLBACK,
+    });
+    expect(checkout).toMatchObject({ people: 2, amount_pesewas: 60000 + 40000, fee_pesewas: feeFor(100000, 195) });
+    expect(transactions.get(checkout.reference)).toMatchObject({ amount: checkout.charged_pesewas, email: "coord@test.local" });
+
+    succeed(checkout.reference);
+    expect(await checkBulkPayment(camp.id, checkout.reference)).toMatchObject({ status: "success", people: 2, credited: 2 });
+    expect((await getRegistration(a.id))?.status).toBe("fully_paid");
+    expect((await getRegistration(b.id))?.status).toBe("fully_paid");
+    const share = (await listPayments(a.id)).find((p) => p.bulk_id);
+    expect(share).toMatchObject({ amount_pesewas: 60000, fee_pesewas: 0, payer_name: "Zion fund", status: "success" });
+    expect((await listBulkPayments(camp.id))[0]).toMatchObject({ paid_by: ACTOR, count: 2, status: "success" });
+  });
+
+  it("reconciles against Paystack as one transaction, not one per person", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const b = await newPerson(camp, roomTypeId);
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    succeed(checkout.reference);
+    await checkBulkPayment(camp.id, checkout.reference);
+    const report = await reconcileWithPaystack(camp.id);
+    expect(report.problems).toEqual([]);
+    expect(report.checked).toBe(1);
+  });
+
+  it("skips people who are already fully paid and refuses when nobody owes", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    await payFor(a.id, 60000);
+    await expect(
+      startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK }),
+    ).rejects.toThrow("already fully paid");
+  });
+
+  it("a repeated webhook and a reconcile change nothing after success", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    succeed(checkout.reference);
+    await sendWebhook(checkout.reference);
+    await sendWebhook(checkout.reference);
+    await reconcileNow();
+    expect((await getRegistration(a.id))?.paid_pesewas).toBe(60000);
+  });
+});
+
+describe("pay links", () => {
+  it("lets someone else pay, with their email for the receipt and their name on the payment", async () => {
+    const { id } = await registered();
+    const checkout = await startPaymentFor(id, 30000, CALLBACK, { email: "dad@example.com", name: "Daddy" });
+    expect(transactions.get(checkout.reference)?.email).toBe("dad@example.com");
+    succeed(checkout.reference);
+    await checkPayment(id, checkout.reference);
+    expect((await listPayments(id))[0]).toMatchObject({ payer_name: "Daddy", status: "success" });
+  });
+});
+
+describe("refunds through Paystack", () => {
+  it("refunds across payments, newest first, and lowers what was paid", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const first = await payFor(a.id, 20000);
+    const second = await payFor(a.id, 40000);
+    const before = refundsAsked.length;
+    expect(await refundThroughPaystack({ registrationId: a.id, amountPesewas: 50000, actor: ACTOR, note: "" })).toEqual({ refunded_pesewas: 50000, short_pesewas: 0 });
+    expect(refundsAsked.slice(before)).toEqual([
+      { transaction: second.reference, amount: 40000 },
+      { transaction: first.reference, amount: 10000 },
+    ]);
+    expect(await getRegistration(a.id)).toMatchObject({ paid_pesewas: 10000, status: "partially_paid" });
+  });
+
+  it("refunds a share of a bulk payment against the bulk's own Paystack reference", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    succeed(checkout.reference);
+    await checkBulkPayment(camp.id, checkout.reference);
+    await refundThroughPaystack({ registrationId: a.id, amountPesewas: 60000, actor: ACTOR, note: "" });
+    expect(refundsAsked.at(-1)).toEqual({ transaction: checkout.reference, amount: 60000 });
+  });
+
+  it("can't refund more than was paid, and records nothing if Paystack refuses", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    await payFor(a.id, 20000);
+    await expect(refundThroughPaystack({ registrationId: a.id, amountPesewas: 20001, actor: ACTOR, note: "" })).rejects.toThrow("more than");
+    setFailRefund(true);
+    try {
+      await expect(refundThroughPaystack({ registrationId: a.id, amountPesewas: 100, actor: ACTOR, note: "" })).rejects.toThrow("Paystack refused");
+    } finally {
+      setFailRefund(false);
+    }
+    expect((await getRegistration(a.id))?.paid_pesewas).toBe(20000);
+  });
+});
+
+describe("requests", () => {
+  it("cancelling after paying asks for a refund; approving sends it", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    await payFor(a.id, 30000);
+    const me = (await getRegistration(a.id))!;
+    expect(await cancelMine(me, "Exams moved", false)).toEqual({ refundRequested: true });
+    const [request] = await listRequests(camp.id, "pending");
+    expect(request).toMatchObject({ kind: "refund", amount_pesewas: 30000, reason: "Exams moved", registration_status: "cancelled" });
+    const result = await approveRefund(ACTOR, request.id, 30000, "Sorry to miss you");
+    expect(result.refunded_pesewas).toBe(30000);
+    expect((await getRegistration(a.id))?.paid_pesewas).toBe(0);
+    expect(await listRequests(camp.id, "pending")).toEqual([]);
+    await expect(approveRefund(ACTOR, request.id, 30000, "")).rejects.toThrow("already decided");
+  });
+
+  it("puts a refund request back if Paystack refuses", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    await payFor(a.id, 30000);
+    await askForRefund((await getRegistration(a.id))!, 10000, "Paid twice");
+    const [request] = await listRequests(camp.id, "pending");
+    setFailRefund(true);
+    try {
+      await expect(approveRefund(ACTOR, request.id, 10000, "")).rejects.toThrow();
+    } finally {
+      setFailRefund(false);
+    }
+    expect((await listRequests(camp.id, "pending")).map((r) => r.id)).toEqual([request.id]);
+    await declineRequest(ACTOR, request.id, "Not this time");
+    expect((await listRequests(camp.id, "done"))[0]).toMatchObject({ status: "declined", decision_note: "Not this time" });
+  });
+
+  it("only one open request of each kind", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    await payFor(a.id, 30000);
+    const me = (await getRegistration(a.id))!;
+    await askForRefund(me, 100, "Paid twice");
+    await expect(askForRefund(me, 100, "Again")).rejects.toThrow("already have");
+  });
+
+  it("an upgrade leaves the difference to pay; a downgrade refunds it first", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const hotel = await createRoomType(ACTOR, camp.id, { name: "Hotel", price_pesewas: 120000, capacity: 2 });
+    const dorm = await createRoomType(ACTOR, camp.id, { name: "Dorm", price_pesewas: 40000, capacity: 8 });
+
+    const up = await newPerson(camp, roomTypeId);
+    await payFor(up.id, 60000);
+    await askForRoomChange((await getRegistration(up.id))!, hotel, "");
+    let [request] = await listRequests(camp.id, "pending");
+    await approveRoomChange(ACTOR, request.id, "");
+    expect(await getRegistration(up.id)).toMatchObject({ room_type_name: "Hotel", price_pesewas: 120000, paid_pesewas: 60000, status: "partially_paid" });
+
+    const down = await newPerson(camp, roomTypeId);
+    const paid = await payFor(down.id, 60000);
+    await askForRoomChange((await getRegistration(down.id))!, dorm, "Cheaper please");
+    [request] = await listRequests(camp.id, "pending");
+    const result = await approveRoomChange(ACTOR, request.id, "");
+    expect(result.refunded).toBe(20000);
+    expect(refundsAsked.at(-1)).toEqual({ transaction: paid.reference, amount: 20000 });
+    expect(await getRegistration(down.id)).toMatchObject({ room_type_name: "Dorm", price_pesewas: 40000, paid_pesewas: 40000, status: "fully_paid" });
+  });
+});

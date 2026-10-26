@@ -216,6 +216,13 @@ export async function joinByCode(me: Registration, rawCode: string): Promise<str
   return group.id;
 }
 
+/** A group by the code in a join link, for "Join Abena's room?". Null if there's none in this camp. */
+export async function getGroupByCode(campId: string, rawCode: string) {
+  const code = normalizeCode(rawCode);
+  if (code.length !== GROUP_CODE_LENGTH) return null;
+  return loadGroup("g.code = ? AND g.camp_id = ?", [code, checkId(campId, "camp")]);
+}
+
 // ─── Leaving, removing, locking ──────────────────────────────────────────────
 
 /**

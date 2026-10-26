@@ -91,7 +91,7 @@ export async function assignPerson(actor: string, roomId: string, registrationId
     }),
   ]);
   if (!results[0].results.length) throw await explainPerson(room, registrationId);
-  return { warning: await fillWarning(room.id) };
+  return { warning: await fillWarning(room.id), placed: [registrationId], room: room.label };
 }
 
 async function explainPerson(room: RoomRow, registrationId: string): Promise<CampError> {
@@ -173,7 +173,8 @@ export async function assignGroup(actor: string, roomId: string, groupId: string
     [groupId],
   );
   if (group && groupState(group) === "open") warnings.push("This group is still open, so its members may change.");
-  return { warning: warnings.filter(Boolean).join(" ") || null };
+  const placed = (results[0].results as { registration_id: string }[]).map((r) => r.registration_id);
+  return { warning: warnings.filter(Boolean).join(" ") || null, placed, room: room.label };
 }
 
 async function explainGroup(room: RoomRow, groupId: string, toPlace: number): Promise<CampError> {
@@ -190,6 +191,11 @@ async function explainGroup(room: RoomRow, groupId: string, toPlace: number): Pr
   const free = now.capacity - now.occupied;
   if (free < toPlace) return new CampError(`${room.label} has ${beds(free)}; this group needs ${toPlace}.`);
   return new CampError("The group or room changed. Please refresh and try again.");
+}
+
+/** Undo for a placement: takes these people out of their rooms again. */
+export async function unassignMany(actor: string, registrationIds: string[]) {
+  for (const id of registrationIds.slice(0, 50)) await unassign(actor, id).catch(() => null);
 }
 
 /** Takes someone out of their room. Their roommate group is unchanged. */
@@ -299,11 +305,11 @@ export async function getPoolBoard(campId: string, roomTypeId: string, gender: G
     // Fully Paid, in no group, in no room.
     query<WaitingPerson>(
       "app",
-      `SELECT r.id, r.full_name, r.fellowship FROM camp_registrations r
+      `SELECT r.id, r.full_name, r.fellowship, r.any_room FROM camp_registrations r
        WHERE r.camp_id = ? AND r.room_type_id = ? AND r.gender = ? AND r.status = 'fully_paid'
          AND NOT EXISTS (SELECT 1 FROM camp_group_members m WHERE m.registration_id = r.id)
          AND NOT EXISTS (SELECT 1 FROM camp_room_assignments a WHERE a.registration_id = r.id)
-       ORDER BY r.full_name`,
+       ORDER BY r.any_room DESC, r.full_name`,
       args,
     ),
   ]);
@@ -349,4 +355,32 @@ export async function getMyRoom(registrationId: string): Promise<MyRoom | null> 
     room_type_name: rows[0].room_type_name,
     roommates: rows.filter((r) => r.full_name).map((r) => r.full_name!.split(" ")[0]),
   };
+}
+
+/** Every room in the camp with who's in it, for Rooms › All rooms. */
+export async function listRoomsWithOccupants(campId: string): Promise<RoomWithOccupants[]> {
+  checkId(campId, "camp");
+  const [rooms, occupants] = await Promise.all([
+    query<RoomWithOccupants>(
+      "app",
+      `SELECT x.id, x.camp_id, x.room_type_id, t.name AS room_type_name, x.label, x.gender, x.capacity,
+         (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = x.id) AS occupied
+       FROM camp_rooms x JOIN camp_room_types t ON t.id = x.room_type_id
+       WHERE x.camp_id = ? ORDER BY x.label COLLATE NOCASE`,
+      [campId],
+    ),
+    query<Occupant & { room_id: string }>(
+      "app",
+      `SELECT a.room_id, r.id AS registration_id, r.full_name, r.fellowship, g.code AS group_code
+       FROM camp_room_assignments a
+       JOIN camp_rooms x ON x.id = a.room_id
+       JOIN camp_registrations r ON r.id = a.registration_id
+       LEFT JOIN camp_group_members m ON m.registration_id = r.id
+       LEFT JOIN camp_groups g ON g.id = m.group_id
+       WHERE x.camp_id = ? ORDER BY a.assigned_at`,
+      [campId],
+    ),
+  ]);
+  for (const room of rooms) room.occupants = occupants.filter((o) => o.room_id === room.id);
+  return rooms;
 }

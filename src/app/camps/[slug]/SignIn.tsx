@@ -7,7 +7,8 @@ import { CommuneLoader } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, secondaryButtonClass } from "@/components/camp/ui";
 import { forgotCodeAction, signInAction } from "./actions";
 
-export function SignIn({ slug }: { slug: string }) {
+/** `next`: where to go after signing in, e.g. a group join link. */
+export function SignIn({ slug, next }: { slug: string; next?: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<"code" | "forgot">("code");
   const [value, setValue] = useState("");
@@ -22,7 +23,7 @@ export function SignIn({ slug }: { slug: string }) {
       if (mode === "code") {
         const result = await signInAction(slug, value);
         if (!result.ok) return setError(result.error);
-        router.push(`/camps/${slug}/me`);
+        router.push(next ?? `/camps/${slug}/me`);
       } else {
         const result = await forgotCodeAction(slug, value);
         if (!result.ok) return setError(result.error);
@@ -41,7 +42,7 @@ export function SignIn({ slug }: { slug: string }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-3.5">
       {mode === "code" ? (
-        <Field label="Your sign-in code" hint="It was texted to you when you registered. Dashes and spaces are fine.">
+        <Field label="Your sign-in code">
           <input
             required
             autoComplete="one-time-code"

@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { getCamp, ID } from "@/lib/camp/camps";
-import { listRoomTypes } from "@/lib/camp/rooms";
+import { getStaffPhone } from "@/lib/camp/staff";
 import { headlineClass, titleClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CampForm } from "../../CampForm";
 import { CampPhotos } from "./CampPhotos";
-import { RoomTypes } from "./RoomTypes";
+import { SummaryPhone } from "./SummaryPhone";
 
 function Section({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
   return (
@@ -21,37 +21,32 @@ function Section({ title, text, children }: { title: string; text: string; child
   );
 }
 
-/** Room types and camp details, label on the left and the form on the right. */
+/** Camp details, photos and your evening text. Room types live on Rooms. */
 export default async function CampSettingsPage({ params }: { params: Promise<{ campId: string }> }) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
 
-  const [camp, roomTypes] = await Promise.all([getCamp(campId), listRoomTypes(campId)]);
+  const [camp, phone] = await Promise.all([getCamp(campId), getStaffPhone(staff.email)]);
   if (!camp) notFound();
 
   return (
     <div className="flex flex-col">
       <header className="pb-6">
-        <h1 className={headlineClass}>
-          Camp <span className="text-cyan-edge">settings</span>
-        </h1>
+        <h1 className={`${headlineClass} text-[34px]`}>Settings</h1>
       </header>
-      <Section title="The camp" text="What attendees see on the camp page, the dates that drive every reminder, and whether it's live.">
+      <Section title="The camp" text="Name, dates and whether it's live.">
         <CampForm camp={camp} />
       </Section>
       <Section
         title="Logo and photos"
-        text="Give each camp its own look. JPG, PNG or WebP up to 8 MB. Add a credit when the photo isn't yours."
+        text="JPG, PNG or WebP up to 8 MB."
       >
         <CampPhotos camp={camp} />
       </Section>
-      <Section
-        title="Room types"
-        text="Each has a price and beds per room. People pick one when they register. Places left for each one is on Rooms."
-      >
-        <RoomTypes campId={camp.id} roomTypes={roomTypes} />
+      <Section title="Evening text" text="A short summary at 7 pm, to you.">
+        <SummaryPhone phone={phone} />
       </Section>
     </div>
   );

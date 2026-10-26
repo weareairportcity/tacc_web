@@ -1,52 +1,88 @@
 import Link from "next/link";
-import { ArrowLeftRight } from "lucide-react";
-import { getCamp, ID } from "@/lib/camp/camps";
+import { Check, ChevronDown } from "lucide-react";
+import { getCamp, ID, listCamps } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
-import { AdminNav } from "@/components/camp/AdminNav";
 import { CommuneLogo } from "@/components/camp/brand";
 import { CampLogo } from "@/components/camp/photos";
-import { formatDate } from "@/components/camp/ui";
+import { BottomBar, FindPerson, Rail } from "@/components/camp/shell/nav";
+import { SignOutButton } from "@/components/camp/SignOutButton";
+import { ToastProvider } from "@/components/camp/toast";
 import { pageStaff } from "../access";
 
-/** One camp's coordinator shell: the sidebar, then the page. Pages still check roles themselves. */
+/**
+ * One camp's coordinator app: a rail and top bar on wide screens, a header
+ * and bottom bar on phones. Pages still check roles themselves.
+ */
 export default async function CampShell({ children, params }: { children: React.ReactNode; params: Promise<{ campId: string }> }) {
   const { campId } = await params;
   const staff = await pageStaff("coordinator", "leader");
   const camp = staff && ID.test(campId) ? await getCamp(campId) : null;
   if (!staff || !camp) return <div className="mx-auto max-w-5xl px-5 py-8">{children}</div>;
-  const counts = staff.role === "leader" ? { people: 0, waiting: 0 } : await navCounts(camp.id);
+  const leader = staff.role === "leader";
+  const [counts, camps] = await Promise.all([leader ? { requests: 0 } : navCounts(camp.id), listCamps()]);
+  const base = `/admin/camp/${camp.id}`;
+  const switchable = camps.filter((c) => c.status !== "archived" && (!leader || c.status !== "draft"));
+
+  const switcher = (
+    <details className="group relative">
+      <summary className="cm-press flex h-10 cursor-pointer list-none items-center gap-2.5 rounded-full border border-stone-border bg-white pl-1.5 pr-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <CampLogo camp={camp} size={28} className="rounded-full" />
+        <span className="max-w-[180px] truncate">{camp.name}</span>
+        <ChevronDown className="h-4 w-4 text-warm-gray transition-transform group-open:rotate-180" strokeWidth={1.6} aria-hidden="true" />
+        <span className="sr-only">Switch camp</span>
+      </summary>
+      <div className="cm-pop absolute left-0 top-12 z-50 w-72 origin-top-left rounded-[12px] border border-stone-border bg-white p-1.5 shadow-[0_16px_40px_rgba(17,12,46,0.14)]">
+        {switchable.map((c) => (
+          <Link
+            key={c.id}
+            href={leader ? `/admin/camp/${c.id}/people` : `/admin/camp/${c.id}`}
+            className="cm-hover flex min-h-11 items-center gap-2.5 rounded-[8px] px-2.5 text-sm"
+          >
+            <CampLogo camp={c} size={26} />
+            <span className="flex-1 truncate">{c.name}</span>
+            {c.id === camp.id && <Check className="h-4 w-4" strokeWidth={2} aria-label="Current camp" />}
+          </Link>
+        ))}
+        <Link href="/admin/camp" className="cm-hover mt-1 flex min-h-11 items-center rounded-[8px] border-t border-stone-border px-2.5 text-sm text-warm-gray">
+          All camps
+        </Link>
+      </div>
+    </details>
+  );
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
-      <aside className="flex flex-col gap-6 border-b border-stone-border px-4 py-5 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:flex-none lg:border-r-0 lg:border-b-0">
-        <Link href="/admin/camp" className="flex items-center gap-2 px-2">
-          <CommuneLogo label={null} />
-          <span className="flex flex-col leading-tight">
+    <ToastProvider>
+      <div className="flex min-h-dvh">
+        <aside className="sticky top-0 hidden h-dvh w-[216px] flex-none flex-col gap-5 border-r border-stone-border bg-stone-rail px-3 py-[18px] lg:flex">
+          <Link href="/admin/camp" className="flex items-center gap-2 px-2">
+            <CommuneLogo size={26} label={null} />
             <span className="text-[15px] font-medium">commune</span>
-            <span className="text-xs text-warm-gray">{staff.role === "leader" ? "Leader" : "Coordinator"}</span>
-          </span>
-        </Link>
-        <Link href="/admin/camp" className="cm-press flex items-center gap-2.5 rounded-[10px] border border-stone-border bg-white p-2.5">
-          <CampLogo camp={camp} size={36} />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-medium">{camp.name}</span>
-            <span className="text-xs text-warm-gray">
-              {formatDate(camp.starts_on)} – {formatDate(camp.ends_on)}
-            </span>
-          </span>
-          <ArrowLeftRight className="h-4 w-4 flex-none text-warm-gray" strokeWidth={1.6} aria-label="Switch camp" />
-        </Link>
-        <AdminNav campId={camp.id} leader={staff.role === "leader"} counts={counts} />
-        <span className="mt-auto hidden px-2.5 text-xs text-warm-gray lg:block">
-          {staff.email} ·{" "}
-          <Link href="/admin/login" className="text-warm-gray underline decoration-stone-muted underline-offset-[3px] hover:text-ink-black">
-            Switch portal
           </Link>
-        </span>
-      </aside>
-      <main className="min-w-0 flex-1 px-5 py-7 lg:px-8">
-        <div className="mx-auto max-w-[1180px]">{children}</div>
-      </main>
-    </div>
+          <Rail base={base} leader={leader} requests={counts.requests} />
+          <span className="mt-auto flex flex-col gap-0.5 px-2 text-xs text-[#6f6863]">
+            <span className="truncate">{staff.email}</span>
+            <SignOutButton className="self-start text-[#6f6863]" />
+          </span>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-stone-border bg-stone-canvas/95 px-4 backdrop-blur-sm lg:px-7">
+            {switcher}
+            <FindPerson base={base} className="ml-auto w-full max-w-[420px] max-sm:hidden lg:ml-0" />
+            <Link
+              href={`${base}/people?focus=search`}
+              aria-label="Find a person"
+              className="cm-press ml-auto flex h-11 w-11 items-center justify-center rounded-full border border-stone-border bg-white sm:hidden"
+            >
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M20 20l-4.2-4.2" />
+              </svg>
+            </Link>
+          </header>
+          <main className="w-full max-w-[1080px] flex-1 px-4 pb-32 pt-6 lg:px-7 lg:pb-16">{children}</main>
+        </div>
+      </div>
+      <BottomBar base={base} leader={leader} requests={counts.requests} />
+    </ToastProvider>
   );
 }

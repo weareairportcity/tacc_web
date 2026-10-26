@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCode, hashCode } from "@/lib/camp/codes";
 import { cedisToPesewas } from "@/lib/camp/money";
-import { checkPayment, startPayment } from "@/lib/camp/payments";
+import { checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import { allow, clientIp } from "@/lib/camp/rate-limit";
 import {
   acceptInvite,
@@ -18,10 +18,13 @@ import {
   searchInvitees,
   setLocked,
 } from "@/lib/camp/groups";
-import { findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
+import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
+import { cancelMine, deleteMyDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
+import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
+import { makeToken, readToken } from "@/lib/camp/tokens";
 import { campOrigin as origin } from "@/lib/camp/origin";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
-import { CampError, type PaymentStatus, type Registration, type RegistrationInput } from "@/lib/camp/types";
+import { CampError, type PaymentStatus, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { sendSMS } from "@/lib/mnotify";
 
 /**
@@ -58,11 +61,19 @@ async function limit(key: string, max: number, windowMs: number) {
 const codeText = (campName: string, code: string, url: string) =>
   `TACC ${campName}: your camp sign-in code is ${formatCode(code)}. Keep it private. Sign in at ${url}`;
 
+/** `registered`: that phone is already registered, so the page sends them to sign in instead. */
 export async function registerAction(slug: string, input: RegistrationInput) {
-  return run(async () => {
+  return run<{ code: string } | { registered: true }>(async () => {
     const camp = await campFor(slug);
     await limit(`register:${await clientIp()}`, 10, 60 * MINUTE);
-    const { id, code } = await register(camp, input);
+    let created;
+    try {
+      created = await register(camp, input);
+    } catch (err) {
+      if (err instanceof AlreadyRegistered) return { registered: true as const };
+      throw err;
+    }
+    const { id, code } = created;
     await startAttendeeSession(id, hashCode(code));
     // The code is also on screen, so a failed text doesn't block anyone.
     await sendSMS(input.phone, codeText(camp.name, code, `${await origin()}/camps/${camp.slug}`)).catch(() => false);
@@ -201,4 +212,99 @@ export async function acceptInviteAction(slug: string, inviteId: string) {
 
 export async function declineInviteAction(slug: string, inviteId: string) {
   return groupAction(slug, (me) => declineInvite(me, String(inviteId)).then(() => null));
+}
+
+// ─── Your details, cancelling, requests ──────────────────────────────────────
+
+/** Runs something as the signed-in attendee, then refreshes their pages. */
+function mine<T>(slug: string, fn: (me: Registration, camp: Awaited<ReturnType<typeof campFor>>) => Promise<T>) {
+  return run(async () => {
+    const { camp, me } = await signedIn(slug);
+    const result = await fn(me, camp);
+    revalidatePath(`/camps/${camp.slug}`, "layout");
+    return result;
+  });
+}
+
+export async function updateMyDetailsAction(slug: string, input: ProfileInput) {
+  return mine(slug, (me) => updateProfile(`attendee:${me.id}`, me.id, input).then(() => null));
+}
+
+export async function setAnyRoomAction(slug: string, anyRoom: boolean) {
+  return mine(slug, (me) => setAnyRoom(me, anyRoom === true).then(() => null));
+}
+
+export async function cancelMineAction(slug: string, reason: string, deleteDetails: boolean) {
+  return run(async () => {
+    const { camp, me } = await signedIn(slug);
+    const result = await cancelMine(me, String(reason ?? ""), deleteDetails === true);
+    if (deleteDetails === true) await endAttendeeSession();
+    revalidatePath(`/camps/${camp.slug}`, "layout");
+    return result;
+  });
+}
+
+export async function deleteMyDetailsAction(slug: string) {
+  return run(async () => {
+    const { camp, me } = await signedIn(slug);
+    await deleteMyDetails(me);
+    await endAttendeeSession();
+    revalidatePath(`/camps/${camp.slug}`, "layout");
+    return null;
+  });
+}
+
+export async function askRefundAction(slug: string, amountCedis: string, reason: string) {
+  return mine(slug, (me) => askForRefund(me, cedisToPesewas(String(amountCedis)), String(reason ?? "")).then(() => null));
+}
+
+export async function askRoomChangeAction(slug: string, roomTypeId: string, reason: string) {
+  return mine(slug, (me) => askForRoomChange(me, String(roomTypeId), String(reason ?? "")).then(() => null));
+}
+
+export async function withdrawRequestAction(slug: string, requestId: string) {
+  return mine(slug, (me) => withdrawRequest(me, String(requestId)).then(() => null));
+}
+
+/** A link a parent or sponsor can open to pay this registration without signing in. */
+export async function myPayLinkAction(slug: string) {
+  return run(async () => {
+    const { camp, me } = await signedIn(slug);
+    return `${await origin()}/camps/${camp.slug}/pay/${makeToken("pay", me.id)}`;
+  });
+}
+
+/** Someone paying through a pay link. The link names the registration; nothing else can be paid with it. */
+export async function payViaLinkAction(slug: string, token: string, amountCedis: string, payerName: string, payerEmail: string) {
+  return run(async () => {
+    const camp = await campFor(slug);
+    await limit(`paylink:${await clientIp()}`, 20, 60 * MINUTE);
+    const id = readToken("pay", String(token));
+    const reg = id ? await getRegistration(id) : null;
+    if (!reg || reg.camp_id !== camp.id) throw new CampError("This pay link isn't valid.");
+    if (reg.status === "cancelled") throw new CampError("This registration has been cancelled.");
+    const balance = reg.price_pesewas - reg.paid_pesewas;
+    if (balance <= 0) throw new CampError(`${reg.full_name.split(" ")[0]} is already fully paid.`);
+    const amount = cedisToPesewas(String(amountCedis));
+    if (amount < 100) throw new CampError("The smallest payment is GHS 1.00.");
+    if (amount > balance) throw new CampError("That's more than what's outstanding.");
+    const email = String(payerEmail ?? "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new CampError("Enter your email for the receipt.");
+    const checkout = await startPaymentFor(reg.id, amount, `${await origin()}/camps/${camp.slug}/pay/${token}/done`, {
+      email,
+      name: String(payerName ?? "").trim().slice(0, 80),
+    });
+    return checkout.authorization_url;
+  });
+}
+
+/** The pay-link return page: has it gone through? Same check as the attendee's own. */
+export async function checkLinkPaymentAction(slug: string, token: string, reference: string) {
+  return run(async () => {
+    const camp = await campFor(slug);
+    const id = readToken("pay", String(token));
+    const reg = id ? await getRegistration(id) : null;
+    if (!reg || reg.camp_id !== camp.id) throw new CampError("This pay link isn't valid.");
+    return checkPayment(reg.id, String(reference));
+  });
 }

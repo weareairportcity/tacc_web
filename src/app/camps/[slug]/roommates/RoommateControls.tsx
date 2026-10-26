@@ -5,17 +5,17 @@ import { useRouter } from "next/navigation";
 import { Check, Copy, Lock, LockOpen, Search, Share2 } from "lucide-react";
 import type { Invitee } from "@/lib/camp/types";
 import { CommuneLoader } from "@/components/camp/brand";
-import { ErrorText, Field, buttonClass, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
+import { ErrorText, buttonClass, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import {
   acceptInviteAction,
   cancelInviteAction,
   createGroupAction,
   declineInviteAction,
   inviteAction,
-  joinGroupAction,
   leaveGroupAction,
   removeMemberAction,
   searchInviteesAction,
+  setAnyRoomAction,
   setGroupLockedAction,
   type ActionResult,
 } from "../actions";
@@ -51,37 +51,6 @@ export function CreateGroup({ slug }: { slug: string }) {
       </button>
       <ErrorText>{error}</ErrorText>
     </div>
-  );
-}
-
-export function JoinGroup({ slug }: { slug: string }) {
-  const { act, error, pending } = useGroupAction();
-  const [code, setCode] = useState("");
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        act(() => joinGroupAction(slug, code));
-      }}
-      className="flex flex-col gap-3"
-    >
-      <Field label="Group code from a friend">
-        <input
-          required
-          autoComplete="off"
-          autoCapitalize="characters"
-          className={`${inputClass} font-mono uppercase tracking-widest`}
-          placeholder="ABC-DEF"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-        />
-      </Field>
-      <ErrorText>{error}</ErrorText>
-      <button type="submit" disabled={pending} className={`${secondaryButtonClass} h-11 px-5`}>
-        <Spinner on={pending} />
-        Join group
-      </button>
-    </form>
   );
 }
 
@@ -270,36 +239,48 @@ export function SentInviteCancel({ slug, inviteId }: { slug: string; inviteId: s
   );
 }
 
-/** Copy the group code, or share it on WhatsApp (or the phone's share sheet). */
-export function ShareCode({ code, campName, url }: { code: string; campName: string; url: string }) {
+/** The group's join link: copy it, or share it on WhatsApp. Friends tap it and they're in. */
+export function ShareLink({ url, campName }: { url: string; campName: string }) {
   const [copied, setCopied] = useState(false);
-  const text = `Join my room for ${campName}. Sign in at ${url}, open Roommates and enter code ${code}`;
+  const text = `Join my room for ${campName}: ${url}`;
   const copy = async () => {
-    await navigator.clipboard?.writeText(code).catch(() => {});
+    await navigator.clipboard?.writeText(url).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3 rounded-[10px] bg-stone-canvas px-4 py-3">
-        <span className="flex flex-col">
-          <span className="text-[13px] text-warm-gray">Group code</span>
-          <span className="font-mono text-2xl font-medium tracking-[0.15em]">{code}</span>
-        </span>
-        <button type="button" onClick={copy} className={`${secondaryButtonClass} h-10`} aria-live="polite">
+      <div className="flex h-12 items-center gap-2 rounded-full border border-stone-muted bg-white pl-4 pr-1.5">
+        <span className="min-w-0 flex-1 truncate text-sm text-warm-gray">{url.replace(/^https?:\/\//, "")}</span>
+        <button type="button" onClick={copy} className={`${secondaryButtonClass} h-9 flex-none px-3.5`} aria-live="polite">
           {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <a
-        href={`https://wa.me/?text=${encodeURIComponent(text)}`}
-        target="_blank"
-        rel="noreferrer"
-        className={`${primaryButtonClass} w-full`}
-      >
+      <a href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer" className={`${primaryButtonClass} w-full`}>
         <Share2 className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" />
-        Share on WhatsApp
+        Send on WhatsApp
       </a>
+    </div>
+  );
+}
+
+/** "I'm happy with any room": skip choosing, a coordinator places them. */
+export function AnyRoom({ slug, on }: { slug: string; on: boolean }) {
+  const { act, error, pending } = useGroupAction();
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="flex cursor-pointer items-center gap-3">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={pending}
+          onChange={(e) => act(() => setAnyRoomAction(slug, e.target.checked))}
+          className="h-5 w-5 accent-soot"
+        />
+        <span className="text-[15px] font-medium">I&apos;m happy with any room</span>
+      </label>
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

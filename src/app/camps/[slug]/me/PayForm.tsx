@@ -42,7 +42,7 @@ export function PayForm({ slug, balance, feeBps, dueOn }: { slug: string; balanc
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3.5">
-      <Field label="How much?" hint={`Any amount up to ${formatCedis(balance)}. The full amount is due by ${dueOn}.`}>
+      <Field label="How much?" hint={`Up to ${formatCedis(balance)}, by ${dueOn}`}>
         <span className="flex h-12 items-center gap-2 rounded-[6px] border border-stone-muted bg-white px-3.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-cyan-signal">
           <span className="text-warm-gray">GHS</span>
           <input

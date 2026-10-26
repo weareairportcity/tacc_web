@@ -26,7 +26,7 @@ const DATE_FIELDS: { key: keyof CampInput; label: string; hint?: string }[] = [
   { key: "ends_on", label: "Camp ends" },
   { key: "registration_opens_on", label: "Registration opens", hint: "Before this, the camp page shows a countdown." },
   { key: "registration_closes_on", label: "Registration closes" },
-  { key: "payment_due_on", label: "Full payment due", hint: "Shown to attendees with what they still owe." },
+  { key: "payment_due_on", label: "Full payment due", hint: "Shown to attendees with what’s outstanding." },
   { key: "roommate_deadline_on", label: "Roommate groups lock", hint: "After this, groups are final and you assign rooms." },
 ];
 

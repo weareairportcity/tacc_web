@@ -39,3 +39,50 @@ export async function checkPayment(registrationId: string, reference: string): P
   return (await worker<{ status: PaymentStatus }>("/v1/admin/camp/check", { registration_id: registrationId, reference }))
     .status;
 }
+
+/** A payment link opened by someone else (a parent or sponsor): their receipt email and name. */
+export function startPaymentFor(registrationId: string, amountPesewas: number, callbackUrl: string, payer: { email: string; name: string }) {
+  return worker<Checkout>("/v1/admin/camp/pay-init", {
+    registration_id: registrationId,
+    amount_pesewas: amountPesewas,
+    callback_url: callbackUrl,
+    payer_email: payer.email,
+    payer_name: payer.name,
+  });
+}
+
+export type BulkCheckout = Checkout & { people: number };
+
+/** A coordinator paying several people's balances in one checkout. */
+export function startBulkPayment(input: {
+  campId: string;
+  registrationIds: string[];
+  paidBy: string;
+  payerEmail: string;
+  note: string;
+  callbackUrl: string;
+}) {
+  return worker<BulkCheckout>("/v1/admin/camp/bulk-init", {
+    camp_id: input.campId,
+    registration_ids: input.registrationIds,
+    paid_by: input.paidBy,
+    payer_email: input.payerEmail,
+    note: input.note,
+    callback_url: input.callbackUrl,
+  });
+}
+
+export function checkBulkPayment(campId: string, reference: string) {
+  return worker<{ status: PaymentStatus; people: number; credited: number }>("/v1/admin/camp/bulk-check", { camp_id: campId, reference });
+}
+
+/** Sends money back through Paystack. Paystack's fees are never refunded. */
+export function refundThroughPaystack(input: { registrationId: string; amountPesewas: number; actor: string; note: string; requestId?: string }) {
+  return worker<{ refunded_pesewas: number; short_pesewas: number }>("/v1/admin/camp/refund", {
+    registration_id: input.registrationId,
+    amount_pesewas: input.amountPesewas,
+    actor: input.actor,
+    note: input.note,
+    request_id: input.requestId,
+  });
+}

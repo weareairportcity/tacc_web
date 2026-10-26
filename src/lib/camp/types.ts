@@ -81,11 +81,14 @@ export const REGISTRATION_STATUSES = ["registered", "partially_paid", "fully_pai
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
-  registered: "Registered",
-  partially_paid: "Partially paid",
+  registered: "Nothing paid",
+  partially_paid: "Part paid",
   fully_paid: "Fully paid",
   cancelled: "Cancelled",
 };
+
+export const SHIRT_SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL"] as const;
+export type ShirtSize = (typeof SHIRT_SIZES)[number];
 
 export type Registration = {
   id: string;
@@ -103,6 +106,10 @@ export type Registration = {
   price_pesewas: number;
   paid_pesewas: number;
   status: RegistrationStatus;
+  shirt_size: ShirtSize | "";
+  /** "I'm happy with any room": no roommate group, a coordinator places them. */
+  any_room: 0 | 1;
+  checked_in_at: string | null;
 };
 
 /** What an attendee types in; PFCC comes from the fellowship. */
@@ -114,6 +121,47 @@ export type RegistrationInput = {
   fellowship: string;
   church: string;
   room_type_id: string;
+  shirt_size?: ShirtSize | "";
+};
+
+/** Details an attendee can change themselves. Phone, gender and fellowship are a coordinator's. */
+export type ProfileInput = {
+  full_name: string;
+  email: string;
+  shirt_size: ShirtSize | "";
+  emergency_name: string;
+  emergency_phone: string;
+  health_notes: string;
+};
+
+/** Emergency contact and health notes: shown to the attendee and coordinators only. */
+export type PrivateDetails = Pick<ProfileInput, "emergency_name" | "emergency_phone" | "health_notes">;
+
+export type RequestKind = "refund" | "room_change";
+export type RequestStatus = "pending" | "approved" | "declined" | "withdrawn";
+
+export type CampRequest = {
+  id: string;
+  created_at: string;
+  camp_id: string;
+  registration_id: string;
+  full_name: string;
+  fellowship: string;
+  room_type_name: string;
+  kind: RequestKind;
+  status: RequestStatus;
+  amount_pesewas: number | null;
+  to_room_type_id: string | null;
+  to_room_type_name: string | null;
+  to_price_pesewas: number | null;
+  price_pesewas: number;
+  paid_pesewas: number;
+  registration_status: RegistrationStatus;
+  reason: string;
+  requested_by: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string;
 };
 
 export type PaymentStatus = "pending" | "success" | "failed";
@@ -129,6 +177,10 @@ export type Payment = {
   status: PaymentStatus;
   flag: string | null;
   paid_at: string | null;
+  /** Set when a coordinator paid for several people at once. */
+  bulk_id: string | null;
+  /** Who paid through a pay link, or the coordinator's note on a bulk payment. */
+  payer_name: string;
 };
 
 /** open: anyone eligible can join; locked: by its owner, who can unlock; final: the roommate deadline has passed. */
@@ -217,7 +269,7 @@ export type WaitingGroup = {
   members: (GroupMember & { room_label: string | null })[];
 };
 
-export type WaitingPerson = { id: string; full_name: string; fellowship: string };
+export type WaitingPerson = { id: string; full_name: string; fellowship: string; any_room: 0 | 1 };
 
 /** What an attendee sees once placed. */
 export type MyRoom = { label: string; room_type_name: string; roommates: string[] };

@@ -99,6 +99,7 @@ function Slot({ camp, kind, label, hint, shape }: { camp: Camp } & (typeof SLOTS
         <input
           ref={input}
           type="file"
+          aria-label={`Choose a ${label.toLowerCase()} file`}
           accept="image/jpeg,image/png,image/webp"
           className="sr-only"
           tabIndex={-1}

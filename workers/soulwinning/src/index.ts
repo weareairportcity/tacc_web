@@ -1,5 +1,6 @@
 import { handleAdmin } from "./admin";
 import { paystackWebhook, reconcile } from "./camp";
+import { sendDailySummaries } from "./camp-summary";
 import { deleteMedia, getMedia, postSongEvent, putMedia } from "./media";
 import { getPhoto, putPhoto } from "./photos";
 import {
@@ -34,6 +35,7 @@ function requireAdminToken(request: Request, env: AppEnv) {
  *   Hourly SMS           → cron trigger
  *   Camp payments        → /v1/admin/camp/* (Next server), /v1/camp/paystack/webhook,
  *                          and a 10-minute reconciliation cron. See src/camp.ts.
+ *   Camp evening text    → the hourly cron at 7 pm (src/camp-summary.ts).
  */
 
 const CAMP_RECONCILE_CRON = "*/10 * * * *";
@@ -116,6 +118,11 @@ export default {
       return;
     }
     ctx.waitUntil(runSms(env as AppEnv, new Date(controller.scheduledTime)).then((r) => console.log("sms", r)));
+    ctx.waitUntil(
+      sendDailySummaries(env as AppEnv, new Date(controller.scheduledTime))
+        .then((r) => console.log("camp summary", JSON.stringify(r)))
+        .catch((e) => console.error("camp summary failed", e)),
+    );
     ctx.waitUntil(
       checkUsage(env as AppEnv)
         .then((r) => console.log("usage", JSON.stringify(r)))

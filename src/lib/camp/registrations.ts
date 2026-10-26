@@ -9,6 +9,7 @@ import { getRoomType, listRoomTypes, placesFor } from "./rooms";
 import {
   CampError,
   GENDERS,
+  SHIRT_SIZES,
   type Camp,
   type Gender,
   type Payment,
@@ -24,10 +25,25 @@ import {
  */
 
 const COLUMNS = `r.id, r.created_at, r.camp_id, r.room_type_id, t.name AS room_type_name, r.full_name, r.phone,
-  r.email, r.gender, r.fellowship, r.pfcc, r.church, r.price_pesewas, r.paid_pesewas, r.status`;
+  r.email, r.gender, r.fellowship, r.pfcc, r.church, r.price_pesewas, r.paid_pesewas, r.status, r.shirt_size,
+  r.any_room, r.checked_in_at`;
 const FROM = "FROM camp_registrations r JOIN camp_room_types t ON t.id = r.room_type_id";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Registering with a phone that's already registered: the page sends them to sign in instead. */
+export class AlreadyRegistered extends CampError {
+  constructor(readonly phone: string) {
+    super("This phone number is already registered for this camp. Sign in with your code.");
+  }
+}
+
+/** "" (not given) or one of SHIRT_SIZES; anything else is a mistake. */
+export function checkShirtSize(raw: unknown, problems: string[]) {
+  const size = String(raw ?? "").trim().toUpperCase();
+  if (size && !(SHIRT_SIZES as readonly string[]).includes(size)) problems.push("Choose a T-shirt size from the list.");
+  return (SHIRT_SIZES as readonly string[]).includes(size) ? (size as (typeof SHIRT_SIZES)[number]) : "";
+}
 
 /** Ghana is UTC+0, so the UTC date is Accra's. */
 export const todayInGhana = () => new Date().toISOString().slice(0, 10);
@@ -68,6 +84,7 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
   const fellowship = FELLOWSHIPS.find((f) => f.name === raw.fellowship);
   if (!fellowship) problems.push("Choose your fellowship.");
   if (!(CHURCHES as readonly string[]).includes(raw.church)) problems.push("Choose your church.");
+  const shirt_size = checkShirtSize(raw.shirt_size, problems);
   const roomType = roomTypes.find((t) => t.id === raw.room_type_id);
   if (!roomType) problems.push("Choose a room type.");
   else if (GENDERS.includes(raw.gender) && placesFor(roomType, raw.gender) === 0) {
@@ -83,6 +100,7 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
     fellowship: fellowship!.name,
     pfcc: fellowship!.pfcc,
     church: raw.church,
+    shirt_size,
     roomType: roomType!,
   };
 }
@@ -100,11 +118,7 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
     "SELECT id FROM camp_registrations WHERE camp_id = ? AND phone = ?",
     [camp.id, input.phone],
   );
-  if (existing) {
-    throw new CampError(
-      "This phone number is already registered for this camp. Sign in with your code, or use “Forgot your code?”.",
-    );
-  }
+  if (existing) throw new AlreadyRegistered(input.phone);
 
   const id = crypto.randomUUID();
   const code = generateCode();
@@ -114,8 +128,8 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
   const statements = [
     {
       sql: `INSERT INTO camp_registrations (id, camp_id, room_type_id, full_name, phone, email, gender, fellowship,
-              pfcc, church, price_pesewas, status, code_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              pfcc, church, price_pesewas, status, code_hash, shirt_size)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         camp.id,
@@ -130,6 +144,7 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
         price,
         price === 0 ? "fully_paid" : "registered",
         hashCode(code),
+        input.shirt_size,
       ],
     },
     auditStatement({ actor: `attendee:${id}`, campId: camp.id, action: "registration.create", entity: "registration", entityId: id, after }),
@@ -206,7 +221,8 @@ export async function resetCode(campId: string, rawPhone: string) {
 export async function listPayments(registrationId: string): Promise<Payment[]> {
   return query<Payment>(
     "app",
-    `SELECT id, created_at, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, status, flag, paid_at
+    `SELECT id, created_at, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, status, flag, paid_at,
+            bulk_id, payer_name
      FROM camp_payments WHERE registration_id = ? ORDER BY created_at DESC`,
     [checkId(registrationId, "registration")],
   );
@@ -218,7 +234,7 @@ export async function listFlaggedPayments(campId: string): Promise<FlaggedPaymen
   return query<FlaggedPayment>(
     "app",
     `SELECT p.id, p.created_at, p.registration_id, p.reference, p.amount_pesewas, p.fee_pesewas, p.charged_pesewas,
-            p.status, p.flag, p.paid_at, r.full_name, r.phone
+            p.status, p.flag, p.paid_at, p.bulk_id, p.payer_name, r.full_name, r.phone
      FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
      WHERE r.camp_id = ? AND p.flag IN ('amount_mismatch', 'over_balance')
      ORDER BY p.created_at DESC`,
@@ -231,7 +247,11 @@ export async function listFlaggedPayments(campId: string): Promise<FlaggedPaymen
  * Also takes the person out of their roommate group and their room. Returns a
  * warning when that group was already locked.
  */
-export async function cancelRegistration(actor: string, id: string): Promise<{ warning: string | null }> {
+export async function cancelRegistration(
+  actor: string,
+  id: string,
+  extra: { sql: string; params: unknown[] }[] = [],
+): Promise<{ warning: string | null }> {
   const before = await getRegistration(id);
   if (!before) throw new CampError("Unknown registration.");
   if (before.status === "cancelled") throw new CampError("This registration is already cancelled.");
@@ -250,6 +270,12 @@ export async function cancelRegistration(actor: string, id: string): Promise<{ w
     // After the status change: the group trigger lets a cancelled person go even from a locked group.
     ...group.statements,
     ...roomStatementsForRemoval(actor, before, "registration cancelled"),
+    // Pending room changes no longer apply.
+    {
+      sql: "UPDATE camp_requests SET status = 'withdrawn', decided_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE registration_id = ? AND kind = 'room_change' AND status = 'pending'",
+      params: [id],
+    },
+    ...extra,
   ]);
   return { warning: group.warning };
 }

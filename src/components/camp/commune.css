@@ -105,3 +105,55 @@
 @keyframes cm-ken { from { transform: scale(1.06); } to { transform: none; } }
 .cm-ken { animation: cm-ken 1600ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 @media (prefers-reduced-motion: reduce) { .cm-ken { animation: none; } }
+
+/* ── v2: side panels, toasts, drag ─────────────────────────────────────────── */
+
+/* A side panel on wide screens, a bottom sheet on phones. Native <dialog>, so
+   focus stays inside and Escape closes it. In on the drawer curve, out faster. */
+dialog.cm-sheet {
+  margin: 0; padding: 0; border: 0; max-width: none; max-height: none; background: #ffffff; color: inherit;
+  position: fixed; inset: auto 0 0 0; width: 100%; height: min(92dvh, 100%); border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.18);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1), overlay 300ms allow-discrete, display 300ms allow-discrete;
+  transform: translateY(100%);
+}
+dialog.cm-sheet[open] { transform: none; }
+@starting-style { dialog.cm-sheet[open] { transform: translateY(100%); } }
+@media (min-width: 640px) {
+  dialog.cm-sheet {
+    inset: 0 0 0 auto; width: min(460px, 100vw); height: 100dvh; border-radius: 0;
+    border-left: 1px solid #e8e6e5; box-shadow: -24px 0 60px rgba(17, 12, 46, 0.14);
+    transform: translateX(100%);
+    transition-duration: 260ms;
+  }
+  dialog.cm-sheet[open] { transform: none; }
+  @starting-style { dialog.cm-sheet[open] { transform: translateX(100%); } }
+}
+dialog.cm-sheet.cm-closing { transition-duration: 180ms; }
+dialog.cm-sheet::backdrop { background: rgba(12, 10, 9, 0.22); transition: background-color 260ms ease, overlay 260ms allow-discrete, display 260ms allow-discrete; }
+@starting-style { dialog.cm-sheet[open]::backdrop { background: rgba(12, 10, 9, 0); } }
+
+.cm-toast { transition: opacity 320ms cubic-bezier(0.23, 1, 0.32, 1), transform 320ms cubic-bezier(0.23, 1, 0.32, 1); }
+@starting-style { .cm-toast { opacity: 0; transform: translateY(8px); } }
+@keyframes cm-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.cm-drain { transform-origin: left; animation: cm-drain linear both; }
+.cm-toast:hover .cm-drain, .cm-toast:focus-within .cm-drain { animation-play-state: paused; }
+
+.cm-pop { animation: cm-pop 300ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes cm-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+
+.cm-up { animation: cm-up 300ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@keyframes cm-up { from { transform: translateY(120%); } to { transform: none; } }
+
+/* A card being dragged lifts and tilts a little; its drop target lights up. */
+.cm-dragging { opacity: 0.55; }
+.cm-drop-target { outline: 2px dashed #3398e1; outline-offset: -2px; background-color: #f0f7fd; }
+
+@keyframes cm-scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(var(--scan, 200px)); } }
+.cm-scanline { animation: cm-scan 2.6s cubic-bezier(0.77, 0, 0.175, 1) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.cm-sheet, dialog.cm-sheet::backdrop { transition-duration: 1ms; }
+  .cm-toast { transition: opacity 160ms ease; transform: none; }
+  .cm-pop, .cm-up, .cm-scanline { animation: none; }
+}

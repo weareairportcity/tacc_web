@@ -12,11 +12,12 @@ import { PlacesNote } from "@/components/camp/places";
 import { Card, StatusLine, formatDate, headlineClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
 import { SignIn } from "./SignIn";
 
-export default async function CampLanding({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+export default async function CampLanding({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ registered?: string; next?: string }> }) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const camp = await getCampBySlug(slug);
   if (!camp) notFound();
-  if (await currentAttendee(camp.id)) redirect(`/camps/${camp.slug}/me`);
+  const next = query.next?.startsWith(`/camps/${slug}/`) ? query.next : undefined;
+  if (await currentAttendee(camp.id)) redirect(next ?? `/camps/${camp.slug}/me`);
 
   const phase = registrationPhase(camp);
   const roomTypes = phase === "upcoming" ? [] : await listRoomTypes(camp.id);
@@ -24,6 +25,17 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="flex flex-col gap-8">
+      {phase === "open" && (
+        // Sits in the header row, top right, where people look for it.
+        <div className="pointer-events-none relative -mt-16 -mb-8 flex h-16 items-center justify-end gap-1">
+          <a href="#sign-in" className="pointer-events-auto flex h-11 items-center px-3 text-sm font-medium">
+            Sign in
+          </a>
+          <Link href={`/camps/${camp.slug}/register`} className={`${primaryButtonClass} pointer-events-auto h-10 px-5 text-sm`}>
+            Register
+          </Link>
+        </div>
+      )}
       <section className="flex flex-col gap-4">
         <Link href="/camps" className="cm-press -ml-1 inline-flex min-h-11 items-center gap-1 self-start text-sm">
           <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" /> All camps
@@ -66,7 +78,7 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
           {phase !== "upcoming" && (
             <li className="flex items-center gap-2.5">
               <CreditCard className="h-[18px] w-[18px] text-ink-black" strokeWidth={1.5} aria-hidden="true" />
-              Pay in parts by {formatDate(camp.payment_due_on)}
+              Pay by {formatDate(camp.payment_due_on)}, all at once or bit by bit
             </li>
           )}
         </ul>
@@ -76,19 +88,8 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
 
       {phase === "open" && (
         <>
-          <div className="cm-rise flex flex-col gap-3" style={{ animationDelay: "120ms" }}>
-            <Link href={`/camps/${camp.slug}/register`} className={`${primaryButtonClass} h-[52px] w-full`}>
-              Register now
-            </Link>
-            <a href="#sign-in" className="flex h-11 items-center justify-center text-[15px] font-medium text-ink-black">
-              I&apos;ve already registered
-            </a>
-          </div>
-          <Card lifted title="Pick a room, pay in parts">
+          <Card lifted title="Rooms and prices">
             <RoomList roomTypes={roomTypes} />
-            <p className="text-[13px] leading-relaxed text-warm-gray">
-              A small Paystack fee is added to each payment and shown before you pay.
-            </p>
           </Card>
         </>
       )}
@@ -113,13 +114,13 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
 
       {phase !== "upcoming" && (
         <section className="flex flex-col gap-3">
-          <h2 className={titleClass}>Four steps to your room</h2>
+          <h2 className={titleClass}>How it works</h2>
           <ol className="flex flex-col">
             {[
-              [Users, "Register", "Name, phone, fellowship and room type."],
-              [CreditCard, "Pay in parts", "MoMo or card, any amount, until it's paid."],
-              [Users, "Choose roommates", "Once you're fully paid, form a group with friends."],
-              [BedDouble, "Get your room", "A coordinator places your group before camp."],
+              [Users, "Register", "Two minutes"],
+              [CreditCard, "Pay", "MoMo or card, bit by bit"],
+              [Users, "Pick roommates", "After you've paid in full"],
+              [BedDouble, "Get your room", "We text it to you"],
             ].map(([Icon, title, text], i) => {
               const I = Icon as typeof Users;
               return (
@@ -141,7 +142,12 @@ export default async function CampLanding({ params }: { params: Promise<{ slug: 
       {phase !== "upcoming" && (
         <section id="sign-in" className="scroll-mt-6">
           <Card title="Already registered?">
-            <SignIn slug={camp.slug} />
+            {query.registered && (
+              <p role="status" className="-mt-1 rounded-[10px] bg-cyan-tint px-3.5 py-2.5 text-sm">
+                That phone number is already registered. Sign in with your code.
+              </p>
+            )}
+            <SignIn slug={camp.slug} next={next} />
           </Card>
         </section>
       )}

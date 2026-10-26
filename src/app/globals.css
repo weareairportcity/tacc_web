@@ -33,7 +33,16 @@
   --color-soot: #1c1917;
   --color-sky-wash: #c1e1f7;
   --color-cyan-signal: #3ba6f1;
-  --color-cyan-edge: #3398e1;
+  /* #3398e1 darkened a touch so headline keywords pass 3:1 on the canvas. */
+  --color-cyan-edge: #2f90da;
+  --color-cyan-deep: #1a6cb0;
+  --color-stone-rail: #f5f4f3;
+  --color-cyan-tint: #f0f7fd;
+  /* Commune chart colours: payment status and room fill. Always shown with a label and count. */
+  --color-st-paid: #0ca30c;
+  --color-st-part: #fab219;
+  --color-st-none: #ec835a;
+  --color-st-cancel: #d6d3d1;
 
   --shadow-seline-card: rgba(0, 0, 0, 0.05) 0px 4px 16px 0px;
   --shadow-seline-hero: rgba(17, 12, 46, 0.12) 0px 12px 45px 0px;

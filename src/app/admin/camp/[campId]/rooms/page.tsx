@@ -1,101 +1,95 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleSlash } from "lucide-react";
+import { getPoolBoard, listPools, listRoomsWithOccupants } from "@/lib/camp/assignments";
 import { getCamp, ID } from "@/lib/camp/camps";
-import { formatCedis } from "@/lib/camp/money";
-import { listRoomTypes, listRooms } from "@/lib/camp/rooms";
-import type { RoomType } from "@/lib/camp/types";
-import { Card, headlineClass } from "@/components/camp/ui";
+import { listRoomSmsPending } from "@/lib/camp/room-sms";
+import { listRoomTypes } from "@/lib/camp/rooms";
+import { GENDERS, type Gender, type Pool } from "@/lib/camp/types";
+import { headlineClass } from "@/components/camp/ui";
+import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
-import { PlacesLeft } from "./PlacesLeft";
-import { Rooms } from "./Rooms";
+import { AllRooms } from "./AllRooms";
+import { AssignBoard } from "./AssignBoard";
+import { RoomTypesTab } from "./RoomTypesTab";
 
-function Places({ n }: { n: number | null }) {
-  if (n === null) return <span className="text-warm-gray">No limit</span>;
-  if (n === 0)
-    return (
-      <span className="inline-flex items-center gap-1.5 font-medium">
-        <CircleSlash className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" /> Full
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-1.5 font-medium">
-      <span className="h-[7px] w-[7px] rounded-full bg-cyan-signal" /> {n} left
-    </span>
-  );
-}
+// Texting rooms sends one mNotify request per room, a few at a time.
+export const maxDuration = 60;
 
-export default async function CampRoomsPage({ params }: { params: Promise<{ campId: string }> }) {
+const TABS = [
+  ["assign", "Assign"],
+  ["all", "All rooms"],
+  ["types", "Room types"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
+const poolKey = (p: Pick<Pool, "room_type_id" | "gender">) => `${p.room_type_id}.${p.gender}`;
+
+/** Rooms: assigning people, every room and who's in it, and room types with places left. One place for all of it. */
+export default async function RoomsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ campId: string }>;
+  searchParams: Promise<{ tab?: string; pool?: string }>;
+}) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
+  const query = await searchParams;
+  const tab: Tab = TABS.some(([t]) => t === query.tab) ? (query.tab as Tab) : "assign";
 
-  const [camp, roomTypes, rooms] = await Promise.all([getCamp(campId), listRoomTypes(campId), listRooms(campId)]);
+  const [camp, roomTypes, pools] = await Promise.all([getCamp(campId), listRoomTypes(campId), listPools(campId)]);
   if (!camp) notFound();
-  const beds = rooms.reduce((sum, r) => sum + r.capacity, 0);
-  const bedsOf = (t: RoomType) => rooms.filter((r) => r.room_type_id === t.id).reduce((s, r) => s + r.capacity, 0);
+  const waiting = pools.reduce((n, p) => n + Math.max(0, p.fully_paid - p.assigned), 0);
+
+  let body: React.ReactNode;
+  if (tab === "types") {
+    body = <RoomTypesTab campId={camp.id} roomTypes={roomTypes} />;
+  } else if (tab === "all") {
+    body = <AllRooms campId={camp.id} rooms={await listRoomsWithOccupants(camp.id)} roomTypes={roomTypes} />;
+  } else {
+    // Open on what can be done now: people waiting and beds free; then anyone waiting.
+    const pool =
+      pools.find((p) => poolKey(p) === query.pool) ??
+      pools.find((p) => p.fully_paid > p.assigned && p.beds > p.assigned) ??
+      pools.find((p) => p.fully_paid > p.assigned) ??
+      pools[0];
+    const [board, smsPending] = await Promise.all([
+      pool && GENDERS.includes(pool.gender) ? getPoolBoard(camp.id, pool.room_type_id, pool.gender as Gender) : null,
+      listRoomSmsPending(camp.id),
+    ]);
+    body = (
+      <AssignBoard
+        key={pool ? poolKey(pool) : "none"}
+        campId={camp.id}
+        pools={pools.map((p) => ({ key: poolKey(p), name: `${p.gender === "male" ? "Men" : "Women"} · ${p.room_type_name}`, waiting: Math.max(0, p.fully_paid - p.assigned) }))}
+        current={pool ? poolKey(pool) : null}
+        board={board}
+        smsPending={smsPending.length}
+      />
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1.5">
-        <h1 className={headlineClass}>
-          Set up <span className="text-cyan-edge">rooms</span>
-        </h1>
-        <p className="text-sm text-warm-gray">
-          {rooms.length} rooms · {beds} beds across {roomTypes.length} room type{roomTypes.length === 1 ? "" : "s"}. Prices and
-          room types are on Settings.
-        </p>
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className={`${headlineClass} text-[34px]`}>Rooms</h1>
+        <nav aria-label="Rooms" className="flex gap-1 rounded-full border border-stone-border bg-white p-[3px]">
+          {TABS.map(([t, label]) => (
+            <Link
+              key={t}
+              href={`?tab=${t}`}
+              aria-current={tab === t ? "page" : undefined}
+              className={cn("cm-press flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium", tab === t ? "bg-soot text-white" : "text-ink-black")}
+            >
+              {label}
+              {t === "assign" && waiting > 0 && <span className={cn("text-xs", tab === t ? "text-stone-muted" : "text-warm-gray")}>{waiting}</span>}
+            </Link>
+          ))}
+        </nav>
       </header>
-
-      <div className="flex flex-wrap items-start gap-5">
-        <Card title="Room types" className="min-w-0 flex-[999_1_520px]">
-          {roomTypes.length === 0 ? (
-            <p className="text-sm text-warm-gray">No room types yet. Add them on Settings first.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full whitespace-nowrap text-sm tabular-nums">
-                <thead className="text-left text-xs text-warm-gray">
-                  <tr>
-                    <th className="pb-2.5 pr-3 font-medium">Type</th>
-                    <th className="px-3 pb-2.5 font-medium">Price</th>
-                    <th className="px-3 pb-2.5 font-medium">Women</th>
-                    <th className="px-3 pb-2.5 font-medium">Men</th>
-                    <th className="px-3 pb-2.5 font-medium">Beds a room</th>
-                    <th className="pb-2.5 pl-3 text-right font-medium">Beds</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roomTypes.map((t) => (
-                    <tr key={t.id} className="border-t border-stone-border">
-                      <td className="py-3 pr-3 font-medium">{t.name}</td>
-                      <td className="px-3 py-3">{formatCedis(t.price_pesewas)}</td>
-                      <td className="px-3 py-3">
-                        <Places n={t.places_female} />
-                      </td>
-                      <td className="px-3 py-3">
-                        <Places n={t.places_male} />
-                      </td>
-                      <td className="px-3 py-3">{t.capacity}</td>
-                      <td className="py-3 pl-3 text-right">{bedsOf(t)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <p className="text-[13px] leading-relaxed text-warm-gray">
-            &ldquo;Places left&rdquo; is what the venue last told you. Cancelling doesn&apos;t give a place back: raise the
-            number if the venue confirms it.
-          </p>
-        </Card>
-        {roomTypes.length > 0 && (
-          <div className="flex w-full flex-[1_1_300px] flex-col gap-5 sm:max-w-[380px]">
-            <PlacesLeft roomTypes={roomTypes} />
-          </div>
-        )}
-      </div>
-
-      <Rooms campId={camp.id} rooms={rooms} roomTypes={roomTypes} />
+      {body}
     </div>
   );
 }

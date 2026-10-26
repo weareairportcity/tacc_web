@@ -46,10 +46,17 @@ export async function reconcileWithPaystack(campId: string, now = new Date()): P
   const [ours, { transactions, complete }] = await Promise.all([
     query<OurPayment>(
       "app",
-      `SELECT p.reference, r.full_name, p.amount_pesewas, p.charged_pesewas, p.status, p.flag
-       FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
-       -- Sample payments (test camps) never went through Paystack, so there's nothing to check them against.
-       WHERE r.camp_id = ? AND p.provider <> 'sample' ORDER BY p.created_at`,
+      `SELECT * FROM (
+         SELECT p.reference, r.full_name, p.amount_pesewas, p.charged_pesewas, p.status, p.flag, p.created_at
+         FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+         -- Sample payments (test camps) never went through Paystack, so there's nothing to check them against.
+         -- A coordinator's payment for several people is one Paystack transaction: compare the bulk row, not its shares.
+         WHERE r.camp_id = ?1 AND p.provider <> 'sample' AND p.bulk_id IS NULL
+         UNION ALL
+         SELECT b.reference, (SELECT COUNT(*) FROM camp_payments s WHERE s.bulk_id = b.id) || ' people, paid by ' || b.paid_by,
+           b.amount_pesewas, b.charged_pesewas, b.status, b.flag, b.created_at
+         FROM camp_bulk_payments b WHERE b.camp_id = ?1)
+       ORDER BY created_at`,
       [camp.id],
     ),
     post<{ transactions: PaystackTx[]; complete: boolean }>("/v1/admin/camp/paystack-transactions", {
@@ -97,7 +104,8 @@ export async function reconcileWithPaystack(campId: string, now = new Date()): P
       (
         await query<{ reference: string }>(
           "app",
-          `SELECT reference FROM camp_payments WHERE reference IN (SELECT value FROM json_each(?))`,
+          `SELECT reference FROM camp_payments WHERE reference IN (SELECT value FROM json_each(?1))
+           UNION SELECT reference FROM camp_bulk_payments WHERE reference IN (SELECT value FROM json_each(?1))`,
           [JSON.stringify([...paystack.keys()])],
         )
       ).map((r) => r.reference),
@@ -107,6 +115,15 @@ export async function reconcileWithPaystack(campId: string, now = new Date()): P
       problems.push({ reference: tx.reference, full_name: null, ours: "not found", paystack: describe(tx), issue: "Paid on Paystack but unknown here." });
     }
   }
+
+  // Shares of a paid bulk checkout that no longer fitted a balance: known, waiting for a refund.
+  const [shares] = await query<{ n: number }>(
+    "app",
+    `SELECT COUNT(*) AS n FROM camp_payments p JOIN camp_bulk_payments b ON b.id = p.bulk_id
+     WHERE b.camp_id = ? AND b.status = 'success' AND p.flag = 'over_balance'`,
+    [camp.id],
+  );
+  awaitingRefund += shares?.n ?? 0;
 
   return { checked: ours.length, matched, awaitingRefund, problems, complete };
 }

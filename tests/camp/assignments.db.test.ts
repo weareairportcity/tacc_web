@@ -44,10 +44,10 @@ async function groupOf(owner: Registration, members: Registration[]) {
 describe("placing one person", () => {
   it("fills a bed, warns about the free ones, and is audited", async () => {
     const { roomIds: [room], people: [a, b, c, d] } = await setup(4);
-    expect(await assignPerson(ACTOR, room, a.id)).toEqual({ warning: "A1 has 3 free beds. Top it up from the unmatched list." });
+    expect(await assignPerson(ACTOR, room, a.id)).toMatchObject({ warning: "A1 has 3 free beds. Top it up from the unmatched list." });
     await assignPerson(ACTOR, room, b.id);
     await assignPerson(ACTOR, room, c.id);
-    expect(await assignPerson(ACTOR, room, d.id)).toEqual({ warning: null });
+    expect(await assignPerson(ACTOR, room, d.id)).toMatchObject({ warning: null });
     expect(await occupants(room)).toHaveLength(4);
     const entries = await query<{ actor: string; after_json: string }>(
       "app",
@@ -122,7 +122,7 @@ describe("placing a group", () => {
     const group = await groupOf(owner, [a, b]);
     await setLocked(owner, true);
     await assignPerson(ACTOR, a1, a.id);
-    expect(await assignGroup(ACTOR, a1, group)).toEqual({ warning: "A1 has 1 free bed. Top it up from the unmatched list." });
+    expect(await assignGroup(ACTOR, a1, group)).toMatchObject({ warning: "A1 has 1 free bed. Top it up from the unmatched list." });
     expect(await occupants(a1)).toHaveLength(3);
 
     await unassign(ACTOR, b.id);

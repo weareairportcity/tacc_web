@@ -25,7 +25,6 @@ export default async function RegisterPage({ params }: { params: Promise<{ slug:
           <span className="h-1 flex-1 rounded-full bg-soot" />
           <span className="h-1 flex-1 rounded-full bg-stone-border" />
         </div>
-        <p className="text-[13px] text-warm-gray">Step 1 of 2 · Register. Then pay, now or later.</p>
         <h1 className={headlineClass}>
           Save your <span className="text-cyan-edge">place</span>
         </h1>

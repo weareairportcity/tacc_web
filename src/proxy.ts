@@ -104,11 +104,16 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Gate the admin areas; each page still checks its own role.
-  const isLogin = pathname.startsWith("/admin/login");
-  if (!user && !isLogin) {
+  // Gate the admin areas; each page still checks its own role. Commune's
+  // coordinator app has its own sign-in page, and its app manifest and
+  // service worker must load without one.
+  const isCommune = pathname === "/admin/camp" || pathname.startsWith("/admin/camp/");
+  const isLogin = pathname.startsWith("/admin/login") || pathname === "/admin/camp/sign-in";
+  const isPublicFile = pathname === "/admin/camp/manifest.webmanifest" || pathname === "/admin/camp/sw.js";
+  if (!user && !isLogin && !isPublicFile) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    url.pathname = isCommune ? "/admin/camp/sign-in" : "/admin/login";
+    url.search = isCommune && pathname !== "/admin/camp" ? `?next=${encodeURIComponent(pathname + request.nextUrl.search)}` : "";
     return NextResponse.redirect(url);
   }
 

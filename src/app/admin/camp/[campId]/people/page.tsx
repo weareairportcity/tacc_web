@@ -1,113 +1,76 @@
 import { notFound } from "next/navigation";
-import { Check, CircleCheck, CircleDashed, CircleSlash, Minus } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
-import { ROOMMATE_LABELS, filtersToQuery, listPeopleForLeader, parsePeopleFilters, scopeFor } from "@/lib/camp/reports";
+import { listPeople, listPeopleForLeader, scopeFor } from "@/lib/camp/reports";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { CampError, REGISTRATION_STATUS_LABELS } from "@/lib/camp/types";
-import { PeopleFilters } from "@/components/camp/PeopleFilters";
-import { headlineClass } from "@/components/camp/ui";
+import { listViews } from "@/lib/camp/views";
+import { CampError } from "@/lib/camp/types";
+import { PFCC_GROUPS } from "@/lib/fellowships";
 import { NoAccess, pageStaff } from "../../access";
+import { PeopleView, type PersonListRow } from "./PeopleView";
 
 /**
- * Leaders' read-only list: their own fellowship or PFCC only (applied in the
- * query from their staff record), with no contact details or amounts.
+ * People, for coordinators and leaders. The whole camp (a leader: their
+ * scope only, applied in SQL) comes down once, so filters, counts and sort
+ * change instantly in the browser and stay in the URL.
  */
-export default async function LeaderPeoplePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ campId: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const staff = await pageStaff("leader", "coordinator");
+export default async function PeoplePage({ params, searchParams }: { params: Promise<{ campId: string }>; searchParams: Promise<Record<string, string>> }) {
+  const staff = await pageStaff("coordinator", "leader");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
   const camp = await getCamp(campId);
-  if (!camp || camp.status === "draft") notFound();
+  if (!camp) notFound();
+  const leader = staff.role === "leader";
+  if (leader && camp.status === "draft") notFound();
 
-  let scope;
+  let rows: PersonListRow[];
   try {
-    scope = scopeFor(staff);
+    rows = leader
+      ? (await listPeopleForLeader(staff, camp.id, {})).map((r) => ({
+          id: r.id,
+          full_name: r.full_name,
+          fellowship: r.fellowship,
+          status: r.status,
+          room: r.has_room ? "Has a room" : r.roommate === "in_group" || r.roommate === "locked" ? "In a group" : null,
+          placed: r.has_room,
+          last: null,
+        }))
+      : (await listPeople(camp.id, {})).map((r) => ({
+          id: r.id,
+          full_name: r.full_name,
+          phone: r.phone,
+          fellowship: r.fellowship,
+          pfcc: r.pfcc,
+          gender: r.gender,
+          room_type: r.room_type_name,
+          status: r.status,
+          price: r.price_pesewas,
+          paid: r.paid_pesewas,
+          room: r.room_label ?? (r.group_code ? "In a group" : r.any_room ? "Any room" : null),
+          placed: !!r.room_label,
+          checked_in: !!r.checked_in_at,
+          last: r.last_paid_at ?? r.created_at,
+          last_paid: r.last_paid_at ? r.last_paid_pesewas : null,
+          registered: r.created_at,
+        }));
   } catch (err) {
-    if (!(err instanceof CampError)) throw err;
-    return (
-      <div className="rounded-[10px] border border-stone-border bg-white p-8 text-center">
-        <h1 className="text-lg font-medium">Not set up yet</h1>
-        <p className="mt-2 text-sm text-warm-gray">{err.message}</p>
-      </div>
-    );
+    if (err instanceof CampError) return <p className="text-sm">{err.message}</p>;
+    throw err;
   }
 
-  const filters = parsePeopleFilters(await searchParams);
-  const [people, roomTypes] = await Promise.all([listPeopleForLeader(staff, camp.id, filters), listRoomTypes(camp.id)]);
+  const [roomTypes, views] = await Promise.all([leader ? [] : listRoomTypes(camp.id), listViews(camp.id, staff.email)]);
+  const scope = leader ? scopeFor(staff) : null;
 
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-col gap-1.5">
-        <h1 className={headlineClass}>
-          {scope.kind === "all" ? "Everyone" : scope.value} <span className="text-cyan-edge">· {people.length}</span>
-        </h1>
-        <p className="text-sm text-warm-gray">Read-only. Payment amounts and contact details aren&apos;t shown.</p>
-      </header>
-
-      <PeopleFilters
-        filters={filters}
-        roomTypes={roomTypes}
-        exportHref={`/admin/camp/${camp.id}/people/export${filtersToQuery(filters)}`}
-        searchLabel="Search by name"
-        showChurch={false}
-        hide={scope.kind === "fellowship" ? ["fellowship", "pfcc"] : scope.kind === "pfcc" ? ["pfcc"] : []}
-      />
-
-      <div className="overflow-x-auto rounded-[10px] border border-stone-border bg-white">
-        <table className="w-full text-sm">
-          <thead className="border-b border-stone-border text-left text-warm-gray">
-            <tr>
-              <th className="whitespace-nowrap px-4 py-3 font-medium">Name</th>
-              <th className="whitespace-nowrap px-4 py-3 font-medium">Fellowship</th>
-              <th className="whitespace-nowrap px-4 py-3 font-medium">Payment</th>
-              <th className="whitespace-nowrap px-4 py-3 font-medium">Roommates</th>
-              <th className="whitespace-nowrap px-4 py-3 font-medium">Room assigned</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-border">
-            {people.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-warm-gray">
-                  {filtersToQuery(filters) ? "Nobody matches these filters." : "Nobody from your group has registered yet."}
-                </td>
-              </tr>
-            )}
-            {people.map((p) => (
-              <tr key={p.id} className="cm-row">
-                <td className="px-4 py-3 font-medium">{p.full_name}</td>
-                <td className="px-4 py-3">{p.fellowship}</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    {p.status === "fully_paid" ? (
-                      <CircleCheck className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                    ) : p.status === "cancelled" ? (
-                      <CircleSlash className="h-3.5 w-3.5 text-warm-gray" strokeWidth={1.8} aria-hidden="true" />
-                    ) : (
-                      <CircleDashed className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                    )}
-                    {REGISTRATION_STATUS_LABELS[p.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-warm-gray">{p.roommate ? ROOMMATE_LABELS[p.roommate] : ""}</td>
-                <td className="px-4 py-3">
-                  {p.has_room ? (
-                    <Check className="h-4 w-4 text-ink-black" aria-label="Yes" />
-                  ) : (
-                    <Minus className="h-4 w-4 text-ash-gray" aria-label="No" />
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <PeopleView
+      campId={camp.id}
+      leader={leader}
+      scopeName={scope && scope.kind !== "all" ? scope.value : null}
+      rows={rows}
+      roomTypes={roomTypes.map((t) => t.name)}
+      pfccs={PFCC_GROUPS.map((g) => ({ pfcc: g.pfcc, fellowships: g.fellowships.map((f) => f.name) }))}
+      views={views}
+      initialQuery={new URLSearchParams(await searchParams).toString()}
+    />
   );
 }

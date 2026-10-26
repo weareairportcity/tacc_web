@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { BedDouble, Church, CircleSlash, Lock, User, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BedDouble, Church, CircleSlash, User } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
-import type { RegistrationInput, RoomType } from "@/lib/camp/types";
+import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/types";
 import { CommuneLoader } from "@/components/camp/brand";
 import { placesState } from "@/components/camp/places";
-import { ErrorText, Field, formatDate, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
+import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { registerAction } from "../actions";
 
@@ -17,7 +18,7 @@ type Props = {
   roomTypes: RoomType[];
   fellowshipGroups: { pfcc: string; names: string[] }[];
   churches: string[];
-  dueOn: string;
+  dueOn?: string;
 };
 
 const fieldsetClass = "m-0 flex flex-col gap-4 rounded-[10px] border border-stone-border bg-white p-5 shadow-seline-card";
@@ -31,7 +32,8 @@ function Legend({ icon: Icon, children }: { icon: typeof User; children: React.R
   );
 }
 
-export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches, dueOn }: Props) {
+export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches }: Props) {
+  const router = useRouter();
   const [values, setValues] = useState<RegistrationInput>({
     full_name: "",
     phone: "",
@@ -40,6 +42,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     fellowship: "",
     church: churches.length === 1 ? churches[0] : "",
     room_type_id: "",
+    shirt_size: "",
   });
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
@@ -69,6 +72,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
         }
         return setError(result.error);
       }
+      // Already registered with this phone: sign in instead of a dead end.
+      if ("registered" in result.data) return router.push(`/camps/${slug}?registered=1#sign-in`);
       setCode(result.data.code);
     });
   };
@@ -77,15 +82,12 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     return (
       <section className="cm-rise flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-seline-hero">
         <h2 className={titleClass}>You&apos;re registered</h2>
-        <p className="text-[15px] leading-relaxed text-warm-gray">
-          This is your sign-in code. We&apos;ve texted it to you too. Keep it private: anyone with it can open your
-          registration.
-        </p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">Your sign-in code. We texted it to you too. Keep it private.</p>
         <p className="rounded-[10px] bg-stone-canvas py-5 text-center font-mono text-3xl font-medium tracking-[0.2em]">{code}</p>
         <Link href={`/camps/${slug}/me`} className={`${primaryButtonClass} h-[52px] w-full`}>
           Continue to payment
         </Link>
-        <p className="text-center text-[13px] text-warm-gray">Nothing to pay yet if you&apos;d rather pay later.</p>
+        <p className="text-center text-[13px] text-warm-gray">You can pay later.</p>
       </section>
     );
   }
@@ -108,25 +110,6 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
         <Field label="Full name">
           <input required autoComplete="name" className={inputClass} value={values.full_name} onChange={(e) => set("full_name", e.target.value)} />
         </Field>
-        <Field label="Phone number" hint="Your sign-in code is texted here. MoMo payments can use it too.">
-          <input
-            required
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="055 111 2222"
-            className={inputClass}
-            value={values.phone}
-            onChange={(e) => set("phone", e.target.value)}
-          />
-        </Field>
-        <Field label="Email" hint="For your Paystack receipts.">
-          <input required type="email" autoComplete="email" className={inputClass} value={values.email} onChange={(e) => set("email", e.target.value)} />
-        </Field>
-      </fieldset>
-
-      <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "60ms" }}>
-        <Legend icon={Church}>Your church</Legend>
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium" id="gender-label">
             Gender
@@ -142,8 +125,42 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
               </label>
             ))}
           </div>
-          <span className="text-[13px] text-warm-gray">Rooms are for one gender, so this decides who you can room with.</span>
         </div>
+        <Field label="Phone number">
+          <input
+            required
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="055 111 2222"
+            className={inputClass}
+            value={values.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+        </Field>
+        <Field label="Email">
+          <input required type="email" autoComplete="email" className={inputClass} value={values.email} onChange={(e) => set("email", e.target.value)} />
+        </Field>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium" id="shirt-label">
+            T-shirt size
+          </span>
+          <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
+            {SHIRT_SIZES.map((z) => (
+              <label
+                key={z}
+                className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
+              >
+                <input type="radio" name="shirt" value={z} checked={values.shirt_size === z} onChange={() => set("shirt_size", z)} className="sr-only" />
+                {z}
+              </label>
+            ))}
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "60ms" }}>
+        <Legend icon={Church}>Your church</Legend>
         <Field label="Fellowship">
           <select required className={inputClass} value={values.fellowship} onChange={(e) => set("fellowship", e.target.value)}>
             <option value="" disabled>
@@ -177,7 +194,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
       </fieldset>
 
       <fieldset id="room" className={cn(fieldsetClass, "cm-rise scroll-mt-6 gap-2.5")} style={{ animationDelay: "120ms" }}>
-        <Legend icon={BedDouble}>Room</Legend>
+        <Legend icon={BedDouble}>Your room</Legend>
         {roomTypes.map((t) => {
           const state = placesState(t, values.gender);
           const full = state === "full";
@@ -222,11 +239,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             </label>
           );
         })}
-        {!values.gender && <p className="text-[13px] text-warm-gray">Choose your gender above to see which rooms have places.</p>}
-        <p className="mt-1.5 flex items-start gap-2.5 text-[13px] leading-relaxed text-warm-gray">
-          <Users className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.5} aria-hidden="true" />
-          Coming with friends? Pick the same room type: a roommate group fills one room.
-        </p>
+        {!values.gender && <p className="text-[13px] text-warm-gray">Choose your gender to see which rooms have places.</p>}
       </fieldset>
 
       <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
@@ -241,10 +254,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           {pending && <CommuneLoader size={22} label={null} />}
           {pending ? "Saving your place…" : "Register"}
         </button>
-        <p className="flex items-center justify-center gap-1.5 text-[13px] text-warm-gray">
-          <Lock className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" />
-          Nothing to pay yet. Pay in parts by {formatDate(dueOn)}.
-        </p>
+        <p className="text-center text-[13px] text-warm-gray">Nothing to pay now</p>
       </div>
     </form>
   );

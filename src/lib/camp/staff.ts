@@ -61,3 +61,24 @@ export async function removeStaff(actor: string, email: string) {
     auditStatement({ actor, campId: null, action: "staff.remove", entity: "staff", entityId: normalized, before }),
   ]);
 }
+
+/** A coordinator's own phone, for the evening summary text. Empty turns the text off. */
+export async function setStaffPhone(staff: Staff, rawPhone: string) {
+  const digits = String(rawPhone ?? "").replace(/\D/g, "");
+  const phone = !digits ? "" : digits.startsWith("233") ? digits : digits.startsWith("0") ? `233${digits.slice(1)}` : `233${digits}`;
+  if (phone && !/^233\d{9}$/.test(phone)) throw new CampError("Enter a Ghana phone number, e.g. 055 111 2222.");
+  // Bootstrap admins (CAMP_ADMIN_EMAILS) may not have a row yet.
+  await batch("app", [
+    {
+      sql: `INSERT INTO camp_staff (email, role, phone) VALUES (?, ?, ?)
+            ON CONFLICT (email) DO UPDATE SET phone = excluded.phone`,
+      params: [staff.email, staff.role === "leader" ? "coordinator" : staff.role, phone],
+    },
+  ]);
+  return phone;
+}
+
+export async function getStaffPhone(email: string) {
+  const [row] = await query<{ phone: string }>("app", "SELECT phone FROM camp_staff WHERE email = ?", [email]);
+  return row?.phone ?? "";
+}

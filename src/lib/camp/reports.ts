@@ -56,10 +56,17 @@ export const ROOMMATE_LABELS: Record<RoommateStatus, string> = {
 };
 
 export const ROOM_FILTERS = ["placed", "waiting"] as const;
+/** People sort orders. "latest": whoever paid (or registered) most recently first. */
+export const PEOPLE_SORTS = ["latest", "name", "outstanding"] as const;
+export type PeopleSort = (typeof PEOPLE_SORTS)[number];
+/** Payment filter: a status, or "outstanding" (anyone with something left to pay). */
+export const PAYMENT_FILTERS = [...REGISTRATION_STATUSES, "outstanding"] as const;
+export type PaymentFilter = (typeof PAYMENT_FILTERS)[number];
+export const CHECKIN_FILTERS = ["in", "out"] as const;
 
 export type PeopleFilters = {
   q?: string;
-  status?: RegistrationStatus;
+  status?: PaymentFilter;
   fellowship?: string;
   pfcc?: string;
   church?: string;
@@ -67,6 +74,8 @@ export type PeopleFilters = {
   room_type?: string;
   roommate?: RoommateStatus;
   room?: (typeof ROOM_FILTERS)[number];
+  checkin?: (typeof CHECKIN_FILTERS)[number];
+  sort?: PeopleSort;
 };
 
 const pick = <T extends string>(value: unknown, allowed: readonly T[]) =>
@@ -79,7 +88,7 @@ export function parsePeopleFilters(raw: Record<string, string | string[] | undef
   const roomType = one("room_type");
   return {
     q: q || undefined,
-    status: pick(one("status"), REGISTRATION_STATUSES),
+    status: pick(one("status"), PAYMENT_FILTERS),
     fellowship: pick(one("fellowship"), FELLOWSHIPS.map((f) => f.name)),
     pfcc: pick(one("pfcc"), PFCCS),
     church: pick(one("church"), CHURCHES),
@@ -87,6 +96,8 @@ export function parsePeopleFilters(raw: Record<string, string | string[] | undef
     room_type: roomType && ID.test(roomType) ? roomType : undefined,
     roommate: pick(one("roommate"), ROOMMATE_STATUSES),
     room: pick(one("room"), ROOM_FILTERS),
+    checkin: pick(one("checkin"), CHECKIN_FILTERS),
+    sort: pick(one("sort"), PEOPLE_SORTS),
   };
 }
 
@@ -115,7 +126,14 @@ function filterSql(filters: PeopleFilters, { phoneSearch }: { phoneSearch: boole
       params.push(LIKE(filters.q));
     }
   }
-  for (const key of ["status", "fellowship", "pfcc", "church", "gender"] as const) {
+  if (filters.status === "outstanding") where.push("r.status IN ('registered', 'partially_paid')");
+  else if (filters.status) {
+    where.push("r.status = ?");
+    params.push(filters.status);
+  }
+  if (filters.checkin === "in") where.push("r.checked_in_at IS NOT NULL");
+  if (filters.checkin === "out") where.push("r.checked_in_at IS NULL AND r.status <> 'cancelled'");
+  for (const key of ["fellowship", "pfcc", "church", "gender"] as const) {
     if (filters[key]) {
       where.push(`r.${key} = ?`);
       params.push(filters[key]);
@@ -170,7 +188,22 @@ export type PersonRow = {
   room_label: string | null;
   /** Payments a coordinator should look at. */
   flagged: number;
+  shirt_size: string;
+  any_room: 0 | 1;
+  checked_in_at: string | null;
+  /** The latest successful payment, if any. */
+  last_paid_at: string | null;
+  last_paid_pesewas: number | null;
 };
+
+const LAST_PAID = `(SELECT p.paid_at FROM camp_payments p WHERE p.registration_id = r.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1)`;
+
+function orderSql(sort: PeopleSort | undefined) {
+  if (sort === "name") return "r.full_name COLLATE NOCASE";
+  if (sort === "outstanding") return "(r.price_pesewas - r.paid_pesewas) DESC, r.full_name COLLATE NOCASE";
+  // Whoever paid most recently first; people who haven't paid yet after them, newest first.
+  return "last_paid_at IS NULL, COALESCE(last_paid_at, r.created_at) DESC";
+}
 
 /** Coordinators: everyone in the camp, with contact details and money. */
 export async function listPeople(campId: string, filters: PeopleFilters): Promise<PersonRow[]> {
@@ -181,10 +214,12 @@ export async function listPeople(campId: string, filters: PeopleFilters): Promis
        t.name AS room_type_name, r.status, r.price_pesewas, r.paid_pesewas,
        g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline, x.label AS room_label,
        (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = r.id
-          AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged
+          AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
+       r.shirt_size, r.any_room, r.checked_in_at, ${LAST_PAID} AS last_paid_at,
+       (SELECT p.amount_pesewas FROM camp_payments p WHERE p.registration_id = r.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1) AS last_paid_pesewas
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${where.sql}
-     ORDER BY r.full_name COLLATE NOCASE`,
+     ORDER BY ${orderSql(filters.sort)}`,
     [checkId(campId, "camp"), ...where.params],
   );
   return rows.map(({ group_locked_at, deadline, ...r }) => ({
@@ -204,18 +239,19 @@ export type LeaderRow = {
 
 /**
  * Leaders: only their scope, applied in SQL. No phone, email, amounts, group
- * codes or room labels are selected at all. Search is by name only.
+ * codes or room labels are selected at all, and no payment times: the list
+ * comes sorted, latest payment first. Search is by name only.
  */
 export async function listPeopleForLeader(staff: Staff, campId: string, filters: PeopleFilters): Promise<LeaderRow[]> {
   const scope = scopeSql(scopeFor(staff));
   const where = filterSql(filters, { phoneSearch: false });
-  const rows = await query<{ id: string; full_name: string; fellowship: string; status: RegistrationStatus; has_room: number } & GroupColumns>(
+  const rows = await query<{ id: string; full_name: string; fellowship: string; status: RegistrationStatus; has_room: number; last_paid_at: string | null } & GroupColumns>(
     "app",
     `SELECT r.id, r.full_name, r.fellowship, r.status, a.room_id IS NOT NULL AS has_room,
-       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline
+       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${scope.sql}${where.sql}
-     ORDER BY r.full_name COLLATE NOCASE`,
+     ORDER BY ${orderSql(filters.sort === "outstanding" ? "name" : filters.sort)}`,
     [checkId(campId, "camp"), ...scope.params, ...where.params],
   );
   return rows.map((r) => ({
@@ -417,14 +453,154 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
 }
 
 /** The two numbers the camp sidebar shows: people registered (not cancelled) and fully paid people waiting for a room. */
-export async function navCounts(campId: string): Promise<{ people: number; waiting: number }> {
-  const [row] = await query<{ people: number; waiting: number }>(
+export async function navCounts(campId: string): Promise<{ people: number; waiting: number; requests: number }> {
+  const [row] = await query<{ people: number; waiting: number; requests: number }>(
     "app",
     `SELECT COALESCE(SUM(r.status <> 'cancelled'), 0) AS people,
-            COALESCE(SUM(r.status = 'fully_paid' AND a.room_id IS NULL), 0) AS waiting
+            COALESCE(SUM(r.status = 'fully_paid' AND a.room_id IS NULL), 0) AS waiting,
+            (SELECT COUNT(*) FROM camp_requests q WHERE q.camp_id = ?1 AND q.status = 'pending') AS requests
      FROM camp_registrations r LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
-     WHERE r.camp_id = ?`,
+     WHERE r.camp_id = ?1`,
     [campId],
   );
-  return row ?? { people: 0, waiting: 0 };
+  return row ?? { people: 0, waiting: 0, requests: 0 };
+}
+
+// ─── People filter counts ────────────────────────────────────────────────────
+
+export type Facets = {
+  total: number;
+  outstanding: number;
+  status: Record<string, number>;
+  fellowship: Record<string, number>;
+  pfcc: Record<string, number>;
+  room_type: Record<string, number>;
+  gender: Record<string, number>;
+};
+
+/**
+ * How many people each filter option would show, given the other filters:
+ * the counts next to options in the People filters. A facet ignores its own
+ * filter, so picking Zion still shows how many Bethel has.
+ */
+export async function peopleFacets(campId: string, filters: PeopleFilters, scope: Scope = { kind: "all" }): Promise<Facets> {
+  checkId(campId, "camp");
+  const scoped = scopeSql(scope);
+  const counts = async (column: string, without: (keyof PeopleFilters)[]) => {
+    const rest = { ...filters };
+    for (const k of without) delete rest[k];
+    const where = filterSql(rest, { phoneSearch: scope.kind === "all" });
+    const rows = await query<{ k: string; n: number }>(
+      "app",
+      `SELECT ${column} AS k, COUNT(*) AS n ${PEOPLE_FROM} WHERE r.camp_id = ?${scoped.sql}${where.sql} GROUP BY ${column}`,
+      [campId, ...scoped.params, ...where.params],
+    );
+    return Object.fromEntries(rows.map((r) => [r.k, r.n]));
+  };
+  const all = filterSql(filters, { phoneSearch: scope.kind === "all" });
+  const [[totals], status, fellowship, pfcc, room_type, gender] = await Promise.all([
+    query<{ total: number; outstanding: number }>(
+      "app",
+      `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN r.price_pesewas - r.paid_pesewas END), 0) AS outstanding
+       ${PEOPLE_FROM} WHERE r.camp_id = ?${scoped.sql}${all.sql}`,
+      [campId, ...scoped.params, ...all.params],
+    ),
+    counts("r.status", ["status"]),
+    counts("r.fellowship", ["fellowship"]),
+    counts("r.pfcc", ["pfcc", "fellowship"]),
+    counts("r.room_type_id", ["room_type"]),
+    counts("r.gender", ["gender"]),
+  ]);
+  status.outstanding = (status.registered ?? 0) + (status.partially_paid ?? 0);
+  return { total: totals?.total ?? 0, outstanding: totals?.outstanding ?? 0, status, fellowship, pfcc, room_type, gender };
+}
+
+// ─── History (the audit log) ─────────────────────────────────────────────────
+
+export const HISTORY_KINDS = ["money", "people", "rooms", "groups", "settings"] as const;
+export type HistoryKind = (typeof HISTORY_KINDS)[number];
+const KIND_PREFIXES: Record<HistoryKind, string[]> = {
+  money: ["payment.", "registration.refund"],
+  people: ["registration."],
+  rooms: ["room.", "room_type."],
+  groups: ["group."],
+  settings: ["camp.", "staff."],
+};
+
+export type HistoryFilters = { who?: string; kind?: HistoryKind; days?: number; before?: number };
+export type HistoryEntry = AuditEntry & { person: string | null };
+
+/** The audit log, newest first, 50 at a time, with the person each entry is about. */
+export async function listHistory(campId: string, filters: HistoryFilters): Promise<HistoryEntry[]> {
+  checkId(campId, "camp");
+  const where: string[] = ["l.camp_id = ?"];
+  const params: unknown[] = [campId];
+  if (filters.who === "attendees") where.push("l.actor LIKE 'attendee:%'");
+  else if (filters.who === "paystack") where.push("l.actor = 'paystack'");
+  else if (filters.who) {
+    where.push("l.actor = ?");
+    params.push(filters.who);
+  }
+  if (filters.kind) {
+    const prefixes = KIND_PREFIXES[filters.kind];
+    where.push(`(${prefixes.map(() => "l.action LIKE ?").join(" OR ")})`);
+    params.push(...prefixes.map((p) => `${p}%`));
+  }
+  if (filters.days) {
+    where.push("l.created_at >= ?");
+    params.push(new Date(Date.now() - filters.days * 86_400_000).toISOString());
+  }
+  if (filters.before) {
+    where.push("l.id < ?");
+    params.push(filters.before);
+  }
+  return query<HistoryEntry>(
+    "app",
+    `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id,
+       COALESCE(
+         (SELECT full_name FROM camp_registrations WHERE id = l.entity_id),
+         (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%'),
+         (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.after_json, '$.registration_id')),
+         (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.before_json, '$.registration_id'))
+       ) AS person
+     FROM camp_audit_log l WHERE ${where.join(" AND ")} ORDER BY l.id DESC LIMIT 50`,
+    params,
+  );
+}
+
+/** Coordinators who appear in the log, for the "Who" filter. */
+export async function historyActors(campId: string): Promise<string[]> {
+  const rows = await query<{ actor: string }>(
+    "app",
+    "SELECT DISTINCT actor FROM camp_audit_log WHERE camp_id = ? AND actor LIKE '%@%' ORDER BY actor",
+    [checkId(campId, "camp")],
+  );
+  return rows.map((r) => r.actor);
+}
+
+// ─── Money ───────────────────────────────────────────────────────────────────
+
+export type BulkPaymentRow = {
+  id: string;
+  created_at: string;
+  reference: string;
+  paid_by: string;
+  note: string;
+  charged_pesewas: number;
+  status: "pending" | "success" | "failed";
+  paid_at: string | null;
+  people: string;
+  count: number;
+};
+
+/** Coordinators' payments for several people, newest first: who paid, for whom, how much. */
+export function listBulkPayments(campId: string): Promise<BulkPaymentRow[]> {
+  return query<BulkPaymentRow>(
+    "app",
+    `SELECT b.id, b.created_at, b.reference, b.paid_by, b.note, b.charged_pesewas, b.status, b.paid_at,
+       (SELECT group_concat(r.full_name, ', ') FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id WHERE p.bulk_id = b.id) AS people,
+       (SELECT COUNT(*) FROM camp_payments p WHERE p.bulk_id = b.id) AS count
+     FROM camp_bulk_payments b WHERE b.camp_id = ? AND b.status <> 'failed' ORDER BY b.created_at DESC LIMIT 100`,
+    [checkId(campId, "camp")],
+  );
 }

@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { Crown, Lock, LockOpen, Mail, UserPlus } from "lucide-react";
 import { getCampBySlug } from "@/lib/camp/camps";
-import { formatGroupCode } from "@/lib/camp/codes";
 import { getGroupFor, listReceivedInvites, listSentInvites } from "@/lib/camp/groups";
 import { campOrigin } from "@/lib/camp/origin";
 import { currentAttendee } from "@/lib/camp/session";
@@ -9,15 +8,15 @@ import { CampBackLink } from "@/components/camp/photos";
 import { Card, formatDate, headlineClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import {
+  AnyRoom,
   CreateGroup,
   InviteSearch,
-  JoinGroup,
   LeaveGroup,
   LockToggle,
   ReceivedInviteActions,
   RemoveMember,
   SentInviteCancel,
-  ShareCode,
+  ShareLink,
 } from "./RoommateControls";
 
 const initials = (name: string) =>
@@ -61,9 +60,8 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
             </>
           )}
         </h1>
-        <p className="text-[15px] leading-relaxed text-warm-gray">
-          Groups are {gender} who booked {me.room_type_name}. You can change your group until the end of {deadline}. Then a
-          coordinator gives each group a room.
+        <p className="text-[15px] text-warm-gray">
+          {me.room_type_name} · {gender} · by {deadline}
         </p>
       </div>
 
@@ -90,18 +88,17 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
               </ul>
             </Card>
           )}
-          <Card lifted={received.length === 0} title="Start a group">
-            <p className="text-sm leading-relaxed text-warm-gray">
-              You&apos;ll get a code to share with friends who booked {me.room_type_name}. You can invite them by name too.
-            </p>
-            <CreateGroup slug={camp.slug} />
+          {!me.any_room && (
+            <Card lifted={received.length === 0} title="Start a group">
+              <p className="text-sm text-warm-gray">You&apos;ll get a link to send friends.</p>
+              <CreateGroup slug={camp.slug} />
+            </Card>
+          )}
+          <Card>
+            <AnyRoom slug={camp.slug} on={!!me.any_room} />
+            {me.any_room ? <p className="-mt-2 text-sm text-warm-gray">A coordinator will place you.</p> : null}
           </Card>
-          <Card title="Join a friend's group">
-            <JoinGroup slug={camp.slug} />
-          </Card>
-          <p className="text-sm leading-relaxed text-warm-gray">
-            No group by the deadline? That&apos;s fine: a coordinator will place you with others.
-          </p>
+          <p className="text-sm text-warm-gray">Got a link from a friend? Open it to join their group.</p>
         </>
       ) : (
         <>
@@ -130,7 +127,7 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
               })}
             </ul>
             {group.state === "open" ? (
-              <ShareCode code={formatGroupCode(group.code)} campName={camp.name} url={`${origin}/camps/${camp.slug}`} />
+              <ShareLink url={`${origin}/camps/${camp.slug}/join/${group.code}`} campName={camp.name} />
             ) : (
               <p className="flex items-start gap-2 text-sm leading-relaxed">
                 <Lock className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.7} aria-hidden="true" />
