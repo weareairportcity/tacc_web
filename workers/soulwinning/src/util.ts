@@ -9,6 +9,8 @@ export type AppEnv = Env & {
   PAYSTACK_SECRET_KEY?: string;
   /** Tests point this at a fake Paystack. */
   PAYSTACK_API_URL?: string;
+  /** Keys the HMAC of leaders' sign-in codes (src/camp-leaders.ts). */
+  LEADER_CODE_SECRET?: string;
 };
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -50,6 +50,8 @@ export async function proxy(request: NextRequest) {
   // ── Commune, the camp app ────────────────────────────────────────────
   if (COMMUNE_HOSTS.has(hostname)) {
     if (pathname === "/admin") return NextResponse.redirect(new URL("/admin/camp", request.url));
+    // Leaders have their own short address: commune…/leaders.
+    if (pathname === "/leaders") return NextResponse.redirect(new URL("/admin/camp/leaders", request.url));
     const passThrough =
       pathname.startsWith("/camps") ||
       pathname.startsWith("/admin") ||
@@ -108,9 +110,11 @@ export async function proxy(request: NextRequest) {
   // coordinator app has its own sign-in page, and its app manifest and
   // service worker must load without one.
   const isCommune = pathname === "/admin/camp" || pathname.startsWith("/admin/camp/");
-  const isLogin = pathname.startsWith("/admin/login") || pathname === "/admin/camp/sign-in";
+  const isLogin = pathname.startsWith("/admin/login") || pathname === "/admin/camp/sign-in" || pathname === "/admin/camp/leaders";
   const isPublicFile = pathname === "/admin/camp/manifest.webmanifest" || pathname === "/admin/camp/sw.js";
-  if (!user && !isLogin && !isPublicFile) {
+  // A leader signed in with a code has no Supabase user; their pages check the code session.
+  const leader = isCommune && request.cookies.has("camp_leader");
+  if (!user && !leader && !isLogin && !isPublicFile) {
     const url = request.nextUrl.clone();
     url.pathname = isCommune ? "/admin/camp/sign-in" : "/admin/login";
     url.search = isCommune && pathname !== "/admin/camp" ? `?next=${encodeURIComponent(pathname + request.nextUrl.search)}` : "";

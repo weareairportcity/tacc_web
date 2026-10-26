@@ -1,4 +1,5 @@
 import { sendDailySummaries } from "./camp-summary";
+import { leaderCodeCheck, leaderCodeNew, leaderCodeOff } from "./camp-leaders";
 import { bulkCheck, bulkInit, payCheck, payInit, paystackTransactions, postReconcile, refund } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
@@ -116,6 +117,12 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return bulkCheck(request, env);
     case "/v1/admin/camp/refund":
       return refund(request, env);
+    case "/v1/admin/camp/leader-code/new":
+      return leaderCodeNew(request, env);
+    case "/v1/admin/camp/leader-code/check":
+      return leaderCodeCheck(request, env);
+    case "/v1/admin/camp/leader-code/off":
+      return leaderCodeOff(request, env);
     case "/v1/admin/camp/summary": {
       // Tests and a manual "send it now": ignores the hour, still once a day.
       const { at } = await readJson<{ at?: string }>(request);

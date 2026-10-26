@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { findPeople, scopeFor } from "@/lib/camp/reports";
+import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
@@ -24,14 +25,14 @@ import { changeRoomType, recordRefund } from "@/lib/camp/adjustments";
 import { assignGroup, assignPerson, getMyRoom, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { listRefunds } from "@/lib/camp/adjustments";
-import { arrivalCounts, checkIn, findArrivals, getArrival, undoCheckIn } from "@/lib/camp/checkin";
+import { arrivalCounts, findArrivals, getArrival, markScan, undoScan, type ScanMode } from "@/lib/camp/checkin";
 import { getGroupFor } from "@/lib/camp/groups";
 import { checkBulkPayment, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
 import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
 import { approveRefund, approveRoomChange, declineRequest, listMyRequests } from "@/lib/camp/requests";
 import { deleteView, saveView } from "@/lib/camp/views";
 import { makeToken, readToken } from "@/lib/camp/tokens";
-import { sendSMS } from "@/lib/mnotify";
+import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { campOrigin } from "@/lib/camp/origin";
 import { sendRoomSms } from "@/lib/camp/room-sms";
 import { removeStaff, saveStaff, setStaffPhone } from "@/lib/camp/staff";
@@ -384,36 +385,52 @@ export async function textPeopleAction(campId: string, registrationIds: string[]
     const people = await Promise.all(ids.map((id) => personIn(campId, id).catch(() => null)));
     const phones = people.filter((p) => p && p.status !== "cancelled" && /^233\d{9}$/.test(p.phone)).map((p) => p!.phone);
     if (!phones.length) throw new CampError("None of them can be texted.");
-    if (!(await sendSMS(phones, text))) throw new CampError("The texts didn't go. Please try again.");
+    if (!(await sendSMS(phones, text, COMMUNE_SENDER))) throw new CampError("The texts didn't go. Please try again.");
     await batch("app", [auditStatement({ actor: staff.email, campId: String(campId), action: "people.text", entity: "camp", entityId: String(campId), after: { count: phones.length } })]);
     return phones.length;
   });
 }
 
-// Check-in: the QR on a pass is a signed link (tokens.ts); search covers the rest.
+// Check-in and T-shirts: the QR on a pass is a signed link (tokens.ts); search
+// covers the rest. Leaders can do both, for their own people only.
 
-export async function checkInAction(campId: string, tokenOrId: string) {
+const scanTarget = (tokenOrId: string) => {
+  const id = readToken("checkin", String(tokenOrId)) ?? (/^[0-9a-f-]{36}$/i.test(String(tokenOrId)) ? String(tokenOrId) : null);
+  if (!id) throw new CampError("That QR isn't a Commune pass.");
+  return id;
+};
+const modeOf = (mode: unknown): ScanMode => (mode === "shirt" ? "shirt" : "checkin");
+
+export async function scanAction(campId: string, tokenOrId: string, mode: ScanMode) {
   return run(async () => {
-    const staff = await requireCampRole("coordinator");
-    const id = readToken("checkin", String(tokenOrId)) ?? (/^[0-9a-f-]{36}$/i.test(String(tokenOrId)) ? String(tokenOrId) : null);
-    if (!id) throw new CampError("That QR isn't a Commune pass.");
-    const result = await checkIn(staff.email, String(campId), id);
-    return { ...result, counts: await arrivalCounts(String(campId)) };
+    const staff = await requireCampRole("coordinator", "leader");
+    const scope = scopeFor(staff);
+    const result = await markScan(staff.email, String(campId), scanTarget(tokenOrId), modeOf(mode), scope);
+    return { ...result, counts: await arrivalCounts(String(campId), scope) };
   });
 }
 
-export async function undoCheckInAction(campId: string, registrationId: string) {
+export async function undoScanAction(campId: string, registrationId: string, mode: ScanMode) {
   return run(async () => {
-    const staff = await requireCampRole("coordinator");
-    await undoCheckIn(staff.email, String(campId), String(registrationId));
-    return arrivalCounts(String(campId));
+    const staff = await requireCampRole("coordinator", "leader");
+    const scope = scopeFor(staff);
+    await undoScan(staff.email, String(campId), String(registrationId), modeOf(mode), scope);
+    return arrivalCounts(String(campId), scope);
   });
+}
+
+export async function checkInAction(campId: string, tokenOrId: string) {
+  return scanAction(campId, tokenOrId, "checkin");
+}
+
+export async function undoCheckInAction(campId: string, registrationId: string) {
+  return undoScanAction(campId, registrationId, "checkin");
 }
 
 export async function findArrivalsAction(campId: string, term: string) {
   return look(async () => {
-    await requireCampRole("coordinator");
-    return findArrivals(String(campId), String(term));
+    const staff = await requireCampRole("coordinator", "leader");
+    return findArrivals(String(campId), String(term), scopeFor(staff));
   });
 }
 
@@ -479,5 +496,23 @@ export async function findPeopleAction(campId: string, term: string) {
   return look(async () => {
     const staff = await requireCampRole("coordinator", "leader");
     return findPeople(String(campId), String(term), scopeFor(staff));
+  });
+}
+
+// ─── Leader codes (admins only) ──────────────────────────────────────────────
+
+/** A new sign-in code for a fellowship or PFCC leader, shown once. The old one stops working. */
+export async function newLeaderCodeAction(kind: "fellowship" | "pfcc", value: string) {
+  return run(async () => {
+    const staff = await requireCampRole("admin");
+    return newLeaderCode(staff.email, kind === "pfcc" ? "pfcc" : "fellowship", String(value));
+  });
+}
+
+export async function turnOffLeaderCodeAction(id: string) {
+  return run(async () => {
+    const staff = await requireCampRole("admin");
+    await turnOffLeaderCode(staff.email, String(id));
+    return null;
   });
 }

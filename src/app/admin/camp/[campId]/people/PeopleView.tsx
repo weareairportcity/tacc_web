@@ -222,7 +222,10 @@ export function PeopleView({
       key: "fellowship",
       label: "Fellowship",
       options: [],
-      groups: pfccs.map((g) => ({ title: g.pfcc, pfcc: g.pfcc, options: g.fellowships.map((n) => [n, n] as [string, string]) })),
+      // Leaders only see the fellowships in their own group.
+      groups: pfccs
+        .map((g) => ({ title: g.pfcc, pfcc: g.pfcc, options: g.fellowships.filter((n) => !leader || rows.some((r) => r.fellowship === n)).map((n) => [n, n] as [string, string]) }))
+        .filter((g) => !leader || g.options.length > 0),
     },
     ...(leader
       ? []
@@ -332,7 +335,7 @@ export function PeopleView({
               onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value }))}
               className="h-10 rounded-full border border-stone-border bg-white px-3 text-[13px] text-ink-black"
             >
-              {SORTS.filter(([v]) => !leader || v !== "outstanding").map(([v, l]) => (
+              {SORTS.map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
                 </option>
@@ -346,9 +349,9 @@ export function PeopleView({
         <strong className="font-semibold">
           {shown.length} {shown.length === 1 ? "person" : "people"}
         </strong>
-        {!leader && outstanding > 0 && <span className="text-warm-gray"> · {formatCedis(outstanding)} outstanding</span>}
+        {outstanding > 0 && <span className="text-warm-gray"> · {formatCedis(outstanding)} outstanding</span>}
       </p>
-      {!leader && shown.length > 0 && (
+      {shown.length > 0 && (
         <div className="-mt-2 flex flex-col gap-2">
           <StackedBar parts={statusParts(statusCounts)} className="h-1.5" />
         </div>
@@ -377,8 +380,8 @@ export function PeopleView({
                 <th className="px-3 py-3 font-medium">Name</th>
                 <th className="px-3 py-3 font-medium max-md:hidden">{leader ? "Fellowship" : "Fellowship · room type"}</th>
                 <th className="px-3 py-3 font-medium max-sm:hidden">Payment</th>
-                <th className="px-3 py-3 font-medium max-lg:hidden">Room</th>
-                {!leader && <th className="py-3 pl-3 pr-4 text-right font-medium">Outstanding</th>}
+                {leader ? <th className="px-3 py-3 text-right font-medium max-sm:hidden">Paid</th> : <th className="px-3 py-3 font-medium max-lg:hidden">Room</th>}
+                <th className="py-3 pl-3 pr-4 text-right font-medium">Outstanding</th>
               </tr>
             </thead>
             <tbody>
@@ -420,13 +423,17 @@ export function PeopleView({
                     <td className="px-3 py-3 max-sm:hidden">
                       <Status status={r.status} />
                     </td>
-                    <td className="px-3 py-3 text-[#57534e] max-lg:hidden">
-                      <span className="inline-flex items-center gap-1.5">
-                        {r.checked_in && <span className="h-2 w-2 rounded-full bg-st-paid" role="img" aria-label="Arrived" />}
-                        {r.room ?? <span className="text-ash-gray">—</span>}
-                      </span>
-                    </td>
-                    {!leader && <td className={cn("py-3 pl-3 pr-4 text-right tabular-nums", out ? "font-semibold" : "text-ash-gray")}>{out ? formatCedis(out) : "—"}</td>}
+                    {leader ? (
+                      <td className="px-3 py-3 text-right tabular-nums max-sm:hidden">{formatCedis(r.paid ?? 0)}</td>
+                    ) : (
+                      <td className="px-3 py-3 text-[#57534e] max-lg:hidden">
+                        <span className="inline-flex items-center gap-1.5">
+                          {r.checked_in && <span className="h-2 w-2 rounded-full bg-st-paid" role="img" aria-label="Arrived" />}
+                          {r.room ?? <span className="text-ash-gray">—</span>}
+                        </span>
+                      </td>
+                    )}
+                    <td className={cn("py-3 pl-3 pr-4 text-right tabular-nums", out ? "font-semibold" : "text-ash-gray")}>{out ? formatCedis(out) : "—"}</td>
                   </tr>
                 );
               })}

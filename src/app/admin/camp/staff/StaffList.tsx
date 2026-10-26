@@ -86,7 +86,8 @@ export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string
       >
         <h2 className="font-medium">Add or change someone</h2>
         <p className="text-sm text-warm-gray">
-          They sign in at /admin/login with their usual admin email and password. Saving an existing email changes their role.
+          They sign in at commune.theairportcitychurch.com/admin with their email and password. Saving an existing email changes
+          their role. Fellowship and PFCC leaders can use a leader code instead (below).
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Email">

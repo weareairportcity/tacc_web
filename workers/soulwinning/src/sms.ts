@@ -23,7 +23,8 @@ const toGhana = (phone: string) => {
   return `233${digits}`;
 };
 
-export async function sendSms(env: AppEnv, to: string, message: string) {
+/** `sender`: an approved mNotify sender ID; camp texts use "Commune". */
+export async function sendSms(env: AppEnv, to: string, message: string, sender?: string) {
   if (!env.MNOTIFY_API_KEY) return false;
   try {
     const res = await fetch(
@@ -33,7 +34,7 @@ export async function sendSms(env: AppEnv, to: string, message: string) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient: [toGhana(to)],
-          sender: env.MNOTIFY_SENDER_ID || "TACCBooking",
+          sender: sender || env.MNOTIFY_SENDER_ID || "TACCBooking",
           message,
           is_schedule: "false",
           schedule_date: "",

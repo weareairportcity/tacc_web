@@ -1,5 +1,5 @@
 import { batch, query } from "@/lib/cf";
-import { sendSMS } from "@/lib/mnotify";
+import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import type { Camp } from "./types";
@@ -33,13 +33,13 @@ export function listRoomSmsPending(campId: string): Promise<Pending[]> {
 }
 
 export const roomText = (camp: Camp, label: string, type: string, origin: string) =>
-  `TACC ${camp.name}: your room is ${label} (${type}). See it and your roommates at ${origin}/camps/${camp.slug}/me`;
+  `${camp.name}: your room is ${label} (${type}). See it and your roommates at ${origin}/camps/${camp.slug}/me`;
 
 /**
  * Sends up to MAX_PER_SEND people their room. A room whose text fails isn't
  * marked sent, so the next press retries it. `send` is mNotify by default.
  */
-export async function sendRoomSms(actor: string, camp: Camp, origin: string, send = sendSMS) {
+export async function sendRoomSms(actor: string, camp: Camp, origin: string, send = (to: string[], text: string) => sendSMS(to, text, COMMUNE_SENDER)) {
   const pending = await listRoomSmsPending(camp.id);
   const byRoom = new Map<string, Pending[]>();
   let taken = 0;

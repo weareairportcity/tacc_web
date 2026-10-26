@@ -232,22 +232,26 @@ export type LeaderRow = {
   id: string;
   full_name: string;
   fellowship: string;
+  pfcc: string;
   status: RegistrationStatus;
+  price_pesewas: number;
+  paid_pesewas: number;
   roommate: RoommateStatus | null;
   has_room: boolean;
 };
 
 /**
- * Leaders: only their scope, applied in SQL. No phone, email, amounts, group
- * codes or room labels are selected at all, and no payment times: the list
+ * Leaders: only their scope, applied in SQL. They see who registered, what
+ * each has paid and has outstanding, and who cancelled. No phone, email,
+ * group codes, room labels or payment times are selected at all: the list
  * comes sorted, latest payment first. Search is by name only.
  */
 export async function listPeopleForLeader(staff: Staff, campId: string, filters: PeopleFilters): Promise<LeaderRow[]> {
   const scope = scopeSql(scopeFor(staff));
   const where = filterSql(filters, { phoneSearch: false });
-  const rows = await query<{ id: string; full_name: string; fellowship: string; status: RegistrationStatus; has_room: number; last_paid_at: string | null } & GroupColumns>(
+  const rows = await query<{ id: string; full_name: string; fellowship: string; pfcc: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; has_room: number; last_paid_at: string | null } & GroupColumns>(
     "app",
-    `SELECT r.id, r.full_name, r.fellowship, r.status, a.room_id IS NOT NULL AS has_room,
+    `SELECT r.id, r.full_name, r.fellowship, r.pfcc, r.status, r.price_pesewas, r.paid_pesewas, a.room_id IS NOT NULL AS has_room,
        g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${scope.sql}${where.sql}
@@ -258,7 +262,10 @@ export async function listPeopleForLeader(staff: Staff, campId: string, filters:
     id: r.id,
     full_name: r.full_name,
     fellowship: r.fellowship,
+    pfcc: r.pfcc,
     status: r.status,
+    price_pesewas: r.price_pesewas,
+    paid_pesewas: r.paid_pesewas,
     roommate: roommateStatus(r.status, r),
     has_room: Boolean(r.has_room),
   }));
@@ -281,10 +288,10 @@ export function peopleCsv(rows: PersonRow[]) {
 
 export function leaderCsv(rows: LeaderRow[]) {
   return toCsv([
-    ["Name", "Fellowship", "Payment status", "Roommates", "Room assigned"],
+    ["Name", "Fellowship", "Payment status", "Paid (GHS)", "Outstanding (GHS)"],
     ...rows.map((r) => [
-      r.full_name, r.fellowship, REGISTRATION_STATUS_LABELS[r.status],
-      r.roommate ? ROOMMATE_LABELS[r.roommate] : null, r.has_room ? "Yes" : "No",
+      r.full_name, r.fellowship, REGISTRATION_STATUS_LABELS[r.status], cedis(r.paid_pesewas),
+      cedis(r.status === "cancelled" ? 0 : r.price_pesewas - r.paid_pesewas),
     ]),
   ]);
 }
@@ -521,7 +528,7 @@ export const HISTORY_KINDS = ["money", "people", "rooms", "groups", "settings"] 
 export type HistoryKind = (typeof HISTORY_KINDS)[number];
 const KIND_PREFIXES: Record<HistoryKind, string[]> = {
   money: ["payment.", "registration.refund"],
-  people: ["registration."],
+  people: ["registration.", "leader.", "people.", "view."],
   rooms: ["room.", "room_type."],
   groups: ["group."],
   settings: ["camp.", "staff."],
@@ -533,7 +540,8 @@ export type HistoryEntry = AuditEntry & { person: string | null };
 /** The audit log, newest first, 50 at a time, with the person each entry is about. */
 export async function listHistory(campId: string, filters: HistoryFilters): Promise<HistoryEntry[]> {
   checkId(campId, "camp");
-  const where: string[] = ["l.camp_id = ?"];
+  // Leaders' sign-ins belong to no one camp; they show in every camp's History.
+  const where: string[] = ["(l.camp_id = ? OR (l.camp_id IS NULL AND l.actor LIKE 'leader:%'))"];
   const params: unknown[] = [campId];
   if (filters.who === "attendees") where.push("l.actor LIKE 'attendee:%'");
   else if (filters.who === "paystack") where.push("l.actor = 'paystack'");

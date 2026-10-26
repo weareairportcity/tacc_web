@@ -77,10 +77,10 @@ describe("check-in", () => {
 
     expect((await checkIn(ACTOR, camp.id, me.id)).already).toBe(false);
     expect((await checkIn(ACTOR, camp.id, me.id)).already).toBe(true);
-    expect(await arrivalCounts(camp.id)).toEqual({ here: 1, expected: 1 });
+    expect(await arrivalCounts(camp.id)).toMatchObject({ here: 1, expected: 1 });
     expect((await findArrivals(camp.id, "koj"))[0]?.full_name).toBe("Kojo Badu");
     await undoCheckIn(ACTOR, camp.id, me.id);
-    expect(await arrivalCounts(camp.id)).toEqual({ here: 0, expected: 1 });
+    expect(await arrivalCounts(camp.id)).toMatchObject({ here: 0, expected: 1 });
     const other = await openCamp();
     await expect(checkIn(ACTOR, other.camp.id, me.id)).rejects.toThrow("isn't for this camp");
   });

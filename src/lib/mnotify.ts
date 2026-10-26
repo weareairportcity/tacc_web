@@ -17,8 +17,11 @@ function formatGhanaPhone(phone: string): string {
   return '233' + digits; // assume missing leading 0
 }
 
+/** Commune's (camp) texts come from their own approved sender ID. */
+export const COMMUNE_SENDER = 'Commune';
+
 /** One message to one number, or the same message to several (one mNotify request). */
-export async function sendSMS(recipient: string | string[], message: string) {
+export async function sendSMS(recipient: string | string[], message: string, sender: string = MNOTIFY_SENDER_ID) {
   if (!MNOTIFY_API_KEY) {
     console.warn('mNotify API key is not set. Skipping SMS sending.');
     return false;
@@ -31,7 +34,7 @@ export async function sendSMS(recipient: string | string[], message: string) {
 
   const payload = {
     recipient: recipients, // mNotify expects an array
-    sender: MNOTIFY_SENDER_ID,
+    sender,
     message: message,
     is_schedule: 'false',
     schedule_date: ''
@@ -43,8 +46,9 @@ export async function sendSMS(recipient: string | string[], message: string) {
     });
     console.log(`SMS sent to ${formattedPhone}:`, response.data);
     return true;
-  } catch (error: any) {
-    console.error(`Error sending SMS to ${formattedPhone}:`, error.response ? error.response.data : error.message);
+  } catch (error) {
+    const detail = axios.isAxiosError(error) ? (error.response?.data ?? error.message) : String(error);
+    console.error(`Error sending SMS to ${formattedPhone}:`, detail);
     return false;
   }
 }

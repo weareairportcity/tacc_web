@@ -130,7 +130,7 @@ describe("webhook", () => {
     await sendWebhook(checkout.reference);
     expect(smsSent.find((s) => s.message.includes(checkout.reference))).toEqual({
       recipient: [`233${TEST_ALERT_PHONE.slice(1)}`],
-      message: `TACC camp: payment ${checkout.reference} needs a look (amount mismatch).`,
+      message: `Commune: payment ${checkout.reference} needs a look (amount mismatch).`,
     });
   });
 

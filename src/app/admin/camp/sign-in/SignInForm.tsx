@@ -72,6 +72,12 @@ export function SignInForm({ next }: { next: string }) {
           Attendees sign in here
         </Link>
       </p>
+      <p className="-mt-2 pl-[22px] text-[13px] text-warm-gray">
+        Fellowship or PFCC leader?{" "}
+        <Link href="/admin/camp/leaders" className="text-ink-black underline decoration-stone-muted underline-offset-[3px]">
+          Use your code
+        </Link>
+      </p>
     </form>
   );
 }

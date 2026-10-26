@@ -25,7 +25,7 @@ import { makeToken, readToken } from "@/lib/camp/tokens";
 import { campOrigin as origin } from "@/lib/camp/origin";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
 import { CampError, type PaymentStatus, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
-import { sendSMS } from "@/lib/mnotify";
+import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 
 /**
  * Attendee actions. Server actions are reachable by direct POST, so each one
@@ -59,7 +59,7 @@ async function limit(key: string, max: number, windowMs: number) {
 
 
 const codeText = (campName: string, code: string, url: string) =>
-  `TACC ${campName}: your camp sign-in code is ${formatCode(code)}. Keep it private. Sign in at ${url}`;
+  `${campName}: your sign-in code is ${formatCode(code)}. Keep it private. Sign in at ${url}`;
 
 /** `registered`: that phone is already registered, so the page sends them to sign in instead. */
 export async function registerAction(slug: string, input: RegistrationInput) {
@@ -76,7 +76,7 @@ export async function registerAction(slug: string, input: RegistrationInput) {
     const { id, code } = created;
     await startAttendeeSession(id, hashCode(code));
     // The code is also on screen, so a failed text doesn't block anyone.
-    await sendSMS(input.phone, codeText(camp.name, code, `${await origin()}/camps/${camp.slug}`)).catch(() => false);
+    await sendSMS(input.phone, codeText(camp.name, code, `${await origin()}/camps/${camp.slug}`), COMMUNE_SENDER).catch(() => false);
     return { code: formatCode(code) };
   });
 }
@@ -99,7 +99,7 @@ export async function forgotCodeAction(slug: string, phone: string) {
     await limit(`forgot:${await clientIp()}`, 5, 60 * MINUTE);
     await limit(`forgot-phone:${camp.id}:${String(phone).replace(/\D/g, "").slice(-9)}`, 3, 24 * 60 * MINUTE);
     const reset = await resetCode(camp.id, phone);
-    if (reset) await sendSMS(reset.phone, codeText(camp.name, reset.code, `${await origin()}/camps/${camp.slug}`));
+    if (reset) await sendSMS(reset.phone, codeText(camp.name, reset.code, `${await origin()}/camps/${camp.slug}`), COMMUNE_SENDER);
     return null;
   });
 }

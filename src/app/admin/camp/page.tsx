@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, CalendarDays, MapPin, Users } from "lucide-react";
 import { listCamps } from "@/lib/camp/camps";
 import { registrationPhase } from "@/lib/camp/registrations";
@@ -6,6 +7,7 @@ import type { Camp } from "@/lib/camp/types";
 import { AdminTopBar } from "@/components/camp/AdminTopBar";
 import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { CAMP_STATUS_ICONS, formatDate, headlineClass, secondaryButtonClass } from "@/components/camp/ui";
+import { leaderName } from "@/lib/camp/leaders";
 import { NoAccess, pageStaff } from "./access";
 import { NewCamp } from "./NewCamp";
 
@@ -25,17 +27,20 @@ export default async function CampAdminHome() {
   const leader = staff.role === "leader";
   // Leaders see published camps only, and open each one's read-only people list.
   const camps = (await listCamps()).filter((c) => !leader || c.status !== "draft");
+  // A leader with one camp running goes straight to their people.
+  const running = camps.filter((c) => c.status === "open" || c.status === "closed");
+  if (leader && running.length === 1) redirect(`/admin/camp/${running[0].id}/people`);
 
   return (
     <>
-      <AdminTopBar email={staff.email} />
+      <AdminTopBar email={leaderName(staff.email) ?? staff.email} />
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 pb-16 pt-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-2">
             <h1 className={headlineClass}>
               Your <span className="text-cyan-edge">camps</span>
             </h1>
-            {leader && staff.scope_value && <p className="text-sm text-warm-gray">Leader for {staff.scope_value}</p>}
+            {leader && staff.scope_value && <p className="text-sm text-warm-gray">{staff.scope_value}</p>}
           </div>
           {staff.role === "admin" && (
             <Link href="/admin/camp/staff" className={secondaryButtonClass}>

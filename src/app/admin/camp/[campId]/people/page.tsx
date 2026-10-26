@@ -30,8 +30,11 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
           id: r.id,
           full_name: r.full_name,
           fellowship: r.fellowship,
+          pfcc: r.pfcc,
           status: r.status,
-          room: r.has_room ? "Has a room" : r.roommate === "in_group" || r.roommate === "locked" ? "In a group" : null,
+          price: r.price_pesewas,
+          paid: r.paid_pesewas,
+          room: null,
           placed: r.has_room,
           last: null,
         }))

@@ -7,6 +7,7 @@ import { CampLogo } from "@/components/camp/photos";
 import { BottomBar, FindPerson, PhoneSearch, Rail } from "@/components/camp/shell/nav";
 import { SignOutButton } from "@/components/camp/SignOutButton";
 import { ToastProvider } from "@/components/camp/toast";
+import { leaderName } from "@/lib/camp/leaders";
 import { pageStaff } from "../access";
 
 /**
@@ -60,7 +61,7 @@ export default async function CampShell({ children, params }: { children: React.
           </Link>
           <Rail base={base} leader={leader} requests={counts.requests} />
           <span className="mt-auto flex flex-col gap-0.5 px-2 text-xs text-[#6f6863]">
-            <span className="truncate">{staff.email}</span>
+            <span className="truncate">{leaderName(staff.email) ?? staff.email}</span>
             <SignOutButton className="self-start text-[#6f6863]" />
           </span>
         </aside>

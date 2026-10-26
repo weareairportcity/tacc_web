@@ -26,7 +26,10 @@ export const NAV: Item[] = [
   { path: "/history", label: "History", icon: Clock },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
-const LEADER_NAV: Item[] = [{ path: "/people", label: "People", icon: Users }];
+const LEADER_NAV: Item[] = [
+  { path: "/people", label: "People", icon: Users },
+  { path: "/check-in", label: "Scan", icon: ScanLine },
+];
 // Phones: four destinations and More (the rest).
 const BAR = ["", "/people", "/check-in", "/rooms"];
 

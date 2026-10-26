@@ -54,6 +54,7 @@ export default async function setup() {
       "MNOTIFY_API_KEY=fake-mnotify-key",
       `MNOTIFY_API_URL=http://127.0.0.1:${TEST_PAYSTACK_PORT}/mnotify`,
       `ALERT_PHONE=${TEST_ALERT_PHONE}`,
+      "LEADER_CODE_SECRET=leader-code-test-secret-at-least-32-chars",
       "",
     ].join("\n"),
   );

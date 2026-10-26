@@ -64,7 +64,7 @@ export async function sendDailySummaries(env: AppEnv, now = new Date(), force = 
       .run();
     if (claim.meta.changes !== 1) continue;
     const text = summaryText(camp.name, await numbers(env, camp.id, day));
-    const ok = await Promise.all(phones.map((p) => sendSms(env, p, text)));
+    const ok = await Promise.all(phones.map((p) => sendSms(env, p, text, "Commune")));
     sent[camp.name] = ok.filter(Boolean).length;
   }
   return { day, sent };

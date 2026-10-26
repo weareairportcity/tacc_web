@@ -13,6 +13,15 @@ export const ACTION_WORDS: Record<string, string> = {
   "registration.choose_room": "chose to pick roommates",
   "registration.check_in": "checked in",
   "registration.check_in_undo": "undid a check-in",
+  "registration.shirt_given": "gave out a T-shirt",
+  "registration.shirt_given_undo": "took back a T-shirt",
+  "leader.sign_in": "signed in",
+  "leader.sign_out": "signed out",
+  "leader_code.create": "made a leader code",
+  "leader_code.off": "turned off a leader code",
+  "people.export": "downloaded the people list",
+  "view.save": "saved a People view",
+  "view.delete": "removed a People view",
   "registration.delete_details": "deleted their details",
   "request.refund": "asked for a refund",
   "request.room_change": "asked to change room type",
@@ -47,6 +56,14 @@ export const ACTION_WORDS: Record<string, string> = {
 };
 
 export const actorName = (actor: string, person: string | null) =>
-  actor.startsWith("attendee:") ? (person ?? "An attendee") : actor === "paystack" ? "Paystack" : actor.startsWith("system") ? "Commune" : actor.split("@")[0];
+  actor.startsWith("attendee:")
+    ? (person ?? "An attendee")
+    : actor.startsWith("leader:")
+      ? `${actor.split(":").slice(2).join(":")} leader`
+      : actor === "paystack"
+        ? "Paystack"
+        : actor.startsWith("system")
+          ? "Commune"
+          : actor.split("@")[0];
 
 export const describeAction = (action: string) => ACTION_WORDS[action] ?? action.replace(/[._]/g, " ");

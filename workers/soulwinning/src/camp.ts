@@ -132,7 +132,7 @@ async function flagPayment(env: AppEnv, p: Payment, flag: string, raw: string, d
     audit(env, campId, "payment.flagged", p.id, { reference: p.reference, flag, ...detail }),
   ]);
   if (env.ALERT_PHONE) {
-    await sendSms(env, env.ALERT_PHONE, `TACC camp: payment ${p.reference} needs a look (${flag.replace("_", " ")}).`);
+    await sendSms(env, env.ALERT_PHONE, `Commune: payment ${p.reference} needs a look (${flag.replace("_", " ")}).`, "Commune");
   }
 }
 

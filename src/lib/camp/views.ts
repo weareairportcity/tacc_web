@@ -1,4 +1,5 @@
-import { query } from "@/lib/cf";
+import { batch, query } from "@/lib/cf";
+import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { CampError } from "./types";
 
@@ -24,15 +25,20 @@ export async function saveView(campId: string, email: string, rawName: string, r
     if (v) kept.set(key, v.slice(0, 80));
   }
   const id = crypto.randomUUID();
-  await query(
-    "app",
-    `INSERT INTO camp_saved_views (id, camp_id, staff_email, name, query) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (camp_id, staff_email, name) DO UPDATE SET query = excluded.query`,
-    [id, checkId(campId, "camp"), email, name, kept.toString()],
-  );
+  await batch("app", [
+    {
+      sql: `INSERT INTO camp_saved_views (id, camp_id, staff_email, name, query) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (camp_id, staff_email, name) DO UPDATE SET query = excluded.query`,
+      params: [id, checkId(campId, "camp"), email, name, kept.toString()],
+    },
+    auditStatement({ actor: email, campId, action: "view.save", entity: "view", entityId: id, after: { name } }),
+  ]);
   return { name, query: kept.toString() };
 }
 
 export async function deleteView(email: string, id: string) {
-  await query("app", "DELETE FROM camp_saved_views WHERE id = ? AND staff_email = ?", [checkId(id, "view"), email]);
+  await batch("app", [
+    { sql: "DELETE FROM camp_saved_views WHERE id = ? AND staff_email = ? RETURNING camp_id", params: [checkId(id, "view"), email] },
+    auditStatement({ actor: email, campId: null, action: "view.delete", entity: "view", entityId: id, ifChanged: true }),
+  ]);
 }

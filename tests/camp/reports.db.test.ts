@@ -204,14 +204,15 @@ describe("leaders", () => {
     expect(names(await listPeopleForLeader(leader("pfcc", "PFCC 1"), camp.id, {}))).toEqual(["Esi Chosen", "Kofi Chosen"]);
   });
 
-  it("get no contact details, amounts, group codes or room labels", async () => {
+  it("get paid and outstanding, but no contact details, group codes or room labels", async () => {
     const rows = await listPeopleForLeader(leader("fellowship", "Qadash"), camp.id, {});
-    for (const row of rows) expect(Object.keys(row).sort()).toEqual(["fellowship", "full_name", "has_room", "id", "roommate", "status"]);
+    for (const row of rows)
+      expect(Object.keys(row).sort()).toEqual(["fellowship", "full_name", "has_room", "id", "paid_pesewas", "pfcc", "price_pesewas", "roommate", "status"]);
     expect(rows.find((r) => r.full_name === "Ama Qadash")).toMatchObject({ status: "fully_paid", roommate: "in_group", has_room: true });
 
     const csv = leaderCsv(rows);
-    expect(csv.split("\r\n")[0]).toBe('﻿"Name","Fellowship","Payment status","Roommates","Room assigned"');
-    expect(csv).not.toMatch(/233|@|GHS|600|A1/);
+    expect(csv.split("\r\n")[0]).toBe('﻿"Name","Fellowship","Payment status","Paid (GHS)","Outstanding (GHS)"');
+    expect(csv).not.toMatch(/233|@|A1/);
     // Phone search isn't available to leaders.
     expect(await listPeopleForLeader(leader("fellowship", "Qadash"), camp.id, { q: "0245557788" })).toEqual([]);
   });
