@@ -13,6 +13,7 @@ import {
   REGISTRATION_STATUS_LABELS,
   type Gender,
   type GroupState,
+  type PaymentStatus,
   type RegistrationStatus,
   type Staff,
 } from "./types";
@@ -611,6 +612,49 @@ export function listBulkPayments(campId: string): Promise<BulkPaymentRow[]> {
      FROM camp_bulk_payments b WHERE b.camp_id = ? AND b.status <> 'failed' ORDER BY b.created_at DESC LIMIT 100`,
     [checkId(campId, "camp")],
   );
+}
+
+export type BulkReceipt = {
+  reference: string;
+  paid_by: string;
+  note: string;
+  amount_pesewas: number;
+  fee_pesewas: number;
+  charged_pesewas: number;
+  status: PaymentStatus;
+  created_at: string;
+  paid_at: string | null;
+  people: { id: string; full_name: string; fellowship: string; amount_pesewas: number; status: PaymentStatus; flag: string | null }[];
+};
+
+/** One pay-for-people payment: who it was for and what each got. */
+export async function getBulkReceipt(campId: string, reference: string): Promise<BulkReceipt | null> {
+  const [bulk] = await query<Omit<BulkReceipt, "people"> & { id: string }>(
+    "app",
+    `SELECT id, reference, paid_by, note, amount_pesewas, fee_pesewas, charged_pesewas, status, created_at, paid_at
+     FROM camp_bulk_payments WHERE camp_id = ? AND reference = ?`,
+    [checkId(campId, "camp"), String(reference)],
+  );
+  if (!bulk) return null;
+  const people = await query<BulkReceipt["people"][number]>(
+    "app",
+    `SELECT r.id, r.full_name, r.fellowship, p.amount_pesewas, p.status, p.flag
+     FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+     WHERE p.bulk_id = ? ORDER BY r.full_name`,
+    [bulk.id],
+  );
+  return {
+    reference: bulk.reference,
+    paid_by: bulk.paid_by,
+    note: bulk.note,
+    amount_pesewas: bulk.amount_pesewas,
+    fee_pesewas: bulk.fee_pesewas,
+    charged_pesewas: bulk.charged_pesewas,
+    status: bulk.status,
+    created_at: bulk.created_at,
+    paid_at: bulk.paid_at,
+    people,
+  };
 }
 
 // ─── Find a person (top bar) ─────────────────────────────────────────────────

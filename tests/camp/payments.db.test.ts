@@ -597,3 +597,20 @@ describe("a payment still processing", () => {
     await expect(cancelPayment(other.camp.id, checkout.reference)).rejects.toThrow();
   });
 });
+
+import { getBulkReceipt } from "@/lib/camp/reports";
+
+describe("pay-for-people receipt", () => {
+  it("lists who was paid for, what each got, the fee and the total", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const b = await newPerson(camp, roomTypeId);
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "Zion fund", callbackUrl: CALLBACK });
+    succeed(checkout.reference);
+    await checkBulkPayment(camp.id, checkout.reference);
+    const receipt = await getBulkReceipt(camp.id, checkout.reference);
+    expect(receipt).toMatchObject({ paid_by: ACTOR, note: "Zion fund", amount_pesewas: 120000, charged_pesewas: checkout.charged_pesewas, status: "success" });
+    expect(receipt!.people.map((p) => [p.id, p.amount_pesewas, p.status]).sort()).toEqual([[a.id, 60000, "success"], [b.id, 60000, "success"]].sort());
+    expect(await getBulkReceipt((await openCamp()).camp.id, checkout.reference)).toBeNull();
+  });
+});

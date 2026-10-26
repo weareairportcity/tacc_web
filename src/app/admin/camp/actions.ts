@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { findPeople, scopeFor } from "@/lib/camp/reports";
+import { findPeople, getBulkReceipt, scopeFor } from "@/lib/camp/reports";
 import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
@@ -487,7 +487,8 @@ export async function setMyPhoneAction(phone: string) {
 export async function checkBulkAction(campId: string, reference: string) {
   return look(async () => {
     await requireCampRole("coordinator");
-    return checkBulkPayment(String(campId), String(reference));
+    const check = await checkBulkPayment(String(campId), String(reference));
+    return { ...check, receipt: await getBulkReceipt(String(campId), String(reference)) };
   });
 }
 
