@@ -12,6 +12,11 @@ export async function signOutAction() {
   redirect("/admin/camp/sign-in");
 }
 
+/** After a coordinator signs in with their email: a leader code used earlier on this device stops counting. */
+export async function endLeaderSessionAction() {
+  await signOutLeader();
+}
+
 /** A leader's sign-in code. Rate-limited per address: the code is the only credential. */
 export async function leaderSignInAction(code: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!(await allow(`leader-signin:${await clientIp()}`, 10, 15 * 60 * 1000))) {

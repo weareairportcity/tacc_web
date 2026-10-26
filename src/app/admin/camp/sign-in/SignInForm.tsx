@@ -7,6 +7,7 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
+import { endLeaderSessionAction } from "../session";
 
 export function SignInForm({ next }: { next: string }) {
   const router = useRouter();
@@ -25,6 +26,7 @@ export function SignInForm({ next }: { next: string }) {
       setPending(false);
       return setError(failed.message === "Invalid login credentials" ? "That email and password don't match." : failed.message);
     }
+    await endLeaderSessionAction();
     router.replace(next);
     router.refresh();
   };
