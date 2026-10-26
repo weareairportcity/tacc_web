@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 
 export function SignInForm({ next }: { next: string }) {
@@ -62,8 +62,7 @@ export function SignInForm({ next }: { next: string }) {
       </div>
       <ErrorText>{error}</ErrorText>
       <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-        {pending && <CommuneLoader size={22} label={null} />}
-        {pending ? "Signing in…" : "Sign in"}
+        <Busy pending={pending} text="Signing in…">Sign in</Busy>
       </button>
       <p className="flex items-center gap-2 text-[13px] text-warm-gray">
         <Lock className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" />

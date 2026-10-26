@@ -1,5 +1,7 @@
 "use client";
+import { leaveTo } from "@/components/camp/leave";
 
+import { Busy } from "@/components/camp/brand";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
@@ -9,7 +11,9 @@ import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Legend, RegistrationStatus as Status, StackedBar, headlineClass, inputClass, primaryButtonClass, statusParts } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { deleteViewAction, payForPeopleAction, saveViewAction, textPeopleAction } from "../../actions";
+import { deleteViewAction, openPaymentsForAction, payForPeopleAction, saveViewAction, textPeopleAction } from "../../actions";
+import type { OpenPayment } from "@/lib/camp/payments";
+import { Blockers } from "../OpenPayments";
 import { PersonPanel } from "./PersonPanel";
 
 export type PersonListRow = {
@@ -446,6 +450,7 @@ export function PeopleView({
       {picked.length > 0 && (
         <div
           role="region"
+          data-selection-bar
           aria-label={`${picked.length} selected`}
           className="cm-up sticky bottom-[calc(96px+env(safe-area-inset-bottom))] z-20 flex flex-wrap items-center gap-2 self-center rounded-[28px] bg-soot py-2 pl-5 pr-2 text-sm text-white shadow-[0_12px_32px_rgba(12,10,9,0.28)] lg:bottom-5"
         >
@@ -693,6 +698,7 @@ function ViewsMenu({
 function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[] }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
+  const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
   const [pending, start] = useTransition();
   const total = people.reduce((n, r) => n + outstandingOf(r), 0);
   return (
@@ -709,14 +715,20 @@ function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: (
           onClick={() =>
             start(async () => {
               setError("");
+              setBlockers(null);
               const r = await payForPeopleAction(campId, people.map((p) => p.id), note);
-              if (!r.ok) return setError(r.error);
-              window.location.href = r.data;
+              if (!r.ok) {
+                setError(r.error);
+                const open = await openPaymentsForAction(campId, people.map((p) => p.id));
+                if (open.ok) setBlockers(open.data);
+                return;
+              }
+              await leaveTo(r.data);
             })
           }
           className={`${primaryButtonClass} h-[52px] w-full`}
         >
-          {pending ? "Opening Paystack…" : `Pay ${formatCedis(total)} + fee`}
+          <Busy pending={pending} text="Opening Paystack…">{`Pay ${formatCedis(total)} + fee`}</Busy>
         </button>
       }
     >
@@ -738,6 +750,7 @@ function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: (
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Zion fellowship fund" className={inputClass} />
       </label>
       <ErrorText>{error}</ErrorText>
+      {blockers && blockers.payments.length > 0 && <Blockers campId={campId} me={blockers.me} payments={blockers.payments} />}
     </Sheet>
   );
 }
@@ -780,7 +793,7 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
               }
               className="cm-press h-12 flex-1 rounded-full bg-soot px-5 text-sm font-medium text-white disabled:opacity-60"
             >
-              {pending ? "Sending…" : `Yes, send ${people.length * texts} text${people.length * texts === 1 ? "" : "s"}`}
+              <Busy pending={pending} text="Sending…">{`Yes, send ${people.length * texts} text${people.length * texts === 1 ? "" : "s"}`}</Busy>
             </button>
           </>
         ) : (

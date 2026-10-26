@@ -14,6 +14,7 @@ import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { Card, formatDate, headlineClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { InstallHint, SharePayLink, WithdrawRequest } from "./MeControls";
 import { PayForm } from "./PayForm";
+import { ResumePayment } from "./ResumePayment";
 import { SignOut } from "./SignOut";
 
 const PAYMENT_LABELS = { pending: "Processing", success: "Paid", failed: "Not completed" } as const;
@@ -198,14 +199,25 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </section>
       )}
 
+      {pending && !cancelled && (
+        <ResumePayment
+          slug={camp.slug}
+          payment={{
+            reference: pending.reference,
+            kind: pending.bulk_id ? "bulk" : "single",
+            paid_by: "",
+            full_name: null,
+            people: 1,
+            amount_pesewas: pending.amount_pesewas,
+            // A sponsor's pay-link checkout carries their email: only the attendee's own resumes here.
+            checkout_url: pending.payer_name ? null : (pending.checkout_url ?? null),
+            created_at: pending.created_at,
+          }}
+        />
+      )}
+
       {!cancelled && !fullyPaid && (
         <Card title="Pay">
-          {pending && (
-            <p className="flex items-start gap-2 text-sm leading-relaxed text-warm-gray">
-              <Clock className="mt-0.5 h-4 w-4 flex-none text-ink-black" strokeWidth={1.7} aria-hidden="true" />
-              {formatCedis(pending.amount_pesewas)} is still processing. Refresh to check.
-            </p>
-          )}
           <PayForm slug={camp.slug} balance={balance} feeBps={camp.fee_bps} dueOn={formatDate(camp.payment_due_on)} />
           <SharePayLink slug={camp.slug} firstName={firstName} />
         </Card>

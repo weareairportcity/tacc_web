@@ -1,4 +1,5 @@
-import { post } from "@/lib/cf";
+import { post, query } from "@/lib/cf";
+import { checkId } from "./camps";
 import { CampError, type PaymentStatus } from "./types";
 
 /**
@@ -85,4 +86,56 @@ export function refundThroughPaystack(input: { registrationId: string; amountPes
     note: input.note,
     request_id: input.requestId,
   });
+}
+
+/**
+ * Gives up on a payment nobody finished, after asking Paystack (see the
+ * Worker's payCancel). "pending" means mobile money is still waiting for
+ * approval on a phone; "success" means it went through after all.
+ */
+export function cancelPayment(campId: string, reference: string) {
+  return worker<{ status: PaymentStatus }>("/v1/admin/camp/pay-cancel", { camp_id: campId, reference });
+}
+
+export type OpenPayment = {
+  reference: string;
+  /** "bulk" is a coordinator paying for several people; "single" is one person's own checkout. */
+  kind: "bulk" | "single";
+  paid_by: string;
+  /** For a single payment, whose balance; for a bulk one, how many people. */
+  full_name: string | null;
+  people: number;
+  amount_pesewas: number;
+  checkout_url: string | null;
+  created_at: string;
+};
+
+/** The pay-for-people checkouts this coordinator started that haven't finished. */
+export function listMyOpenBulkPayments(campId: string, email: string) {
+  return query<OpenPayment>(
+    "app",
+    `SELECT b.reference, 'bulk' AS kind, b.paid_by, NULL AS full_name, b.amount_pesewas, b.checkout_url, b.created_at,
+            (SELECT COUNT(*) FROM camp_payments p WHERE p.bulk_id = b.id) AS people
+     FROM camp_bulk_payments b WHERE b.camp_id = ? AND b.paid_by = ? AND b.status = 'pending' ORDER BY b.created_at DESC LIMIT 5`,
+    [checkId(campId, "camp"), email],
+  );
+}
+
+/** What's holding up a payment for these people: their checkouts still processing. */
+export function listOpenPaymentsFor(campId: string, registrationIds: string[]) {
+  const ids = registrationIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 100);
+  if (!ids.length) return Promise.resolve([] as OpenPayment[]);
+  return query<OpenPayment>(
+    "app",
+    `SELECT COALESCE(b.reference, p.reference) AS reference, CASE WHEN b.id IS NULL THEN 'single' ELSE 'bulk' END AS kind,
+            COALESCE(b.paid_by, '') AS paid_by, r.full_name, COALESCE(b.amount_pesewas, p.amount_pesewas) AS amount_pesewas,
+            COALESCE(b.checkout_url, p.checkout_url) AS checkout_url, p.created_at,
+            CASE WHEN b.id IS NULL THEN 1 ELSE (SELECT COUNT(*) FROM camp_payments s WHERE s.bulk_id = b.id) END AS people
+     FROM camp_payments p
+     JOIN camp_registrations r ON r.id = p.registration_id
+     LEFT JOIN camp_bulk_payments b ON b.id = p.bulk_id
+     WHERE r.camp_id = ? AND p.status = 'pending' AND r.id IN (${ids.map(() => "?").join(",")})
+     ORDER BY p.created_at DESC`,
+    [checkId(campId, "camp"), ...ids],
+  );
 }

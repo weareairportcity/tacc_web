@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { BedDouble, Church, CircleSlash, User } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/types";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { placesState } from "@/components/camp/places";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
@@ -251,8 +251,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
         </div>
         <ErrorText>{error}</ErrorText>
         <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-          {pending && <CommuneLoader size={22} label={null} />}
-          {pending ? "Saving your place…" : "Register"}
+          <Busy pending={pending} text="Saving your place…">Register</Busy>
         </button>
         <p className="text-center text-[13px] text-warm-gray">Nothing to pay now</p>
       </div>

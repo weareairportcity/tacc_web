@@ -538,3 +538,62 @@ describe("requests", () => {
     expect(await getRegistration(down.id)).toMatchObject({ room_type_name: "Dorm", price_pesewas: 40000, paid_pesewas: 40000, status: "fully_paid" });
   });
 });
+
+import { cancelPayment, listMyOpenBulkPayments, listOpenPaymentsFor } from "@/lib/camp/payments";
+
+describe("a payment still processing", () => {
+  const bulk = (campId: string, ids: string[], paidBy = ACTOR) =>
+    startBulkPayment({ campId, registrationIds: ids, paidBy, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+
+  it("can be resumed: its checkout link is kept while it's pending", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const checkout = await bulk(camp.id, [a.id]);
+    const [open] = await listMyOpenBulkPayments(camp.id, ACTOR);
+    expect(open).toMatchObject({ reference: checkout.reference, kind: "bulk", people: 1, checkout_url: checkout.authorization_url });
+    expect(await listMyOpenBulkPayments(camp.id, "someone@test.local")).toEqual([]);
+    expect(await listOpenPaymentsFor(camp.id, [a.id])).toMatchObject([{ reference: checkout.reference, kind: "bulk", paid_by: ACTOR }]);
+  });
+
+  it("blocks another coordinator, until it's cancelled", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const first = await bulk(camp.id, [a.id]);
+    await expect(bulk(camp.id, [a.id], "other@test.local")).rejects.toThrow("still processing");
+
+    // Mobile money waiting on a phone: not cancelled.
+    setTransaction(first.reference, { status: "ongoing" });
+    expect((await cancelPayment(camp.id, first.reference)).status).toBe("pending");
+
+    setTransaction(first.reference, { status: "abandoned" });
+    expect((await cancelPayment(camp.id, first.reference)).status).toBe("failed");
+    expect(await listOpenPaymentsFor(camp.id, [a.id])).toEqual([]);
+    expect(await bulk(camp.id, [a.id], "other@test.local")).toMatchObject({ people: 1 });
+  });
+
+  it("is credited, not cancelled, when it was paid after all", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const checkout = await bulk(camp.id, [a.id]);
+    succeed(checkout.reference);
+    expect((await cancelPayment(camp.id, checkout.reference)).status).toBe("success");
+    expect((await getRegistration(a.id))?.status).toBe("fully_paid");
+  });
+
+  it("the same coordinator starting again replaces their own unfinished checkout", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const first = await bulk(camp.id, [a.id]);
+    const second = await bulk(camp.id, [a.id]);
+    expect(second.reference).not.toBe(first.reference);
+    expect(await listMyOpenBulkPayments(camp.id, ACTOR)).toMatchObject([{ reference: second.reference }]);
+  });
+
+  it("can't be cancelled from another camp", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const other = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const checkout = await bulk(camp.id, [a.id]);
+    await expect(cancelPayment(other.camp.id, checkout.reference)).rejects.toThrow();
+  });
+});

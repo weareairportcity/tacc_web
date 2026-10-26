@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { ErrorText, primaryButtonClass } from "@/components/camp/ui";
 import { joinGroupAction } from "../../actions";
 
@@ -24,8 +24,7 @@ export function JoinButton({ slug, code }: { slug: string; code: string }) {
         }
         className={`${primaryButtonClass} h-[52px] w-full`}
       >
-        {pending && <CommuneLoader size={22} label={null} />}
-        Join the group
+        <Busy pending={pending} text="Joining…">Join the group</Busy>
       </button>
       <ErrorText>{error}</ErrorText>
     </div>

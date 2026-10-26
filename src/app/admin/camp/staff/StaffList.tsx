@@ -1,6 +1,6 @@
 "use client";
 
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -137,9 +137,8 @@ export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string
           )}
         </div>
         <ErrorText>{error}</ErrorText>
-        <button type="submit" disabled={pending} className={buttonClass}>
-          {pending && <CommuneLoader size={18} label={null} />}
-          Save
+        <button type="submit" disabled={pending} aria-busy={pending} className={buttonClass}>
+          <Busy pending={pending} text="Saving…" size={18}>Save</Busy>
         </button>
       </form>
     </div>

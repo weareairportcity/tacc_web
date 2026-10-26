@@ -1,9 +1,10 @@
 "use client";
+import { leaveTo } from "@/components/camp/leave";
 
 import { useState, useTransition } from "react";
 import { Lock } from "lucide-react";
 import { cedisToPesewas, feeFor, formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { payAction } from "../actions";
@@ -36,7 +37,7 @@ export function PayForm({ slug, balance, feeBps, dueOn }: { slug: string; balanc
     startTransition(async () => {
       const result = await payAction(slug, amount);
       if (!result.ok) return setError(result.error);
-      window.location.assign(result.data.url);
+      await leaveTo(result.data.url);
     });
   };
 
@@ -86,8 +87,7 @@ export function PayForm({ slug, balance, feeBps, dueOn }: { slug: string; balanc
       {!valid && <p className="text-[13px] text-warm-gray">Enter an amount from GHS 1.00 to {formatCedis(balance)}.</p>}
       <ErrorText>{error}</ErrorText>
       <button type="submit" disabled={pending || !valid} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-        {pending && <CommuneLoader size={22} label={null} />}
-        {pending ? "Opening Paystack…" : valid ? `Pay ${formatCedis(pesewas! + fee)}` : "Pay"}
+        <Busy pending={pending} text="Opening Paystack…">{valid ? `Pay ${formatCedis(pesewas! + fee)}` : "Pay"}</Busy>
       </button>
       <p className="flex items-center justify-center gap-1.5 text-[13px] text-warm-gray">
         <Lock className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" /> MoMo or card · secured by Paystack

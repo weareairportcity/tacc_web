@@ -1,4 +1,5 @@
 "use client";
+import { Busy } from "@/components/camp/brand";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -141,9 +142,10 @@ export function AssignBoard({
                     router.refresh();
                   })
                 }
-                className="h-8 rounded-full bg-soot px-3 font-medium text-white"
+                aria-busy={pending}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-soot px-3 font-medium text-white disabled:opacity-60"
               >
-                Send
+                <Busy pending={pending} text="Sending…" size={18}>Send</Busy>
               </button>
             </span>
           ) : (

@@ -181,6 +181,8 @@ export type Payment = {
   bulk_id: string | null;
   /** Who paid through a pay link, or the coordinator's note on a bulk payment. */
   payer_name: string;
+  /** Paystack's checkout, kept while pending so it can be resumed. */
+  checkout_url?: string | null;
 };
 
 /** open: anyone eligible can join; locked: by its owner, who can unlock; final: the roommate deadline has passed. */

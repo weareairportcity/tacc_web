@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleSlash, Plus, Trash2 } from "lucide-react";
@@ -147,7 +148,7 @@ function PlacesSheet({ type, gender, pending, onClose, onSave }: { type: RoomTyp
             Cancel
           </button>
           <button type="button" disabled={pending || value === current} onClick={() => onSave(value)} className={`${primaryButtonClass} flex-1`}>
-            {pending ? "Saving…" : "Save"}
+            <Busy pending={pending} text="Saving…">Save</Busy>
           </button>
         </>
       }
@@ -206,7 +207,7 @@ function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId:
               }
               className={`${primaryButtonClass} flex-1`}
             >
-              {pending ? "Saving…" : "Save"}
+              <Busy pending={pending} text="Saving…">Save</Busy>
             </button>
           </>
         )

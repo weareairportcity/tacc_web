@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, HeartPulse, Lock, Trash2 } from "lucide-react";
@@ -86,7 +87,7 @@ export function DetailsForm({ slug, phone, initial, cancelled }: { slug: string;
 
         <ErrorText>{error}</ErrorText>
         <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-          {pending ? "Saving…" : "Save my details"}
+          <Busy pending={pending} text="Saving…">Save my details</Busy>
         </button>
         {saved && (
           <p role="status" className="cm-rise flex items-center justify-center gap-2 text-sm">
@@ -120,7 +121,7 @@ export function DetailsForm({ slug, phone, initial, cancelled }: { slug: string;
                 }
                 className="cm-press h-11 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white"
               >
-                {pending ? "Deleting…" : "Yes, delete"}
+                <Busy pending={pending} text="Deleting…">Yes, delete</Busy>
               </button>
             </div>
           </div>

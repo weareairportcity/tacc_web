@@ -27,7 +27,7 @@ import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/re
 import { listRefunds } from "@/lib/camp/adjustments";
 import { arrivalCounts, findArrivals, getArrival, markScan, undoScan, type ScanMode } from "@/lib/camp/checkin";
 import { getGroupFor } from "@/lib/camp/groups";
-import { checkBulkPayment, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
+import { cancelPayment, checkBulkPayment, listOpenPaymentsFor, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
 import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
 import { approveRefund, approveRoomChange, declineRequest, listMyRequests } from "@/lib/camp/requests";
 import { deleteView, saveView } from "@/lib/camp/views";
@@ -514,5 +514,28 @@ export async function turnOffLeaderCodeAction(id: string) {
     const staff = await requireCampRole("admin");
     await turnOffLeaderCode(staff.email, String(id));
     return null;
+  });
+}
+
+// ─── Payments still processing ───────────────────────────────────────────────
+
+/** What's holding up "Pay for them": checkouts still processing for these people. */
+export async function openPaymentsForAction(campId: string, registrationIds: string[]) {
+  return look(async () => {
+    const staff = await requireCampRole("coordinator");
+    const payments = await listOpenPaymentsFor(String(campId), Array.isArray(registrationIds) ? registrationIds.map(String) : []);
+    return { me: staff.email, payments };
+  });
+}
+
+/** "Cancel it": gives up on an unfinished checkout once Paystack confirms nobody paid. Logged. */
+export async function cancelPaymentAction(campId: string, reference: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    const { status } = await cancelPayment(String(campId), String(reference));
+    await batch("app", [
+      auditStatement({ actor: staff.email, campId: String(campId), action: "payment.cancel", entity: "payment", entityId: String(reference), after: { status } }),
+    ]);
+    return status;
   });
 }

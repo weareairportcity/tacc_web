@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { leaderSignInAction } from "../session";
 
 export function LeaderSignIn() {
@@ -55,8 +55,7 @@ export function LeaderSignIn() {
         aria-busy={pending}
         className="cm-press inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-full border border-cyan-edge bg-cyan-signal text-base font-medium text-ink-black disabled:opacity-60"
       >
-        {pending && <CommuneLoader size={22} label={null} />}
-        {pending ? "Signing in…" : "Sign in"}
+        <Busy pending={pending} text="Signing in…">Sign in</Busy>
       </button>
     </form>
   );

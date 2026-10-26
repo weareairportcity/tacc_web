@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, inputClass } from "@/components/camp/ui";
@@ -29,7 +30,7 @@ export function SummaryPhone({ phone }: { phone: string }) {
       </Field>
       <ErrorText>{error}</ErrorText>
       <button type="submit" disabled={pending} className="cm-press h-10 self-start rounded-full bg-soot px-4 text-sm font-medium text-white disabled:opacity-60">
-        {pending ? "Saving…" : "Save"}
+        <Busy pending={pending} text="Saving…">Save</Busy>
       </button>
     </form>
   );

@@ -47,6 +47,20 @@ export function CommuneLoader({ size = 72, className, label = "Loading" }: { siz
   );
 }
 
+/**
+ * A button's label while its action runs: the logo animation and a short
+ * "Saving…". The button itself must also be disabled, so it can't be pressed twice.
+ */
+export function Busy({ pending, text, size = 20, children }: { pending: boolean; text?: string; size?: number; children: React.ReactNode }) {
+  if (!pending) return <>{children}</>;
+  return (
+    <>
+      <CommuneLoader size={size} label={null} />
+      <span>{text ?? children}</span>
+    </>
+  );
+}
+
 /** Full-screen loading state used by loading.tsx files. */
 export function CommuneLoading({ text }: { text: string }) {
   return (

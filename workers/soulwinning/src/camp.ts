@@ -386,6 +386,7 @@ export async function payInit(request: Request, env: AppEnv) {
       .run();
     throw new HttpError(502, "Paystack couldn't start the payment. Please try again.");
   }
+  await env.APP_DB.prepare("UPDATE camp_payments SET checkout_url = ? WHERE id = ?").bind(init.data.authorization_url, id).run();
   return json({
     reference: ref,
     authorization_url: init.data.authorization_url,
@@ -565,8 +566,11 @@ export async function bulkInit(request: Request, env: AppEnv) {
       .bind(r.id)
       .all<Payment>();
     for (const p of open ?? []) {
+      // The same coordinator starting again gives up on their own unfinished checkout.
+      const mine = p.bulk_id && (await env.APP_DB.prepare("SELECT * FROM camp_bulk_payments WHERE id = ?").bind(p.bulk_id).first<Bulk>());
+      if (mine && mine.paid_by === paidBy && mine.status === "pending") await settleBulk(env, mine, true);
       if ((await settle(env, p, !p.bulk_id)) === "pending") {
-        throw new HttpError(409, `${r.full_name} has a payment still processing. Try again in a few minutes.`);
+        throw new HttpError(409, `${r.full_name} has a payment still processing. Resume it or cancel it first.`);
       }
     }
   }
@@ -616,6 +620,7 @@ export async function bulkInit(request: Request, env: AppEnv) {
     ]);
     throw new HttpError(502, "Paystack couldn't start the payment. Please try again.");
   }
+  await env.APP_DB.prepare("UPDATE camp_bulk_payments SET checkout_url = ? WHERE id = ?").bind(init.data.authorization_url, bulkId).run();
   return json({
     reference: ref,
     authorization_url: init.data.authorization_url,
@@ -624,6 +629,31 @@ export async function bulkInit(request: Request, env: AppEnv) {
     fee_pesewas: fee,
     charged_pesewas: amount + fee,
   });
+}
+
+/**
+ * "Cancel it" on a payment that's still processing. Asks Paystack first: if
+ * it was paid it's credited; if nobody finished the checkout it's given up,
+ * so a new payment can start; if mobile money is still waiting for approval
+ * on a phone it stays as it is. Never cancels a payment Paystack might
+ * still take.
+ */
+export async function payCancel(request: Request, env: AppEnv) {
+  const { reference: ref, camp_id } = await readJson<{ reference?: unknown; camp_id?: unknown }>(request);
+  if (typeof ref !== "string" || typeof camp_id !== "string") throw new HttpError(400, "reference and camp_id required");
+  const bulk = await bulkByReference(env, ref);
+  let status: Payment["status"];
+  if (bulk) {
+    if (bulk.camp_id !== camp_id) throw new HttpError(404, "payment not found");
+    status = await settleBulk(env, bulk, true);
+    if (status === "failed") await env.APP_DB.prepare("UPDATE camp_bulk_payments SET checkout_url = NULL WHERE id = ?").bind(bulk.id).run();
+  } else {
+    const p = await paymentByReference(env, ref);
+    if (!p || (await campIdOf(env, p.registration_id)) !== camp_id) throw new HttpError(404, "payment not found");
+    status = await settle(env, p, true);
+    if (status === "failed") await env.APP_DB.prepare("UPDATE camp_payments SET checkout_url = NULL WHERE id = ?").bind(p.id).run();
+  }
+  return json({ status });
 }
 
 /** The coordinator's "processing" page asking about a bulk checkout. */

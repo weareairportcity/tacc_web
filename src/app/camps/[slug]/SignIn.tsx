@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck } from "lucide-react";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, secondaryButtonClass } from "@/components/camp/ui";
 import { forgotCodeAction, signInAction } from "./actions";
 
@@ -76,8 +76,7 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
       )}
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending} aria-busy={pending} className={`${secondaryButtonClass} h-11 px-5`}>
-          {pending && <CommuneLoader size={20} label={null} />}
-          {mode === "code" ? "Sign in" : "Text me a new code"}
+          <Busy pending={pending} text={mode === "code" ? "Signing in…" : "Sending…"}>{mode === "code" ? "Sign in" : "Text me a new code"}</Busy>
         </button>
         <button
           type="button"

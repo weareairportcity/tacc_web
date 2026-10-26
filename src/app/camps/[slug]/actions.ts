@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCode, hashCode } from "@/lib/camp/codes";
 import { cedisToPesewas } from "@/lib/camp/money";
-import { checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
+import { cancelPayment, checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import { allow, clientIp } from "@/lib/camp/rate-limit";
 import {
   acceptInvite,
@@ -143,6 +143,20 @@ export async function checkPaymentAction(slug: string, reference: string) {
       paid: fresh?.paid_pesewas ?? me.paid_pesewas,
       price: fresh?.price_pesewas ?? me.price_pesewas,
     };
+  });
+}
+
+/** "Cancel it" on the attendee's own payment that's still processing. Paystack is asked first. */
+export async function cancelMyPaymentAction(slug: string, reference: string) {
+  return run(async () => {
+    const camp = await campFor(slug);
+    const me = await currentAttendee(camp.id);
+    if (!me) throw new CampError("Please sign in again.");
+    const payment = (await listPayments(me.id)).find((p) => p.reference === String(reference) && p.status === "pending" && !p.bulk_id);
+    if (!payment) throw new CampError("That payment has already finished.");
+    const { status } = await cancelPayment(camp.id, payment.reference);
+    revalidatePath(`/camps/${camp.slug}/me`);
+    return status;
   });
 }
 

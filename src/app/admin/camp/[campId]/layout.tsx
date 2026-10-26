@@ -8,7 +8,9 @@ import { BottomBar, FindPerson, PhoneSearch, Rail } from "@/components/camp/shel
 import { SignOutButton } from "@/components/camp/SignOutButton";
 import { ToastProvider } from "@/components/camp/toast";
 import { leaderName } from "@/lib/camp/leaders";
+import { listMyOpenBulkPayments } from "@/lib/camp/payments";
 import { pageStaff } from "../access";
+import { OpenPayments } from "./OpenPayments";
 
 /**
  * One camp's coordinator app: a rail and top bar on wide screens, a header
@@ -20,7 +22,11 @@ export default async function CampShell({ children, params }: { children: React.
   const camp = staff && ID.test(campId) ? await getCamp(campId) : null;
   if (!staff || !camp) return <div className="mx-auto max-w-5xl px-5 py-8">{children}</div>;
   const leader = staff.role === "leader";
-  const [counts, camps] = await Promise.all([leader ? { requests: 0 } : navCounts(camp.id), listCamps()]);
+  const [counts, camps, open] = await Promise.all([
+    leader ? { requests: 0 } : navCounts(camp.id),
+    listCamps(),
+    leader ? [] : listMyOpenBulkPayments(camp.id, staff.email).catch(() => []),
+  ]);
   const base = `/admin/camp/${camp.id}`;
   const switchable = camps.filter((c) => c.status !== "archived" && (!leader || c.status !== "draft"));
 
@@ -74,6 +80,7 @@ export default async function CampShell({ children, params }: { children: React.
           <main className="w-full max-w-[1080px] flex-1 px-4 pb-32 pt-6 lg:px-7 lg:pb-16">{children}</main>
         </div>
       </div>
+      {!leader && <OpenPayments campId={camp.id} payments={open} />}
       <BottomBar base={base} leader={leader} requests={counts.requests} />
     </ToastProvider>
   );

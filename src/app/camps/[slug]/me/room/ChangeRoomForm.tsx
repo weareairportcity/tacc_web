@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Info } from "lucide-react";
@@ -114,7 +115,7 @@ export function ChangeRoomForm({
           </Field>
           <ErrorText>{error}</ErrorText>
           <button type="submit" disabled={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-            {pending ? "Sending…" : `Ask to move to ${target.name}`}
+            <Busy pending={pending} text="Sending…">{`Ask to move to ${target.name}`}</Busy>
           </button>
         </section>
       )}

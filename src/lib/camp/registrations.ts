@@ -222,7 +222,7 @@ export async function listPayments(registrationId: string): Promise<Payment[]> {
   return query<Payment>(
     "app",
     `SELECT id, created_at, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, status, flag, paid_at,
-            bulk_id, payer_name
+            bulk_id, payer_name, checkout_url
      FROM camp_payments WHERE registration_id = ? ORDER BY created_at DESC`,
     [checkId(registrationId, "registration")],
   );

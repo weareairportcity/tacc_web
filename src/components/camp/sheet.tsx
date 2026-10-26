@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -120,11 +121,11 @@ export function InlineConfirm({
           disabled={pending}
           aria-busy={pending}
           className={cn(
-            "cm-press h-11 flex-1 rounded-full px-4 text-sm font-medium disabled:opacity-60",
+            "cm-press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full px-4 text-sm font-medium disabled:opacity-60",
             primary ? "border border-cyan-edge bg-cyan-signal text-ink-black" : "bg-soot text-white",
           )}
         >
-          {pending ? "Working…" : confirmLabel}
+          <Busy pending={!!pending} text="Working…">{confirmLabel}</Busy>
         </button>
       </div>
     </div>

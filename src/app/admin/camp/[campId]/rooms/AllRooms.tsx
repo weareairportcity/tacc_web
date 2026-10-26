@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, Trash2, Upload } from "lucide-react";
@@ -136,7 +137,7 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
                 Cancel
               </button>
               <button type="button" onClick={save} disabled={pending || !draft?.label.trim()} className={`${primaryButtonClass} flex-1`}>
-                {pending ? "Saving…" : "Save"}
+                <Busy pending={pending} text="Saving…">Save</Busy>
               </button>
             </>
           )
@@ -287,7 +288,7 @@ function ImportSheet({ open, onClose, campId, roomTypes }: { open: boolean; onCl
       </p>
       <label className={cn(primaryButtonClass, "cursor-pointer", pending && "opacity-60")}>
         <Upload className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
-        {pending ? "Checking…" : "Choose a file"}
+        <Busy pending={pending} text="Checking…">Choose a file</Busy>
         <input
           type="file"
           accept=".csv,text/csv"

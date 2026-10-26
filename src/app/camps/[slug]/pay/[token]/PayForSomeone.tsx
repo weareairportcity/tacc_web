@@ -1,5 +1,7 @@
 "use client";
+import { leaveTo } from "@/components/camp/leave";
 
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { CreditCard, Lock, Smartphone } from "lucide-react";
 import { cedisToPesewas, feeFor, formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
@@ -28,7 +30,7 @@ export function PayForSomeone({ slug, token, balance, feeBps }: { slug: string; 
           setError("");
           const r = await payViaLinkAction(slug, token, amount, name, email);
           if (!r.ok) return setError(r.error);
-          window.location.assign(r.data);
+          await leaveTo(r.data);
         });
       }}
     >
@@ -46,7 +48,7 @@ export function PayForSomeone({ slug, token, balance, feeBps }: { slug: string; 
       </Field>
       <ErrorText>{error}</ErrorText>
       <button type="submit" disabled={pending || !valid} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-        {pending ? "Opening Paystack…" : valid ? `Pay ${formatCedis(pesewas! + fee)}` : "Enter an amount"}
+        <Busy pending={pending} text="Opening Paystack…">{valid ? `Pay ${formatCedis(pesewas! + fee)}` : "Enter an amount"}</Busy>
       </button>
       <p className="flex justify-center gap-3 text-[13px] text-warm-gray">
         <span className="flex items-center gap-1"><Smartphone className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" />Mobile money</span>

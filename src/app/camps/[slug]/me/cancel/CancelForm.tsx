@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Clock } from "lucide-react";
@@ -96,7 +97,7 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
               Keep my place
             </button>
             <button type="button" disabled={pending} onClick={submit} className="cm-press h-12 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white">
-              {pending ? "Cancelling…" : "Yes, cancel"}
+              <Busy pending={pending} text="Cancelling…">Yes, cancel</Busy>
             </button>
           </div>
         </div>
@@ -107,7 +108,7 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
           onClick={() => (choice === "part" ? submit() : setConfirm(true))}
           className={choice === "part" ? `${primaryButtonClass} h-[52px] w-full` : "cm-press h-[52px] w-full rounded-full bg-soot text-base font-medium text-white"}
         >
-          {pending ? "Sending…" : choice === "part" ? "Ask for a refund" : "Cancel my registration"}
+          <Busy pending={pending} text="Sending…">{choice === "part" ? "Ask for a refund" : "Cancel my registration"}</Busy>
         </button>
       )}
     </section>

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
-import { CommuneLoader } from "@/components/camp/brand";
+import { Busy } from "@/components/camp/brand";
 import { CAMP_STATUSES, type Camp, type CampInput } from "@/lib/camp/types";
 import { saveCampAction } from "./actions";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
@@ -123,8 +123,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
       <ErrorText>{error}</ErrorText>
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending} aria-busy={pending} className={primaryButtonClass}>
-          {pending && <CommuneLoader size={20} label={null} />}
-          {camp ? "Save changes" : "Create camp"}
+          <Busy pending={pending} text="Saving…">{camp ? "Save changes" : "Create camp"}</Busy>
         </button>
         {saved && (
           <span role="status" className="flex items-center gap-1.5 text-sm">

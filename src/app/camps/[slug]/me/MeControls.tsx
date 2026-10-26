@@ -1,5 +1,6 @@
 "use client";
 
+import { Busy } from "@/components/camp/brand";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Share2, Smartphone, X } from "lucide-react";
@@ -55,7 +56,7 @@ export function WithdrawRequest({ slug, requestId }: { slug: string; requestId: 
         }
         className="min-h-10 px-1 text-[13px] text-warm-gray underline underline-offset-[3px]"
       >
-        {pending ? "Withdrawing…" : "Withdraw"}
+        <Busy pending={pending} text="Withdrawing…">Withdraw</Busy>
       </button>
       <ErrorText>{error}</ErrorText>
     </span>

@@ -1,10 +1,11 @@
 "use client";
+import { leaveTo } from "@/components/camp/leave";
 
 import { useEffect, useState, useTransition } from "react";
 import { Check, CreditCard, Link2, Lock, Phone, RotateCcw, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import { SHIRT_SIZES, type ProfileInput } from "@/lib/camp/types";
-import { CommuneLoader } from "@/components/camp/brand";
+import { CommuneLoader, Busy } from "@/components/camp/brand";
 import { InlineConfirm, Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, RegistrationStatus, StackedBar, inputClass, primaryButtonClass } from "@/components/camp/ui";
@@ -13,12 +14,15 @@ import {
   changeRoomTypeAction,
   checkInAction,
   getPersonAction,
+  openPaymentsForAction,
   payForPeopleAction,
   payLinkAction,
   refundPersonAction,
   undoCheckInAction,
   updatePersonAction,
 } from "../../actions";
+import type { OpenPayment } from "@/lib/camp/payments";
+import { Blockers } from "../OpenPayments";
 
 type Data = Extract<Awaited<ReturnType<typeof getPersonAction>>, { ok: true }>["data"];
 type Mode = "view" | "edit" | "room" | "refund" | "cancel";
@@ -33,6 +37,8 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
   const [error, setError] = useState("");
   const [mode, setMode] = useState<Mode>("view");
   const [pending, start] = useTransition();
+  const [paying, setPaying] = useState(false);
+  const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
 
   const load = (personId: string) =>
     getPersonAction(campId, personId).then((r) => {
@@ -126,13 +132,22 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
               icon={CreditCard}
               label="Pay"
               disabled={outstanding <= 0 || data.person.status === "cancelled" || pending}
-              onClick={() =>
+              busy={pending && paying}
+              onClick={() => {
+                setPaying(true);
+                setBlockers(null);
                 start(async () => {
                   const r = await payForPeopleAction(campId, [data.person.id], "");
-                  if (!r.ok) return setError(r.error);
-                  window.location.href = r.data;
-                })
-              }
+                  if (!r.ok) {
+                    setPaying(false);
+                    setError(r.error);
+                    const open = await openPaymentsForAction(campId, [data.person.id]);
+                    if (open.ok) setBlockers(open.data);
+                    return;
+                  }
+                  await leaveTo(r.data);
+                });
+              }}
             />
             <QuickButton
               icon={Link2}
@@ -150,6 +165,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
             <QuickButton icon={Phone} label="Call" href={/^233\d{9}$/.test(data.person.phone) ? `tel:+${data.person.phone}` : undefined} />
           </div>
           <ErrorText>{error}</ErrorText>
+          {blockers && blockers.payments.length > 0 && <Blockers campId={campId} me={blockers.me} payments={blockers.payments} />}
 
           <Section title="Camp" action={data.roomTypes.length > 1 && data.person.status !== "cancelled" ? <EditLink onClick={() => setMode("room")} label="Change" /> : null}>
             <Row term="Room type" value={data.person.room_type_name} />
@@ -260,12 +276,26 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
   );
 }
 
-function QuickButton({ icon: Icon, label, onClick, href, disabled }: { icon: typeof Phone; label: string; onClick?: () => void; href?: string; disabled?: boolean }) {
+function QuickButton({
+  icon: Icon,
+  label,
+  onClick,
+  href,
+  disabled,
+  busy,
+}: {
+  icon: typeof Phone;
+  label: string;
+  onClick?: () => void;
+  href?: string;
+  disabled?: boolean;
+  busy?: boolean;
+}) {
   const cls = "cm-press flex h-16 flex-col items-center justify-center gap-1 rounded-[12px] border border-stone-border bg-white text-[13px] font-medium disabled:opacity-40 aria-disabled:opacity-40";
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} disabled={disabled} className={cls}>
-        <Icon className="h-[19px] w-[19px]" strokeWidth={1.6} aria-hidden="true" /> {label}
+      <button type="button" onClick={onClick} disabled={disabled} aria-busy={busy} className={cls}>
+        {busy ? <CommuneLoader size={20} label={null} /> : <Icon className="h-[19px] w-[19px]" strokeWidth={1.6} aria-hidden="true" />} {label}
       </button>
     );
   }
@@ -350,7 +380,7 @@ function EditDetails({ data, pending, error, onCancel, onSave }: { data: Data; p
           Cancel
         </button>
         <button type="submit" disabled={pending} className={`${primaryButtonClass} flex-1`}>
-          {pending ? "Saving…" : "Save"}
+          <Busy pending={pending} text="Saving…">Save</Busy>
         </button>
       </div>
     </form>
@@ -391,7 +421,7 @@ function ChangeRoom({ data, pending, error, onCancel, onSave }: { data: Data; pe
           Cancel
         </button>
         <button type="button" disabled={!target || tooMuch || pending} onClick={() => target && onSave(target.id, target.name)} className={`${primaryButtonClass} flex-1`}>
-          {pending ? "Moving…" : target ? `Move to ${target.name}` : "Pick a room type"}
+          <Busy pending={pending} text="Moving…">{target ? `Move to ${target.name}` : "Pick a room type"}</Busy>
         </button>
       </div>
     </div>
