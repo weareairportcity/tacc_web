@@ -33,6 +33,8 @@ export type Camp = {
   banner_credit: string;
   venue_photo_url: string;
   venue_photo_credit: string;
+  /** 1: T-shirts only for people who've paid in full (Settings). */
+  shirt_paid_only: number;
 };
 
 /** logo: beside the back button and in the sidebar · banner: the wide image up top · venue_photo: "Where we'll be". */
@@ -40,7 +42,7 @@ export const CAMP_PHOTOS = ["logo", "banner", "venue_photo"] as const;
 export type CampPhoto = (typeof CAMP_PHOTOS)[number];
 
 /** What a coordinator fills in; id, slug and created_at are set on save. */
-export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | `${CampPhoto}_url` | `${CampPhoto}_credit`>;
+export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | `${CampPhoto}_url` | `${CampPhoto}_credit`>;
 
 export type RoomType = {
   id: string;

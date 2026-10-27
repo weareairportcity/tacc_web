@@ -5,6 +5,7 @@ import { headlineClass, titleClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CampForm } from "../../CampForm";
 import { CampPhotos } from "./CampPhotos";
+import { ShirtRule } from "./ShirtRule";
 import { SummaryPhone } from "./SummaryPhone";
 
 function Section({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
@@ -44,6 +45,9 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
         text="JPG, PNG or WebP up to 8 MB."
       >
         <CampPhotos camp={camp} />
+      </Section>
+      <Section title="T-shirts" text="Who can collect one when their pass is scanned.">
+        <ShirtRule campId={camp.id} on={!!camp.shirt_paid_only} />
       </Section>
       <Section title="Evening text" text="A short summary at 7 pm, to you.">
         <SummaryPhone phone={phone} />

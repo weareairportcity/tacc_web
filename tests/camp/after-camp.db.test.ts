@@ -53,7 +53,7 @@ describe("scans kept on a phone with no signal", () => {
     await paidUp(camp, roomTypeId, { full_name: "Esi Chosen", fellowship: "Chosen" });
     const list = await scanRoster(camp.id, qadash);
     expect(list.map((p) => p.full_name)).toEqual(["Ama Qadash"]);
-    expect(Object.keys(list[0]).sort()).toEqual(["checked_in_at", "fellowship", "full_name", "id", "room_label", "shirt_given_at", "shirt_size", "status"]);
+    expect(Object.keys(list[0]).sort()).toEqual(["checked_in_at", "fellowship", "full_name", "id", "paid_pesewas", "price_pesewas", "room_label", "shirt_given_at", "shirt_size", "status"]);
     expect((await scanRoster(camp.id)).length).toBe(2);
   });
 });
@@ -141,5 +141,24 @@ describe("after camp", () => {
     expect(JSON.stringify(row)).not.toContain(came.id);
     expect(Object.keys(row).sort()).toEqual(["best", "camp_id", "change", "created_on", "id", "rating"]);
     expect((await arrivalCounts(camp.id)).here).toBe(2);
+  });
+});
+
+describe("T-shirts and payment", () => {
+  it("only for people who've paid in full, unless Settings turns it off", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const { register } = await import("@/lib/camp/registrations");
+    const { attendee } = await import("./helpers");
+    const { setShirtPaidOnly } = await import("@/lib/camp/camps");
+    const { id } = await register(camp, attendee(roomTypeId, { full_name: "Kojo Owing" }));
+    const paid = await paidUp(camp, roomTypeId);
+    expect(camp.shirt_paid_only).toBe(1);
+    await expect(markScan(ACTOR, camp.id, id, "shirt")).rejects.toThrow("No T-shirt yet: Kojo still has GHS 600.00 outstanding.");
+    expect((await markScan(ACTOR, camp.id, paid.id, "shirt")).already).toBe(false);
+    // Checking in isn't affected.
+    expect((await markScan(ACTOR, camp.id, id, "checkin")).already).toBe(false);
+    await setShirtPaidOnly(ACTOR, camp.id, false);
+    expect((await markScan(ACTOR, camp.id, id, "shirt")).already).toBe(false);
+    expect((await getCamp(camp.id))?.shirt_paid_only).toBe(0);
   });
 });

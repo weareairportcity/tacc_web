@@ -33,6 +33,7 @@ export default async function CheckInPage({ params, searchParams }: { params: Pr
       recent={{ checkin: recentIn, shirt: recentShirts }}
       initialMode={mode === "shirt" ? "shirt" : null}
       leader={staff.role === "leader"}
+      shirtPaidOnly={!!camp.shirt_paid_only}
     />
   );
 }

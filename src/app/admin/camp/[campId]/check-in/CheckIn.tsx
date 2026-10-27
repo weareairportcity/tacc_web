@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, Check, CircleAlert, CloudOff, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
 import { Busy } from "@/components/camp/brand";
+import { shirtRefusal } from "@/lib/camp/shirts";
 import { formatCedis } from "@/lib/camp/money";
 import { useToast } from "@/components/camp/toast";
 import { RegistrationStatus, StackedBar, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
@@ -56,8 +57,11 @@ export function CheckIn({
   recent,
   initialMode,
   leader,
+  shirtPaidOnly,
 }: {
   campId: string;
+  /** T-shirts only for people who've paid in full (the camp's setting). */
+  shirtPaidOnly: boolean;
   counts: ScanCounts;
   recent: Record<ScanMode, Arrival[]>;
   initialMode: ScanMode | null;
@@ -119,6 +123,12 @@ export function CheckIn({
       if (k.person?.status === "cancelled") {
         if (k.key) offline.drop(k.key);
         setResult({ error: `${k.person.full_name}'s registration is cancelled.` });
+        return;
+      }
+      if (k.person && m === "shirt" && shirtPaidOnly && !k.already && k.person.status !== "fully_paid") {
+        if (k.key) offline.drop(k.key);
+        setResult({ error: shirtRefusal(k.person.full_name, k.person.price_pesewas - k.person.paid_pesewas) });
+        navigator.vibrate?.([80, 60, 80]);
         return;
       }
       setResult({ kept: true, person: k.person, already: k.already, key: k.key, mode: m });

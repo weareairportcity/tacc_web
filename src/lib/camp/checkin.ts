@@ -2,6 +2,7 @@ import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import type { Scope } from "./reports";
+import { shirtRefusal } from "./shirts";
 import { CampError, type RegistrationStatus } from "./types";
 
 /**
@@ -86,6 +87,10 @@ export async function markScan(actor: string, campId: string, registrationId: st
   if (person.status === "cancelled") throw new CampError(`${person.full_name}'s registration is cancelled.`);
   const done = mode === "checkin" ? person.checked_in_at : person.shirt_given_at;
   if (done) return { person: forViewer(person, scope), already: true };
+  if (mode === "shirt" && person.status !== "fully_paid") {
+    const [camp] = await query<{ shirt_paid_only: number }>("app", "SELECT shirt_paid_only FROM camps WHERE id = ?", [campId]);
+    if (camp?.shirt_paid_only) throw new CampError(shirtRefusal(person.full_name, person.price_pesewas - person.paid_pesewas));
+  }
   const [column, by] = COLUMNS[mode];
   await batch("app", [
     {
@@ -171,12 +176,14 @@ export async function findArrivals(campId: string, term: string, scope: Scope = 
   return rows.map((p) => forViewer(p, scope));
 }
 
-/** What a scanning phone keeps, so it can check people in with no signal. No phones, health notes or roommates. */
+/** What a scanning phone keeps, so it can check people in with no signal. No phones, health notes or roommates; amounts, as leaders see. */
 export type RosterPerson = {
   id: string;
   full_name: string;
   fellowship: string;
   status: RegistrationStatus;
+  price_pesewas: number;
+  paid_pesewas: number;
   room_label: string | null;
   shirt_size: string;
   checked_in_at: string | null;
@@ -187,7 +194,7 @@ export async function scanRoster(campId: string, scope: Scope = ALL) {
   const s = scopeSql(scope);
   return query<RosterPerson>(
     "app",
-    `SELECT r.id, r.full_name, r.fellowship, r.status, x.label AS room_label, r.shirt_size, r.checked_in_at, r.shirt_given_at
+    `SELECT r.id, r.full_name, r.fellowship, r.status, r.price_pesewas, r.paid_pesewas, x.label AS room_label, r.shirt_size, r.checked_in_at, r.shirt_given_at
      FROM camp_registrations r
      LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
      LEFT JOIN camp_rooms x ON x.id = a.room_id

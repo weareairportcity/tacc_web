@@ -10,7 +10,7 @@ import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type 
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
   registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status,
-  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit`;
+  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ID = /^[0-9a-f-]{36}$/i;
@@ -163,6 +163,16 @@ export async function updateCamp(actor: string, id: string, raw: CampInput) {
       ],
     },
     auditStatement({ actor, campId: id, action: "camp.update", entity: "camp", entityId: id, before, after: input }),
+  ]);
+}
+
+/** Settings: whether T-shirts are only for people who've paid in full. */
+export async function setShirtPaidOnly(actor: string, id: string, on: boolean) {
+  const before = await getCamp(id);
+  if (!before) throw new CampError("Unknown camp.");
+  await batch("app", [
+    { sql: "UPDATE camps SET shirt_paid_only = ? WHERE id = ?", params: [on ? 1 : 0, id] },
+    auditStatement({ actor, campId: id, action: "camp.shirt_rule", entity: "camp", entityId: id, before: { shirt_paid_only: before.shirt_paid_only }, after: { shirt_paid_only: on ? 1 : 0 } }),
   ]);
 }
 

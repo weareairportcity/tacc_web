@@ -3,6 +3,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "camp.create": "created the camp",
   "camp.update": "edited the camp",
   "camp.photo": "changed a camp photo",
+  "camp.shirt_rule": "changed who can get a T-shirt",
   "registration.create": "registered",
   "registration.cancel": "cancelled a registration",
   "registration.code_reset": "asked for a new sign-in code",
