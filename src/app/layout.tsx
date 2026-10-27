@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono, Plus_Jakarta_Sans, Inter, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import { AudioPlayerProvider } from "@/context/AudioPlayerContext";
@@ -52,6 +53,7 @@ export default function RootLayout({
           {children}
           <GlobalAudioPlayer />
         </AudioPlayerProvider>
+        <Analytics />
       </body>
     </html>
   );
