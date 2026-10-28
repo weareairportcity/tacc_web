@@ -269,7 +269,7 @@ export function PeopleView({
             }}
           />
           <a
-            href={`/admin/camp/${campId}/${leader ? "people" : "registrations"}/export?${toQuery(filters)}`}
+            href={leader ? `/leaders/${campId}/people/export?${toQuery(filters)}` : `/admin/camp/${campId}/registrations/export?${toQuery(filters)}`}
             className="cm-press hidden h-10 items-center gap-2 rounded-full border border-stone-border bg-white px-4 text-sm font-medium sm:inline-flex"
           >
             <Download className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Download

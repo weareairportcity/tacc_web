@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Busy } from "@/components/camp/brand";
 import { leaderSignInAction } from "../session";
 
-export function LeaderSignIn() {
+export function LeaderSignIn({ next }: { next: string }) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +23,7 @@ export function LeaderSignIn() {
           setPending(false);
           return setError(r.error);
         }
-        router.replace("/admin/camp");
+        router.replace(next);
         router.refresh();
       }}
     >

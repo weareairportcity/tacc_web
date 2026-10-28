@@ -418,7 +418,7 @@ export async function payForPeopleAction(campId: string, registrationIds: string
       paidBy: staff.email,
       payerEmail: email,
       note: String(note ?? ""),
-      callbackUrl: `${await campOrigin()}/admin/camp/${camp.id}/money/paid`,
+      callbackUrl: `${await campOrigin()}${leader ? "/leaders" : "/admin/camp"}/${camp.id}/money/paid`,
     });
     await batch("app", [
       auditStatement({ actor: staff.email, campId: camp.id, action: "payment.bulk_start", entity: "bulk_payment", entityId: checkout.reference, after: { people: ids.length, amount: checkout.amount_pesewas } }),

@@ -75,7 +75,8 @@ export async function signInLeader(code: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/admin/camp",
+    // "/": sent on commune…/leaders, and on old coordinator links so the proxy can send a leader across.
+    path: "/",
     maxAge: MAX_AGE_SECONDS,
   });
   const actor = leaderActor(row.scope_kind, row.scope_value);
@@ -87,7 +88,8 @@ export async function signOutLeader() {
   const jar = await cookies();
   const leader = await currentLeader();
   if (leader) await batch("app", [auditStatement({ actor: leader.email, campId: null, action: "leader.sign_out", entity: "leader_code", entityId: leader.codeId })]);
-  jar.delete({ name: COOKIE, path: "/admin/camp" });
+  // One delete per name per response; an older copy kept at /admin/camp is cleared by the proxy.
+  jar.delete({ name: COOKIE, path: "/" });
 }
 
 /**

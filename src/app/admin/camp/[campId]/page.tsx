@@ -39,7 +39,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
-  if (staff.role === "leader") redirect(`/admin/camp/${campId}/people`);
+  if (staff.role === "leader") redirect(`/leaders/${campId}/people`);
 
   const [camp, d, t, requests] = await Promise.all([
     getCamp(campId),

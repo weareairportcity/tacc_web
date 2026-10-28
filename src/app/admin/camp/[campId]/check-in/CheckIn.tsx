@@ -20,12 +20,32 @@ type Result =
   | { error: string };
 type Found = Pick<Arrival, "id" | "full_name" | "fellowship" | "room_label" | "shirt_size" | "checked_in_at" | "shirt_given_at">;
 
-// BarcodeDetector is in Chrome on Android; elsewhere the phone's camera app opens the pass link instead.
+// Reading a QR from the camera, in the page, on every phone: the browser's own
+// BarcodeDetector where there is one (Chrome on Android), jsQR otherwise (iPhone,
+// Samsung Internet, Firefox), loaded only when the camera opens.
 type Detector = { detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]> };
 const getDetector = (): Detector | null => {
   const D = (globalThis as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector;
   return D ? new D({ formats: ["qr_code"] }) : null;
 };
+
+async function qrReader(): Promise<(video: HTMLVideoElement) => Promise<string | null>> {
+  const native = getDetector();
+  if (native) return async (video) => (await native.detect(video).catch(() => []))[0]?.rawValue ?? null;
+  const { default: jsQR } = await import("jsqr");
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  return async (video) => {
+    if (!video.videoWidth) return null;
+    // A smaller copy of the frame reads just as well, and fast enough for every frame.
+    const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return jsQR(frame.data, frame.width, frame.height, { inversionAttempts: "dontInvert" })?.data ?? null;
+  };
+}
 
 /** The token in a pass link (…/check-in?t=TOKEN), or the raw text. */
 const tokenOf = (text: string) => {
@@ -83,7 +103,7 @@ export function CheckIn({
   const [scanning, setScanning] = useState(false);
   const canScan = useSyncExternalStore(
     () => () => {},
-    () => !!getDetector() && !!navigator.mediaDevices?.getUserMedia,
+    () => !!navigator.mediaDevices?.getUserMedia,
     () => false,
   );
   const [term, setTerm] = useState("");
@@ -183,22 +203,24 @@ export function CheckIn({
 
   useEffect(() => {
     if (!scanning) return;
-    const detector = getDetector();
     let stream: MediaStream | null = null;
     let frame = 0;
+    let stopped = false;
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (!video.current) return;
+        const [media, read] = await Promise.all([navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }), qrReader()]);
+        stream = media;
+        if (stopped || !video.current) return media.getTracks().forEach((t) => t.stop());
         video.current.srcObject = stream;
         await video.current.play();
         const tick = async () => {
-          if (video.current && detector && !busy.current) {
-            const codes = await detector.detect(video.current).catch(() => []);
-            if (codes[0]) {
+          if (stopped) return;
+          if (video.current && !busy.current) {
+            const text = await read(video.current).catch(() => null);
+            if (text) {
               busy.current = true;
               setScanning(false);
-              scan(tokenOf(codes[0].rawValue), mode);
+              scan(tokenOf(text), mode);
               return;
             }
           }
@@ -211,6 +233,7 @@ export function CheckIn({
       }
     })();
     return () => {
+      stopped = true;
       cancelAnimationFrame(frame);
       stream?.getTracks().forEach((t) => t.stop());
       busy.current = false;

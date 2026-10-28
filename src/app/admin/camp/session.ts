@@ -5,16 +5,17 @@ import { createClient } from "@/utils/supabase/server";
 import { signInLeader, signOutLeader } from "@/lib/camp/leaders";
 import { allow, clientIp } from "@/lib/camp/rate-limit";
 
-/** Signs out of Commune: a coordinator's Supabase session and a leader's code session alike. */
+/** Signs a coordinator out. A leader code on the same device stays signed in on the leaders' side. */
 export async function signOutAction() {
   const supabase = await createClient();
-  await Promise.all([supabase.auth.signOut(), signOutLeader()]);
+  await supabase.auth.signOut();
   redirect("/admin/camp/sign-in");
 }
 
-/** After a coordinator signs in with their email: a leader code used earlier on this device stops counting. */
-export async function endLeaderSessionAction() {
+/** Signs a leader out. A coordinator on the same device stays signed in on the coordinators' side. */
+export async function leaderSignOutAction() {
   await signOutLeader();
+  redirect("/leaders");
 }
 
 /** A leader's sign-in code. Rate-limited per address: the code is the only credential. */

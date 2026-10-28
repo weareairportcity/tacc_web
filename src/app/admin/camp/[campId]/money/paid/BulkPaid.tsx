@@ -116,7 +116,7 @@ export function BulkPaid({ campId, reference, leader }: { campId: string; refere
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Link href={`/admin/camp/${campId}/people`} className={`${primaryButtonClass} h-12`}>
+        <Link href={`${leader ? "/leaders" : "/admin/camp"}/${campId}/people`} className={`${primaryButtonClass} h-12`}>
           Back to People
         </Link>
         {!leader && (

@@ -8,8 +8,10 @@ import { NextResponse, type NextRequest } from "next/server";
  * lives on its own host while staying one deployment.
  *
  * commune.theairportcitychurch.com is Commune, the camp app: its home is the
- * camps list, commune…/<camp-slug> is a short link to a camp, and /admin
- * opens the coordinator side. www…/camps and www…/admin/camp move there for
+ * camps list, commune…/<camp-slug> is a short link to a camp, /admin opens
+ * the coordinators' side and /leaders the leaders' side. The two sides are
+ * kept apart: each request is marked with its side (AREA) and only that
+ * side's sign-in counts on it, so one phone can be signed in to both. www…/camps and www…/admin/camp move there for
  * good (set COMMUNE_REDIRECT=0 to pause that, e.g. if the domain ever breaks).
  *
  * The Supabase session work is deliberately scoped to /admin only. It costs a
@@ -26,6 +28,29 @@ const SOULWINNING_HOSTS = new Set([
 
 const COMMUNE_HOSTS = new Set(["commune.theairportcitychurch.com", "commune.localhost"]);
 const COMMUNE_ORIGIN = "https://commune.theairportcitychurch.com";
+
+/** Which side of Commune a request is for. Always set here, so a visitor can't choose it. Read by currentStaff. */
+const AREA = "x-commune-area";
+const LEADER_COOKIE = "camp_leader";
+const isLeaders = (pathname: string) => pathname === "/leaders" || pathname.startsWith("/leaders/");
+
+/**
+ * The leaders' side: commune…/leaders/<camp>/… shows the same pages as
+ * /admin/camp/<camp>/…, marked as the leaders' side so only a leader code
+ * counts there. commune…/leaders itself is their sign-in.
+ */
+function leaderArea(request: NextRequest, pathname: string) {
+  const headers = new Headers(request.headers);
+  headers.set(AREA, "leader");
+  const url = request.nextUrl.clone();
+  if (pathname !== "/leaders" && !request.cookies.has(LEADER_COOKIE)) {
+    url.pathname = "/leaders";
+    url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
+    return NextResponse.redirect(url);
+  }
+  url.pathname = pathname === "/leaders" ? "/admin/camp/leaders" : `/admin/camp${pathname.slice("/leaders".length)}`;
+  return NextResponse.rewrite(url, { request: { headers } });
+}
 
 export async function proxy(request: NextRequest) {
   const hostname = (request.headers.get("host") ?? "").split(":")[0];
@@ -50,10 +75,9 @@ export async function proxy(request: NextRequest) {
   // ── Commune, the camp app ────────────────────────────────────────────
   if (COMMUNE_HOSTS.has(hostname)) {
     if (pathname === "/admin") return NextResponse.redirect(new URL("/admin/camp", request.url));
-    // Leaders have their own short address: commune…/leaders.
-    if (pathname === "/leaders") return NextResponse.redirect(new URL("/admin/camp/leaders", request.url));
     const passThrough =
       pathname.startsWith("/camps") ||
+      isLeaders(pathname) ||
       pathname.startsWith("/admin") ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/api") ||
@@ -65,10 +89,12 @@ export async function proxy(request: NextRequest) {
     }
   } else if (
     process.env.COMMUNE_REDIRECT !== "0" &&
-    (pathname === "/camps" || pathname.startsWith("/camps/") || pathname === "/admin/camp" || pathname.startsWith("/admin/camp/"))
+    (pathname === "/camps" || pathname.startsWith("/camps/") || pathname === "/admin/camp" || pathname.startsWith("/admin/camp/") || isLeaders(pathname))
   ) {
     return NextResponse.redirect(`${COMMUNE_ORIGIN}${pathname}${request.nextUrl.search}`, 308);
   }
+
+  if (isLeaders(pathname)) return leaderArea(request, pathname);
 
   // ── Admin session refresh ────────────────────────────────────────────
   // Supabase Auth for /admin (bookings + songs). Soul winning (/gic/admin)
@@ -78,7 +104,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  // Everything under /admin is the coordinators' side (see AREA).
+  const next = () => {
+    const headers = new Headers(request.headers);
+    headers.set(AREA, "coordinator");
+    return NextResponse.next({ request: { headers } });
+  };
+  let supabaseResponse = next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -90,12 +122,12 @@ export async function proxy(request: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options });
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = next();
           supabaseResponse.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: "", ...options });
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = next();
           supabaseResponse.cookies.set({ name, value: "", ...options });
         },
       },
@@ -110,11 +142,19 @@ export async function proxy(request: NextRequest) {
   // coordinator app has its own sign-in page, and its app manifest and
   // service worker must load without one.
   const isCommune = pathname === "/admin/camp" || pathname.startsWith("/admin/camp/");
-  const isLogin = pathname.startsWith("/admin/login") || pathname === "/admin/camp/sign-in" || pathname === "/admin/camp/leaders";
+  // The leaders' sign-in used to live here.
+  if (pathname === "/admin/camp/leaders") return NextResponse.redirect(new URL(`/leaders${request.nextUrl.search}`, request.url));
+  const isLogin = pathname.startsWith("/admin/login") || pathname === "/admin/camp/sign-in";
   const isPublicFile = pathname === "/admin/camp/manifest.webmanifest" || pathname === "/admin/camp/sw.js";
-  // A leader signed in with a code has no Supabase user; their pages check the code session.
-  const leader = isCommune && request.cookies.has("camp_leader");
-  if (!user && !leader && !isLogin && !isPublicFile) {
+  // A leader with no coordinator sign-in opening a coordinator link (a pass scanned by the camera
+  // app, an old bookmark) goes to the same page on the leaders' side.
+  if (!user && /^\/admin\/camp\/[0-9a-f-]{36}(\/|$)/.test(pathname) && request.cookies.has(LEADER_COOKIE)) {
+    const response = NextResponse.redirect(new URL(`/leaders${pathname.slice("/admin/camp".length)}${request.nextUrl.search}`, request.url));
+    // Leader sessions from before /leaders were kept at this path; the current one is at "/".
+    response.cookies.set({ name: LEADER_COOKIE, value: "", path: "/admin/camp", maxAge: 0 });
+    return response;
+  }
+  if (!user && !isLogin && !isPublicFile) {
     const url = request.nextUrl.clone();
     url.pathname = isCommune ? "/admin/camp/sign-in" : "/admin/login";
     url.search = isCommune && pathname !== "/admin/camp" ? `?next=${encodeURIComponent(pathname + request.nextUrl.search)}` : "";
@@ -144,5 +184,7 @@ export const config = {
     },
     "/camps/:path*",
     "/admin/:path*",
+    "/leaders",
+    "/leaders/:path*",
   ],
 };

@@ -29,11 +29,11 @@ export default async function CampAdminHome() {
   const camps = (await listCamps()).filter((c) => !leader || c.status !== "draft");
   // A leader with one camp running goes straight to their people.
   const running = camps.filter((c) => c.status === "open" || c.status === "closed");
-  if (leader && running.length === 1) redirect(`/admin/camp/${running[0].id}/people`);
+  if (leader && running.length === 1) redirect(`/leaders/${running[0].id}/people`);
 
   return (
     <>
-      <AdminTopBar email={leaderName(staff.email) ?? staff.email} />
+      <AdminTopBar email={leaderName(staff.email) ?? staff.email} leader={leader} />
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 pb-16 pt-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-2">
@@ -62,7 +62,7 @@ export default async function CampAdminHome() {
               return (
                 <li key={camp.id} className="cm-rise" style={{ animationDelay: `${i * 50}ms` }}>
                   <Link
-                    href={leader ? `/admin/camp/${camp.id}/people` : `/admin/camp/${camp.id}`}
+                    href={leader ? `/leaders/${camp.id}/people` : `/admin/camp/${camp.id}`}
                     className="cm-press flex h-full flex-col overflow-hidden rounded-2xl border border-stone-border bg-white shadow-seline-card"
                   >
                     <CampBanner camp={camp} className="h-28" settle={false} />

@@ -7,7 +7,6 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
-import { endLeaderSessionAction } from "../session";
 
 export function SignInForm({ next }: { next: string }) {
   const router = useRouter();
@@ -26,7 +25,6 @@ export function SignInForm({ next }: { next: string }) {
       setPending(false);
       return setError(failed.message === "Invalid login credentials" ? "That email and password don't match." : failed.message);
     }
-    await endLeaderSessionAction();
     router.replace(next);
     router.refresh();
   };
@@ -75,7 +73,7 @@ export function SignInForm({ next }: { next: string }) {
       </p>
       <p className="-mt-2 pl-[22px] text-[13px] text-warm-gray">
         Fellowship or PFCC leader?{" "}
-        <Link href="/admin/camp/leaders" className="text-ink-black underline decoration-stone-muted underline-offset-[3px]">
+        <Link href="/leaders" className="text-ink-black underline decoration-stone-muted underline-offset-[3px]">
           Use your code
         </Link>
       </p>
