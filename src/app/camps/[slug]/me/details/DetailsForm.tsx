@@ -4,14 +4,16 @@ import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, HeartPulse, Lock, Trash2 } from "lucide-react";
-import { SHIRT_SIZES, type ProfileInput } from "@/lib/camp/types";
+import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { deleteMyDetailsAction, updateMyDetailsAction } from "../../actions";
+import { changeMyGenderAction, deleteMyDetailsAction, updateMyDetailsAction } from "../../actions";
 
 const fieldset = "m-0 flex flex-col gap-4 rounded-[10px] border border-stone-border bg-white p-5 shadow-seline-card";
 
-export function DetailsForm({ slug, phone, initial, cancelled }: { slug: string; phone: string; initial: ProfileInput; cancelled: boolean }) {
+type GenderState = { now: Gender; inGroup: boolean; room: string | null; canChange: boolean };
+
+export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug: string; phone: string; initial: ProfileInput; cancelled: boolean; gender: GenderState }) {
   const router = useRouter();
   const [v, setV] = useState(initial);
   const [error, setError] = useState("");
@@ -96,6 +98,8 @@ export function DetailsForm({ slug, phone, initial, cancelled }: { slug: string;
         )}
       </form>
 
+      {!cancelled && <GenderSection slug={slug} gender={gender} />}
+
       <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
         <h2 className="text-[15px] font-semibold">Delete my details</h2>
         <p className="text-sm text-warm-gray">{cancelled ? "Removes your details from Commune." : "Cancels your registration and removes your details."}</p>
@@ -132,5 +136,74 @@ export function DetailsForm({ slug, phone, initial, cancelled }: { slug: string;
         )}
       </section>
     </>
+  );
+}
+
+/** Gender, with what changing it means for their room and group. Saved on its own, after a confirm. */
+function GenderSection({ slug, gender }: { slug: string; gender: GenderState }) {
+  const router = useRouter();
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [pending, start] = useTransition();
+  const to: Gender = gender.now === "male" ? "female" : "male";
+  const leaves = [gender.inGroup && "your roommate group", gender.room && `room ${gender.room}`].filter(Boolean);
+
+  return (
+    <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
+      <h2 className="text-[15px] font-semibold">Gender</h2>
+      <p className="text-sm text-warm-gray">
+        You&apos;re down as <span className="font-medium text-soot">{gender.now}</span>.
+        {gender.canChange ? " Rooms are for men or women, so this decides your room." : " Rooms are being finalised. To change this, ask a coordinator."}
+      </p>
+      {done && (
+        <p role="status" className="cm-rise flex items-center gap-2 text-sm">
+          <Check className="h-4 w-4 text-st-paid" strokeWidth={2.4} aria-hidden="true" /> Changed. A coordinator will give you a room.
+        </p>
+      )}
+      {gender.canChange &&
+        (confirm ? (
+          <div role="alertdialog" aria-label="Confirm" className="cm-pop flex flex-col gap-3 rounded-[12px] border-2 border-soot p-4">
+            <p className="text-[15px] font-semibold">Change to {to}?</p>
+            <p className="text-sm">
+              {leaves.length ? `You'll leave ${leaves.join(" and ")}. ` : ""}A coordinator will give you a {to === "male" ? "men's" : "women's"} room.
+            </p>
+            <ErrorText>{error}</ErrorText>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setConfirm(false)} className="cm-press h-11 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
+                Keep {gender.now}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    setError("");
+                    const r = await changeMyGenderAction(slug, to);
+                    if (!r.ok) return setError(r.error);
+                    setConfirm(false);
+                    setDone(true);
+                    router.refresh();
+                  })
+                }
+                className="cm-press h-11 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white"
+              >
+                <Busy pending={pending} text="Changing…">{`Yes, change to ${to}`}</Busy>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setDone(false);
+              setConfirm(true);
+            }}
+            className="cm-press inline-flex h-10 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-4 text-sm font-medium"
+          >
+            Change to {to}
+          </button>
+        ))}
+    </section>
   );
 }

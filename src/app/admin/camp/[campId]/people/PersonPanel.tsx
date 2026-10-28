@@ -4,15 +4,18 @@ import { leaveTo } from "@/components/camp/leave";
 import { useEffect, useState, useTransition } from "react";
 import { Check, CreditCard, Link2, Lock, Phone, RotateCcw, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
-import { SHIRT_SIZES, type ProfileInput } from "@/lib/camp/types";
+import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
+import type { GenderRoom } from "@/lib/camp/gender";
 import { CommuneLoader, Busy } from "@/components/camp/brand";
 import { InlineConfirm, Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, RegistrationStatus, StackedBar, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import {
   cancelRegistrationAction,
+  changeGenderAction,
   changeRoomTypeAction,
   checkInAction,
+  genderRoomsAction,
   getPersonAction,
   openPaymentsForAction,
   payForPeopleAction,
@@ -25,7 +28,7 @@ import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 
 type Data = Extract<Awaited<ReturnType<typeof getPersonAction>>, { ok: true }>["data"];
-type Mode = "view" | "edit" | "room" | "refund" | "cancel";
+type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel";
 
 const PAYMENT_WORDS = { pending: "Processing", success: "", failed: "Not completed" } as const;
 const ghanaPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
@@ -98,6 +101,17 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
           error={error}
           onCancel={() => setMode("view")}
           onSave={(roomTypeId, name) => act(() => changeRoomTypeAction(data.person.id, roomTypeId), (w: string | null) => w ?? `Moved to ${name}`)}
+        />
+      ) : mode === "gender" ? (
+        <ChangeGender
+          campId={campId}
+          data={data}
+          pending={pending}
+          error={error}
+          onCancel={() => setMode("view")}
+          onSave={(gender, roomId) =>
+            act(() => changeGenderAction(campId, data.person.id, gender, roomId), (w: string | null) => w ?? `${data.person.full_name} is now down as ${gender}`)
+          }
         />
       ) : mode === "refund" ? (
         <Refund
@@ -196,7 +210,19 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
           <Section title="Details" action={<EditLink onClick={() => setMode("edit")} label="Edit" />}>
             <Row term="Phone" value={ghanaPhone(data.person.phone)} />
             <Row term="Email" value={data.person.email || "—"} />
-            <Row term="Gender" value={data.person.gender === "male" ? "Male" : "Female"} />
+            <Row
+              term="Gender"
+              value={
+                <span className="inline-flex items-center gap-2">
+                  {data.person.gender === "male" ? "Male" : "Female"}
+                  {data.person.status !== "cancelled" && (
+                    <button type="button" onClick={() => setMode("gender")} className="underline underline-offset-[3px]">
+                      Change
+                    </button>
+                  )}
+                </span>
+              }
+            />
             <Row term="Fellowship" value={`${data.person.fellowship} · ${data.person.pfcc}`} />
             <Row term="T-shirt" value={data.person.shirt_size || "—"} />
           </Section>
@@ -425,6 +451,85 @@ function ChangeRoom({ data, pending, error, onCancel, onSave }: { data: Data; pe
         </button>
       </div>
     </div>
+  );
+}
+
+function ChangeGender({
+  campId,
+  data,
+  pending,
+  error,
+  onCancel,
+  onSave,
+}: {
+  campId: string;
+  data: Data;
+  pending: boolean;
+  error: string;
+  onCancel: () => void;
+  onSave: (gender: Gender, roomId: string | null) => void;
+}) {
+  const to: Gender = data.person.gender === "male" ? "female" : "male";
+  const word = to === "male" ? "men's" : "women's";
+  const canPlace = data.person.status === "fully_paid";
+  const [rooms, setRooms] = useState<GenderRoom[] | null>(null);
+  const [roomId, setRoomId] = useState("");
+  useEffect(() => {
+    if (!canPlace) return;
+    genderRoomsAction(campId, data.person.id).then((r) => setRooms(r.ok ? r.data : []));
+  }, [campId, data.person.id, canPlace]);
+  const leaves = [data.group && `their ${to === "male" ? "women's" : "men's"} roommate group`, data.room && `room ${data.room.label}`].filter(Boolean);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[15px]">
+        {data.person.full_name} is down as {data.person.gender}. Change to <span className="font-semibold">{to}</span>?
+      </p>
+      <p className="rounded-[12px] bg-stone-canvas px-4 py-3 text-sm">
+        Rooms and roommate groups are for men or women only.{" "}
+        {leaves.length ? `They leave ${leaves.join(" and ")}.` : "They're not in a group or room yet."} This takes one of {data.person.room_type_name}&apos;s places for{" "}
+        {to === "male" ? "men" : "women"}.
+      </p>
+      {canPlace && (
+        <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+          <legend className="mb-2 text-sm font-medium">
+            Put them in a {word} {data.person.room_type_name} room
+          </legend>
+          {rooms === null ? (
+            <div className="flex justify-center py-4">
+              <CommuneLoader size={32} />
+            </div>
+          ) : (
+            <>
+              <RoomChoice id="" label="Not now" note="Place them from Rooms later" checked={roomId === ""} onPick={setRoomId} />
+              {rooms.map((r) => (
+                <RoomChoice key={r.id} id={r.id} label={r.label} note={`${r.free} ${r.free === 1 ? "bed" : "beds"} free`} checked={roomId === r.id} onPick={setRoomId} />
+              ))}
+              {!rooms.length && <p className="text-sm text-warm-gray">No {word} {data.person.room_type_name} room has a free bed.</p>}
+            </>
+          )}
+        </fieldset>
+      )}
+      <ErrorText>{error}</ErrorText>
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
+          Cancel
+        </button>
+        <button type="button" disabled={pending} onClick={() => onSave(to, roomId || null)} className={`${primaryButtonClass} flex-1`}>
+          <Busy pending={pending} text="Changing…">{`Change to ${to}`}</Busy>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RoomChoice({ id, label, note, checked, onPick }: { id: string; label: string; note: string; checked: boolean; onPick: (id: string) => void }) {
+  return (
+    <label className="cm-press flex min-h-[52px] cursor-pointer items-center gap-3 rounded-[10px] border border-stone-border px-4 has-[:checked]:border-2 has-[:checked]:border-soot has-[:checked]:bg-stone-canvas">
+      <input type="radio" name="gender-room" value={id} checked={checked} onChange={() => onPick(id)} className="h-[18px] w-[18px] accent-soot" />
+      <span className="flex-1 text-[15px] font-medium">{label}</span>
+      <span className="text-sm text-warm-gray">{note}</span>
+    </label>
   );
 }
 

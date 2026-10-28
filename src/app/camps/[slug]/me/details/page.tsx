@@ -1,6 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { getCampBySlug } from "@/lib/camp/camps";
+import { getMyRoom } from "@/lib/camp/assignments";
+import { getGroupFor } from "@/lib/camp/groups";
 import { getPrivateDetails } from "@/lib/camp/profile";
+import { todayInGhana } from "@/lib/camp/registrations";
 import { currentAttendee } from "@/lib/camp/session";
 import { CampBackLink } from "@/components/camp/photos";
 import { headlineClass } from "@/components/camp/ui";
@@ -12,7 +15,7 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
   if (!camp) notFound();
   const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
-  const details = await getPrivateDetails(me.id);
+  const [details, group, room] = await Promise.all([getPrivateDetails(me.id), getGroupFor(me.id), getMyRoom(me.id)]);
   return (
     <div className="flex flex-col gap-6">
       <CampBackLink href={`/camps/${camp.slug}/me`} camp={camp} label="Your registration" />
@@ -31,6 +34,13 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
           health_notes: details.health_notes,
         }}
         cancelled={me.status === "cancelled"}
+        gender={{
+          now: me.gender,
+          inGroup: !!group,
+          room: room?.label ?? null,
+          // After the roommate deadline rooms are being finalised, so a coordinator changes it.
+          canChange: me.status !== "cancelled" && todayInGhana() <= camp.roommate_deadline_on,
+        }}
       />
     </div>
   );

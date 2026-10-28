@@ -9,6 +9,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "registration.code_reset": "asked for a new sign-in code",
   "registration.refund": "refunded",
   "registration.room_type_change": "changed room type",
+  "registration.gender_change": "changed gender",
   "registration.profile": "updated details",
   "registration.any_room": "chose any room",
   "registration.choose_room": "chose to pick roommates",

@@ -21,11 +21,12 @@ import {
 } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
 import { cancelMine, deleteMyDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
+import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
 import { makeToken, readToken } from "@/lib/camp/tokens";
 import { campOrigin as origin } from "@/lib/camp/origin";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
-import { CampError, type PaymentStatus, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
+import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 
 /**
@@ -243,6 +244,14 @@ function mine<T>(slug: string, fn: (me: Registration, camp: Awaited<ReturnType<t
 
 export async function updateMyDetailsAction(slug: string, input: ProfileInput) {
   return mine(slug, (me) => updateProfile(`attendee:${me.id}`, me.id, input).then(() => null));
+}
+
+/** Changes the attendee's own gender, until the roommate deadline. They leave a group and room of the old one. */
+export async function changeMyGenderAction(slug: string, gender: Gender) {
+  return mine(slug, async (me) => {
+    const r = await changeGender(`attendee:${me.id}`, me.id, gender, { attendee: true });
+    return { group: r.group, room: r.oldRoom };
+  });
 }
 
 export async function setAnyRoomAction(slug: string, anyRoom: boolean) {

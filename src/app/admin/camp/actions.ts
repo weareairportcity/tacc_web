@@ -22,6 +22,7 @@ import {
   updateRoomType,
 } from "@/lib/camp/rooms";
 import { changeRoomType, recordRefund } from "@/lib/camp/adjustments";
+import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { listRefunds } from "@/lib/camp/adjustments";
@@ -228,6 +229,24 @@ export async function changeRoomTypeAction(registrationId: string, roomTypeId: s
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     return (await changeRoomType(staff.email, String(registrationId), String(roomTypeId))).warning;
+  });
+}
+
+/** Rooms of the other gender a person could move into as their gender changes. */
+export async function genderRoomsAction(campId: string, registrationId: string) {
+  return look(async () => {
+    await requireCampRole("coordinator");
+    const person = await personIn(campId, registrationId);
+    return roomsFor(person, person.gender === "male" ? "female" : "male");
+  });
+}
+
+/** Changes someone's gender; they leave their group and room, and go into `roomId` if given. */
+export async function changeGenderAction(campId: string, registrationId: string, gender: Gender, roomId: string | null) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    const person = await personIn(campId, registrationId);
+    return (await changeGender(staff.email, person.id, gender, { roomId: roomId ? String(roomId) : null })).warning;
   });
 }
 
