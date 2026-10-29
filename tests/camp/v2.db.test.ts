@@ -102,7 +102,10 @@ describe("People filters", () => {
 
     // Latest first: by last payment, else when they registered (these test payments carry no paid_at).
     expect((await listPeople(camp.id, filters)).map((p) => p.full_name)).toEqual(["Cy Third", "Abe Second", "Zed First"]);
-    await query("app", "UPDATE camp_payments SET paid_at = ? WHERE registration_id = ?", [new Date(Date.now() + 60_000).toISOString(), a.id]);
+    const later = new Date(Date.now() + 60_000).toISOString();
+    await query("app", "UPDATE camp_payments SET paid_at = ? WHERE registration_id = ?", [later, a.id]);
+    // The registration keeps its own copy of the latest payment (migration 0018); payments refresh it.
+    await query("app", "UPDATE camp_registrations SET last_paid_at = ? WHERE id = ?", [later, a.id]);
     expect((await listPeople(camp.id, filters))[0].full_name).toBe("Zed First");
     expect((await listPeople(camp.id, { ...filters, sort: "name" })).map((p) => p.full_name)).toEqual(["Abe Second", "Cy Third", "Zed First"]);
     expect((await listPeople(camp.id, { ...filters, sort: "outstanding" }))[0].full_name).toBe("Cy Third");

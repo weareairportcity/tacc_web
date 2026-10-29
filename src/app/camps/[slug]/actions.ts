@@ -6,7 +6,7 @@ import { formatCode, hashCode } from "@/lib/camp/codes";
 import { submitFeedback, type FeedbackInput } from "@/lib/camp/feedback";
 import { cedisToPesewas } from "@/lib/camp/money";
 import { cancelPayment, checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
-import { allow, clientIp } from "@/lib/camp/rate-limit";
+import { allow, allowVisitor } from "@/lib/camp/rate-limit";
 import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
 import { cancelMine, deleteMyDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
@@ -19,6 +19,7 @@ import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Reg
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { firstName, SIGN_OFF } from "@/lib/camp/sms";
 import { forgetJoin, rememberJoin } from "@/lib/camp/join-memory";
+import { isHuman } from "@/lib/camp/turnstile";
 
 /**
  * Attendee actions. Server actions are reachable by direct POST, so each one
@@ -46,8 +47,15 @@ async function campFor(slug: string) {
   return camp;
 }
 
+const TOO_MANY = "Too many attempts. Please wait a few minutes and try again.";
+
 async function limit(key: string, max: number, windowMs: number) {
-  if (!(await allow(key, max, windowMs))) throw new CampError("Too many attempts. Please wait a few minutes and try again.");
+  if (!(await allow(key, max, windowMs))) throw new CampError(TOO_MANY);
+}
+
+/** Per phone, with a ceiling per network address high enough for a whole church on one wifi. */
+async function limitVisitor(name: string, perPhone: number, perAddress: number, windowMs: number) {
+  if (!(await allowVisitor(name, perPhone, perAddress, windowMs))) throw new CampError(TOO_MANY);
 }
 
 
@@ -58,10 +66,14 @@ const newCodeText = (campName: string, name: string, code: string) =>
   `Hi ${firstName(name)}, here's your new sign-in code for ${campName}: ${formatCode(code)}. Your old code no longer works. ${SIGN_OFF}`;
 
 /** `registered`: that phone is already registered, so the page sends them to sign in instead. */
-export async function registerAction(slug: string, input: RegistrationInput) {
+const NOT_SURE = "We couldn't check this was you and not a computer. Wait a moment and try again.";
+
+/** `human`: the Turnstile pass from the page (checked only once Turnstile is set up). */
+export async function registerAction(slug: string, input: RegistrationInput, human?: string) {
   return run<{ code: string } | { registered: true }>(async () => {
+    if (!(await isHuman(human))) throw new CampError(NOT_SURE);
     const camp = await campFor(slug);
-    await limit(`register:${await clientIp()}`, 10, 60 * MINUTE);
+    await limitVisitor("register", 10, 500, 60 * MINUTE);
     let created;
     try {
       created = await register(camp, input);
@@ -80,7 +92,7 @@ export async function registerAction(slug: string, input: RegistrationInput) {
 export async function signInAction(slug: string, code: string) {
   return run(async () => {
     const camp = await campFor(slug);
-    await limit(`signin:${await clientIp()}`, 10, 15 * MINUTE);
+    await limitVisitor("signin", 10, 300, 15 * MINUTE);
     const found = await findByCode(camp.id, code);
     if (!found) throw new CampError("That code doesn't match a registration for this camp.");
     await startAttendeeSession(found.id, found.codeHash);
@@ -89,10 +101,11 @@ export async function signInAction(slug: string, code: string) {
 }
 
 /** Always answers the same way, so it can't be used to find out who registered. */
-export async function forgotCodeAction(slug: string, phone: string) {
+export async function forgotCodeAction(slug: string, phone: string, human?: string) {
   return run(async () => {
+    if (!(await isHuman(human))) throw new CampError(NOT_SURE);
     const camp = await campFor(slug);
-    await limit(`forgot:${await clientIp()}`, 5, 60 * MINUTE);
+    await limitVisitor("forgot", 5, 100, 60 * MINUTE);
     await limit(`forgot-phone:${camp.id}:${String(phone).replace(/\D/g, "").slice(-9)}`, 3, 24 * 60 * MINUTE);
     const reset = await resetCode(camp.id, phone);
     if (reset) await sendSMS(reset.phone, newCodeText(camp.name, reset.name, reset.code), COMMUNE_SENDER);
@@ -186,7 +199,7 @@ export async function createGroupAction(slug: string) {
 
 export async function joinGroupAction(slug: string, code: string) {
   return groupAction(slug, async (me) => {
-    await limit(`group-join-ip:${await clientIp()}`, 20, 15 * MINUTE);
+    await limitVisitor("group-join", 20, 300, 15 * MINUTE);
     await joinByCode(me, String(code));
     await forgetJoin(slug);
     return null;
@@ -292,7 +305,7 @@ export async function myPayLinkAction(slug: string) {
 export async function payViaLinkAction(slug: string, token: string, amountCedis: string, payerName: string, payerEmail: string) {
   return run(async () => {
     const camp = await campFor(slug);
-    await limit(`paylink:${await clientIp()}`, 20, 60 * MINUTE);
+    await limitVisitor("paylink", 20, 300, 60 * MINUTE);
     const id = readToken("pay", String(token));
     const reg = id ? await getRegistration(id) : null;
     if (!reg || reg.camp_id !== camp.id) throw new CampError("This pay link isn't valid.");
@@ -327,7 +340,7 @@ export async function checkLinkPaymentAction(slug: string, token: string, refere
 export async function submitFeedbackAction(slug: string, token: string, input: FeedbackInput) {
   return run(async () => {
     const camp = await campFor(slug);
-    await limit(`feedback:${await clientIp()}`, 30, 60 * MINUTE);
+    await limitVisitor("feedback", 30, 500, 60 * MINUTE);
     await submitFeedback(camp, String(token), {
       rating: Number(input?.rating),
       best: String(input?.best ?? ""),

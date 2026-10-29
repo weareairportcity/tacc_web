@@ -33,6 +33,72 @@ const bind = (db: D1Database, s: Statement) => {
   return db.prepare(s.sql).bind(...params);
 };
 
+type Many = Statement & { db?: string; cache?: number };
+type ManyResult = { results: unknown[]; meta: unknown } | { error: string };
+
+// Shared answers for counts that may be a few seconds old (Today, the nav, check-in totals):
+// first this isolate's memory, then Cloudflare's cache for the data centre. Never for writes.
+const memo = new Map<string, { until: number; value: ManyResult }>();
+const isRead = (sql: string) => /^\s*(select|with)\b/i.test(sql) && !/\b(insert|update|delete|replace)\b/i.test(sql);
+
+async function keyOf(s: Many) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([s.db, s.sql, s.params ?? []])));
+  return `https://commune-cache.internal/q/${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+async function runOne(env: AppEnv, s: Many): Promise<ManyResult> {
+  const seconds = typeof s.cache === "number" && s.cache > 0 && isRead(s.sql) ? Math.min(300, Math.floor(s.cache)) : 0;
+  const key = seconds ? await keyOf(s) : "";
+  if (seconds) {
+    const hit = memo.get(key);
+    if (hit && hit.until > Date.now()) return hit.value;
+    const cached = await caches.default.match(key).catch(() => undefined);
+    if (cached) {
+      const value = (await cached.json()) as ManyResult;
+      memo.set(key, { until: Date.now() + seconds * 1000, value });
+      return value;
+    }
+  }
+  try {
+    const result = await bind(database(env, s.db), s).all();
+    const value = { results: result.results ?? [], meta: result.meta };
+    if (seconds) {
+      // A hit reads nothing, so it reports no rows read.
+      const stored = { results: value.results, meta: { rows_read: 0, rows_written: 0, cached: true } };
+      memo.set(key, { until: Date.now() + seconds * 1000, value: stored });
+      if (memo.size > 500) memo.delete(memo.keys().next().value!);
+      await caches.default
+        .put(key, new Response(JSON.stringify(stored), { headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${seconds}` } }))
+        .catch(() => undefined);
+    }
+    return value;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Many separate statements in one request (not a transaction: each succeeds or fails on its
+ * own, as separate requests would). Reads next to each other run together; a write waits for
+ * everything before it and holds back everything after, so order is kept.
+ */
+async function runMany(env: AppEnv, statements: Many[]) {
+  const out: ManyResult[] = new Array(statements.length);
+  let reads: Promise<void>[] = [];
+  for (let i = 0; i < statements.length; i++) {
+    const s = statements[i];
+    if (isRead(s?.sql ?? "")) {
+      reads.push(runOne(env, s).then((r) => void (out[i] = r)));
+      continue;
+    }
+    await Promise.all(reads);
+    reads = [];
+    out[i] = await runOne(env, s);
+  }
+  await Promise.all(reads);
+  return out;
+}
+
 export async function handleAdmin(request: Request, env: AppEnv, path: string) {
   requireAdmin(request, env);
   const origin = env.PUBLIC_ORIGIN;
@@ -42,6 +108,14 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       const body = await readJson<Statement & { db?: string }>(request, 1024 * 1024);
       const result = await bind(database(env, body.db), body).all();
       return json({ results: result.results ?? [], meta: result.meta });
+    }
+    case "/v1/admin/many": {
+      const { statements } = await readJson<{ statements?: Many[] }>(request, 4 * 1024 * 1024);
+      if (!Array.isArray(statements) || statements.length === 0 || statements.length > 200) {
+        throw new HttpError(400, "statements required (at most 200)");
+      }
+      for (const st of statements) if (typeof st?.sql !== "string" || !st.sql.trim()) throw new HttpError(400, "sql required");
+      return json({ results: await runMany(env, statements) });
     }
     case "/v1/admin/batch": {
       const { statements, db } = await readJson<{ statements?: Statement[]; db?: string }>(

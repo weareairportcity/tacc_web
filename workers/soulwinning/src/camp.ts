@@ -44,7 +44,12 @@ type Payment = {
   flag: string | null;
   checked_at: string | null;
   bulk_id: string | null;
+  checkout_url?: string | null;
+  payer_name?: string | null;
 };
+
+/** A checkout opened this recently, for the same amount and payer, is reopened rather than started again. */
+const RESUME_WITHIN_MS = 30 * 60 * 1000;
 
 type Bulk = {
   id: string;
@@ -107,6 +112,12 @@ const netPaid = (registrationId: string) =>
      WHERE registration_id = ${registrationId} AND status = 'success')
     - (SELECT COALESCE(SUM(amount_pesewas), 0) FROM camp_refunds WHERE registration_id = ${registrationId}))`;
 
+// What People shows without looking up payments per person (migration 0018). Keep in step
+// with src/lib/camp/adjustments.ts.
+const PAYMENT_SUMMARY = `last_paid_at = (SELECT p.paid_at FROM camp_payments p WHERE p.registration_id = camp_registrations.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1),
+       last_paid_pesewas = (SELECT p.amount_pesewas FROM camp_payments p WHERE p.registration_id = camp_registrations.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1),
+       flagged_payments = (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = camp_registrations.id AND p.flag IN ('amount_mismatch', 'over_balance'))`;
+
 // The registration's cached balance and status, recomputed from its payments and refunds.
 const PAID_SUM = netPaid("camp_registrations.id");
 const refreshRegistration = (env: AppEnv, registrationId: string) =>
@@ -118,7 +129,8 @@ const refreshRegistration = (env: AppEnv, registrationId: string) =>
          WHEN ${PAID_SUM} >= price_pesewas THEN 'fully_paid'
          WHEN ${PAID_SUM} > 0 THEN 'partially_paid'
          ELSE 'registered'
-       END
+       END,
+       ${PAYMENT_SUMMARY}
      WHERE id = ?`,
   ).bind(registrationId);
 
@@ -130,6 +142,7 @@ async function flagPayment(env: AppEnv, p: Payment, flag: string, raw: string, d
        WHERE id = ? AND status <> 'success'`,
     ).bind(flag, nowIso(), raw, p.id),
     audit(env, campId, "payment.flagged", p.id, { reference: p.reference, flag, ...detail }),
+    refreshRegistration(env, p.registration_id),
   ]);
   if (env.ALERT_PHONE) {
     await sendSms(env, env.ALERT_PHONE, `The Airport City Church, Commune: payment ${p.reference} needs a look (${flag.replace("_", " ")}).`, "Commune");
@@ -373,6 +386,17 @@ export async function payInit(request: Request, env: AppEnv) {
   )
     .bind(registrationId)
     .all<Payment>();
+  // A second tab (or a second tap) for the same payment opens the same checkout, so paying in
+  // both can't charge twice. One that's still being opened is waited for, not replaced.
+  const fee0 = feeFor(amount, reg.fee_bps);
+  for (const p of open ?? []) {
+    const age = Date.now() - Date.parse(p.created_at);
+    if (p.bulk_id || p.amount_pesewas !== amount || (p.payer_name ?? "") !== payerName || age > RESUME_WITHIN_MS) continue;
+    if (p.checkout_url) {
+      return json({ reference: p.reference, authorization_url: p.checkout_url, amount_pesewas: amount, fee_pesewas: p.fee_pesewas ?? fee0, charged_pesewas: p.charged_pesewas, resumed: true });
+    }
+    if (age < 30_000) throw new HttpError(409, "Your payment is already opening. Give it a moment, then try again.");
+  }
   for (const p of open ?? []) {
     if ((await settle(env, p, true)) === "pending") {
       throw new HttpError(409, "Your last payment is still processing. Wait for it to finish, then try again.");

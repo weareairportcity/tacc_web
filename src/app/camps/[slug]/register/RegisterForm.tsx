@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BedDouble, Church, CircleSlash, User } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/types";
+import { HumanCheck } from "@/components/camp/HumanCheck";
 import { Busy } from "@/components/camp/brand";
 import { placesState } from "@/components/camp/places";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
@@ -47,6 +48,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
   const [pending, startTransition] = useTransition();
+  const [human, setHuman] = useState("");
+  const [round, setRound] = useState(0);
 
   const set = <K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
@@ -63,8 +66,9 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     e.preventDefault();
     setError("");
     startTransition(async () => {
-      const result = await registerAction(slug, values);
+      const result = await registerAction(slug, values, human);
       if (!result.ok) {
+        setRound((n) => n + 1);
         // If a room type filled while they were typing, keep everything and send them back to Room.
         if (/full|filled up/.test(result.error)) {
           set("room_type_id", "");
@@ -259,6 +263,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           </span>
         </div>
         <ErrorText>{error}</ErrorText>
+        <HumanCheck onToken={setHuman} round={round} />
         <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
           <Busy pending={pending} text="Saving your place…">Register</Busy>
         </button>

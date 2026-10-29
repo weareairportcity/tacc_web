@@ -1,4 +1,4 @@
-import { query } from "@/lib/cf";
+import { query, querySoon } from "@/lib/cf";
 import { CHURCHES, FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
 import type { AuditEntry } from "./audit";
 import { ID, checkId } from "./camps";
@@ -212,7 +212,8 @@ export type PersonRow = {
   last_paid_pesewas: number | null;
 };
 
-const LAST_PAID = `(SELECT p.paid_at FROM camp_payments p WHERE p.registration_id = r.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1)`;
+// Kept on the registration by triggers (migration 0018), so the list doesn't look it up per person.
+const LAST_PAID = "r.last_paid_at";
 
 function orderSql(sort: PeopleSort | undefined) {
   if (sort === "name") return "r.full_name COLLATE NOCASE";
@@ -229,10 +230,8 @@ export async function listPeople(campId: string, filters: PeopleFilters): Promis
     `SELECT r.id, r.created_at, r.full_name, r.phone, r.email, r.gender, r.fellowship, r.pfcc, r.church,
        t.name AS room_type_name, r.status, r.price_pesewas, r.paid_pesewas,
        g.code AS group_code, c.roommate_deadline_on AS deadline, x.label AS room_label,
-       (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = r.id
-          AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
-       r.shirt_size, r.any_room, r.checked_in_at, ${LAST_PAID} AS last_paid_at,
-       (SELECT p.amount_pesewas FROM camp_payments p WHERE p.registration_id = r.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1) AS last_paid_pesewas
+       r.flagged_payments AS flagged, r.shirt_size, r.any_room, r.checked_in_at, ${LAST_PAID} AS last_paid_at,
+       r.last_paid_pesewas
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${where.sql}
      ORDER BY ${orderSql(filters.sort)}`,
@@ -357,127 +356,158 @@ export type Dashboard = {
   activity: AuditEntry[];
 };
 
-const BREAKDOWN = (column: "fellowship" | "pfcc" | "church") =>
-  `SELECT ${column} AS name,
-     SUM(status = 'registered') AS registered, SUM(status = 'partially_paid') AS partially_paid,
-     SUM(status = 'fully_paid') AS fully_paid, SUM(status = 'cancelled') AS cancelled
-   FROM camp_registrations WHERE camp_id = ? GROUP BY ${column} ORDER BY COUNT(*) DESC, ${column}`;
+type CampRow = { status: RegistrationStatus; fellowship: string; pfcc: string; church: string; room_type_id: string; gender: Gender;
+  n: number; price: number; paid: number; owing: number; flagged: number; placed: number; unmatched: number };
 
+/**
+ * Today's numbers. The registrations are read once, grouped by everything the page breaks them
+ * down by, and added up here; rooms, groups and payments are each read once too. The answer is
+ * shared for 30 seconds, so five coordinators on Today cost the database one read, not five.
+ */
 export async function getDashboard(campId: string, today = todayInGhana()): Promise<Dashboard> {
   checkId(campId, "camp");
-  const [statusRows, [money], supply, [allocation], groupRows, byFellowship, byPfcc, byChurch, activity, tooBig] =
-    await Promise.all([
-      query<{ status: RegistrationStatus; n: number }>(
-        "app",
-        "SELECT status, COUNT(*) AS n FROM camp_registrations WHERE camp_id = ? GROUP BY status",
-        [campId],
-      ),
-      query<Dashboard["money"] & { past_due: number }>(
-        "app",
-        `SELECT
-           COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN r.price_pesewas END), 0) AS expected,
-           COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN r.paid_pesewas END), 0) AS collected,
-           COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN r.price_pesewas - r.paid_pesewas END), 0) AS outstanding,
-           COALESCE(SUM(CASE WHEN r.status = 'cancelled' THEN r.paid_pesewas END), 0) AS paidByCancelled,
-           (SELECT COALESCE(SUM(p.fee_pesewas), 0) FROM camp_payments p JOIN camp_registrations q ON q.id = p.registration_id
-              WHERE q.camp_id = ?1 AND p.status = 'success') AS fees,
-           (SELECT COUNT(*) FROM camp_payments p JOIN camp_registrations q ON q.id = p.registration_id
-              WHERE q.camp_id = ?1 AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
-           (SELECT COALESCE(SUM(f.amount_pesewas), 0) FROM camp_refunds f JOIN camp_registrations q ON q.id = f.registration_id
-              WHERE q.camp_id = ?1) AS refunded,
-           COALESCE(SUM(r.status <> 'cancelled' AND r.paid_pesewas < r.price_pesewas AND ?2 > c.payment_due_on), 0) AS past_due
-         FROM camps c LEFT JOIN camp_registrations r ON r.camp_id = c.id WHERE c.id = ?1`,
-        [campId, today],
-      ),
-      query<SupplyRow>(
-        "app",
-        `WITH combos AS (
-           SELECT room_type_id, gender FROM camp_registrations WHERE camp_id = ?1 AND status <> 'cancelled'
-           UNION SELECT room_type_id, gender FROM camp_rooms WHERE camp_id = ?1
-           UNION SELECT p.room_type_id, p.gender FROM camp_room_type_places p
-             JOIN camp_room_types y ON y.id = p.room_type_id WHERE y.camp_id = ?1)
-         SELECT k.room_type_id, t.name AS room_type_name, k.gender,
-           (SELECT COUNT(*) FROM camp_registrations r WHERE r.camp_id = ?1 AND r.room_type_id = k.room_type_id
-              AND r.gender = k.gender AND r.status <> 'cancelled') AS registered,
-           (SELECT COUNT(*) FROM camp_registrations r WHERE r.camp_id = ?1 AND r.room_type_id = k.room_type_id
-              AND r.gender = k.gender AND r.status = 'fully_paid') AS fully_paid,
-           (SELECT COALESCE(SUM(capacity), 0) FROM camp_rooms x WHERE x.camp_id = ?1
-              AND x.room_type_id = k.room_type_id AND x.gender = k.gender) AS beds,
-           (SELECT COUNT(*) FROM camp_room_assignments a JOIN camp_rooms x ON x.id = a.room_id
-              WHERE x.camp_id = ?1 AND x.room_type_id = k.room_type_id AND x.gender = k.gender) AS placed,
-           (SELECT places_left FROM camp_room_type_places p
-              WHERE p.room_type_id = k.room_type_id AND p.gender = k.gender) AS places_left
-         FROM combos k JOIN camp_room_types t ON t.id = k.room_type_id
-         ORDER BY t.price_pesewas, t.name, k.gender`,
-        [campId],
-      ),
-      query<Omit<Dashboard["allocation"], "groups">>(
-        "app",
-        `SELECT
-           COALESCE(SUM(a.room_id IS NOT NULL), 0) AS placed,
-           COALESCE(SUM(r.status = 'fully_paid' AND a.room_id IS NULL), 0) AS waiting,
-           COALESCE(SUM(r.status = 'fully_paid' AND m.registration_id IS NULL), 0) AS unmatched
-         FROM camp_registrations r
-         LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
-         LEFT JOIN camp_group_members m ON m.registration_id = r.id
-         WHERE r.camp_id = ?`,
-        [campId],
-      ),
-      query<{ roommate_deadline_on: string }>(
-        "app",
-        "SELECT c.roommate_deadline_on FROM camp_groups g JOIN camps c ON c.id = g.camp_id WHERE g.camp_id = ?",
-        [campId],
-      ),
-      query<Breakdown>("app", BREAKDOWN("fellowship"), [campId]),
-      query<Breakdown>("app", BREAKDOWN("pfcc"), [campId]),
-      query<Breakdown>("app", BREAKDOWN("church"), [campId]),
-      query<AuditEntry>(
-        "app",
-        "SELECT id, created_at, actor, action, entity, entity_id FROM camp_audit_log WHERE camp_id = ? ORDER BY id DESC LIMIT 20",
-        [campId],
-      ),
-      query<Dashboard["groupsTooBig"][number]>(
-        "app",
-        `WITH waiting AS (
-           SELECT g.id, g.code, g.room_type_id, g.gender, COUNT(*) AS needs
-           FROM camp_groups g JOIN camp_group_members m ON m.group_id = g.id
-           WHERE g.camp_id = ?1
-             AND NOT EXISTS (SELECT 1 FROM camp_room_assignments a WHERE a.registration_id = m.registration_id)
-           GROUP BY g.id)
-         SELECT w.code, t.name AS room_type_name, w.gender, w.needs,
-           COALESCE((SELECT MAX(x.capacity - (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = x.id))
-                     FROM camp_rooms x WHERE x.camp_id = ?1 AND x.room_type_id = w.room_type_id AND x.gender = w.gender), 0) AS most_free
-         FROM waiting w JOIN camp_room_types t ON t.id = w.room_type_id
-         WHERE w.needs > COALESCE((SELECT MAX(x.capacity - (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = x.id))
-                                   FROM camp_rooms x WHERE x.camp_id = ?1 AND x.room_type_id = w.room_type_id AND x.gender = w.gender), 0)
-         ORDER BY t.price_pesewas, w.code`,
-        [campId],
-      ),
-    ]);
+  const [rows, [camp], types, beds, places, [extra], activity, tooBig] = await Promise.all([
+    querySoon<CampRow>(
+      "app",
+      `SELECT r.status, r.fellowship, r.pfcc, r.church, r.room_type_id, r.gender, COUNT(*) AS n,
+         SUM(r.price_pesewas) AS price, SUM(r.paid_pesewas) AS paid, SUM(r.paid_pesewas < r.price_pesewas) AS owing,
+         SUM(r.flagged_payments) AS flagged, SUM(a.room_id IS NOT NULL) AS placed, SUM(m.registration_id IS NULL) AS unmatched
+       FROM camp_registrations r
+       LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
+       LEFT JOIN camp_group_members m ON m.registration_id = r.id
+       WHERE r.camp_id = ?
+       GROUP BY r.status, r.fellowship, r.pfcc, r.church, r.room_type_id, r.gender`,
+      [campId],
+    ),
+    querySoon<{ payment_due_on: string; roommate_deadline_on: string; groups: number }>(
+      "app",
+      "SELECT c.payment_due_on, c.roommate_deadline_on, (SELECT COUNT(*) FROM camp_groups g WHERE g.camp_id = c.id) AS groups FROM camps c WHERE c.id = ?",
+      [campId],
+    ),
+    querySoon<{ id: string; name: string; price_pesewas: number }>("app", "SELECT id, name, price_pesewas FROM camp_room_types WHERE camp_id = ?", [campId]),
+    querySoon<{ room_type_id: string; gender: Gender; beds: number }>(
+      "app",
+      "SELECT room_type_id, gender, COALESCE(SUM(capacity), 0) AS beds FROM camp_rooms WHERE camp_id = ? GROUP BY room_type_id, gender",
+      [campId],
+    ),
+    querySoon<{ room_type_id: string; gender: Gender; places_left: number | null }>(
+      "app",
+      "SELECT p.room_type_id, p.gender, p.places_left FROM camp_room_type_places p JOIN camp_room_types y ON y.id = p.room_type_id WHERE y.camp_id = ?",
+      [campId],
+    ),
+    querySoon<{ fees: number; refunded: number }>(
+      "app",
+      `SELECT
+         (SELECT COALESCE(SUM(p.fee_pesewas), 0) FROM camp_registrations q JOIN camp_payments p ON p.registration_id = q.id AND p.status = 'success'
+            WHERE q.camp_id = ?1) AS fees,
+         (SELECT COALESCE(SUM(f.amount_pesewas), 0) FROM camp_refunds f JOIN camp_registrations q ON q.id = f.registration_id
+            WHERE q.camp_id = ?1) AS refunded`,
+      [campId],
+    ),
+    querySoon<AuditEntry>(
+      "app",
+      "SELECT id, created_at, actor, action, entity, entity_id FROM camp_audit_log WHERE camp_id = ? ORDER BY id DESC LIMIT 20",
+      [campId],
+    ),
+    querySoon<Dashboard["groupsTooBig"][number]>(
+      "app",
+      `WITH waiting AS (
+         SELECT g.id, g.code, g.room_type_id, g.gender, COUNT(*) AS needs
+         FROM camp_groups g JOIN camp_group_members m ON m.group_id = g.id
+         LEFT JOIN camp_room_assignments a ON a.registration_id = m.registration_id
+         WHERE g.camp_id = ?1 AND a.registration_id IS NULL
+         GROUP BY g.id),
+       used AS (
+         SELECT a.room_id, COUNT(*) AS n FROM camp_room_assignments a JOIN camp_rooms y ON y.id = a.room_id
+         WHERE y.camp_id = ?1 GROUP BY a.room_id),
+       free AS (
+         SELECT x.room_type_id, x.gender, MAX(x.capacity - COALESCE(u.n, 0)) AS most_free
+         FROM camp_rooms x LEFT JOIN used u ON u.room_id = x.id
+         WHERE x.camp_id = ?1 GROUP BY x.room_type_id, x.gender)
+       SELECT w.code, t.name AS room_type_name, w.gender, w.needs, COALESCE(f.most_free, 0) AS most_free
+       FROM waiting w JOIN camp_room_types t ON t.id = w.room_type_id
+       LEFT JOIN free f ON f.room_type_id = w.room_type_id AND f.gender = w.gender
+       WHERE w.needs > COALESCE(f.most_free, 0)
+       ORDER BY t.price_pesewas, w.code`,
+      [campId],
+    ),
+  ]);
 
   const status = Object.fromEntries(REGISTRATION_STATUSES.map((s) => [s, 0])) as Record<RegistrationStatus, number>;
-  for (const row of statusRows) status[row.status] = row.n;
+  const money = { expected: 0, collected: 0, outstanding: 0, paidByCancelled: 0, refunded: extra?.refunded ?? 0, fees: extra?.fees ?? 0, flagged: 0 };
+  const allocation = { placed: 0, waiting: 0, unmatched: 0 };
+  let owing = 0;
+  const by = { fellowship: new Map<string, Breakdown>(), pfcc: new Map<string, Breakdown>(), church: new Map<string, Breakdown>() };
+  const pools = new Map<string, Omit<SupplyRow, "room_type_name" | "beds" | "places_left">>();
+  const pool = (room_type_id: string, gender: Gender) => {
+    const key = `${room_type_id}|${gender}`;
+    if (!pools.has(key)) pools.set(key, { room_type_id, gender, registered: 0, fully_paid: 0, placed: 0 });
+    return pools.get(key)!;
+  };
+  for (const r of rows) {
+    status[r.status] += r.n;
+    money.flagged += r.flagged;
+    allocation.placed += r.placed;
+    const p = pool(r.room_type_id, r.gender);
+    p.placed += r.placed;
+    if (r.status === "cancelled") money.paidByCancelled += r.paid;
+    else {
+      money.expected += r.price;
+      money.collected += r.paid;
+      money.outstanding += r.price - r.paid;
+      owing += r.owing;
+      p.registered += r.n;
+    }
+    if (r.status === "fully_paid") {
+      p.fully_paid += r.n;
+      allocation.waiting += r.n - r.placed;
+      allocation.unmatched += r.unmatched;
+    }
+    for (const key of ["fellowship", "pfcc", "church"] as const) {
+      const map = by[key];
+      const b = map.get(r[key]) ?? { name: r[key], registered: 0, partially_paid: 0, fully_paid: 0, cancelled: 0 };
+      b[r.status] += r.n;
+      map.set(r[key], b);
+    }
+  }
+  for (const b of beds) pool(b.room_type_id, b.gender);
+  for (const p of places) pool(p.room_type_id, p.gender);
+  const typeOf = new Map(types.map((t) => [t.id, t]));
+  const supply: SupplyRow[] = [...pools.values()]
+    .filter((p) => typeOf.has(p.room_type_id))
+    .map((p) => ({
+      ...p,
+      room_type_name: typeOf.get(p.room_type_id)!.name,
+      beds: beds.find((b) => b.room_type_id === p.room_type_id && b.gender === p.gender)?.beds ?? 0,
+      places_left: places.find((x) => x.room_type_id === p.room_type_id && x.gender === p.gender)?.places_left ?? null,
+    }))
+    .sort((a, b) => {
+      const ta = typeOf.get(a.room_type_id)!;
+      const tb = typeOf.get(b.room_type_id)!;
+      return ta.price_pesewas - tb.price_pesewas || ta.name.localeCompare(tb.name) || a.gender.localeCompare(b.gender);
+    });
+  const total = (b: Breakdown) => b.registered + b.partially_paid + b.fully_paid + b.cancelled;
+  const sorted = (map: Map<string, Breakdown>) => [...map.values()].sort((a, b) => total(b) - total(a) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   const groups: Record<GroupState, number> = { open: 0, final: 0 };
-  for (const g of groupRows) groups[groupState(g, today)]++;
-  const { past_due: pastDue, ...moneyTotals } = money;
+  if (camp) groups[groupState(camp, today)] = camp.groups;
 
   return {
     status,
-    pastDue,
-    money: moneyTotals,
+    pastDue: camp && today > camp.payment_due_on ? owing : 0,
+    money,
     supply,
     allocation: { ...allocation, groups },
     groupsTooBig: tooBig,
-    byFellowship,
-    byPfcc,
-    byChurch,
+    byFellowship: sorted(by.fellowship),
+    byPfcc: sorted(by.pfcc),
+    byChurch: sorted(by.church),
     activity,
   };
 }
 
 /** The two numbers the camp sidebar shows: people registered (not cancelled) and fully paid people waiting for a room. */
 export async function navCounts(campId: string): Promise<{ people: number; waiting: number; requests: number }> {
-  const [row] = await query<{ people: number; waiting: number; requests: number }>(
+  const [row] = await querySoon<{ people: number; waiting: number; requests: number }>(
     "app",
     `SELECT COALESCE(SUM(r.status <> 'cancelled'), 0) AS people,
             COALESCE(SUM(r.status = 'fully_paid' AND a.room_id IS NULL), 0) AS waiting,
@@ -708,32 +738,38 @@ export type TodayNumbers = {
 export async function getTodayNumbers(campId: string, today = todayInGhana()): Promise<TodayNumbers> {
   checkId(campId, "camp");
   const from = new Date(Date.parse(`${today}T00:00:00Z`) - 13 * 86_400_000).toISOString().slice(0, 10);
-  const [[totals], days, latest] = await Promise.all([
-    query<{ new_today: number; money_today: number; outstanding_people: number; arrived: number }>(
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const [days, [money], latest] = await Promise.all([
+    // One pass over the registrations gives the days, who still owes and who's arrived.
+    querySoon<{ day: string; n: number; owing: number; here: number }>(
       "app",
-      `SELECT
-         (SELECT COUNT(*) FROM camp_registrations WHERE camp_id = ?1 AND substr(created_at, 1, 10) = ?2) AS new_today,
-         (SELECT COALESCE(SUM(p.amount_pesewas), 0) FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
-            WHERE r.camp_id = ?1 AND p.status = 'success' AND substr(p.paid_at, 1, 10) = ?2) AS money_today,
-         (SELECT COUNT(*) FROM camp_registrations WHERE camp_id = ?1 AND status IN ('registered', 'partially_paid')) AS outstanding_people,
-         (SELECT COUNT(*) FROM camp_registrations WHERE camp_id = ?1 AND checked_in_at IS NOT NULL) AS arrived`,
-      [campId, today],
+      `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS n, SUM(status IN ('registered', 'partially_paid')) AS owing,
+         SUM(checked_in_at IS NOT NULL) AS here
+       FROM camp_registrations WHERE camp_id = ? GROUP BY day`,
+      [campId],
     ),
-    query<{ day: string; n: number }>(
+    querySoon<{ money_today: number }>(
       "app",
-      `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS n FROM camp_registrations
-       WHERE camp_id = ? AND substr(created_at, 1, 10) >= ? GROUP BY day`,
-      [campId, from],
+      `SELECT COALESCE(SUM(p.amount_pesewas), 0) AS money_today FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+       WHERE p.status = 'success' AND p.paid_at >= ? AND p.paid_at < ? AND r.camp_id = ?`,
+      [today, tomorrow, campId],
     ),
-    query<TodayNumbers["latestPayments"][number]>(
+    querySoon<TodayNumbers["latestPayments"][number]>(
       "app",
       `SELECT p.registration_id, r.full_name, p.amount_pesewas, p.paid_at,
          CASE WHEN p.bulk_id IS NOT NULL THEN 'coordinator' WHEN p.payer_name <> '' THEN p.payer_name ELSE '' END AS by
        FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
-       WHERE r.camp_id = ? AND p.status = 'success' AND p.paid_at IS NOT NULL ORDER BY p.paid_at DESC LIMIT 5`,
+       WHERE p.status = 'success' AND p.paid_at IS NOT NULL AND r.camp_id = ? ORDER BY p.paid_at DESC LIMIT 5`,
       [campId],
+      15,
     ),
   ]);
+  const totals = {
+    new_today: days.find((d) => d.day === today)?.n ?? 0,
+    money_today: money?.money_today ?? 0,
+    outstanding_people: days.reduce((sum, d) => sum + d.owing, 0),
+    arrived: days.reduce((sum, d) => sum + d.here, 0),
+  };
   const perDay = Array.from({ length: 14 }, (_, i) => {
     const day = new Date(Date.parse(`${from}T00:00:00Z`) + i * 86_400_000).toISOString().slice(0, 10);
     return { day, n: days.find((d) => d.day === day)?.n ?? 0 };

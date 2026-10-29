@@ -1,4 +1,4 @@
-import { batch, query } from "@/lib/cf";
+import { batch, query, querySoon } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import type { Scope } from "./reports";
@@ -100,19 +100,33 @@ export async function personCard(campId: string, registrationId: string, scope: 
   };
 }
 
-/** Everyone who's arrived (or collected a T-shirt), newest first, and everyone still to come, A to Z. */
-export async function arrivalLists(campId: string, mode: ScanMode = "checkin", scope: Scope = ALL) {
+export const ARRIVALS_PAGE = 50;
+export type ArrivalTab = "here" | "notYet";
+
+/**
+ * One page of the lists: who's arrived (or collected a T-shirt), newest first, or who's still
+ * to come, A to Z. The page reads only the rows it shows, not the whole camp.
+ */
+export async function arrivalPage(campId: string, mode: ScanMode, tab: ArrivalTab, scope: Scope = ALL, offset = 0, limit = ARRIVALS_PAGE) {
   const s = scopeSql(scope);
   const at = mode === "checkin" ? "r.checked_in_at" : "r.shirt_given_at";
   const id = checkId(campId, "camp");
-  const [here, notYet] = await Promise.all([
-    query<Arrival>("app", `${SELECT} WHERE r.camp_id = ?${s.sql} AND ${at} IS NOT NULL ORDER BY ${at} DESC`, [id, ...s.params]),
-    query<Arrival>("app", `${SELECT} WHERE r.camp_id = ?${s.sql} AND ${at} IS NULL AND r.status <> 'cancelled' ORDER BY r.full_name`, [id, ...s.params]),
-  ]);
-  return { here: here.map((p) => forViewer(p, scope)), notYet: notYet.map((p) => forViewer(p, scope)) };
+  const page = [Math.max(1, Math.min(200, Math.floor(limit))), Math.max(0, Math.floor(offset))];
+  const rows =
+    tab === "here"
+      ? await query<Arrival>("app", `${SELECT} WHERE r.camp_id = ?${s.sql} AND ${at} IS NOT NULL ORDER BY ${at} DESC LIMIT ? OFFSET ?`, [id, ...s.params, ...page])
+      : await query<Arrival>("app", `${SELECT} WHERE r.camp_id = ?${s.sql} AND ${at} IS NULL AND r.status <> 'cancelled' ORDER BY r.full_name LIMIT ? OFFSET ?`, [id, ...s.params, ...page]);
+  return rows.map((p) => forViewer(p, scope));
+}
+
+/** The first page of both lists. */
+export async function arrivalLists(campId: string, mode: ScanMode = "checkin", scope: Scope = ALL) {
+  const [here, notYet] = await Promise.all([arrivalPage(campId, mode, "here", scope), arrivalPage(campId, mode, "notYet", scope)]);
+  return { here, notYet };
 }
 
 const COLUMNS = { checkin: ["checked_in_at", "checked_in_by"], shirt: ["shirt_given_at", "shirt_given_by"] } as const;
+const TALLY = { checkin: "here", shirt: "shirts" } as const;
 const ACTIONS = { checkin: "registration.check_in", shirt: "registration.shirt_given" } as const;
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -140,6 +154,12 @@ export async function markScan(actor: string, campId: string, registrationId: st
       sql: `UPDATE camp_registrations SET ${column} = COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), ${by} = ? WHERE id = ? AND ${column} IS NULL`,
       params: [at, actor, person.id],
     },
+    // The running total moves only when the scan above changed something (camp_scan_counts).
+    {
+      sql: `INSERT INTO camp_scan_counts (camp_id, ${TALLY[mode]}) SELECT ?, 1 WHERE changes() = 1
+            ON CONFLICT (camp_id) DO UPDATE SET ${TALLY[mode]} = ${TALLY[mode]} + 1`,
+      params: [campId],
+    },
     auditStatement({
       actor,
       campId,
@@ -157,7 +177,8 @@ export async function undoScan(actor: string, campId: string, registrationId: st
   const person = await personFor(campId, registrationId, scope);
   const [at, by] = COLUMNS[mode];
   await batch("app", [
-    { sql: `UPDATE camp_registrations SET ${at} = NULL, ${by} = NULL WHERE id = ?`, params: [person.id] },
+    { sql: `UPDATE camp_registrations SET ${at} = NULL, ${by} = NULL WHERE id = ? AND ${at} IS NOT NULL`, params: [person.id] },
+    { sql: `UPDATE camp_scan_counts SET ${TALLY[mode]} = MAX(0, ${TALLY[mode]} - 1) WHERE camp_id = ? AND changes() = 1`, params: [campId] },
     auditStatement({ actor, campId, action: `${ACTIONS[mode]}_undo`, entity: "registration", entityId: person.id, ifChanged: true }),
   ]);
 }
@@ -174,25 +195,38 @@ export type ScanCounts = {
   sizes: { size: string; given: number; total: number }[];
 };
 
+/**
+ * Every scanning phone asks every 20 s. For the whole camp, who's here and how many T-shirts
+ * are out come from running totals (one row); how many are expected and the sizes change
+ * slowly, so one answer is shared for a few minutes. A leader's own people are few, so theirs
+ * are counted directly, shared for a few seconds.
+ */
 export async function arrivalCounts(campId: string, scope: Scope = ALL): Promise<ScanCounts> {
   const s = scopeSql(scope);
-  const [[row], sizes] = await Promise.all([
-    query<{ here: number; expected: number; shirts: number }>(
+  const id = checkId(campId, "camp");
+  const [[row], [tally], sizes] = await Promise.all([
+    querySoon<{ here: number; expected: number; shirts: number }>(
       "app",
       `SELECT COALESCE(SUM(r.checked_in_at IS NOT NULL), 0) AS here, COALESCE(SUM(r.status <> 'cancelled'), 0) AS expected,
               COALESCE(SUM(r.shirt_given_at IS NOT NULL), 0) AS shirts
        FROM camp_registrations r WHERE r.camp_id = ?${s.sql}`,
-      [checkId(campId, "camp"), ...s.params],
+      [id, ...s.params],
+      scope.kind === "all" ? 300 : 5,
     ),
-    query<{ size: string; given: number; total: number }>(
+    scope.kind === "all"
+      ? query<{ here: number; shirts: number }>("app", "SELECT here, shirts FROM camp_scan_counts WHERE camp_id = ?", [id])
+      : Promise.resolve([] as { here: number; shirts: number }[]),
+    querySoon<{ size: string; given: number; total: number }>(
       "app",
       `SELECT r.shirt_size AS size, SUM(r.shirt_given_at IS NOT NULL) AS given, COUNT(*) AS total
        FROM camp_registrations r WHERE r.camp_id = ?${s.sql} AND r.status <> 'cancelled' GROUP BY r.shirt_size`,
-      [campId, ...s.params],
+      [id, ...s.params],
+      scope.kind === "all" ? 300 : 5,
     ),
   ]);
   const order = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", ""];
-  return { ...(row ?? { here: 0, expected: 0, shirts: 0 }), sizes: sizes.sort((a, b) => order.indexOf(a.size) - order.indexOf(b.size)) };
+  const counts = { ...(row ?? { here: 0, expected: 0, shirts: 0 }), ...(tally ?? {}) };
+  return { ...counts, sizes: sizes.sort((a, b) => order.indexOf(a.size) - order.indexOf(b.size)) };
 }
 
 export async function recentArrivals(campId: string, mode: ScanMode = "checkin", scope: Scope = ALL, limit = 12) {

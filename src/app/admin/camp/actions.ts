@@ -26,7 +26,7 @@ import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { listRefunds } from "@/lib/camp/adjustments";
-import { arrivalCounts, findArrivals, getArrival, markScan, personCard, scanRoster, syncScans, undoScan, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
+import { arrivalCounts, arrivalPage, findArrivals, getArrival, markScan, personCard, scanRoster, syncScans, undoScan, type ArrivalTab, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
 import { getGroupFor } from "@/lib/camp/groups";
 import { cancelPayment, checkBulkPayment, listOpenPaymentsByReference, listOpenPaymentsFor, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
 import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
@@ -467,8 +467,24 @@ export async function scanAction(campId: string, tokenOrId: string, mode: ScanMo
   return run(async () => {
     const staff = await requireCampRole("coordinator", "leader");
     const scope = scopeFor(staff);
-    const result = await markScan(staff.email, String(campId), scanTarget(tokenOrId), modeOf(mode), scope);
-    return { ...result, counts: await arrivalCounts(String(campId), scope) };
+    // No counts here: the scanning phone adds one itself, and asks for fresh counts every 20 s.
+    return markScan(staff.email, String(campId), scanTarget(tokenOrId), modeOf(mode), scope);
+  });
+}
+
+/** The scanning phone's counts, every 20 s. */
+export async function scanCountsAction(campId: string) {
+  return look(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    return arrivalCounts(String(campId), scopeFor(staff));
+  });
+}
+
+/** More of the Arrived / Not here yet lists, 50 at a time. */
+export async function arrivalsAction(campId: string, mode: ScanMode, tab: ArrivalTab, offset: number) {
+  return look(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    return arrivalPage(String(campId), modeOf(mode), tab === "notYet" ? "notYet" : "here", scopeFor(staff), Number(offset) || 0);
   });
 }
 
@@ -477,7 +493,7 @@ export async function undoScanAction(campId: string, registrationId: string, mod
     const staff = await requireCampRole("coordinator", "leader");
     const scope = scopeFor(staff);
     await undoScan(staff.email, String(campId), String(registrationId), modeOf(mode), scope);
-    return arrivalCounts(String(campId), scope);
+    return null;
   });
 }
 

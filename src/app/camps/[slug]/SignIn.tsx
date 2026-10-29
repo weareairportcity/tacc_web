@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck } from "lucide-react";
+import { HumanCheck } from "@/components/camp/HumanCheck";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import { forgotCodeAction, signInAction } from "./actions";
@@ -14,6 +15,8 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [lostError, setLostError] = useState("");
+  const [human, setHuman] = useState("");
+  const [round, setRound] = useState(0);
   const [sent, setSent] = useState(false);
   const [pending, start] = useTransition();
   const [sending, startSend] = useTransition();
@@ -67,7 +70,8 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
           e.preventDefault();
           setLostError("");
           startSend(async () => {
-            const r = await forgotCodeAction(slug, phone);
+            const r = await forgotCodeAction(slug, phone, human);
+            setRound((n) => n + 1);
             if (!r.ok) return setLostError(r.error);
             setSent(true);
           });
@@ -89,6 +93,7 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
             If that number is registered, we&apos;ve texted it a new code. Your old code no longer works.
           </p>
         )}
+        <HumanCheck onToken={setHuman} round={round} />
         <button type="submit" disabled={sending} aria-busy={sending} className={`${secondaryButtonClass} h-[52px] w-full text-[15px]`}>
           <Busy pending={sending} text="Sending…">Text me a new code</Busy>
         </button>

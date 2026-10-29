@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
+    // The stress simulations have their own config (tests/sim/vitest.sim.config.ts).
+    exclude: ["tests/sim/**", "node_modules/**"],
     globalSetup: ["tests/setup/worker.ts"],
     testTimeout: 30_000,
     hookTimeout: 120_000,
@@ -19,6 +21,7 @@ export default defineConfig({
       SW_API_ADMIN_SECRET: TEST_ADMIN_SECRET,
       CAMP_SECRET: TEST_CAMP_SECRET,
       MNOTIFY_API_KEY: "",
+      COMMUNE_SHARED_CACHE: "off",
     },
   },
 });

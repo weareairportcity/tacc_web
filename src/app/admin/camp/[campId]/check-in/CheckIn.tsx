@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Camera, Check, ChevronRight, CircleAlert, CloudOff, Flashlight, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
 import { Busy } from "@/components/camp/brand";
@@ -11,7 +10,7 @@ import { useToast } from "@/components/camp/toast";
 import { PersonCardSheet } from "@/components/camp/PersonCard";
 import { RegistrationStatus, StackedBar, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { findArrivalsAction, scanAction, undoScanAction } from "../../actions";
+import { arrivalsAction, findArrivalsAction, scanAction, scanCountsAction, undoScanAction } from "../../actions";
 import { idOf, useOfflineScans, type Problem } from "./offline";
 
 type Result =
@@ -87,7 +86,7 @@ const WORDS = {
 export function CheckIn({
   campId,
   counts: initial,
-  lists,
+  lists: initialLists,
   initialMode,
   leader,
   shirtPaidOnly,
@@ -100,12 +99,14 @@ export function CheckIn({
   initialMode: ScanMode | null;
   leader: boolean;
 }) {
-  const router = useRouter();
   const toast = useToast();
   const stored = useSyncExternalStore(() => () => {}, savedMode, () => "checkin" as ScanMode);
   const [chosen, setChosen] = useState<ScanMode | null>(initialMode);
   const mode = chosen ?? stored;
   const [counts, setCounts] = useState(initial);
+  // The lists load 50 at a time; this phone's own scans move people between them straight away.
+  const [lists, setLists] = useState(initialLists);
+  const [ended, setEnded] = useState<Record<string, boolean>>({});
   // Fresh counts from the server (every 20 s) replace the local ones.
   const [seen, setSeen] = useState(initial);
   if (seen !== initial) {
@@ -133,13 +134,43 @@ export function CheckIn({
   const busy = useRef(false);
   const w = WORDS[mode];
   const bump = (m: ScanMode, by: number) => setCounts((c) => (m === "checkin" ? { ...c, here: Math.max(0, c.here + by) } : { ...c, shirts: Math.max(0, c.shirts + by) }));
+  const atOf = (p: Arrival, m: ScanMode) => (m === "checkin" ? p.checked_in_at : p.shirt_given_at);
+  // Someone was just scanned (or un-scanned) on this phone: move them in the lists.
+  const moved = (p: Arrival, m: ScanMode, arrived: boolean) =>
+    setLists((all) => {
+      const { here, notYet } = all[m];
+      const rest = { here: here.filter((x) => x.id !== p.id), notYet: notYet.filter((x) => x.id !== p.id) };
+      if (arrived) return { ...all, [m]: { here: [{ ...p, ...(atOf(p, m) ? {} : m === "checkin" ? { checked_in_at: new Date().toISOString() } : { shirt_given_at: new Date().toISOString() }) }, ...rest.here], notYet: rest.notYet } };
+      const back = { ...p, ...(m === "checkin" ? { checked_in_at: null } : { shirt_given_at: null }) };
+      const last = rest.notYet[rest.notYet.length - 1];
+      // Back into Not here yet, in name order, if that part of the list has loaded.
+      const notYetNow = !last || back.full_name <= last.full_name || ended[`${m}:notYet`] ? [...rest.notYet, back].sort((a, b) => (a.full_name < b.full_name ? -1 : a.full_name > b.full_name ? 1 : 0)) : rest.notYet;
+      return { ...all, [m]: { here: rest.here, notYet: notYetNow } };
+    });
+  const reload = async (m: ScanMode) => {
+    const [here, notYet] = await Promise.all([arrivalsAction(campId, m, "here", 0), arrivalsAction(campId, m, "notYet", 0)]).catch(() => [null, null]);
+    if (here?.ok && notYet?.ok) {
+      setLists((all) => ({ ...all, [m]: { here: here.data, notYet: notYet.data } }));
+      setEnded((e) => ({ ...e, [`${m}:here`]: here.data.length < 50, [`${m}:notYet`]: notYet.data.length < 50 }));
+    }
+  };
+  const more = async (m: ScanMode, t: "here" | "notYet") => {
+    const r = await arrivalsAction(campId, m, t, lists[m][t].length).catch(() => null);
+    if (!r?.ok) return toast("Couldn't load more. Check the signal and try again.", { tone: "error" });
+    setLists((all) => {
+      const seen = new Set(all[m][t].map((x) => x.id));
+      return { ...all, [m]: { ...all[m], [t]: [...all[m][t], ...r.data.filter((x) => !seen.has(x.id))] } };
+    });
+    if (r.data.length < 50) setEnded((e) => ({ ...e, [`${m}:${t}`]: true }));
+  };
   const offline = useOfflineScans(campId, (fresh, results) => {
     setCounts(fresh);
     const failed = results.filter((r) => r.error).length;
     const sent = results.length - failed;
     if (sent) toast(`Sent ${sent} ${sent === 1 ? "scan" : "scans"} kept on this phone`);
     if (failed) toast(`${failed} couldn't be saved. See the list above.`, { tone: "error" });
-    router.refresh();
+    void reload("checkin");
+    void reload("shirt");
   });
   const { keep } = offline;
 
@@ -197,11 +228,14 @@ export function CheckIn({
           return;
         }
         setResult({ person: r.data.person, already: r.data.already, mode: m });
-        setCounts(r.data.counts);
+        if (!r.data.already) {
+          bump(m, 1);
+          moved(r.data.person, m, true);
+        }
         navigator.vibrate?.(r.data.already ? [40, 60, 40] : 60);
-        router.refresh();
       }),
-    [campId, router, keepScan],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [campId, keepScan],
   );
 
   // Opened from a phone camera scanning a pass: do this phone's job straight away. Read from the
@@ -216,11 +250,16 @@ export function CheckIn({
     window.history.replaceState(null, "", window.location.pathname);
   }, [scan, initialMode]);
 
-  // The counts keep themselves current while the page is open (and there's signal).
+  // The counts keep themselves current while the page is open (and there's signal). Only the
+  // counts: the lists change with this phone's scans, and reload when asked.
   useEffect(() => {
-    const timer = setInterval(() => navigator.onLine && router.refresh(), 20_000);
+    const timer = setInterval(async () => {
+      if (!navigator.onLine || document.visibilityState !== "visible") return;
+      const r = await scanCountsAction(campId).catch(() => null);
+      if (r?.ok) setCounts(r.data);
+    }, 20_000);
     return () => clearInterval(timer);
-  }, [router]);
+  }, [campId]);
 
   // While a result shows, the camera keeps running but nothing is read until "Scan the next person".
   const paused = useRef(false);
@@ -304,10 +343,11 @@ export function CheckIn({
       }
       const r = await undoScanAction(campId, person.id, m);
       if (!r.ok) return toast(r.error, { tone: "error" });
-      setCounts(r.data);
+      bump(m, -1);
+      const shown = lists[m].here.find((x) => x.id === person.id);
+      if (shown) moved(shown, m, false);
       setResult(null);
       toast(`${person.full_name.split(" ")[0]}: ${WORDS[m].undo}`);
-      router.refresh();
     });
 
   const done = mode === "checkin" ? counts.here : counts.shirts;
@@ -497,6 +537,10 @@ export function CheckIn({
       <Arrivals
         mode={mode}
         lists={lists[mode]}
+        totals={{ here: done, notYet: Math.max(0, counts.expected - done) }}
+        ended={{ here: !!ended[`${mode}:here`] || lists[mode].here.length < 50, notYet: !!ended[`${mode}:notYet`] || lists[mode].notYet.length < 50 }}
+        onMore={(t) => more(mode, t)}
+        onReload={() => reload(mode)}
         tab={tab}
         onTab={setTab}
         onOpen={setOpenedPerson}
@@ -534,12 +578,21 @@ const dayOf = (at: string) => new Date(at).toLocaleDateString("en-GB", { weekday
 function Arrivals({
   mode,
   lists,
+  totals,
+  ended,
+  onMore,
+  onReload,
   tab,
   onTab,
   onOpen,
 }: {
   mode: ScanMode;
   lists: { here: Arrival[]; notYet: Arrival[] };
+  /** The real totals (the lists hold only what's loaded). */
+  totals: { here: number; notYet: number };
+  ended: { here: boolean; notYet: boolean };
+  onMore: (t: "here" | "notYet") => Promise<void>;
+  onReload: () => Promise<void>;
   tab: "here" | "notYet";
   onTab: (t: "here" | "notYet") => void;
   onOpen: (id: string) => void;
@@ -579,9 +632,12 @@ function Arrivals({
             onClick={() => onTab(t)}
             className={cn("cm-press h-10 rounded-full text-sm font-medium", tab === t && "bg-soot text-white")}
           >
-            {t === "here" ? words.here : words.not} ({t === "here" ? lists.here.length : lists.notYet.length})
+            {t === "here" ? words.here : words.not} ({(t === "here" ? totals.here : totals.notYet).toLocaleString("en-GB")})
           </button>
         ))}
+      </div>
+      <div className="flex justify-end px-1">
+        <ListButton onClick={onReload}>Refresh list</ListButton>
       </div>
       {tab === "here" ? (
         days.length === 0 ? (
@@ -606,7 +662,30 @@ function Arrivals({
       ) : (
         <ul className="overflow-hidden rounded-[12px] border border-stone-border bg-white">{lists.notYet.map((p) => row(p, null))}</ul>
       )}
+      {!ended[tab] && lists[tab].length > 0 && (
+        <ListButton onClick={() => onMore(tab)} wide>
+          Show 50 more
+        </ListButton>
+      )}
     </section>
+  );
+}
+
+/** "Show 50 more" and "Refresh list": quiet, with a busy state while it loads. */
+function ListButton({ onClick, children, wide }: { onClick: () => Promise<void>; children: React.ReactNode; wide?: boolean }) {
+  const [busy, start] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => start(onClick)}
+      className={cn(
+        "cm-press inline-flex h-11 items-center justify-center rounded-full border border-stone-border bg-white px-5 text-sm font-medium disabled:opacity-60",
+        wide && "w-full",
+      )}
+    >
+      {busy ? "Loading…" : children}
+    </button>
   );
 }
 

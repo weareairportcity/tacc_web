@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { signInLeader, signOutLeader } from "@/lib/camp/leaders";
-import { allow, clientIp } from "@/lib/camp/rate-limit";
+import { allowVisitor } from "@/lib/camp/rate-limit";
 
 /** Signs a coordinator out. A leader code on the same device stays signed in on the leaders' side. */
 export async function signOutAction() {
@@ -18,9 +18,9 @@ export async function leaderSignOutAction() {
   redirect("/leaders");
 }
 
-/** A leader's sign-in code. Rate-limited per address: the code is the only credential. */
+/** A leader's sign-in code. Rate-limited per phone, with a ceiling per address: the code is the only credential. */
 export async function leaderSignInAction(code: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!(await allow(`leader-signin:${await clientIp()}`, 10, 15 * 60 * 1000))) {
+  if (!(await allowVisitor("leader-signin", 10, 100, 15 * 60 * 1000))) {
     return { ok: false, error: "Too many tries. Wait a few minutes and try again." };
   }
   try {

@@ -29,7 +29,10 @@ const refreshStatement = (registrationId: string) => ({
             WHEN ${NET_PAID} >= price_pesewas THEN 'fully_paid'
             WHEN ${NET_PAID} > 0 THEN 'partially_paid'
             ELSE 'registered'
-          END
+          END,
+          last_paid_at = (SELECT p.paid_at FROM camp_payments p WHERE p.registration_id = camp_registrations.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1),
+          last_paid_pesewas = (SELECT p.amount_pesewas FROM camp_payments p WHERE p.registration_id = camp_registrations.id AND p.status = 'success' ORDER BY p.paid_at DESC LIMIT 1),
+          flagged_payments = (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = camp_registrations.id AND p.flag IN ('amount_mismatch', 'over_balance'))
         WHERE id = ?`,
   params: [registrationId],
 });

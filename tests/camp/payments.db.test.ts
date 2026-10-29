@@ -21,6 +21,10 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => paystack.close(() => resolve())));
 
 const CALLBACK = "http://localhost:3000/camps/test/paid";
+// A checkout opened long enough ago that a new one is started rather than reopened.
+const longAgo = (reference: string) =>
+  query("app", "UPDATE camp_payments SET created_at = ? WHERE reference = ?", [new Date(Date.now() - 40 * 60 * 1000).toISOString(), reference]);
+
 const pay = (registrationId: string, amount: number) => startPayment(registrationId, amount, CALLBACK);
 const reconcileNow = () => post<Record<string, number>>("/v1/admin/camp/reconcile", { older_than_minutes: 0 });
 const auditActions = async (entityId: string) =>
@@ -134,6 +138,7 @@ describe("webhook", () => {
     expect(fullyPaidTexts()).toEqual([]);
 
     const second = await pay(id, 30000);
+    expect(second.reference).not.toBe(first.reference);
     succeed(second.reference);
     await sendWebhook(second.reference);
     await sendWebhook(second.reference); // a repeat doesn't text again
@@ -173,6 +178,7 @@ describe("overpayment", () => {
   it("can't happen through two checkouts: an open one is closed first", async () => {
     const { id } = await registered();
     const stale = await pay(id, 60000);
+    await longAgo(stale.reference);
     const fresh = await pay(id, 60000); // stale was never paid, so it's given up on
     expect((await listPayments(id)).find((p) => p.reference === stale.reference)?.status).toBe("failed");
 
@@ -192,6 +198,7 @@ describe("overpayment", () => {
   it("still credits an old checkout paid late when it fits the balance", async () => {
     const { id } = await registered();
     const stale = await pay(id, 20000);
+    await longAgo(stale.reference);
     await pay(id, 20000); // closes stale
     succeed(stale.reference);
     await sendWebhook(stale.reference);
@@ -202,7 +209,9 @@ describe("overpayment", () => {
     const { id } = await registered();
     const first = await pay(id, 20000);
     setTransaction(first.reference, { status: "ongoing" });
-    await expect(pay(id, 20000)).rejects.toThrow("still processing");
+    // The same amount reopens the same checkout; a different one waits for the first to finish.
+    expect((await pay(id, 20000)).reference).toBe(first.reference);
+    await expect(pay(id, 10000)).rejects.toThrow("still processing");
   });
 
   it("is blocked by the database even if the code is bypassed", async () => {
@@ -336,6 +345,7 @@ describe("checking against Paystack", () => {
   it("counts a late over-balance payment as waiting for a refund, not a mismatch", async () => {
     const { camp, id } = await registered();
     const stale = await pay(id, 60000);
+    await longAgo(stale.reference);
     const fresh = await pay(id, 60000);
     succeed(fresh.reference);
     await sendWebhook(fresh.reference);
@@ -630,5 +640,42 @@ describe("pay-for-people receipt", () => {
     expect(receipt).toMatchObject({ paid_by: ACTOR, note: "Zion fund", amount_pesewas: 120000, charged_pesewas: checkout.charged_pesewas, status: "success" });
     expect(receipt!.people.map((p) => [p.id, p.amount_pesewas, p.status]).sort()).toEqual([[a.id, 60000, "success"], [b.id, 60000, "success"]].sort());
     expect(await getBulkReceipt((await openCamp()).camp.id, checkout.reference)).toBeNull();
+  });
+});
+
+describe("one checkout at a time", () => {
+  it("opens the same checkout again for a second tab with the same amount", async () => {
+    const { id } = await registered();
+    const first = await pay(id, 20000);
+    const second = await pay(id, 20000);
+    expect(second.reference).toBe(first.reference);
+    expect(second.authorization_url).toBe(first.authorization_url);
+    const pending = await query("app", "SELECT id FROM camp_payments WHERE registration_id = ? AND status = 'pending'", [id]);
+    expect(pending).toHaveLength(1);
+  });
+
+  it("never starts two checkouts for two taps at the same moment", async () => {
+    const { id } = await registered();
+    const tries = await Promise.allSettled([pay(id, 20000), pay(id, 20000)]);
+    const refs = new Set(tries.flatMap((t) => (t.status === "fulfilled" ? [t.value.reference] : [])));
+    expect(refs.size).toBe(1);
+    const open = await query("app", "SELECT id FROM camp_payments WHERE registration_id = ? AND status = 'pending'", [id]);
+    expect(open).toHaveLength(1);
+  });
+});
+
+describe("stored on the registration", () => {
+  it("keeps each person's latest payment on their registration", async () => {
+    const { id } = await registered();
+    const checkout = await pay(id, 15000);
+    succeed(checkout.reference);
+    await sendWebhook(checkout.reference);
+    const [row] = await query<{ last_paid_pesewas: number; last_paid_at: string | null; flagged_payments: number }>(
+      "app",
+      "SELECT last_paid_pesewas, last_paid_at, flagged_payments FROM camp_registrations WHERE id = ?",
+      [id],
+    );
+    expect(row).toMatchObject({ last_paid_pesewas: 15000, flagged_payments: 0 });
+    expect(row.last_paid_at).toBeTruthy();
   });
 });
