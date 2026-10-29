@@ -7,18 +7,7 @@ import { submitFeedback, type FeedbackInput } from "@/lib/camp/feedback";
 import { cedisToPesewas } from "@/lib/camp/money";
 import { cancelPayment, checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import { allow, clientIp } from "@/lib/camp/rate-limit";
-import {
-  acceptInvite,
-  cancelInvite,
-  createGroup,
-  declineInvite,
-  invite,
-  joinByCode,
-  leaveGroup,
-  removeMember,
-  searchInvitees,
-  setLocked,
-} from "@/lib/camp/groups";
+import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
 import { cancelMine, deleteMyDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
 import { changeGender } from "@/lib/camp/gender";
@@ -28,6 +17,8 @@ import { campOrigin as origin } from "@/lib/camp/origin";
 import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
 import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
+import { firstName, SIGN_OFF } from "@/lib/camp/sms";
+import { forgetJoin, rememberJoin } from "@/lib/camp/join-memory";
 
 /**
  * Attendee actions. Server actions are reachable by direct POST, so each one
@@ -60,8 +51,11 @@ async function limit(key: string, max: number, windowMs: number) {
 }
 
 
-const codeText = (campName: string, code: string, url: string) =>
-  `${campName}: your sign-in code is ${formatCode(code)}. Keep it private. Sign in at ${url}`;
+// No link, so each fits one SMS part; the code is what matters, so keep the text.
+const registeredText = (campName: string, name: string, code: string) =>
+  `Hi ${firstName(name)}, you're registered for ${campName}! Your sign-in code is ${formatCode(code)}. Please keep this text safe. ${SIGN_OFF}`;
+const newCodeText = (campName: string, name: string, code: string) =>
+  `Hi ${firstName(name)}, here's your new sign-in code for ${campName}: ${formatCode(code)}. Your old code no longer works. ${SIGN_OFF}`;
 
 /** `registered`: that phone is already registered, so the page sends them to sign in instead. */
 export async function registerAction(slug: string, input: RegistrationInput) {
@@ -78,7 +72,7 @@ export async function registerAction(slug: string, input: RegistrationInput) {
     const { id, code } = created;
     await startAttendeeSession(id, hashCode(code));
     // The code is also on screen, so a failed text doesn't block anyone.
-    await sendSMS(input.phone, codeText(camp.name, code, `${await origin()}/camps/${camp.slug}`), COMMUNE_SENDER).catch(() => false);
+    await sendSMS(input.phone, registeredText(camp.name, input.full_name, code), COMMUNE_SENDER).catch(() => false);
     return { code: formatCode(code) };
   });
 }
@@ -101,7 +95,7 @@ export async function forgotCodeAction(slug: string, phone: string) {
     await limit(`forgot:${await clientIp()}`, 5, 60 * MINUTE);
     await limit(`forgot-phone:${camp.id}:${String(phone).replace(/\D/g, "").slice(-9)}`, 3, 24 * 60 * MINUTE);
     const reset = await resetCode(camp.id, phone);
-    if (reset) await sendSMS(reset.phone, codeText(camp.name, reset.code, `${await origin()}/camps/${camp.slug}`), COMMUNE_SENDER);
+    if (reset) await sendSMS(reset.phone, newCodeText(camp.name, reset.name, reset.code), COMMUNE_SENDER);
     return null;
   });
 }
@@ -164,7 +158,7 @@ export async function cancelMyPaymentAction(slug: string, reference: string) {
 
 // ─── Roommate groups ─────────────────────────────────────────────────────────
 // Each action acts as the signed-in attendee only; groups.ts re-checks that
-// they're the owner, a member or the invitee before changing anything.
+// they're the owner or a member before changing anything.
 
 async function signedIn(slug: string) {
   const camp = await campFor(slug);
@@ -194,6 +188,26 @@ export async function joinGroupAction(slug: string, code: string) {
   return groupAction(slug, async (me) => {
     await limit(`group-join-ip:${await clientIp()}`, 20, 15 * MINUTE);
     await joinByCode(me, String(code));
+    await forgetJoin(slug);
+    return null;
+  });
+}
+
+/** A friend's link opened before they could join: kept until they've paid. */
+export async function rememberJoinAction(slug: string, code: string) {
+  return run(async () => {
+    await campFor(slug);
+    await rememberJoin(slug, String(code));
+    return null;
+  });
+}
+
+/** "No thanks" on the home page's "Join Kofi's group?". */
+export async function forgetJoinAction(slug: string) {
+  return run(async () => {
+    await campFor(slug);
+    await forgetJoin(slug);
+    revalidatePath(`/camps/${slug}/me`);
     return null;
   });
 }
@@ -204,30 +218,6 @@ export async function leaveGroupAction(slug: string) {
 
 export async function removeMemberAction(slug: string, registrationId: string) {
   return groupAction(slug, (me) => removeMember(me, String(registrationId)).then(() => null));
-}
-
-export async function setGroupLockedAction(slug: string, locked: boolean) {
-  return groupAction(slug, (me) => setLocked(me, locked === true).then(() => null));
-}
-
-export async function searchInviteesAction(slug: string, term: string) {
-  return run(async () => searchInvitees((await signedIn(slug)).me, String(term)));
-}
-
-export async function inviteAction(slug: string, registrationId: string) {
-  return groupAction(slug, (me) => invite(me, String(registrationId)).then(() => null));
-}
-
-export async function cancelInviteAction(slug: string, inviteId: string) {
-  return groupAction(slug, (me) => cancelInvite(me, String(inviteId)).then(() => null));
-}
-
-export async function acceptInviteAction(slug: string, inviteId: string) {
-  return groupAction(slug, (me) => acceptInvite(me, String(inviteId)).then(() => null));
-}
-
-export async function declineInviteAction(slug: string, inviteId: string) {
-  return groupAction(slug, (me) => declineInvite(me, String(inviteId)).then(() => null));
 }
 
 // ─── Your details, cancelling, requests ──────────────────────────────────────

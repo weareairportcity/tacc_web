@@ -25,7 +25,7 @@ export const feedbackLink = (origin: string, camp: Pick<Camp, "slug">, registrat
   `${origin}/camps/${camp.slug}/feedback/${makeToken("feedback", registrationId)}`;
 
 export const thanksText = (camp: Pick<Camp, "name">, firstName: string, link: string) =>
-  `Thank you for coming to ${camp.name}, ${firstName}! How was it? Tell us in 2 minutes, no name needed: ${link}`;
+  `Hi ${firstName}, thank you for coming to ${camp.name}! How was it? 2 minutes, no name needed: ${link} - The Airport City Church`;
 
 type Pending = { id: string; full_name: string; phone: string };
 

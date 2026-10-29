@@ -1,91 +1,98 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
-import { ErrorText, Field, inputClass, secondaryButtonClass } from "@/components/camp/ui";
+import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import { forgotCodeAction, signInAction } from "./actions";
 
-/** `next`: where to go after signing in, e.g. a group join link. */
+/** The code, big and easy to type; then "Lost your code?" with a new one by text. `next`: where to go after, e.g. a group join link. */
 export function SignIn({ slug, next }: { slug: string; next?: string }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"code" | "forgot">("code");
-  const [value, setValue] = useState("");
+  const [code, setCode] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [lostError, setLostError] = useState("");
   const [sent, setSent] = useState(false);
-  const [pending, startTransition] = useTransition();
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    startTransition(async () => {
-      if (mode === "code") {
-        const result = await signInAction(slug, value);
-        if (!result.ok) return setError(result.error);
-        router.push(next ?? `/camps/${slug}/me`);
-      } else {
-        const result = await forgotCodeAction(slug, value);
-        if (!result.ok) return setError(result.error);
-        setSent(true);
-      }
-    });
-  };
-
-  const switchTo = (next: "code" | "forgot") => {
-    setMode(next);
-    setValue("");
-    setError("");
-    setSent(false);
-  };
+  const [pending, start] = useTransition();
+  const [sending, startSend] = useTransition();
+  const lost = useRef<HTMLInputElement>(null);
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3.5">
-      {mode === "code" ? (
-        <Field label="Your sign-in code">
+    <>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError("");
+          start(async () => {
+            const r = await signInAction(slug, code);
+            if (!r.ok) return setError(r.error);
+            router.push(next ?? `/camps/${slug}/me`);
+          });
+        }}
+        className="cm-rise order-1 flex flex-col gap-3.5 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card"
+        style={{ animationDelay: "60ms" }}
+      >
+        <Field label="Your sign-in code" hint="8 letters and numbers. Dashes and spaces are fine.">
           <input
             required
             autoComplete="one-time-code"
             autoCapitalize="characters"
-            className={`${inputClass} font-mono uppercase tracking-[0.15em]`}
+            spellCheck={false}
+            className={`${inputClass} h-[60px] text-center font-mono text-[22px] tracking-[0.14em] uppercase sm:h-[60px] sm:text-[22px]`}
             placeholder="ABCD-EFGH"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
           />
         </Field>
-      ) : (
-        <Field label="The phone number you registered with">
-          <input
-            required
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            className={inputClass}
-            placeholder="055 111 2222"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
-        </Field>
-      )}
-      <ErrorText>{error}</ErrorText>
-      {sent && (
-        <p role="status" className="flex items-start gap-2 text-sm leading-snug">
-          <CircleCheck className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden="true" />
-          If that number is registered, we&apos;ve texted it a new code. Your old code no longer works.
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending} aria-busy={pending} className={`${secondaryButtonClass} h-11 px-5`}>
-          <Busy pending={pending} text={mode === "code" ? "Signing in…" : "Sending…"}>{mode === "code" ? "Sign in" : "Text me a new code"}</Busy>
+        <ErrorText>{error}</ErrorText>
+        <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-14 w-full text-[17px]`}>
+          <Busy pending={pending} text="Signing in…">Sign in</Busy>
         </button>
         <button
           type="button"
-          onClick={() => switchTo(mode === "code" ? "forgot" : "code")}
-          className="min-h-11 text-sm text-warm-gray underline decoration-stone-muted underline-offset-[3px] hover:text-ink-black"
+          onClick={() => {
+            lost.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            lost.current?.focus({ preventScroll: true });
+          }}
+          className={`${secondaryButtonClass} h-12 w-full text-[15px]`}
         >
-          {mode === "code" ? "Forgot your code?" : "I have my code"}
+          I&apos;ve lost my code
         </button>
-      </div>
-    </form>
+      </form>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setLostError("");
+          startSend(async () => {
+            const r = await forgotCodeAction(slug, phone);
+            if (!r.ok) return setLostError(r.error);
+            setSent(true);
+          });
+        }}
+        className="order-3 flex flex-col gap-2.5 border-t border-stone-border pt-6"
+        aria-labelledby="lost-code"
+      >
+        <h2 id="lost-code" className="font-display text-xl tracking-[-0.017em]">
+          Lost your code?
+        </h2>
+        <p className="text-[15px] leading-relaxed text-warm-gray">Type the phone number you registered with. We&apos;ll text you a new code, and the old one stops working.</p>
+        <Field label="Phone number">
+          <input ref={lost} required type="tel" inputMode="tel" autoComplete="tel" className={`${inputClass} h-[52px] sm:h-[52px] sm:text-base`} placeholder="055 111 2222" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        <ErrorText>{lostError}</ErrorText>
+        {sent && (
+          <p role="status" className="flex items-start gap-2 text-[15px] leading-snug">
+            <CircleCheck className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.8} aria-hidden="true" />
+            If that number is registered, we&apos;ve texted it a new code. Your old code no longer works.
+          </p>
+        )}
+        <button type="submit" disabled={sending} aria-busy={sending} className={`${secondaryButtonClass} h-[52px] w-full text-[15px]`}>
+          <Busy pending={sending} text="Sending…">Text me a new code</Busy>
+        </button>
+      </form>
+    </>
   );
 }

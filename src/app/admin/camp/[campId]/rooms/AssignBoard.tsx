@@ -138,7 +138,7 @@ export function AssignBoard({
                     setConfirmSms(false);
                     const r = await sendRoomSmsAction(campId);
                     if (!r.ok) return toast(r.error, { tone: "error" });
-                    toast(`Texted ${r.data.sent} ${r.data.sent === 1 ? "person" : "people"} their room${r.data.remaining ? `. ${r.data.remaining} still to text.` : ""}`);
+                    toast(`Texted ${r.data.sent} ${r.data.sent === 1 ? "person" : "people"} their room${r.data.failed ? `. ${r.data.failed} didn't go; press again to retry.` : r.data.remaining ? `. ${r.data.remaining} still to text.` : ""}`);
                     router.refresh();
                   })
                 }
@@ -310,16 +310,28 @@ export function AssignBoard({
   );
 }
 
-/** One dot per bed: blue taken, green when that person has arrived, empty free. */
+/**
+ * One dot per bed (blue taken, green arrived, empty free), with the number
+ * always written beside them: "2 / 4 · 2 free", never dots or colour alone.
+ */
 export function Beds({ capacity, taken, arrived = 0 }: { capacity: number; taken: number; arrived?: number }) {
+  const free = Math.max(0, capacity - taken);
   return (
-    <span className="flex gap-1" role="img" aria-label={`${taken} of ${capacity} beds taken${arrived ? `, ${arrived} arrived` : ""}`}>
-      {Array.from({ length: Math.min(capacity, 10) }, (_, i) => (
-        <span
-          key={i}
-          className={cn("h-[11px] w-[11px] rounded-full", i < arrived ? "bg-st-paid" : i < taken ? "bg-cyan-edge" : "border-[1.5px] border-stone-muted")}
-        />
-      ))}
+    <span className="flex items-center gap-2" role="img" aria-label={`${taken} of ${capacity} beds taken, ${free} free${arrived ? `, ${arrived} arrived` : ""}`}>
+      <span className="flex gap-1" aria-hidden="true">
+        {Array.from({ length: Math.min(capacity, 10) }, (_, i) => (
+          <span
+            key={i}
+            className={cn("h-[11px] w-[11px] rounded-full", i < arrived ? "bg-st-paid" : i < taken ? "bg-cyan-edge" : "border-[1.5px] border-stone-muted")}
+          />
+        ))}
+      </span>
+      <span className="text-[13px] whitespace-nowrap tabular-nums" aria-hidden="true">
+        <span className="font-medium">
+          {taken} / {capacity}
+        </span>
+        <span className="text-warm-gray"> · {free ? `${free} free` : "full"}</span>
+      </span>
     </span>
   );
 }

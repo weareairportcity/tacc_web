@@ -5,8 +5,7 @@ import { getGroupFor } from "@/lib/camp/groups";
 import { getPrivateDetails } from "@/lib/camp/profile";
 import { todayInGhana } from "@/lib/camp/registrations";
 import { currentAttendee } from "@/lib/camp/session";
-import { CampBackLink } from "@/components/camp/photos";
-import { headlineClass } from "@/components/camp/ui";
+import { Intro } from "@/components/camp/subpage";
 import { DetailsForm } from "./DetailsForm";
 
 export default async function DetailsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,10 +17,16 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
   const [details, group, room] = await Promise.all([getPrivateDetails(me.id), getGroupFor(me.id), getMyRoom(me.id)]);
   return (
     <div className="flex flex-col gap-6">
-      <CampBackLink href={`/camps/${camp.slug}/me`} camp={camp} label="Your registration" />
-      <h1 className={`cm-rise ${headlineClass}`}>
-        Your <span className="text-cyan-edge">details</span>
-      </h1>
+      <Intro
+        slug={camp.slug}
+        title={
+          <>
+            Your <span className="text-cyan-edge">details</span>
+          </>
+        }
+      >
+        Check these are right. Change anything, then press Save at the bottom.
+      </Intro>
       <DetailsForm
         slug={camp.slug}
         phone={me.phone}

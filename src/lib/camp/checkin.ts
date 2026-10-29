@@ -69,6 +69,49 @@ async function personFor(campId: string, registrationId: string, scope: Scope) {
   return person;
 }
 
+/** One person's details when a name is tapped: on Check-in, and on a leader's People. */
+export type PersonCard = Arrival & {
+  phone: string;
+  emergency_name: string;
+  emergency_phone: string;
+  any_room: number;
+  /** People in their roommate group, or null if they're in none. */
+  group_size: number | null;
+};
+
+/** Leaders get phone, money, room, arrival and T-shirt; health notes, emergency contacts and roommates stay with coordinators. */
+export async function personCard(campId: string, registrationId: string, scope: Scope = ALL): Promise<PersonCard> {
+  const person = forViewer(await personFor(checkId(campId, "camp"), registrationId, scope), scope);
+  const [extra] = await query<Pick<PersonCard, "phone" | "emergency_name" | "emergency_phone" | "any_room" | "group_size">>(
+    "app",
+    `SELECT r.phone, r.emergency_name, r.emergency_phone, r.any_room,
+       (SELECT COUNT(*) FROM camp_group_members m WHERE m.group_id = (SELECT group_id FROM camp_group_members WHERE registration_id = r.id)) AS group_size
+     FROM camp_registrations r WHERE r.id = ?`,
+    [person.id],
+  );
+  const leader = scope.kind !== "all";
+  return {
+    ...person,
+    phone: extra?.phone ?? "",
+    emergency_name: leader ? "" : (extra?.emergency_name ?? ""),
+    emergency_phone: leader ? "" : (extra?.emergency_phone ?? ""),
+    any_room: extra?.any_room ?? 0,
+    group_size: extra?.group_size || null,
+  };
+}
+
+/** Everyone who's arrived (or collected a T-shirt), newest first, and everyone still to come, A to Z. */
+export async function arrivalLists(campId: string, mode: ScanMode = "checkin", scope: Scope = ALL) {
+  const s = scopeSql(scope);
+  const at = mode === "checkin" ? "r.checked_in_at" : "r.shirt_given_at";
+  const id = checkId(campId, "camp");
+  const [here, notYet] = await Promise.all([
+    query<Arrival>("app", `${SELECT} WHERE r.camp_id = ?${s.sql} AND ${at} IS NOT NULL ORDER BY ${at} DESC`, [id, ...s.params]),
+    query<Arrival>("app", `${SELECT} WHERE r.camp_id = ?${s.sql} AND ${at} IS NULL AND r.status <> 'cancelled' ORDER BY r.full_name`, [id, ...s.params]),
+  ]);
+  return { here: here.map((p) => forViewer(p, scope)), notYet: notYet.map((p) => forViewer(p, scope)) };
+}
+
 const COLUMNS = { checkin: ["checked_in_at", "checked_in_by"], shirt: ["shirt_given_at", "shirt_given_by"] } as const;
 const ACTIONS = { checkin: "registration.check_in", shirt: "registration.shirt_given" } as const;
 

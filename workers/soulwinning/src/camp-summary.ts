@@ -40,7 +40,7 @@ export function summaryText(campName: string, n: Numbers) {
   const parts = [`${n.registered} new`, `${cedis(n.money)} in`];
   const low = n.low.map((l) => `${l.name} ${l.gender === "male" ? "men" : "women"} ${l.places_left === 0 ? "full" : `${l.places_left} left`}`);
   const todo = [n.requests && `${n.requests} request${n.requests === 1 ? "" : "s"}`, n.flagged && `${n.flagged} payment${n.flagged === 1 ? "" : "s"} to check`].filter(Boolean);
-  return [`Commune, ${campName} today: ${parts.join(", ")}.`, low.length ? `${low.join(", ")}.` : "", todo.length ? `Waiting: ${todo.join(", ")}.` : ""]
+  return [`Good evening! ${campName} today: ${parts.join(", ")}.`, low.length ? `${low.join(", ")}.` : "", todo.length ? `Waiting: ${todo.join(", ")}.` : "", "- The Airport City Church"]
     .filter(Boolean)
     .join(" ");
 }

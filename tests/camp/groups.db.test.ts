@@ -1,21 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { formatGroupCode } from "@/lib/camp/codes";
-import {
-  acceptInvite,
-  cancelInvite,
-  createGroup,
-  declineInvite,
-  getGroupFor,
-  invite,
-  joinByCode,
-  leaveGroup,
-  listReceivedInvites,
-  listSentInvites,
-  removeMember,
-  searchInvitees,
-  setLocked,
-} from "@/lib/camp/groups";
+import { createGroup, getGroupFor, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { cancelRegistration, getRegistration, register } from "@/lib/camp/registrations";
 import { createRoomType } from "@/lib/camp/rooms";
 import type { Camp, Registration } from "@/lib/camp/types";
@@ -192,29 +178,30 @@ describe("leaving and removing", () => {
   });
 });
 
-describe("locking", () => {
-  it("freezes the group until the owner unlocks it", async () => {
+describe("closing", () => {
+  it("never happens by hand: no locking, and no invites by name", async () => {
     const { people: [owner, a, b] } = await campWith(3);
-    await createGroup(owner);
+    const groupId = await createGroup(owner);
     const code = await codeOf(owner);
     await joinByCode(a, code);
 
-    await expect(setLocked(a, true)).rejects.toThrow("Only the group's owner");
-    await setLocked(owner, true);
-    expect((await getGroupFor(owner.id))!.state).toBe("locked");
-    await expect(joinByCode(b, code)).rejects.toThrow("locked");
-    await expect(leaveGroup(a)).rejects.toThrow("locked");
-    await expect(removeMember(owner, a.id)).rejects.toThrow("locked");
-    await expect(invite(owner, b.id)).rejects.toThrow("locked");
-    await expect(query("app", "DELETE FROM camp_group_members WHERE registration_id = ?", [a.id])).rejects.toThrow();
-
-    await setLocked(owner, false);
+    await expect(
+      query("app", "UPDATE camp_groups SET locked_at = 'x' WHERE id = ?", [groupId]),
+    ).rejects.toThrow();
+    await expect(
+      query("app", "INSERT INTO camp_group_invites (id, group_id, registration_id, invited_by) VALUES (?, ?, ?, ?)", [
+        crypto.randomUUID(),
+        groupId,
+        b.id,
+        owner.id,
+      ]),
+    ).rejects.toThrow();
     await joinByCode(b, code);
     await leaveGroup(a);
     expect(await memberIds(owner)).toEqual([owner.id, b.id]);
   });
 
-  it("happens to every group at the deadline, and the owner can't undo it", async () => {
+  it("happens to every group at the deadline", async () => {
     const { camp, people: [owner, a, b, c] } = await campWith(4);
     await createGroup(owner);
     const code = await codeOf(owner);
@@ -224,92 +211,18 @@ describe("locking", () => {
     expect((await getGroupFor(owner.id))!.state).toBe("final");
     await expect(joinByCode(b, code)).rejects.toThrow("deadline");
     await expect(leaveGroup(a)).rejects.toThrow("deadline");
-    await expect(setLocked(owner, true)).rejects.toThrow("deadline");
-    await expect(setLocked(owner, false)).rejects.toThrow("deadline");
+    await expect(removeMember(owner, a.id)).rejects.toThrow("deadline");
     await expect(createGroup(c)).rejects.toThrow("deadline");
     // And straight at the database.
     await expect(query("app", "DELETE FROM camp_group_members WHERE registration_id = ?", [a.id])).rejects.toThrow();
-    await expect(
-      query("app", "UPDATE camp_groups SET locked_at = 'x' WHERE owner_registration_id = ?", [owner.id]),
-    ).rejects.toThrow();
-  });
-});
-
-describe("invites", () => {
-  it("search shows only people who could join, without contact details", async () => {
-    const { camp, roomTypeId, people: [owner, inGroup] } = await campWith(2);
-    await createGroup(owner);
-    await createGroup(inGroup);
-    const match = await paidUp(camp, roomTypeId, { full_name: "Abena Owusu" });
-    await paidUp(camp, roomTypeId, { full_name: "Abena Mensah", gender: "male" });
-    await register(camp, attendee(roomTypeId, { full_name: "Abena Unpaid" }));
-
-    const found = await searchInvitees(owner, "abena");
-    expect(found).toEqual([{ id: match.id, full_name: "Abena Owusu", fellowship: "Qadash", invited: 0 }]);
-    expect(await searchInvitees(owner, "Person 2")).toEqual([]); // already in a group
-    expect(await searchInvitees(owner, "%")).toEqual([]); // wildcards are literal
-    await expect(searchInvitees(inGroup, "x")).resolves.toEqual([]);
-  });
-
-  it("can be accepted, which joins the group and closes other invites", async () => {
-    const { people: [owner, otherOwner, guest] } = await campWith(3);
-    const groupId = await createGroup(owner);
-    await createGroup(otherOwner);
-    await invite(owner, guest.id);
-    await invite(otherOwner, guest.id);
-    await expect(invite(owner, guest.id)).rejects.toThrow("can't invite");
-
-    const received = await listReceivedInvites(guest);
-    expect(received).toHaveLength(2);
-    const mine = received.find((i) => i.group_id === groupId)!;
-    expect(mine).toMatchObject({ owner_name: "Person 1", member_count: 1, capacity: 4 });
-
-    await acceptInvite(guest, mine.id);
-    expect(await memberIds(owner)).toEqual([owner.id, guest.id]);
-    expect(await listReceivedInvites(guest)).toEqual([]);
-    expect(await listSentInvites(groupId)).toEqual([]);
-  });
-
-  it("can't be accepted into a full group, or once declined or withdrawn", async () => {
-    const { people } = await campWith(7);
-    const [owner, late, decliner, withdrawn] = people;
-    await createGroup(owner);
-    await invite(owner, late.id);
-    await invite(owner, decliner.id);
-    await invite(owner, withdrawn.id);
-    const code = await codeOf(owner);
-    for (const p of people.slice(4, 7)) await joinByCode(p, code);
-
-    const inviteFor = async (r: Registration) => (await listReceivedInvites(r))[0].id;
-    await expect(acceptInvite(late, await inviteFor(late))).rejects.toThrow("full");
-    expect(await getGroupFor(late.id)).toBeNull();
-
-    const declined = await inviteFor(decliner);
-    await declineInvite(decliner, declined);
-    await expect(acceptInvite(decliner, declined)).rejects.toThrow("no longer open");
-
-    const sent = (await listSentInvites((await getGroupFor(owner.id))!.id)).find((i) => i.registration_id === withdrawn.id)!;
-    await cancelInvite(owner, sent.id);
-    await expect(acceptInvite(withdrawn, sent.id)).rejects.toThrow("no longer open");
-  });
-
-  it("can only be sent by the owner, to someone eligible", async () => {
-    const { camp, roomTypeId, people: [owner, member, other] } = await campWith(3);
-    await createGroup(owner);
-    await joinByCode(member, await codeOf(owner));
-    await expect(invite(member, other.id)).rejects.toThrow("Only the group's owner");
-    const man = await paidUp(camp, roomTypeId, { gender: "male" });
-    await expect(invite(owner, man.id)).rejects.toThrow("can't invite");
   });
 });
 
 describe("cancelling a registration", () => {
-  it("removes the person from their group and closes their invites", async () => {
-    const { people: [owner, a, b, c] } = await campWith(4);
+  it("removes the person from their group", async () => {
+    const { people: [owner, a] } = await campWith(2);
     await createGroup(owner);
     await joinByCode(a, await codeOf(owner));
-    const other = await createGroup(b);
-    await invite(b, c.id);
 
     expect(await cancelRegistration(ACTOR, owner.id)).toEqual({ warning: null });
     const group = (await getGroupFor(a.id))!;
@@ -319,23 +232,19 @@ describe("cancelling a registration", () => {
 
     await cancelRegistration(ACTOR, a.id);
     expect(await query("app", "SELECT id FROM camp_groups WHERE id = ?", [group.id])).toEqual([]);
-    await cancelRegistration(ACTOR, c.id);
-    expect(await listSentInvites(other)).toEqual([]);
   });
 
-  it("works on a locked or final group and warns the coordinator", async () => {
+  it("works on a group closed by the deadline and warns the coordinator", async () => {
     const { camp, people: [owner, a, b] } = await campWith(3);
     await createGroup(owner);
     const code = await codeOf(owner);
     await joinByCode(a, code);
     await joinByCode(b, code);
-    await setLocked(owner, true);
 
-    const { warning } = await cancelRegistration(ACTOR, a.id);
-    expect(warning).toMatch(/locked roommate group.*2 of 4/);
+    expect((await cancelRegistration(ACTOR, a.id)).warning).toBeNull();
     expect(await memberIds(owner)).toEqual([owner.id, b.id]);
 
     await pastDeadline(camp);
-    expect((await cancelRegistration(ACTOR, b.id)).warning).toMatch(/final roommate group.*1 of 4/);
+    expect((await cancelRegistration(ACTOR, b.id)).warning).toMatch(/closed by the deadline.*1 of 4/);
   });
 });

@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, CircleAlert, CloudOff, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
+import { Camera, Check, ChevronRight, CircleAlert, CloudOff, Flashlight, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
 import { Busy } from "@/components/camp/brand";
 import { shirtRefusal } from "@/lib/camp/shirts";
 import { formatCedis } from "@/lib/camp/money";
 import { useToast } from "@/components/camp/toast";
+import { PersonCardSheet } from "@/components/camp/PersonCard";
 import { RegistrationStatus, StackedBar, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { findArrivalsAction, scanAction, undoScanAction } from "../../actions";
@@ -56,6 +57,18 @@ const tokenOf = (text: string) => {
   }
 };
 
+// The camera runs only while this tab is on screen: switching tabs or locking the phone stops it.
+const subscribeVisible = (cb: () => void) => {
+  document.addEventListener("visibilitychange", cb);
+  return () => document.removeEventListener("visibilitychange", cb);
+};
+// Phones and tablets open the camera straight away; a laptop asks first.
+const subscribePointer = (cb: () => void) => {
+  const q = window.matchMedia("(pointer: coarse)");
+  q.addEventListener("change", cb);
+  return () => q.removeEventListener("change", cb);
+};
+
 // The mode stays as it was on this phone, so a pass opened by the camera app does the same job.
 const MODE_KEY = "commune.scanMode";
 const savedMode = (): ScanMode => {
@@ -74,7 +87,7 @@ const WORDS = {
 export function CheckIn({
   campId,
   counts: initial,
-  recent,
+  lists,
   initialMode,
   leader,
   shirtPaidOnly,
@@ -83,7 +96,7 @@ export function CheckIn({
   /** T-shirts only for people who've paid in full (the camp's setting). */
   shirtPaidOnly: boolean;
   counts: ScanCounts;
-  recent: Record<ScanMode, Arrival[]>;
+  lists: Record<ScanMode, { here: Arrival[]; notYet: Arrival[] }>;
   initialMode: ScanMode | null;
   leader: boolean;
 }) {
@@ -100,12 +113,19 @@ export function CheckIn({
     setCounts(initial);
   }
   const [result, setResult] = useState<Result | null>(null);
-  const [scanning, setScanning] = useState(false);
   const canScan = useSyncExternalStore(
     () => () => {},
     () => !!navigator.mediaDevices?.getUserMedia,
     () => false,
   );
+  const phone = useSyncExternalStore(subscribePointer, () => window.matchMedia("(pointer: coarse)").matches, () => false);
+  const visible = useSyncExternalStore(subscribeVisible, () => document.visibilityState === "visible", () => true);
+  // On a laptop the camera opens when asked; after that, as on a phone, it stays open until they leave.
+  const [askedForCamera, setAskedForCamera] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const cameraOn = canScan && (phone || askedForCamera) && !cameraError;
+  const [torch, setTorch] = useState<{ on: boolean; set: (on: boolean) => void } | null>(null);
+  const search = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState("");
   const [found, setFound] = useState<Found[]>([]);
   const [pending, start] = useTransition();
@@ -125,6 +145,7 @@ export function CheckIn({
 
   const pick = (m: ScanMode) => {
     setChosen(m);
+    busy.current = false;
     setResult(null);
     try {
       localStorage.setItem(MODE_KEY, m);
@@ -201,8 +222,17 @@ export function CheckIn({
     return () => clearInterval(timer);
   }, [router]);
 
+  // While a result shows, the camera keeps running but nothing is read until "Scan the next person".
+  const paused = useRef(false);
+  // The camera loop reads the latest scan and mode from here, so it starts and stops only with the camera.
+  const latest = useRef({ scan, mode });
   useEffect(() => {
-    if (!scanning) return;
+    paused.current = result !== null || pending;
+    latest.current = { scan, mode };
+  });
+
+  useEffect(() => {
+    if (!cameraOn || !visible) return;
     let stream: MediaStream | null = null;
     let frame = 0;
     let stopped = false;
@@ -213,32 +243,44 @@ export function CheckIn({
         if (stopped || !video.current) return media.getTracks().forEach((t) => t.stop());
         video.current.srcObject = stream;
         await video.current.play();
+        const track = media.getVideoTracks()[0];
+        if ((track?.getCapabilities?.() as { torch?: boolean } | undefined)?.torch) {
+          const set = (on: boolean) => {
+            track.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] }).catch(() => null);
+            setTorch({ on, set });
+          };
+          setTorch({ on: false, set });
+        }
         const tick = async () => {
           if (stopped) return;
-          if (video.current && !busy.current) {
+          if (video.current && !busy.current && !paused.current) {
             const text = await read(video.current).catch(() => null);
-            if (text) {
+            if (text && !stopped && !paused.current) {
               busy.current = true;
-              setScanning(false);
-              scan(tokenOf(text), mode);
-              return;
+              latest.current.scan(tokenOf(text), latest.current.mode);
             }
           }
           frame = requestAnimationFrame(tick);
         };
         frame = requestAnimationFrame(tick);
       } catch {
-        setScanning(false);
-        toast("The camera didn't open. Allow it in your browser settings.", { tone: "error" });
+        if (stopped) return;
+        setCameraError(true);
+        toast("The camera didn't open. Allow it in your browser settings, then tap Try again.", { tone: "error" });
       }
     })();
     return () => {
       stopped = true;
       cancelAnimationFrame(frame);
       stream?.getTracks().forEach((t) => t.stop());
-      busy.current = false;
+      setTorch((t) => (t ? null : t));
     };
-  }, [scanning, scan, toast, mode]);
+  }, [cameraOn, visible, toast]);
+
+  const next = () => {
+    busy.current = false;
+    setResult(null);
+  };
 
   useEffect(() => {
     if (term.trim().length < 2) return;
@@ -269,7 +311,8 @@ export function CheckIn({
     });
 
   const done = mode === "checkin" ? counts.here : counts.shirts;
-  const list = recent[mode];
+  const [tab, setTab] = useState<"here" | "notYet">("here");
+  const [personId, setOpenedPerson] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-5">
@@ -294,7 +337,58 @@ export function CheckIn({
 
       <OfflineStrip online={offline.online} waiting={offline.queue.length} sending={offline.sending} problems={offline.problems} onClear={offline.clearProblems} />
 
-      <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero" aria-live="polite">
+      {cameraOn ? (
+        <section aria-label="Scanner" className="relative h-[max(380px,min(calc(100dvh-300px),620px))] overflow-hidden rounded-2xl bg-ink-black text-white">
+          <video ref={video} playsInline muted className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent px-5 pt-4 pb-8">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex flex-col gap-0.5" aria-live="polite">
+                <span className="text-[13px] text-stone-muted">{w.title}</span>
+                <span className="font-display text-[26px] leading-tight tracking-[-0.02em]">
+                  <span className="tabular-nums">{done}</span> of {counts.expected} {mode === "checkin" ? "here" : "given"}
+                </span>
+              </span>
+              {torch && (
+                <button
+                  type="button"
+                  aria-label={torch.on ? "Torch off" : "Torch on"}
+                  aria-pressed={torch.on}
+                  onClick={() => torch.set(!torch.on)}
+                  className={cn("cm-press flex h-11 w-11 items-center justify-center rounded-full border", torch.on ? "border-white bg-white text-ink-black" : "border-white/30 bg-black/30")}
+                >
+                  <Flashlight className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/20" aria-hidden="true">
+              <span className="block h-full rounded-full bg-st-paid transition-[width] duration-500" style={{ width: `${counts.expected ? Math.round((done / counts.expected) * 100) : 0}%` }} />
+            </div>
+          </div>
+          {!result && (
+            <>
+              <span aria-hidden="true" className="absolute top-1/2 left-1/2 h-60 w-60 -translate-x-1/2 -translate-y-[60%]">
+                <span className="absolute top-0 left-0 h-10 w-10 rounded-tl-[14px] border-t-[3px] border-l-[3px] border-white" />
+                <span className="absolute top-0 right-0 h-10 w-10 rounded-tr-[14px] border-t-[3px] border-r-[3px] border-white" />
+                <span className="absolute bottom-0 left-0 h-10 w-10 rounded-bl-[14px] border-b-[3px] border-l-[3px] border-white" />
+                <span className="absolute right-0 bottom-0 h-10 w-10 rounded-br-[14px] border-r-[3px] border-b-[3px] border-white" />
+                <span className="cm-scanline absolute inset-x-3 top-3 h-0.5 bg-cyan-signal shadow-[0_0_12px_#3ba6f1] [--scan:214px]" />
+              </span>
+              <p className="absolute inset-x-0 bottom-6 text-center text-sm text-stone-200">
+                <Busy pending={pending} text="Checking…">
+                  {mode === "checkin" ? "Scan their QR" : "Scan their QR for a T-shirt"}
+                </Busy>
+              </p>
+            </>
+          )}
+          {result && (
+            <div className="cm-up absolute inset-x-0 bottom-0 max-h-[85%] overflow-y-auto text-ink-black">
+              <ResultCard result={result} leader={leader} pending={pending} sheet onUndo={(p, m, key) => undo(p, m, key)} onNext={next} onFind={() => { next(); search.current?.focus(); }} />
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          <section className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero" aria-live="polite">
         <span className="flex items-baseline gap-2.5">
           <span className="font-display text-[44px] leading-none tracking-[-0.03em] tabular-nums">{done}</span>
           <span className="text-[15px] text-warm-gray">
@@ -320,49 +414,47 @@ export function CheckIn({
           </ul>
         )}
       </section>
-
-      {result && (
-        <ResultCard
-          result={result}
-          leader={leader}
-          pending={pending}
-          onUndo={(p, m, key) => undo(p, m, key)}
-          onNext={() => {
-            setResult(null);
-            if (canScan) setScanning(true);
-          }}
-        />
+          {result && <ResultCard result={result} leader={leader} pending={pending} onUndo={(p, m, key) => undo(p, m, key)} onNext={next} />}
+          {canScan ? (
+            !result && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCameraError(false);
+                  setAskedForCamera(true);
+                }}
+                className={`${primaryButtonClass} h-14 w-full text-base`}
+              >
+                <Camera className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
+                {cameraError ? "Try the camera again" : "Scan with this device"}
+              </button>
+            )
+          ) : (
+            <p className="flex items-start gap-2.5 rounded-[10px] border border-stone-border bg-white p-4 text-sm">
+              <Camera className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" />
+              Scan the pass with your phone&apos;s camera. It opens here and {mode === "checkin" ? "checks them in" : "marks their T-shirt given"}.
+            </p>
+          )}
+        </>
       )}
 
-      {scanning ? (
-        <div className="relative overflow-hidden rounded-2xl bg-ink-black">
-          <video ref={video} playsInline muted className="aspect-[3/4] w-full object-cover sm:aspect-video" />
-          <span aria-hidden="true" className="absolute inset-[18%] rounded-2xl border-2 border-white/80">
-            <span className="cm-scanline absolute inset-x-3 top-3 h-0.5 bg-cyan-signal shadow-[0_0_12px_#3ba6f1] [--scan:180px]" />
-          </span>
-          <button type="button" onClick={() => setScanning(false)} className="cm-press absolute bottom-4 left-1/2 h-11 -translate-x-1/2 rounded-full bg-white px-5 text-sm font-medium">
-            Stop
-          </button>
-        </div>
-      ) : (
-        !result &&
-        (canScan ? (
-          <button type="button" onClick={() => setScanning(true)} className={`${primaryButtonClass} h-14 w-full text-base`}>
-            {mode === "checkin" ? <ScanLine className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> : <Shirt className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />}
-            {w.scan}
-          </button>
-        ) : (
-          <p className="flex items-start gap-2.5 rounded-[10px] border border-stone-border bg-white p-4 text-sm">
-            <Camera className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" />
-            Scan the pass with your phone&apos;s camera. It opens here and {mode === "checkin" ? "checks them in" : "marks their T-shirt given"}.
-          </p>
-        ))
+      {mode === "shirt" && counts.sizes.length > 0 && cameraOn && (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-[12px] border border-stone-border bg-white px-4 py-3 text-[13px] tabular-nums">
+          {counts.sizes.map((s) => (
+            <li key={s.size || "none"} className="flex items-center gap-1.5">
+              <strong className="font-semibold">{s.size || "No size"}</strong>
+              <span className="text-warm-gray">
+                {s.given}/{s.total}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
 
       <section className="flex flex-col gap-2">
         <label className="relative flex">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-warm-gray" strokeWidth={1.6} aria-hidden="true" />
-          <input type="search" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="No pass? Type their name" aria-label="Find someone by name" className={`${inputClass} pl-10`} />
+          <input ref={search} type="search" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="No pass? Type their name" aria-label="Find someone by name" className={`${inputClass} pl-10`} />
         </label>
         {term.trim().length >= 2 && found.length > 0 && (
           <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white">
@@ -402,27 +494,119 @@ export function CheckIn({
         )}
       </section>
 
-      {list.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold">{w.list}</h2>
-          <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white">
-            {list.map((p) => {
-              const at = mode === "checkin" ? p.checked_in_at : p.shirt_given_at;
-              return (
-                <li key={p.id} className="flex min-h-12 items-center gap-3 border-t border-stone-border px-4 text-sm first:border-t-0">
-                  <span className="h-2 w-2 flex-none rounded-full bg-st-paid" aria-hidden="true" />
-                  <span className="flex-1">{p.full_name}</span>
-                  <span className="text-warm-gray">{mode === "checkin" ? (p.room_label ?? "No room") : p.shirt_size || "No size"}</span>
-                  <span className="w-12 text-right text-xs tabular-nums text-warm-gray">
-                    {at && new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" })}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <Arrivals
+        mode={mode}
+        lists={lists[mode]}
+        tab={tab}
+        onTab={setTab}
+        onOpen={setOpenedPerson}
+      />
+
+      <PersonCardSheet
+        campId={campId}
+        personId={personId}
+        onClose={() => setOpenedPerson(null)}
+        leader={leader}
+        actions={(p) =>
+          (mode === "checkin" ? p.checked_in_at : p.shirt_given_at) && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setOpenedPerson(null);
+                undo(p, mode);
+              }}
+              className="cm-press inline-flex h-11 items-center rounded-full border border-stone-border bg-white px-5 text-sm font-medium"
+            >
+              {mode === "checkin" ? "Undo check-in" : "Take T-shirt back"}
+            </button>
+          )
+        }
+      />
     </div>
+  );
+}
+
+const timeOf = (at: string) => new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Accra" });
+const dayOf = (at: string) => new Date(at).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" });
+
+/** Who's arrived, by day with the time (newest first), and who isn't here yet. Every name opens their details. */
+function Arrivals({
+  mode,
+  lists,
+  tab,
+  onTab,
+  onOpen,
+}: {
+  mode: ScanMode;
+  lists: { here: Arrival[]; notYet: Arrival[] };
+  tab: "here" | "notYet";
+  onTab: (t: "here" | "notYet") => void;
+  onOpen: (id: string) => void;
+}) {
+  const atOf = (p: Arrival) => (mode === "checkin" ? p.checked_in_at : p.shirt_given_at);
+  const days: [string, Arrival[]][] = [];
+  for (const p of lists.here) {
+    const d = dayOf(atOf(p)!);
+    const last = days[days.length - 1];
+    if (last && last[0] === d) last[1].push(p);
+    else days.push([d, [p]]);
+  }
+  const words = mode === "checkin" ? { here: "Arrived", not: "Not here yet", n: "arrived" } : { here: "Collected", not: "Not yet", n: "collected" };
+  const row = (p: Arrival, right: React.ReactNode) => (
+    <li key={p.id} className="border-t border-stone-border first:border-t-0">
+      <button type="button" onClick={() => onOpen(p.id)} className="cm-row flex min-h-14 w-full items-center gap-3 px-4 text-left">
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-[15px] font-medium">{p.full_name}</span>
+          <span className="truncate text-[13px] text-warm-gray">
+            {p.fellowship} · {mode === "checkin" ? (p.room_label ?? "No room") : p.shirt_size || "No size"}
+          </span>
+        </span>
+        {right}
+        <ChevronRight className="h-4 w-4 flex-none text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
+      </button>
+    </li>
+  );
+  return (
+    <section className="flex flex-col gap-3">
+      <div role="tablist" aria-label="Who" className="grid grid-cols-2 gap-1 rounded-full border border-stone-border bg-white p-[3px]">
+        {(["here", "notYet"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => onTab(t)}
+            className={cn("cm-press h-10 rounded-full text-sm font-medium", tab === t && "bg-soot text-white")}
+          >
+            {t === "here" ? words.here : words.not} ({t === "here" ? lists.here.length : lists.notYet.length})
+          </button>
+        ))}
+      </div>
+      {tab === "here" ? (
+        days.length === 0 ? (
+          <p className="rounded-[12px] border border-stone-border bg-white px-4 py-3.5 text-sm text-warm-gray">Nobody yet. Scan a pass to start.</p>
+        ) : (
+          days.map(([day, people]) => (
+            <div key={day} className="flex flex-col gap-1.5">
+              <h3 className="flex items-baseline justify-between px-1 text-sm font-semibold">
+                {day}
+                <span className="text-[13px] font-normal text-warm-gray">
+                  {people.length} {words.n}
+                </span>
+              </h3>
+              <ul className="overflow-hidden rounded-[12px] border border-stone-border bg-white">
+                {people.map((p) => row(p, <span className="text-[13px] tabular-nums text-warm-gray">{timeOf(atOf(p)!)}</span>))}
+              </ul>
+            </div>
+          ))
+        )
+      ) : lists.notYet.length === 0 ? (
+        <p className="rounded-[12px] border border-stone-border bg-white px-4 py-3.5 text-sm text-warm-gray">Everyone&apos;s here.</p>
+      ) : (
+        <ul className="overflow-hidden rounded-[12px] border border-stone-border bg-white">{lists.notYet.map((p) => row(p, null))}</ul>
+      )}
+    </section>
   );
 }
 
@@ -471,24 +655,36 @@ function OfflineStrip({ online, waiting, sending, problems, onClear }: { online:
   );
 }
 
+/** `sheet`: slides up over the camera, which stays open behind it. */
 function ResultCard({
   result,
   leader,
   onUndo,
   onNext,
+  onFind,
   pending,
+  sheet = false,
 }: {
   result: Result;
   leader: boolean;
   onUndo: (p: Pick<Arrival, "id" | "full_name">, m: ScanMode, key?: string | null) => void;
   onNext: () => void;
+  onFind?: () => void;
   pending: boolean;
+  sheet?: boolean;
 }) {
+  const card = sheet ? "flex flex-col gap-4 rounded-t-[20px] bg-white p-5 pb-4 shadow-[0_-12px_40px_rgba(0,0,0,.25)]" : "cm-pop flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero";
+  const nextLabel = sheet ? "Scan the next person" : "Next person";
+  const find = onFind && (
+    <button type="button" onClick={onFind} className="min-h-10 self-center text-[13px] text-warm-gray underline decoration-stone-muted underline-offset-[3px]">
+      No QR? Find them by name
+    </button>
+  );
   if ("kept" in result) {
     const p = result.person;
     const w = WORDS[result.mode];
     return (
-      <section role="status" className="cm-pop flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero">
+      <section role="status" className={card}>
         <div className="flex items-center gap-3.5">
           <span className={cn("flex h-[52px] w-[52px] flex-none items-center justify-center rounded-full", result.already ? "bg-soot" : "bg-st-paid")}>
             <CloudOff className="h-6 w-6 text-white" strokeWidth={1.8} aria-hidden="true" />
@@ -528,21 +724,23 @@ function ResultCard({
             </button>
           )}
           <button type="button" onClick={onNext} className={`${primaryButtonClass} h-12 flex-1`}>
-            <ScanLine className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Next person
+            <ScanLine className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> {nextLabel}
           </button>
         </div>
+        {find}
       </section>
     );
   }
   if ("error" in result) {
     return (
-      <section role="alert" className="cm-pop flex flex-col gap-4 rounded-2xl border-2 border-soot bg-white p-5">
+      <section role="alert" className={sheet ? `${card} border-t-2 border-soot` : "cm-pop flex flex-col gap-4 rounded-2xl border-2 border-soot bg-white p-5"}>
         <p className="flex items-center gap-3 text-[17px] font-semibold">
           <CircleAlert className="h-6 w-6 flex-none" strokeWidth={1.8} aria-hidden="true" /> {result.error}
         </p>
         <button type="button" onClick={onNext} className={`${primaryButtonClass} h-12`}>
-          Try again
+          {sheet ? "Scan again" : "Try again"}
         </button>
+        {find}
       </section>
     );
   }
@@ -550,7 +748,7 @@ function ResultCard({
   const owing = p.price_pesewas - p.paid_pesewas;
   const w = WORDS[result.mode];
   return (
-    <section role="status" className="cm-pop flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero">
+    <section role="status" className={card}>
       <div className="flex items-center gap-3.5">
         <span className={cn("flex h-[52px] w-[52px] flex-none items-center justify-center rounded-full", result.already ? "bg-soot" : "bg-st-paid")}>
           <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
@@ -595,9 +793,10 @@ function ResultCard({
           </button>
         )}
         <button type="button" onClick={onNext} className={`${primaryButtonClass} h-12 flex-1`}>
-          <ScanLine className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Next person
+          <ScanLine className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> {nextLabel}
         </button>
       </div>
+      {find}
     </section>
   );
 }

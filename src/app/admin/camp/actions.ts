@@ -26,7 +26,7 @@ import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { listRefunds } from "@/lib/camp/adjustments";
-import { arrivalCounts, findArrivals, getArrival, markScan, scanRoster, syncScans, undoScan, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
+import { arrivalCounts, findArrivals, getArrival, markScan, personCard, scanRoster, syncScans, undoScan, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
 import { getGroupFor } from "@/lib/camp/groups";
 import { cancelPayment, checkBulkPayment, listOpenPaymentsByReference, listOpenPaymentsFor, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
 import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
@@ -34,6 +34,7 @@ import { approveRefund, approveRoomChange, declineRequest, listMyRequests } from
 import { deleteView, saveView } from "@/lib/camp/views";
 import { makeToken, readToken } from "@/lib/camp/tokens";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
+import { coordinatorText, MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
 import { campOrigin } from "@/lib/camp/origin";
 import { sendRoomSms } from "@/lib/camp/room-sms";
 import { sendThanks } from "@/lib/camp/feedback";
@@ -284,7 +285,7 @@ export async function sendRoomSmsAction(campId: string) {
     const staff = await requireCampRole("coordinator");
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
-    return sendRoomSms(staff.email, camp, await campOrigin());
+    return sendRoomSms(staff.email, camp);
   });
 }
 
@@ -427,20 +428,28 @@ export async function payForPeopleAction(campId: string, registrationIds: string
   });
 }
 
-/** A text to the people picked on People. Each text costs, so the page confirms first. */
+/**
+ * A text to the people picked on People, one per person so each is greeted by
+ * name. Each text costs, so the page confirms first.
+ */
 export async function textPeopleAction(campId: string, registrationIds: string[], message: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     const text = String(message ?? "").trim();
     if (text.length < 3) throw new CampError("Write the message first.");
-    if (text.length > 459) throw new CampError("Keep it to three texts (459 characters).");
+    if (text.length > MAX_COORDINATOR_MESSAGE) throw new CampError(`Keep it to ${MAX_COORDINATOR_MESSAGE} characters.`);
     const ids = Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 500) : [];
     const people = await Promise.all(ids.map((id) => personIn(campId, id).catch(() => null)));
-    const phones = people.filter((p) => p && p.status !== "cancelled" && /^233\d{9}$/.test(p.phone)).map((p) => p!.phone);
-    if (!phones.length) throw new CampError("None of them can be texted.");
-    if (!(await sendSMS(phones, text, COMMUNE_SENDER))) throw new CampError("The texts didn't go. Please try again.");
-    await batch("app", [auditStatement({ actor: staff.email, campId: String(campId), action: "people.text", entity: "camp", entityId: String(campId), after: { count: phones.length } })]);
-    return phones.length;
+    const to = people.filter((p) => p && p.status !== "cancelled" && /^233\d{9}$/.test(p.phone)).map((p) => p!);
+    if (!to.length) throw new CampError("None of them can be texted.");
+    let sent = 0;
+    for (let i = 0; i < to.length; i += 10) {
+      const oks = await Promise.all(to.slice(i, i + 10).map((p) => sendSMS(p.phone, coordinatorText(p.full_name, text), COMMUNE_SENDER).catch(() => false)));
+      sent += oks.filter(Boolean).length;
+    }
+    if (!sent) throw new CampError("The texts didn't go. Please try again.");
+    await batch("app", [auditStatement({ actor: staff.email, campId: String(campId), action: "people.text", entity: "camp", entityId: String(campId), after: { count: sent, failed: to.length - sent } })]);
+    return sent;
   });
 }
 
@@ -506,6 +515,14 @@ export async function syncScansAction(campId: string, scans: { key: string; targ
     });
     const results = [...bad, ...(await syncScans(staff.email, String(campId), good, scope))];
     return { results, counts: await arrivalCounts(String(campId), scope) };
+  });
+}
+
+/** One person's details, when a name is tapped on Check-in or a leader's People. */
+export async function personCardAction(campId: string, registrationId: string) {
+  return look(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    return personCard(String(campId), String(registrationId), scopeFor(staff));
   });
 }
 

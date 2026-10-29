@@ -96,7 +96,7 @@ describe("after camp", () => {
     });
     expect(first).toEqual({ sent: 1, failed: 1, remaining: 1 });
     expect(texts[0].to).toBe(came.phone);
-    expect(texts[0].text).toContain(`Thank you for coming to ${camp.name}, Ama!`);
+    expect(texts[0].text).toContain(`Hi Ama, thank you for coming to ${camp.name}!`);
     expect(texts[0].text).toContain(`https://commune.test/camps/${camp.slug}/feedback/${makeToken("feedback", came.id)}`);
 
     const second = await sendThanks(ACTOR, camp, "https://commune.test", async (to) => {

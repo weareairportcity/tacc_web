@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { assignPerson, getMyRoom } from "@/lib/camp/assignments";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
-import { createGroup, getGroupFor, joinByCode, setLocked } from "@/lib/camp/groups";
+import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { getRegistration, register } from "@/lib/camp/registrations";
 import { createRoom, listRoomTypes, setPlacesLeft } from "@/lib/camp/rooms";
 import { listHistory } from "@/lib/camp/reports";
@@ -77,9 +77,8 @@ describe("a coordinator changing someone's gender", () => {
     await expect(changeGender(ACTOR, esi.id, "female")).rejects.toThrow("already down as female");
   });
 
-  it("works even when their group is locked after the deadline", async () => {
+  it("works even after the roommate deadline has closed their group", async () => {
     const { camp, esi, kofi } = await setup();
-    await setLocked(esi, true);
     await query("app", "UPDATE camps SET roommate_deadline_on = ? WHERE id = ?", [day(-1), camp.id]);
     await changeGender(ACTOR, kofi.id, "female");
     expect(await getGroupFor(kofi.id)).toBeNull();

@@ -106,7 +106,7 @@ describe("the dashboard", () => {
       { room_type_id: undefined, room_type_name: "Hostel", gender: "male", registered: 1, fully_paid: 0, beds: 4, placed: 0, places_left: null },
       { room_type_id: undefined, room_type_name: "Suite", gender: "female", registered: 1, fully_paid: 1, beds: 0, placed: 0, places_left: null },
     ]);
-    expect(d.allocation).toEqual({ placed: 2, waiting: 1, unmatched: 1, groups: { open: 1, locked: 0, final: 0 } });
+    expect(d.allocation).toEqual({ placed: 2, waiting: 1, unmatched: 1, groups: { open: 1, final: 0 } });
     expect(d.groupsTooBig).toEqual([]);
   });
 

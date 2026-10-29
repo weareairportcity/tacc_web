@@ -5,10 +5,10 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Share2, Smartphone, X } from "lucide-react";
 import { ErrorText, secondaryButtonClass } from "@/components/camp/ui";
-import { myPayLinkAction, withdrawRequestAction } from "../actions";
+import { forgetJoinAction, myPayLinkAction, withdrawRequestAction } from "../actions";
 
 /** A link a parent or sponsor can open to pay without signing in. Shares on phones, copies elsewhere. */
-export function SharePayLink({ slug, firstName }: { slug: string; firstName: string }) {
+export function SharePayLink({ slug }: { slug: string }) {
   const [state, setState] = useState<"" | "copied" | "error">("");
   const [pending, start] = useTransition();
   return (
@@ -19,9 +19,9 @@ export function SharePayLink({ slug, firstName }: { slug: string; firstName: str
         start(async () => {
           const r = await myPayLinkAction(slug);
           if (!r.ok) return setState("error");
-          const text = `Please help me pay for camp: ${r.data}`;
+          // Just the link: the pay page says who it's for and how much.
           if (navigator.share) {
-            await navigator.share({ title: `Pay for ${firstName}`, text, url: r.data }).catch(() => null);
+            await navigator.share({ url: r.data }).catch(() => null);
             return;
           }
           await navigator.clipboard?.writeText(r.data).catch(() => null);
@@ -112,5 +112,26 @@ export function InstallHint() {
         <X className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
       </button>
     </section>
+  );
+}
+
+/** "No thanks" to a remembered friend's link. */
+export function ForgetJoin({ slug }: { slug: string }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          await forgetJoinAction(slug);
+          router.refresh();
+        })
+      }
+      className={`${secondaryButtonClass} h-11 w-full`}
+    >
+      <Busy pending={pending} text="One moment…">No thanks</Busy>
+    </button>
   );
 }

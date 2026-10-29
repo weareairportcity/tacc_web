@@ -73,7 +73,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
         return setError(result.error);
       }
       // Already registered with this phone: sign in instead of a dead end.
-      if ("registered" in result.data) return router.push(`/camps/${slug}?registered=1#sign-in`);
+      if ("registered" in result.data) return router.push(`/camps/${slug}/sign-in?registered=1`);
       setCode(result.data.code);
     });
   };
@@ -82,8 +82,12 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     return (
       <section className="cm-rise flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-seline-hero">
         <h2 className={titleClass}>You&apos;re registered</h2>
-        <p className="text-[15px] leading-relaxed text-warm-gray">Your sign-in code. We texted it to you too. Keep it private.</p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">This is your sign-in code. We&apos;ve texted it to you too.</p>
         <p className="rounded-[10px] bg-stone-canvas py-5 text-center font-mono text-3xl font-medium tracking-[0.2em]">{code}</p>
+        <p className="rounded-[12px] bg-cyan-tint px-4 py-3 text-[15px] leading-relaxed">
+          <strong className="font-semibold">Keep this code safe.</strong>{" "}Don&apos;t delete the text. You need the code each time you sign in on a new phone. Keep it to
+          yourself.
+        </p>
         <Link href={`/camps/${slug}/me`} className={`${primaryButtonClass} h-[52px] w-full`}>
           Continue to payment
         </Link>
@@ -219,6 +223,11 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
                 onChange={() => set("room_type_id", t.id)}
                 className="h-[18px] w-[18px] accent-soot"
               />
+              {/* How many share a room, as a number. */}
+              <span className={cn("flex h-14 w-14 flex-none flex-col items-center justify-center rounded-[12px]", full ? "bg-[#f0efee]" : "bg-stone-rail")}>
+                <span className={cn("font-display text-2xl leading-none", full && "text-warm-gray")}>{t.capacity}</span>
+                <span className="text-[10px] text-warm-gray">per room</span>
+              </span>
               <span className="flex flex-1 flex-col gap-0.5">
                 <span className={cn("text-[15px] font-medium", full && "text-warm-gray")}>{t.name}</span>
                 {full ? (
@@ -229,10 +238,10 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
                 ) : typeof state === "number" ? (
                   <span className="flex items-center gap-1.5 text-[13px]">
                     <span className="cm-pulse h-1.5 w-1.5 flex-none rounded-full bg-cyan-signal" />
-                    Only {state} {state === 1 ? "place" : "places"} left · {t.capacity} in a room
+                    Only {state} {state === 1 ? "place" : "places"} left
                   </span>
                 ) : (
-                  <span className="text-[13px] text-warm-gray">{t.capacity} in a room</span>
+                  <span className="text-[13px] text-warm-gray">Places left</span>
                 )}
               </span>
               <span className={cn("font-display text-lg tabular-nums", full && "text-ash-gray")}>{formatCedis(t.price_pesewas)}</span>

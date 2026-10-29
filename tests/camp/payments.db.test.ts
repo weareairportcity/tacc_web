@@ -123,6 +123,24 @@ describe("webhook", () => {
     expect(await auditActions(await paymentId(checkout.reference))).toEqual(["payment.flagged"]);
   });
 
+  it("texts the person once, when their payments reach the full price", async () => {
+    const { camp, id } = await registered();
+    const phone = (await getRegistration(id))!.phone;
+    const fullyPaidTexts = () => smsSent.filter((s) => s.recipient.includes(phone) && s.message.includes("you're fully paid"));
+
+    const first = await pay(id, 30000);
+    succeed(first.reference);
+    await sendWebhook(first.reference);
+    expect(fullyPaidTexts()).toEqual([]);
+
+    const second = await pay(id, 30000);
+    succeed(second.reference);
+    await sendWebhook(second.reference);
+    await sendWebhook(second.reference); // a repeat doesn't text again
+    expect(fullyPaidTexts()).toHaveLength(1);
+    expect(fullyPaidTexts()[0].message).toMatch(new RegExp(`^Hi Ama, you're fully paid for ${camp.name}\\. Thank you!.* - The Airport City Church$`));
+  });
+
   it("texts the coordinator when an amount doesn't match", async () => {
     const { id } = await registered();
     const checkout = await pay(id, 30000);
@@ -130,7 +148,7 @@ describe("webhook", () => {
     await sendWebhook(checkout.reference);
     expect(smsSent.find((s) => s.message.includes(checkout.reference))).toEqual({
       recipient: [`233${TEST_ALERT_PHONE.slice(1)}`],
-      message: `Commune: payment ${checkout.reference} needs a look (amount mismatch).`,
+      message: `The Airport City Church, Commune: payment ${checkout.reference} needs a look (amount mismatch).`,
     });
   });
 

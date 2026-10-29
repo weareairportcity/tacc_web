@@ -24,11 +24,15 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
 
   if (waiting) {
     return (
-      <p role="status" className="flex items-center gap-3 rounded-[10px] border border-stone-border bg-white px-4 py-3 text-[15px]">
-        <Clock className="h-4 w-4 flex-none" strokeWidth={1.7} aria-hidden="true" />
-        <span className="flex-1">Refund of {formatCedis(waiting.amount)} asked. We&apos;ll text you.</span>
-        <WithdrawRequest slug={slug} requestId={waiting.id} />
-      </p>
+      <section role="status" className="flex flex-col gap-2 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card">
+        <p className="flex items-center gap-2.5 text-[17px] font-semibold">
+          <Clock className="h-5 w-5 flex-none" strokeWidth={1.7} aria-hidden="true" /> Waiting for a coordinator
+        </p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">You asked for {formatCedis(waiting.amount)} back. We&apos;ll text you the answer.</p>
+        <span className="self-start">
+          <WithdrawRequest slug={slug} requestId={waiting.id} />
+        </span>
+      </section>
     );
   }
   if (done) {
@@ -40,9 +44,11 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
   }
 
   const options: [Choice, string, string][] = [
-    ...(!cancelled ? ([["cancel", "Cancel and ask for a refund", paid > 0 ? `You've paid ${formatCedis(paid)}` : "Nothing to refund"]] as [Choice, string, string][]) : []),
-    ...(paid > 0 ? ([["part", cancelled ? "Ask for a refund" : "I'm still coming, refund part of it", ""]] as [Choice, string, string][]) : []),
-    ...(!cancelled ? ([["delete", "Cancel and delete my details", ""]] as [Choice, string, string][]) : []),
+    ...(!cancelled ? ([["cancel", "I can't come", paid > 0 ? `Cancel my place and ask for my ${formatCedis(paid)} back.` : "Cancel my place."]] as [Choice, string, string][]) : []),
+    ...(paid > 0
+      ? ([[ "part", cancelled ? "Ask for money back" : "I'm still coming", cancelled ? `You paid ${formatCedis(paid)}. Say how much you'd like back.` : "Ask for part of my money back."]] as [Choice, string, string][])
+      : []),
+    ...(!cancelled ? ([["delete", "Remove me completely", "Cancel my place and delete my details."]] as [Choice, string, string][]) : []),
   ];
 
   const submit = () =>
@@ -65,14 +71,23 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
     });
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero">
-      <div role="radiogroup" aria-label="What would you like?" className="flex flex-col gap-2">
+    <section className="flex flex-col gap-4">
+      <h2 className="font-display text-xl tracking-[-0.017em]" id="what">
+        What would you like to do?
+      </h2>
+      <div role="radiogroup" aria-labelledby="what" className="flex flex-col gap-2.5">
         {options.map(([v, label, sub]) => (
-          <label key={v} className={cn("flex cursor-pointer gap-3 rounded-[10px] px-4 py-3.5", choice === v ? "border-2 border-soot bg-stone-canvas" : "border border-stone-border")}>
-            <input type="radio" name="what" checked={choice === v} onChange={() => { setChoice(v); setConfirm(false); }} className="mt-0.5 h-[18px] w-[18px] accent-soot" />
+          <label
+            key={v}
+            className={cn(
+              "cm-press flex min-h-[72px] cursor-pointer items-center gap-3.5 rounded-2xl bg-white px-4 py-3.5 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal",
+              choice === v ? "border-2 border-soot" : "border border-stone-border",
+            )}
+          >
+            <input type="radio" name="what" checked={choice === v} onChange={() => { setChoice(v); setConfirm(false); }} className="h-5 w-5 flex-none accent-soot" />
             <span className="flex flex-col gap-0.5">
-              <span className="text-[15px] font-medium">{label}</span>
-              {sub && <span className="text-[13px] text-warm-gray">{sub}</span>}
+              <span className="text-[17px] font-medium">{label}</span>
+              {sub && <span className="text-sm leading-normal text-warm-gray">{sub}</span>}
             </span>
           </label>
         ))}
@@ -85,19 +100,24 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
           </span>
         </Field>
       )}
-      <Field label={choice === "part" ? "Why?" : "Why? (optional)"}>
+      <Field label={choice === "part" ? "Tell us why" : "Tell us why (you can skip this)"}>
         <textarea rows={3} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
       </Field>
       <ErrorText>{error}</ErrorText>
       {choice !== "part" && confirm ? (
         <div role="alertdialog" aria-label="Confirm" className="cm-pop flex flex-col gap-3 rounded-[12px] border-2 border-soot p-4">
-          <p className="text-[15px] font-semibold">{choice === "delete" ? "Cancel and delete your details? This can't be undone." : "Cancel your registration?"}</p>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setConfirm(false)} className="cm-press h-12 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
-              Keep my place
+          <p className="text-[17px] font-semibold">{choice === "delete" ? "Remove everything about you?" : "Cancel your place at camp?"}</p>
+          <p className="text-sm leading-relaxed">
+            {choice === "delete"
+              ? "You'll lose your place and your roommate group, and your details are deleted. This can't be undone."
+              : `You'll lose your place and your roommate group.${paid > 0 ? " Your refund request goes to a coordinator." : ""}`}
+          </p>
+          <div className="flex flex-col gap-2">
+            <button type="button" disabled={pending} onClick={submit} className="cm-press h-12 w-full rounded-full bg-soot px-4 text-[15px] font-medium text-white">
+              <Busy pending={pending} text="Cancelling…">{choice === "delete" ? "Yes, remove me" : "Yes, cancel my place"}</Busy>
             </button>
-            <button type="button" disabled={pending} onClick={submit} className="cm-press h-12 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white">
-              <Busy pending={pending} text="Cancelling…">Yes, cancel</Busy>
+            <button type="button" onClick={() => setConfirm(false)} className="cm-press h-12 w-full rounded-full border border-stone-border bg-white px-4 text-[15px] font-medium">
+              No, keep my place
             </button>
           </div>
         </div>
@@ -108,7 +128,7 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
           onClick={() => (choice === "part" ? submit() : setConfirm(true))}
           className={choice === "part" ? `${primaryButtonClass} h-[52px] w-full` : "cm-press h-[52px] w-full rounded-full bg-soot text-base font-medium text-white"}
         >
-          <Busy pending={pending} text="Sending…">{choice === "part" ? "Ask for a refund" : "Cancel my registration"}</Busy>
+          <Busy pending={pending} text="Sending…">{choice === "part" ? "Ask for money back" : choice === "delete" ? "Remove me" : "Cancel my place"}</Busy>
         </button>
       )}
     </section>

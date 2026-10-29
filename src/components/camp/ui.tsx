@@ -120,6 +120,16 @@ export function StatusLine({
 }
 
 /** "2027-06-10" → "10 Jun 2027" (dates are stored without a time zone). */
+/** "12 Dec": for dates in the camp's own year. */
+export function formatDay(date: string) {
+  return new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/** "Fri 18 Dec": when the day of the week helps people plan. */
+export function formatWeekday(date: string) {
+  return new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 export function formatDate(date: string) {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", {
     day: "numeric",

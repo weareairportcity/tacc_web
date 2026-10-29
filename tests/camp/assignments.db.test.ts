@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign } from "@/lib/camp/assignments";
-import { createGroup, getGroupFor, joinByCode, setLocked } from "@/lib/camp/groups";
+import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { cancelRegistration, getRegistration, register } from "@/lib/camp/registrations";
 import { createRoom, createRoomType, deleteRoom, listRooms, updateRoom } from "@/lib/camp/rooms";
 import type { Gender, Registration } from "@/lib/camp/types";
@@ -120,7 +120,7 @@ describe("placing a group", () => {
   it("skips members already in the room, and won't split a group across rooms", async () => {
     const { roomIds: [a1, a2], people: [owner, a, b] } = await setup(3, [{ label: "A1" }, { label: "A2" }]);
     const group = await groupOf(owner, [a, b]);
-    await setLocked(owner, true);
+    await query("app", "UPDATE camps SET roommate_deadline_on = date('now', '-1 day') WHERE id = ?", [owner.camp_id]);
     await assignPerson(ACTOR, a1, a.id);
     expect(await assignGroup(ACTOR, a1, group)).toMatchObject({ warning: "A1 has 1 free bed. Top it up from the unmatched list." });
     expect(await occupants(a1)).toHaveLength(3);

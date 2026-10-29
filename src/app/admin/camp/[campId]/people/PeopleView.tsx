@@ -4,17 +4,19 @@ import { leaveTo } from "@/components/camp/leave";
 import { Busy } from "@/components/camp/brand";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronDown, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { RegistrationStatus } from "@/lib/camp/types";
 import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Legend, RegistrationStatus as Status, StackedBar, headlineClass, inputClass, primaryButtonClass, statusParts } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
+import { coordinatorText, firstName, MAX_COORDINATOR_MESSAGE, smsParts } from "@/lib/camp/sms";
 import { deleteViewAction, openPaymentsForAction, payForPeopleAction, saveViewAction, textPeopleAction } from "../../actions";
 import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 import { PersonPanel } from "./PersonPanel";
+import { PersonCardSheet } from "@/components/camp/PersonCard";
 
 export type PersonListRow = {
   id: string;
@@ -287,8 +289,11 @@ export function PeopleView({
           </span>
           <StackedBar parts={statusParts(Object.fromEntries(["fully_paid", "partially_paid", "registered"].map((s) => [s, rows.filter((r) => r.status === s).length])), false)} />
           <Legend parts={statusParts(Object.fromEntries(["fully_paid", "partially_paid", "registered"].map((s) => [s, rows.filter((r) => r.status === s).length])), false)} />
+          <p className="border-t border-stone-border pt-3 text-[13px] text-warm-gray">
+            {rows.length} {rows.length === 1 ? "person" : "people"} · tap a name to see their details
+          </p>
           {rows.some((r) => outstandingOf(r) > 0) && (
-            <p className="flex items-center gap-2 border-t border-stone-border pt-3 text-[13px] text-warm-gray">
+            <p className="flex items-center gap-2 text-[13px] text-warm-gray">
               <CreditCard className="h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> Paying from a fellowship fund? Tick people below, then Pay for them.
             </p>
           )}
@@ -401,22 +406,18 @@ export function PeopleView({
                     className={cn("cursor-pointer border-t border-stone-border first:border-t-0 sm:first:border-t", on ? "bg-cyan-tint" : "cm-row")}
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest("input,a,button")) return;
-                      // Leaders have no person panel: a tap picks the row.
-                      if (leader) toggle(r.id);
-                      else setPerson(r.id);
+                      // Leaders get a read-only card; coordinators the full panel.
+                      setPerson(r.id);
                     }}
                   >
                     <td className="w-10 py-3 pl-4 align-middle">
                       <input type="checkbox" aria-label={`Select ${r.full_name}`} checked={on} onChange={() => toggle(r.id)} className="h-5 w-5 accent-soot sm:h-[18px] sm:w-[18px]" />
                     </td>
                     <td className="px-3 py-3">
-                      {leader ? (
-                        <span className="font-medium">{r.full_name}</span>
-                      ) : (
-                        <button type="button" onClick={() => setPerson(r.id)} className="text-left font-medium hover:text-cyan-deep">
-                          {r.full_name}
-                        </button>
-                      )}
+                      <button type="button" onClick={() => setPerson(r.id)} className="inline-flex items-center gap-1 text-left font-medium hover:text-cyan-deep">
+                        {r.full_name}
+                        {leader && <ChevronRight className="h-4 w-4 text-ash-gray" strokeWidth={1.8} aria-hidden="true" />}
+                      </button>
                       <span className="mt-0.5 flex items-center gap-1.5 text-xs text-warm-gray">
                         <span className="sm:hidden">
                           <Status status={r.status} />
@@ -515,6 +516,30 @@ export function PeopleView({
           />
           <PersonPanel key={person ?? "none"} campId={campId} id={person} onClose={() => setPerson(null)} onChanged={() => router.refresh()} />
         </>
+      )}
+      {leader && (
+        <PersonCardSheet
+          campId={campId}
+          personId={person}
+          leader
+          onClose={() => setPerson(null)}
+          actions={(p) =>
+            p.status !== "cancelled" &&
+            p.price_pesewas > p.paid_pesewas && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPerson(null);
+                  setSelected(new Set([p.id]));
+                  setSheet("pay");
+                }}
+                className={`${primaryButtonClass} h-11 px-5`}
+              >
+                <CreditCard className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Pay for them
+              </button>
+            )
+          }
+        />
       )}
     </div>
   );
@@ -790,7 +815,9 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
-  const texts = Math.max(1, Math.ceil(message.length / 153));
+  // Each person gets their own "Hi <first name>, …" text; count parts for the longest name.
+  const longest = people.reduce((a, p) => (firstName(p.full_name).length > firstName(a).length ? p.full_name : a), people[0]?.full_name ?? "");
+  const texts = smsParts(coordinatorText(longest, message));
   return (
     <Sheet
       open={open}
@@ -835,11 +862,18 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
     >
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Message
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} maxLength={459} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
+        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} maxLength={MAX_COORDINATOR_MESSAGE} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
         <span className="text-right text-xs font-normal text-warm-gray">
-          {message.length}/459 · {texts} text{texts === 1 ? "" : "s"} each
+          {message.length}/{MAX_COORDINATOR_MESSAGE} · {texts} text{texts === 1 ? "" : "s"} each
         </span>
       </label>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">What {firstName(people[0]?.full_name ?? "") || "they"} will get</span>
+        <p className="rounded-[16px] rounded-bl-[4px] bg-[#e9f4fd] px-3.5 py-3 text-sm leading-relaxed break-words">
+          {coordinatorText(people[0]?.full_name ?? "", message || "…")}
+        </p>
+        <span className="text-xs text-warm-gray">Each person gets their own text with their first name. Use plain letters; emoji and curly quotes cost more.</span>
+      </div>
       <ErrorText>{error}</ErrorText>
     </Sheet>
   );

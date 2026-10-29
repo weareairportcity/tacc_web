@@ -167,9 +167,9 @@ export async function assignGroup(actor: string, roomId: string, groupId: string
   if (!results[0].results.length) throw await explainGroup(room, groupId, toPlace);
 
   const warnings = [await fillWarning(room.id)];
-  const [group] = await query<{ locked_at: string | null; roommate_deadline_on: string }>(
+  const [group] = await query<{ roommate_deadline_on: string }>(
     "app",
-    "SELECT g.locked_at, c.roommate_deadline_on FROM camp_groups g JOIN camps c ON c.id = g.camp_id WHERE g.id = ?",
+    "SELECT c.roommate_deadline_on FROM camp_groups g JOIN camps c ON c.id = g.camp_id WHERE g.id = ?",
     [groupId],
   );
   if (group && groupState(group) === "open") warnings.push("This group is still open, so its members may change.");
@@ -285,10 +285,10 @@ export async function getPoolBoard(campId: string, roomTypeId: string, gender: G
       args,
     ),
     // Groups with at least one member still to place.
-    query<GroupMember & { group_id: string; code: string; locked_at: string | null; capacity: number;
+    query<GroupMember & { group_id: string; code: string; capacity: number;
       roommate_deadline_on: string; room_label: string | null }>(
       "app",
-      `SELECT g.id AS group_id, g.code, g.locked_at, t.capacity, c.roommate_deadline_on,
+      `SELECT g.id AS group_id, g.code, t.capacity, c.roommate_deadline_on,
          m.registration_id, r.full_name, r.fellowship, m.joined_at, x.label AS room_label
        FROM camp_groups g
        JOIN camps c ON c.id = g.camp_id

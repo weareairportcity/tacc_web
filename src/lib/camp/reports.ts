@@ -67,7 +67,8 @@ export type RoommateStatus = (typeof ROOMMATE_STATUSES)[number];
 export const ROOMMATE_LABELS: Record<RoommateStatus, string> = {
   unmatched: "Unmatched",
   in_group: "In a group",
-  locked: "Locked",
+  // The key stays "locked" for saved views; groups close only at the deadline now.
+  locked: "Group closed",
 };
 
 export const ROOM_FILTERS = ["placed", "waiting"] as const;
@@ -126,7 +127,7 @@ export function filtersToQuery(filters: PeopleFilters) {
 
 const LIKE = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-const OPEN_GROUP = "g.locked_at IS NULL AND date('now') <= c.roommate_deadline_on";
+const OPEN_GROUP = "date('now') <= c.roommate_deadline_on";
 
 function filterSql(filters: PeopleFilters, { phoneSearch }: { phoneSearch: boolean }) {
   const where: string[] = [];
@@ -174,11 +175,11 @@ const PEOPLE_FROM = `FROM camp_registrations r
   LEFT JOIN camp_room_assignments a ON a.registration_id = r.id
   LEFT JOIN camp_rooms x ON x.id = a.room_id`;
 
-type GroupColumns = { group_code: string | null; group_locked_at: string | null; deadline: string };
+type GroupColumns = { group_code: string | null; deadline: string };
 
 function roommateStatus(status: RegistrationStatus, row: GroupColumns): RoommateStatus | null {
   if (row.group_code) {
-    const state: GroupState = groupState({ locked_at: row.group_locked_at, roommate_deadline_on: row.deadline });
+    const state: GroupState = groupState({ roommate_deadline_on: row.deadline });
     return state === "open" ? "in_group" : "locked";
   }
   return status === "fully_paid" ? "unmatched" : null;
@@ -227,7 +228,7 @@ export async function listPeople(campId: string, filters: PeopleFilters): Promis
     "app",
     `SELECT r.id, r.created_at, r.full_name, r.phone, r.email, r.gender, r.fellowship, r.pfcc, r.church,
        t.name AS room_type_name, r.status, r.price_pesewas, r.paid_pesewas,
-       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline, x.label AS room_label,
+       g.code AS group_code, c.roommate_deadline_on AS deadline, x.label AS room_label,
        (SELECT COUNT(*) FROM camp_payments p WHERE p.registration_id = r.id
           AND p.flag IN ('amount_mismatch', 'over_balance')) AS flagged,
        r.shirt_size, r.any_room, r.checked_in_at, ${LAST_PAID} AS last_paid_at,
@@ -237,9 +238,9 @@ export async function listPeople(campId: string, filters: PeopleFilters): Promis
      ORDER BY ${orderSql(filters.sort)}`,
     [checkId(campId, "camp"), ...where.params],
   );
-  return rows.map(({ group_locked_at, deadline, ...r }) => ({
+  return rows.map(({ deadline, ...r }) => ({
     ...r,
-    roommate: roommateStatus(r.status, { group_code: r.group_code, group_locked_at, deadline }),
+    roommate: roommateStatus(r.status, { group_code: r.group_code, deadline }),
   }));
 }
 
@@ -267,7 +268,7 @@ export async function listPeopleForLeader(staff: Staff, campId: string, filters:
   const rows = await query<{ id: string; full_name: string; fellowship: string; pfcc: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; has_room: number; last_paid_at: string | null } & GroupColumns>(
     "app",
     `SELECT r.id, r.full_name, r.fellowship, r.pfcc, r.status, r.price_pesewas, r.paid_pesewas, a.room_id IS NOT NULL AS has_room,
-       g.code AS group_code, g.locked_at AS group_locked_at, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at
+       g.code AS group_code, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${scope.sql}${where.sql}
      ORDER BY ${orderSql(filters.sort === "outstanding" ? "name" : filters.sort)}`,
@@ -422,9 +423,9 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
          WHERE r.camp_id = ?`,
         [campId],
       ),
-      query<{ locked_at: string | null; roommate_deadline_on: string }>(
+      query<{ roommate_deadline_on: string }>(
         "app",
-        "SELECT g.locked_at, c.roommate_deadline_on FROM camp_groups g JOIN camps c ON c.id = g.camp_id WHERE g.camp_id = ?",
+        "SELECT c.roommate_deadline_on FROM camp_groups g JOIN camps c ON c.id = g.camp_id WHERE g.camp_id = ?",
         [campId],
       ),
       query<Breakdown>("app", BREAKDOWN("fellowship"), [campId]),
@@ -456,7 +457,7 @@ export async function getDashboard(campId: string, today = todayInGhana()): Prom
 
   const status = Object.fromEntries(REGISTRATION_STATUSES.map((s) => [s, 0])) as Record<RegistrationStatus, number>;
   for (const row of statusRows) status[row.status] = row.n;
-  const groups: Record<GroupState, number> = { open: 0, locked: 0, final: 0 };
+  const groups: Record<GroupState, number> = { open: 0, final: 0 };
   for (const g of groupRows) groups[groupState(g, today)]++;
   const { past_due: pastDue, ...moneyTotals } = money;
 

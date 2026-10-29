@@ -3,10 +3,11 @@
 import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Info } from "lucide-react";
+import { Clock, Info, RotateCcw } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { Gender, RoomType } from "@/lib/camp/types";
 import { placesState } from "@/components/camp/places";
+import { Note } from "@/components/camp/subpage";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { askRoomChangeAction } from "../../actions";
@@ -37,11 +38,15 @@ export function ChangeRoomForm({
 
   if (waiting) {
     return (
-      <p role="status" className="flex items-center gap-3 rounded-[10px] border border-stone-border bg-white px-4 py-3 text-[15px]">
-        <Clock className="h-4 w-4 flex-none" strokeWidth={1.7} aria-hidden="true" />
-        <span className="flex-1">Move to {waiting.to} asked. We&apos;ll text you.</span>
-        <WithdrawRequest slug={slug} requestId={waiting.id} />
-      </p>
+      <section role="status" className="flex flex-col gap-2 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card">
+        <p className="flex items-center gap-2.5 text-[17px] font-semibold">
+          <Clock className="h-5 w-5 flex-none" strokeWidth={1.7} aria-hidden="true" /> Waiting for a coordinator
+        </p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">You asked to move to {waiting.to}. We&apos;ll text you the answer. Changed your mind? Take your request back.</p>
+        <span className="self-start">
+          <WithdrawRequest slug={slug} requestId={waiting.id} />
+        </span>
+      </section>
     );
   }
 
@@ -59,7 +64,7 @@ export function ChangeRoomForm({
         });
       }}
     >
-      <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+      <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
         <legend className="sr-only">Room types</legend>
         {types.map((t) => {
           const state = placesState(t, gender);
@@ -70,22 +75,30 @@ export function ChangeRoomForm({
             <label
               key={t.id}
               className={cn(
-                "flex min-h-[60px] items-center gap-3 rounded-[10px] border px-4 py-3",
-                mine || full ? "border-dashed border-stone-muted bg-stone-canvas" : "cm-press cursor-pointer border-stone-border bg-white has-[:checked]:border-2 has-[:checked]:border-soot has-[:checked]:bg-stone-canvas",
+                "flex min-h-[76px] items-center gap-3.5 rounded-2xl border p-3.5",
+                mine || full
+                  ? "border-dashed border-stone-muted bg-stone-canvas text-warm-gray"
+                  : "cm-press cursor-pointer border-stone-border bg-white has-[:checked]:border-2 has-[:checked]:border-cyan-edge has-[:checked]:bg-cyan-tint has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal",
               )}
             >
-              <input type="radio" name="to" disabled={mine || full} checked={to === t.id} onChange={() => setTo(t.id)} className="h-[18px] w-[18px] accent-soot" />
-              <span className="flex flex-1 flex-col">
-                <span className="text-[15px] font-medium">
-                  {t.name}
-                  {mine && <span className="font-normal text-warm-gray"> · yours now</span>}
-                </span>
-                <span className="text-[13px] text-warm-gray">
-                  {t.capacity} in a room · {formatCedis(t.price_pesewas)}
-                  {full ? " · full" : typeof state === "number" ? ` · ${state} left` : ""}
+              <input type="radio" name="to" disabled={mine || full} checked={to === t.id} onChange={() => setTo(t.id)} className="sr-only" />
+              {/* How many share a room, as a number. */}
+              <span className="flex h-14 w-14 flex-none flex-col items-center justify-center rounded-[12px] bg-stone-rail text-ink-black">
+                <span className="font-display text-2xl leading-none">{t.capacity}</span>
+                <span className="text-[10px] text-warm-gray">per room</span>
+              </span>
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className={cn("text-[17px] font-medium", (mine || full) && "text-ink-black")}>{t.name}</span>
+                <span className="text-[13px]">
+                  {mine ? "Your room now" : full ? "Full" : typeof state === "number" ? `${state} ${state === 1 ? "place" : "places"} left` : `${t.capacity} in a room`}
                 </span>
               </span>
-              {!mine && <span className="text-sm font-medium tabular-nums">{diff >= 0 ? "+" : "−"} {formatCedis(Math.abs(diff))}</span>}
+              {!mine && !full && (
+                <span className="flex flex-col items-end text-right tabular-nums">
+                  <span className="font-display text-lg">{formatCedis(t.price_pesewas)}</span>
+                  <span className="text-[13px] text-warm-gray">{diff > 0 ? `${formatCedis(diff)} more` : diff < 0 ? `${formatCedis(-diff)} less` : "Same price"}</span>
+                </span>
+              )}
             </label>
           );
         })}
@@ -93,9 +106,10 @@ export function ChangeRoomForm({
 
       {target && (
         <section className="cm-pop flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
-          <dl className="flex flex-col gap-1.5 text-sm tabular-nums">
+          <h2 className="font-display text-xl tracking-[-0.017em]">If a coordinator says yes</h2>
+          <dl className="flex flex-col gap-1.5 text-[15px] tabular-nums">
             <div className="flex justify-between">
-              <dt className="text-warm-gray">{target.name}</dt>
+              <dt className="text-warm-gray">{target.name} costs</dt>
               <dd>{formatCedis(target.price_pesewas)}</dd>
             </div>
             <div className="flex justify-between">
@@ -103,14 +117,14 @@ export function ChangeRoomForm({
               <dd>{formatCedis(paid)}</dd>
             </div>
             <div className="flex justify-between border-t border-stone-border pt-2 font-semibold">
-              <dt>{paid > target.price_pesewas ? "Back to you" : "Left to pay"}</dt>
-              <dd>{formatCedis(Math.abs(target.price_pesewas - paid))}</dd>
+              <dt>{paid > target.price_pesewas ? "You've paid more by" : paid === target.price_pesewas ? "You'll pay" : "You'll pay"}</dt>
+              <dd>{paid === target.price_pesewas ? "Nothing more" : paid > target.price_pesewas ? formatCedis(paid - target.price_pesewas) : `${formatCedis(target.price_pesewas - paid)} more`}</dd>
             </div>
           </dl>
-          <p className="flex items-start gap-2 text-[13px] text-warm-gray">
-            <Info className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> You&apos;ll leave your roommate group.
+          <p className="flex items-start gap-2 text-sm text-warm-gray">
+            <Info className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> You&apos;ll leave your roommate group, and choose roommates again for {target.name}.
           </p>
-          <Field label="Reason (optional)">
+          <Field label="Why do you want to move? (you can skip this)">
             <textarea rows={2} className={`${inputClass} h-auto py-2.5`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
           </Field>
           <ErrorText>{error}</ErrorText>
@@ -119,6 +133,15 @@ export function ChangeRoomForm({
           </button>
         </section>
       )}
+
+      <Note icon={RotateCcw}>
+        <strong className="font-semibold">Moving to a cheaper room?</strong>{" "}
+        The difference isn&apos;t refunded automatically. After the move, ask for a refund on Cancel or
+        refund. It goes back to the number that paid.
+      </Note>
+      <p className="text-sm leading-relaxed text-warm-gray">
+        After you ask, this page shows &ldquo;Waiting for a coordinator&rdquo; and we text you the answer. You can take your request back while you wait.
+      </p>
     </form>
   );
 }

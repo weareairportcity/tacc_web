@@ -187,12 +187,11 @@ export type Payment = {
   checkout_url?: string | null;
 };
 
-/** open: anyone eligible can join; locked: by its owner, who can unlock; final: the roommate deadline has passed. */
-export type GroupState = "open" | "locked" | "final";
+/** open: anyone eligible with the link can join; final: the roommate deadline has passed. */
+export type GroupState = "open" | "final";
 
 export const GROUP_STATE_LABELS: Record<GroupState, string> = {
   open: "Open",
-  locked: "Locked",
   final: "Final",
 };
 
@@ -211,7 +210,6 @@ export type Group = {
   gender: Gender;
   code: string;
   owner_registration_id: string;
-  locked_at: string | null;
   capacity: number;
   roommate_deadline_on: string;
   state: GroupState;
@@ -219,33 +217,7 @@ export type Group = {
   members: GroupMember[];
 };
 
-/** An invite as its invitee sees it. */
-export type ReceivedInvite = {
-  id: string;
-  created_at: string;
-  group_id: string;
-  owner_name: string;
-  member_count: number;
-  capacity: number;
-};
-
-/** An invite as the group's owner sees it. */
-export type SentInvite = {
-  id: string;
-  created_at: string;
-  registration_id: string;
-  full_name: string;
-  fellowship: string;
-};
-
 /** Name-search result: only what an owner needs to pick the right person. */
-export type Invitee = {
-  id: string;
-  full_name: string;
-  fellowship: string;
-  invited: number;
-};
-
 export type Occupant = {
   registration_id: string;
   full_name: string;

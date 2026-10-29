@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { changeRoomType, listRefunds, recordRefund } from "@/lib/camp/adjustments";
 import { assignGroup, assignPerson, getMyRoom } from "@/lib/camp/assignments";
-import { createGroup, getGroupFor, joinByCode, setLocked } from "@/lib/camp/groups";
+import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { cancelRegistration, getRegistration } from "@/lib/camp/registrations";
 import { getDashboard } from "@/lib/camp/reports";
 import { listRoomSmsPending, sendRoomSms } from "@/lib/camp/room-sms";
@@ -15,7 +15,7 @@ import { ACTOR, openCamp, paidWithPayment } from "./helpers";
 // The spec's other edge cases are covered where they were built:
 //   duplicate / missing / mismatched webhooks, overpayment  → payments.db.test.ts
 //   registering twice                                         → registrations.db.test.ts
-//   last group place, locked groups, member cancels           → groups.db.test.ts
+//   last group place, closed groups, member cancels           → groups.db.test.ts
 //   two coordinators, room deleted, capacity below occupancy  → assignments.db.test.ts
 //   underpaid at the due date, unmatched at the deadline      → reports.db.test.ts
 
@@ -117,14 +117,14 @@ describe("changing someone's room type", () => {
     expect(await getRegistration(ama.id)).toMatchObject({ price_pesewas: 40000, paid_pesewas: 40000, status: "fully_paid" });
   });
 
-  it("takes them out of their group and room, even a locked group", async () => {
+  it("takes them out of their group and room, even after the roommate deadline", async () => {
     const { camp, hostel, suite } = await campWithTypes();
     const room = await createRoom(ACTOR, camp.id, { label: "A1", room_type_id: hostel, gender: "female", capacity: 4 });
     const owner = await paidWithPayment(camp, hostel);
     const ama = await paidWithPayment(camp, hostel);
     const group = await createGroup(owner);
     await joinByCode(ama, (await getGroupFor(owner.id))!.code);
-    await setLocked(owner, true);
+    await query("app", "UPDATE camps SET roommate_deadline_on = date('now', '-1 day') WHERE id = ?", [owner.camp_id]);
     await assignGroup(ACTOR, room, group);
 
     const { warning } = await changeRoomType(ACTOR, ama.id, suite);
@@ -160,7 +160,7 @@ describe("the dashboard", () => {
 });
 
 describe("texting everyone their room", () => {
-  it("sends one text per room, only to people not yet told, and retries failures", async () => {
+  it("sends each person their own text, only to people not yet told, and retries failures", async () => {
     const { camp, hostel } = await campWithTypes();
     const a1 = await createRoom(ACTOR, camp.id, { label: "A1", room_type_id: hostel, gender: "female", capacity: 4 });
     const a2 = await createRoom(ACTOR, camp.id, { label: "A2", room_type_id: hostel, gender: "female", capacity: 4 });
@@ -174,13 +174,15 @@ describe("texting everyone their room", () => {
       sent.push({ to: [to].flat(), text });
       return !text.includes("A2"); // A2's text fails the first time
     };
-    expect(await sendRoomSms(ACTOR, camp, "https://example.test", fakeSms)).toEqual({ sent: 2, failedRooms: 1, remaining: 1 });
-    expect(sent.find((s) => s.text.includes("A1"))).toMatchObject({ to: [ama.phone, efua.phone] });
-    expect(sent[0].text).toContain(`https://example.test/camps/${camp.slug}/me`);
+    expect(await sendRoomSms(ACTOR, camp, fakeSms)).toEqual({ sent: 2, failed: 1, remaining: 1 });
+    expect(sent.filter((s) => s.text.includes("A1")).map((s) => s.to)).toEqual(expect.arrayContaining([[ama.phone], [efua.phone]]));
+    expect(sent.find((s) => s.to[0] === ama.phone)!.text).toBe(
+      `Hi ${ama.full_name.split(" ")[0]}, your room at ${camp.name} is A1 (Hostel). See you there! - The Airport City Church`,
+    );
 
     // Only A2 is retried; then nothing is left.
     sent.length = 0;
-    await sendRoomSms(ACTOR, camp, "https://example.test", async (to, text) => (sent.push({ to: [to].flat(), text }), true));
+    await sendRoomSms(ACTOR, camp, async (to, text) => (sent.push({ to: [to].flat(), text }), true));
     expect(sent.map((s) => s.to)).toEqual([[esi.phone]]);
     expect(await listRoomSmsPending(camp.id)).toEqual([]);
 

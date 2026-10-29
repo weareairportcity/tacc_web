@@ -3,13 +3,21 @@
 import { Busy } from "@/components/camp/brand";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, HeartPulse, Lock, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { changeMyGenderAction, deleteMyDetailsAction, updateMyDetailsAction } from "../../actions";
 
-const fieldset = "m-0 flex flex-col gap-4 rounded-[10px] border border-stone-border bg-white p-5 shadow-seline-card";
+const fieldset = "m-0 flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card";
+
+/** A section's title with one plain sentence on what it's for. */
+const Legend = ({ title, sub }: { title: string; sub: string }) => (
+  <legend className="float-left mb-1 flex w-full flex-col gap-1">
+    <span className={titleClass}>{title}</span>
+    <span className="text-sm font-normal leading-relaxed text-warm-gray">{sub}</span>
+  </legend>
+);
 
 type GenderState = { now: Gender; inGroup: boolean; room: string | null; canChange: boolean };
 
@@ -41,14 +49,14 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
         }}
       >
         <fieldset className={fieldset}>
-          <legend className={`float-left mb-1 w-full ${titleClass}`}>About you</legend>
+          <Legend title="About you" sub="So we know who you are at camp." />
           <Field label="Full name">
             <input required autoComplete="name" className={inputClass} value={v.full_name} onChange={set("full_name")} />
           </Field>
           <Field label="Phone number" hint="To change it, ask a coordinator.">
             <input readOnly aria-readonly className={`${inputClass} bg-stone-canvas text-[#57534e]`} value={/^233\d{9}$/.test(phone) ? `0${phone.slice(3)}` : phone} />
           </Field>
-          <Field label="Email">
+          <Field label="Email" hint="For your receipts.">
             <input required type="email" autoComplete="email" className={inputClass} value={v.email} onChange={set("email")} />
           </Field>
           <div className="flex flex-col gap-1.5">
@@ -70,20 +78,19 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
         </fieldset>
 
         <fieldset className={cn(fieldset, !initial.emergency_name && "ring-2 ring-cyan-signal")}>
-          <legend className={`float-left mb-1 flex w-full items-center gap-2 ${titleClass}`}>
-            <HeartPulse className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" /> For emergencies
-          </legend>
-          <p className="flex items-center gap-2 text-[13px] text-warm-gray">
-            <Lock className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" /> Only coordinators see this.
-          </p>
-          <Field label="Who should we call?">
-            <input className={inputClass} value={v.emergency_name} onChange={set("emergency_name")} placeholder="Name and relation" />
+          <Legend title="If something happens" sub="Who should we call in an emergency at camp?" />
+          <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
+            <input className={inputClass} value={v.emergency_name} onChange={set("emergency_name")} />
           </Field>
           <Field label="Their phone">
             <input type="tel" inputMode="tel" className={inputClass} value={v.emergency_phone} onChange={set("emergency_phone")} placeholder="024 555 0101" />
           </Field>
-          <Field label="Health notes">
-            <textarea rows={3} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={v.health_notes} onChange={set("health_notes")} placeholder="Allergies, medicine" />
+        </fieldset>
+
+        <fieldset className={fieldset}>
+          <Legend title="Your health" sub="Only coordinators see this. Leave it empty if there's nothing." />
+          <Field label="Allergies, medicine or anything we should know">
+            <textarea rows={3} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={v.health_notes} onChange={set("health_notes")} />
           </Field>
         </fieldset>
 
@@ -102,7 +109,7 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
 
       <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
         <h2 className="text-[15px] font-semibold">Delete my details</h2>
-        <p className="text-sm text-warm-gray">{cancelled ? "Removes your details from Commune." : "Cancels your registration and removes your details."}</p>
+        <p className="text-sm text-warm-gray">{cancelled ? "Removes everything about you from Commune." : "This cancels your place at camp and removes everything about you."}</p>
         {confirm ? (
           <div role="alertdialog" aria-label="Confirm" className="cm-pop flex flex-col gap-3 rounded-[12px] border-2 border-soot p-4">
             <p className="text-[15px] font-semibold">Delete your details? This can&apos;t be undone.</p>
@@ -130,7 +137,7 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
             </div>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirm(true)} className="cm-press inline-flex h-10 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
+          <button type="button" onClick={() => setConfirm(true)} className="cm-press inline-flex h-12 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
             <Trash2 className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Delete my details
           </button>
         )}
@@ -199,7 +206,7 @@ function GenderSection({ slug, gender }: { slug: string; gender: GenderState }) 
               setDone(false);
               setConfirm(true);
             }}
-            className="cm-press inline-flex h-10 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-4 text-sm font-medium"
+            className="cm-press inline-flex h-12 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-5 text-sm font-medium"
           >
             Change to {to}
           </button>
