@@ -5,6 +5,7 @@ import { headlineClass, titleClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { CampForm } from "../../CampForm";
 import { CampPhotos } from "./CampPhotos";
+import { HelpPhone } from "./HelpPhone";
 import { ShirtRule } from "./ShirtRule";
 import { SummaryPhone } from "./SummaryPhone";
 
@@ -22,7 +23,7 @@ function Section({ title, text, children }: { title: string; text: string; child
   );
 }
 
-/** Camp details, photos and your evening text. Room types live on Rooms. */
+/** Camp details, photos, attendees' help number and your evening text. Room types live on Rooms. */
 export default async function CampSettingsPage({ params }: { params: Promise<{ campId: string }> }) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
@@ -45,6 +46,9 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
         text="JPG, PNG or WebP up to 8 MB."
       >
         <CampPhotos camp={camp} />
+      </Section>
+      <Section title="Help for attendees" text="Every attendee page shows Call and WhatsApp buttons to this number.">
+        <HelpPhone campId={camp.id} phone={camp.help_phone} />
       </Section>
       <Section title="T-shirts" text="Who can collect one when their pass is scanned.">
         <ShirtRule campId={camp.id} on={!!camp.shirt_paid_only} />

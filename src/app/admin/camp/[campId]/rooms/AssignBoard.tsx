@@ -4,12 +4,13 @@ import { Busy } from "@/components/camp/brand";
 import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, GripVertical, Lock, MessageSquare, Plus, Shuffle, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, GripVertical, Lock, MessageSquare, Plus, Shuffle, Wand2, X } from "lucide-react";
 import type { getPoolBoard } from "@/lib/camp/assignments";
 import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { cn } from "@/lib/utils";
-import { assignGroupAction, assignPersonAction, sendRoomSmsAction, unassignAction, unassignManyAction } from "../../actions";
+import { planFill } from "@/lib/camp/fill";
+import { assignGroupAction, assignPersonAction, fillRoomsAction, sendRoomSmsAction, unassignAction, unassignManyAction } from "../../actions";
 
 type Board = Awaited<ReturnType<typeof getPoolBoard>>;
 type Card = { kind: "group" | "person"; id: string; title: string; sub: string; names: string; need: number; anyRoom?: boolean; open?: boolean };
@@ -40,6 +41,7 @@ export function AssignBoard({
   const [tapped, setTapped] = useState<Card | null>(null);
   const [pending, start] = useOneAtATime();
   const [confirmSms, setConfirmSms] = useState(false);
+  const [filling, setFilling] = useState(false);
 
   if (!pools.length || !board) {
     return <p className="rounded-[10px] border border-stone-border bg-white p-5 text-[15px] text-warm-gray">Nobody is fully paid yet, and there are no rooms.</p>;
@@ -160,7 +162,14 @@ export function AssignBoard({
 
       <div className="grid items-start gap-5 md:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
         <section className="flex flex-col gap-2.5">
-          <h2 className="text-sm font-semibold">Waiting · {needed}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Waiting · {needed}</h2>
+            {cards.length > 0 && freeBeds > 0 && (
+              <button type="button" onClick={() => setFilling(true)} className="cm-press inline-flex h-9 items-center gap-1.5 rounded-full bg-soot px-3.5 text-[13px] font-medium text-white">
+                <Wand2 className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Fill rooms for me
+              </button>
+            )}
+          </div>
           {cards.length === 0 && <p className="rounded-[10px] border border-stone-border bg-white p-4 text-sm text-warm-gray">Everyone here has a room.</p>}
           <ul className="flex flex-col gap-2">
             {cards.map((c) => {
@@ -265,7 +274,8 @@ export function AssignBoard({
                             type="button"
                             onClick={() => takeOut(o.registration_id, o.full_name, r.id, r.label)}
                             aria-label={`Take ${o.full_name} out of ${r.label}`}
-                            className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-ash-gray hover:bg-stone-canvas hover:text-ink-black"
+                            // One less mark per bed: on a mouse it shows when you point at the name; phones always show it.
+                            className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-ash-gray hover:bg-stone-canvas hover:text-ink-black focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
                           >
                             <X className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
                           </button>
@@ -300,6 +310,7 @@ export function AssignBoard({
             ))}
         </div>
       </Sheet>
+      <FillSheet open={filling} onClose={() => setFilling(false)} campId={campId} board={board} />
     </div>
   );
 }
@@ -333,4 +344,68 @@ export function Beds({ capacity, taken, arrived = 0 }: { capacity: number; taken
 /** An occupant's name with a green dot once they've checked in. */
 export function Arrived({ on }: { on: boolean }) {
   return on ? <span className="h-2 w-2 flex-none rounded-full bg-st-paid" role="img" aria-label="Arrived" /> : null;
+}
+
+/**
+ * The draft from "Fill rooms for me", room by room, with anyone it couldn't place. Nothing is
+ * saved until "Place everyone"; after that each placement can still be moved on the board.
+ */
+function FillSheet({ open, onClose, campId, board }: { open: boolean; onClose: () => void; campId: string; board: Board }) {
+  const toast = useToast();
+  const [pending, start] = useOneAtATime();
+  const plan = open ? planFill(board) : null;
+  const count = plan ? plan.steps.reduce((n, s) => n + s.names.length, 0) : 0;
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Fill rooms for me"
+      subtitle="Groups together first, then everyone else beside their own fellowship. Check it, then place everyone."
+      footer={
+        <button
+          type="button"
+          disabled={pending || !count}
+          aria-busy={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await fillRoomsAction(campId, plan!.steps);
+              if (!r.ok) return toast(r.error, { tone: "error" });
+              onClose();
+              toast(
+                `Placed ${r.data.placed} ${r.data.placed === 1 ? "person" : "people"}${r.data.problems.length ? `. ${r.data.problems.length} couldn't go where planned; they're still waiting.` : ""}`,
+                r.data.problems.length ? { tone: "error" } : undefined,
+              );
+            })
+          }
+          className="cm-press h-12 flex-1 rounded-full bg-soot px-5 text-sm font-medium text-white disabled:opacity-60"
+        >
+          <Busy pending={pending} text="Placing…">{`Place ${count} ${count === 1 ? "person" : "people"}`}</Busy>
+        </button>
+      }
+    >
+      {plan && (
+        <div className="flex flex-col gap-4">
+          <ul className="flex flex-col">
+            {plan.rooms.map((r) => (
+              <li key={r.roomId} className="flex gap-3 border-t border-stone-border py-3 first:border-t-0">
+                <span className="w-16 flex-none font-display text-lg">{r.label}</span>
+                <span className="text-[15px] leading-relaxed">{r.names.join(", ")}</span>
+              </li>
+            ))}
+          </ul>
+          {plan.left.length > 0 && (
+            <section className="flex flex-col gap-2 rounded-[12px] bg-stone-rail p-4">
+              <h3 className="text-sm font-semibold">Still waiting after this</h3>
+              {plan.left.map((l, i) => (
+                <p key={i} className="text-[13px] leading-relaxed">
+                  <span className="font-medium">{l.names.join(", ")}</span>
+                  <span className="text-warm-gray"> · {l.reason}</span>
+                </p>
+              ))}
+            </section>
+          )}
+        </div>
+      )}
+    </Sheet>
+  );
 }

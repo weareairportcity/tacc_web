@@ -1,5 +1,6 @@
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
+import { normalizePhone } from "./registrations";
 import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type CampPhoto } from "./types";
 
 /**
@@ -10,7 +11,7 @@ import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type 
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
   registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status,
-  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only`;
+  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only, help_phone`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ID = /^[0-9a-f-]{36}$/i;
@@ -174,6 +175,20 @@ export async function setShirtPaidOnly(actor: string, id: string, on: boolean) {
     { sql: "UPDATE camps SET shirt_paid_only = ? WHERE id = ?", params: [on ? 1 : 0, id] },
     auditStatement({ actor, campId: id, action: "camp.shirt_rule", entity: "camp", entityId: id, before: { shirt_paid_only: before.shirt_paid_only }, after: { shirt_paid_only: on ? 1 : 0 } }),
   ]);
+}
+
+/** The number attendees can call or WhatsApp from any page. Empty hides the help buttons. */
+export async function setHelpPhone(actor: string, id: string, raw: string) {
+  const before = await getCamp(id);
+  if (!before) throw new CampError("Unknown camp.");
+  const text = String(raw ?? "").trim();
+  const phone = text ? normalizePhone(text) : "";
+  if (phone === null) throw new CampError("Enter a Ghana phone number, e.g. 055 111 2222.");
+  await batch("app", [
+    { sql: "UPDATE camps SET help_phone = ? WHERE id = ?", params: [phone, id] },
+    auditStatement({ actor, campId: id, action: "camp.help_phone", entity: "camp", entityId: id, before: { help_phone: before.help_phone }, after: { help_phone: phone } }),
+  ]);
+  return phone;
 }
 
 /** Where camp photos may live: the church's public media host. */

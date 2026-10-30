@@ -3,12 +3,13 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { allow } from "@/lib/camp/rate-limit";
+import type { FillStep } from "@/lib/camp/fill";
 import { findPeople, getBulkReceipt, idsInScope, scopeFor } from "@/lib/camp/reports";
 import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
-import { createCamp, getCamp, setCampPhoto, setShirtPaidOnly, updateCamp } from "@/lib/camp/camps";
+import { createCamp, getCamp, setCampPhoto, setShirtPaidOnly, updateCamp, setHelpPhone } from "@/lib/camp/camps";
 import { putMedia } from "@/lib/cf";
 import type { CsvError } from "@/lib/camp/csv";
 import { cedisToPesewas } from "@/lib/camp/money";
@@ -290,6 +291,35 @@ export async function assignGroupAction(roomId: string, groupId: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     return assignGroup(staff.email, String(roomId), String(groupId));
+  });
+}
+
+/**
+ * "Fill rooms for me", after the coordinator has checked the draft (src/lib/camp/fill.ts).
+ * Each placement goes through the same checks as a drag on the board; one that no longer
+ * fits (someone else placed them meanwhile) is reported, and the rest still go in.
+ */
+export async function fillRoomsAction(campId: string, steps: FillStep[]) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    const list = Array.isArray(steps) ? steps.slice(0, 1000) : [];
+    await once(staff.email, "fillRoomsAction", [campId, list.length, list[0] ?? null]);
+    let placed = 0;
+    const problems: { names: string[]; error: string }[] = [];
+    for (const step of list) {
+      const names = Array.isArray(step?.names) ? step.names.map(String).slice(0, 20) : [];
+      try {
+        if (step?.kind === "group") placed += (await assignGroup(staff.email, String(step.roomId), String(step.groupId))).placed.length;
+        else if (step?.kind === "person") {
+          await assignPerson(staff.email, String(step.roomId), String(step.registrationId));
+          placed++;
+        }
+      } catch (err) {
+        if (!(err instanceof CampError)) throw err;
+        problems.push({ names, error: err.message });
+      }
+    }
+    return { placed, problems };
   });
 }
 
@@ -628,6 +658,14 @@ export async function setMyPhoneAction(phone: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     return setStaffPhone(staff, String(phone ?? ""));
+  });
+}
+
+/** The number attendees can call or WhatsApp from any page. */
+export async function setHelpPhoneAction(campId: string, phone: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    return setHelpPhone(staff.email, String(campId), String(phone ?? ""));
   });
 }
 

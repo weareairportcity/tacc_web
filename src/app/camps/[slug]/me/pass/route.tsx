@@ -37,7 +37,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ color: "#78716c", fontSize: 24 }}>Payment</span>
-              <span style={{ fontSize: 44 }}>{me.status === "fully_paid" ? "Paid in full" : "Outstanding"}</span>
+              <span style={{ fontSize: 44 }}>{me.status === "fully_paid" ? "Paid in full" : "Still to pay"}</span>
             </div>
           </div>
         </div>

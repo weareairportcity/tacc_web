@@ -6,7 +6,7 @@ import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
-import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
+import { ErrorText, Field, inputClass, primaryButtonClass, titleClass, secondaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { changeMyGenderAction, deleteMyDetailsAction, updateMyDetailsAction } from "../../actions";
 
@@ -25,6 +25,7 @@ type GenderState = { now: Gender; inGroup: boolean; room: string | null; canChan
 export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug: string; phone: string; initial: ProfileInput; cancelled: boolean; gender: GenderState }) {
   const router = useRouter();
   const [v, setV] = useState(initial);
+  const [showHealth, setShowHealth] = useState(!!initial.health_notes);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -87,12 +88,19 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
           </Field>
         </fieldset>
 
-        <fieldset className={fieldset}>
-          <Legend title="Your health" sub="Only coordinators see this. Leave it empty if there's nothing." />
-          <Field label="Allergies, medicine or anything we should know">
-            <textarea rows={3} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={v.health_notes} onChange={set("health_notes")} />
-          </Field>
-        </fieldset>
+        {showHealth ? (
+          <fieldset className={fieldset}>
+            <Legend title="Your health" sub="Only coordinators see this. Leave it empty if there's nothing." />
+            <Field label="Allergies, medicine or anything we should know">
+              <textarea rows={3} autoFocus={!initial.health_notes} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={v.health_notes} onChange={set("health_notes")} />
+            </Field>
+          </fieldset>
+        ) : (
+          // Most people have nothing to add: the box stays out of the way until asked for.
+          <button type="button" onClick={() => setShowHealth(true)} className={`${secondaryButtonClass} h-12 w-full text-[15px]`}>
+            Add allergies, medicine or a health need
+          </button>
+        )}
 
         <ErrorText>{error}</ErrorText>
         <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>

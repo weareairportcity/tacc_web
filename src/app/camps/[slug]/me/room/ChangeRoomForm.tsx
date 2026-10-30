@@ -63,7 +63,7 @@ export function ChangeRoomForm({
       }}
     >
       <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
-        <legend className="sr-only">Room types</legend>
+        <legend className="sr-only">Where you could sleep</legend>
         {types.map((t) => {
           const state = placesState(t, gender);
           const mine = t.id === current;

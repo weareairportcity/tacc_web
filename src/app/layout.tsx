@@ -47,8 +47,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // Commune's "Bigger text" sets an attribute here before React loads (src/components/camp/BiggerText.tsx).
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${plusJakartaSans.variable} ${inter.variable} ${interTight.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

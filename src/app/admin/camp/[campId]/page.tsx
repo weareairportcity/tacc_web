@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeftRight, BedDouble, CalendarDays, ChevronRight, RotateCcw } from "lucide-react";
+import { AlertTriangle, BedDouble, CalendarDays, ChevronRight, Inbox } from "lucide-react";
 import { query } from "@/lib/cf";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { formatCedis } from "@/lib/camp/money";
@@ -67,10 +67,16 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
     return days === 0 ? "today" : days === 1 ? "since yesterday" : `oldest ${days} days`;
   };
 
+  // The three things that wait on a coordinator, always first on Today.
+  const waitingRequests = (refunds?.n ?? 0) + (changes?.n ?? 0);
+  const oldest = [refunds?.oldest, changes?.oldest].filter((x): x is string => !!x).sort()[0];
+  const todos = [
+    { icon: Inbox, n: waitingRequests, one: "request waiting", many: "requests waiting", none: "No requests waiting", meta: oldest ? ago(oldest) : "", href: `${base}/requests` },
+    { icon: AlertTriangle, n: d.money.flagged, one: "payment to check", many: "payments to check", none: "No payments to check", meta: "", href: `${base}/money` },
+    { icon: BedDouble, n: d.allocation.waiting, one: "person to place in a room", many: "people to place in a room", none: "Nobody waiting for a room", meta: "", href: `${people}?room=waiting` },
+  ];
+
   const todo: { icon: typeof BedDouble; text: string; meta?: string; href: string }[] = [
-    ...(refunds ? [{ icon: RotateCcw, text: `${refunds.n} refund request${refunds.n === 1 ? "" : "s"}`, meta: ago(refunds.oldest), href: `${base}/requests` }] : []),
-    ...(changes ? [{ icon: ArrowLeftRight, text: `${changes.n} room change${changes.n === 1 ? "" : "s"}`, meta: ago(changes.oldest), href: `${base}/requests` }] : []),
-    ...(d.money.flagged ? [{ icon: AlertTriangle, text: `${d.money.flagged} payment${d.money.flagged === 1 ? "" : "s"} to check`, href: `${base}/money` }] : []),
     ...low.map((s) => ({
       icon: BedDouble,
       text: `${s.room_type_name} · ${who(s.gender)}: ${s.places_left === 0 ? "full" : `${s.places_left} left`}`,
@@ -117,10 +123,36 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
         </ul>
       </header>
 
+      <section aria-label="To do" className="grid gap-2.5 sm:grid-cols-3">
+        {todos.map(({ icon: Icon, n, one, many, none, meta, href }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "cm-press flex min-h-[72px] items-center gap-3 rounded-[14px] border px-4 py-3",
+              n ? "border-soot bg-white shadow-seline-card" : "border-stone-border bg-stone-canvas text-warm-gray",
+            )}
+          >
+            <Icon className={cn("h-5 w-5 flex-none", !n && "text-ash-gray")} strokeWidth={1.6} aria-hidden="true" />
+            <span className="flex flex-1 flex-col">
+              {n ? (
+                <span className="text-[15px] leading-snug">
+                  <strong className="font-display text-[22px] font-normal tabular-nums">{n}</strong> {n === 1 ? one : many}
+                </span>
+              ) : (
+                <span className="text-[15px]">{none}</span>
+              )}
+              {n > 0 && meta && <span className="text-[13px] text-warm-gray">{meta}</span>}
+            </span>
+            {n > 0 && <ChevronRight className="h-4 w-4 text-ash-gray" strokeWidth={1.8} aria-hidden="true" />}
+          </Link>
+        ))}
+      </section>
+
       <section aria-label="Numbers" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile href={people} label="People" big={String(live)} sub={t.newToday ? `+${t.newToday} today` : "none new today"} delay={0} />
         <Tile href={`${base}/money`} label="Collected" big={cedis(d.money.collected)} sub={t.moneyToday ? `+${cedis(t.moneyToday)} today` : `${d.money.expected ? Math.round((d.money.collected / d.money.expected) * 100) : 0}% of expected`} delay={50} lifted />
-        <Tile href={`${people}?status=outstanding`} label="Outstanding" big={cedis(d.money.outstanding)} sub={`${t.outstandingPeople} ${t.outstandingPeople === 1 ? "person" : "people"}`} delay={100} />
+        <Tile href={`${people}?status=outstanding`} label="Still to pay" big={cedis(d.money.outstanding)} sub={`${t.outstandingPeople} ${t.outstandingPeople === 1 ? "person" : "people"}`} delay={100} />
         {near ? (
           <Tile href={`${base}/check-in`} label="Arrived" big={String(t.arrived)} sub={`of ${live}`} delay={150} />
         ) : (
@@ -129,7 +161,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Needs you">
+        <Panel title="Rooms to watch">
           {todo.length ? (
             <ul className="-mx-5 -mb-2 divide-y divide-stone-border border-t border-stone-border">
               {todo.map(({ icon: Icon, text, meta, href }) => (
@@ -144,7 +176,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
               ))}
             </ul>
           ) : (
-            <p className="text-[15px] text-warm-gray">Nothing waiting.</p>
+            <p className="text-[15px] text-warm-gray">Every room type has places and beds.</p>
           )}
         </Panel>
 
@@ -206,7 +238,14 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
                 </span>
               </li>
             ))}
-            {d.supply.length === 0 && <li className="text-warm-gray">No rooms yet.</li>}
+            {d.supply.length === 0 && (
+              <li className="text-warm-gray">
+                No room types yet.{" "}
+                <Link href={`${base}/rooms?tab=types`} className="text-ink-black underline underline-offset-[3px]">
+                  Add them on Rooms
+                </Link>
+              </li>
+            )}
           </ul>
         </Panel>
 

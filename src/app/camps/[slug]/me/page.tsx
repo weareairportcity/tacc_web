@@ -276,7 +276,8 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </p>
       ))}
 
-      <InstallHint />
+      {/* Only once there's a pass worth keeping on the home screen. */}
+      {fullyPaid && <InstallHint />}
 
       <section className="flex flex-col">
         <h2 className={`${titleClass} mb-3`}>Your registration</h2>
@@ -295,7 +296,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
             state={details.emergency_name ? "done" : "todo"}
           />
           {!cancelled && (
-            <Tile href={`/camps/${camp.slug}/me/room`} icon={ArrowLeftRight} label="Room type" sub={`${me.room_type_name} · ${formatCedis(me.price_pesewas)}`} />
+            <Tile href={`/camps/${camp.slug}/me/room`} icon={ArrowLeftRight} label="Where you'll sleep" sub={`${me.room_type_name} · ${formatCedis(me.price_pesewas)}`} />
           )}
           {(!cancelled || me.paid_pesewas > 0) && (
             <Tile href={`/camps/${camp.slug}/me/cancel`} icon={RotateCcw} label={cancelled ? "Ask for a refund" : "Cancel or refund"} sub="Ask for money back" />
@@ -303,12 +304,20 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </nav>
       </section>
 
-      <section className="flex flex-col">
-        <h2 className={`${titleClass} mb-1.5`}>Payments</h2>
-        {payments.length === 0 ? (
-          <p className="border-t border-stone-border py-3.5 text-sm text-warm-gray">None yet.</p>
-        ) : (
-          <ul className="flex flex-col text-sm tabular-nums">
+      {payments.length > 0 && (
+        // History stays folded until asked for: one line says what matters.
+        <details className="group rounded-[14px] border border-stone-border bg-white">
+          <summary className="cm-press flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
+            <span className="flex-1 text-[15px]">
+              <span className="font-medium">
+                {payments.length} {payments.length === 1 ? "payment" : "payments"}
+              </span>
+              <span className="text-warm-gray"> · {formatCedis(me.paid_pesewas)} paid</span>
+            </span>
+            <span className="text-sm text-warm-gray group-open:hidden">Show</span>
+            <span className="hidden text-sm text-warm-gray group-open:inline">Hide</span>
+          </summary>
+          <ul className="flex flex-col px-4 pb-1 text-sm tabular-nums">
             {payments.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-border py-3.5">
                 <span>
@@ -326,8 +335,8 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </details>
+      )}
     </div>
   );
 }

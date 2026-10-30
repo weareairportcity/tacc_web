@@ -167,3 +167,6 @@ dialog.cm-sheet::backdrop { background: rgba(12, 10, 9, 0.22); transition: backg
 @keyframes cm-skel { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .cm-skel { background-color: #ecebea; border-radius: 8px; animation: cm-skel 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .cm-skel { animation: none; } }
+
+/* "Bigger text": the attendee pages one step larger (BiggerText). */
+html[data-cm-text="big"] .cm-root { zoom: 1.15; }

@@ -48,7 +48,7 @@ export function Requests({ campId, requests, done, open: initialOpen }: { campId
       </header>
 
       {requests.length === 0 ? (
-        <p className="rounded-[10px] border border-stone-border bg-white px-4 py-3.5 text-[15px]">{done ? "Nothing decided yet." : "Nothing waiting."}</p>
+        <p className="rounded-[10px] border border-stone-border bg-white px-4 py-3.5 text-[15px]">{done ? "Nothing decided yet." : "Nothing waiting. When attendees ask for a refund or a different room, it shows here."}</p>
       ) : (
         <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
           {requests.map((r) => {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Clock, CreditCard, Inbox, MessageSquareHeart, Settings } from "lucide-react";
+import { BookOpen, ChevronRight, Clock, CreditCard, Inbox, MessageSquareHeart, Settings } from "lucide-react";
 import { ID } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
 import { SignOutButton } from "@/components/camp/SignOutButton";
@@ -37,6 +37,14 @@ export default async function MorePage({ params }: { params: Promise<{ campId: s
           </li>
         ))}
       </ul>
+      <Link href="/admin/camp/guide" className="cm-row flex min-h-14 items-center gap-3.5 rounded-[10px] border border-stone-border bg-white px-4 shadow-seline-card">
+        <BookOpen className="h-5 w-5" strokeWidth={1.6} aria-hidden="true" />
+        <span className="flex flex-1 flex-col">
+          <span className="text-[15px] font-medium">How Commune works</span>
+          <span className="text-[13px] text-warm-gray">A one-page guide, five steps</span>
+        </span>
+        <ChevronRight className="h-4 w-4 text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
+      </Link>
       <p className="flex items-center gap-1.5 text-sm text-warm-gray">
         {staff.email} · <SignOutButton />
       </p>

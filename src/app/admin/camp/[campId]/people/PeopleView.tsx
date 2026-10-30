@@ -5,7 +5,7 @@ import { Busy } from "@/components/camp/brand";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronDown, ChevronRight, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, CreditCard, Download, MessageCircle, MessageSquare, ScanLine, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { RegistrationStatus } from "@/lib/camp/types";
 import { Sheet } from "@/components/camp/sheet";
@@ -29,7 +29,9 @@ export type PersonListRow = {
   placed: boolean;
   /** Latest payment, else registration time: the default sort. */
   last: string | null;
-  // Coordinators only:
+  /** Leaders: this person's pay link, for a reminder. Only while they still owe. */
+  pay_link?: string;
+  // Coordinators (and, for phone, leaders):
   phone?: string;
   pfcc?: string;
   gender?: string;
@@ -65,7 +67,7 @@ const PAYMENT: [string, string][] = [
 const SORTS: [string, string][] = [
   ["", "Latest payment first"],
   ["name", "Name, A–Z"],
-  ["outstanding", "Most outstanding"],
+  ["outstanding", "Most still to pay"],
 ];
 
 const toQuery = (f: Filters) => {
@@ -120,6 +122,9 @@ function since(iso: string | null | undefined) {
 
 export function PeopleView({
   campId,
+  campName,
+  campLink,
+  scanNow,
   leader,
   scopeName,
   rows,
@@ -129,6 +134,11 @@ export function PeopleView({
   initialQuery,
 }: {
   campId: string;
+  campName: string;
+  /** The public camp page, to share when nobody has registered yet. */
+  campLink: string;
+  /** Camp is on (or tomorrow): a leader's page leads with Scan. */
+  scanNow: boolean;
   leader: boolean;
   scopeName: string | null;
   rows: PersonListRow[];
@@ -151,7 +161,9 @@ export function PeopleView({
     setSeenUrlPerson(urlPerson);
     if (urlPerson) setPerson(urlPerson);
   }
-  const [sheet, setSheet] = useState<"filters" | "pay" | "text" | null>(null);
+  const [sheet, setSheet] = useState<"filters" | "pay" | "text" | "remind" | null>(null);
+  // Coordinators: the full filter menus wait behind "More filters"; three quick ones are always there.
+  const [moreFilters, setMoreFilters] = useState(false);
   const [views, setViews] = useState(initialViews);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -210,6 +222,7 @@ export function PeopleView({
     return c;
   }, [shown]);
   const outstanding = shown.reduce((n, r) => n + outstandingOf(r), 0);
+  const owing = rows.filter((r) => r.status !== "cancelled" && outstandingOf(r) > 0);
   const picked = rows.filter((r) => selected.has(r.id));
   const pickedOwing = picked.filter((r) => outstandingOf(r) > 0);
 
@@ -278,20 +291,32 @@ export function PeopleView({
         </div>
       </header>
 
+      {leader && scanNow && (
+        <a href={`/leaders/${campId}/check-in`} className={`${primaryButtonClass} cm-rise h-16 w-full text-[18px]`}>
+          <ScanLine className="h-6 w-6" strokeWidth={1.6} aria-hidden="true" /> Scan a pass
+        </a>
+      )}
+
       {leader && (
         <section className="cm-rise flex flex-col gap-3.5 rounded-2xl bg-white p-5 shadow-seline-hero">
-          <span className="flex items-baseline gap-3">
-            <span className="font-display text-[44px] leading-none tracking-[-0.03em] tabular-nums">
+          <p className="text-[17px] leading-snug">
+            <strong className="font-display text-[40px] font-normal leading-none tracking-[-0.03em] tabular-nums">
               {rows.filter((r) => r.status === "fully_paid").length} of {rows.filter((r) => r.status !== "cancelled").length}
-            </span>
-            <span className="text-[15px] text-warm-gray">fully paid</span>
-          </span>
+            </strong>{" "}
+            {scopeName ?? "your"} people are paid in full
+          </p>
           <StackedBar parts={statusParts(Object.fromEntries(["fully_paid", "partially_paid", "registered"].map((s) => [s, rows.filter((r) => r.status === s).length])), false)} />
           <Legend parts={statusParts(Object.fromEntries(["fully_paid", "partially_paid", "registered"].map((s) => [s, rows.filter((r) => r.status === s).length])), false)} />
           <p className="border-t border-stone-border pt-3 text-[13px] text-warm-gray">
             {rows.length} {rows.length === 1 ? "person" : "people"} · tap a name to see their details
           </p>
-          {rows.some((r) => outstandingOf(r) > 0) && (
+          {owing.length > 0 && (
+            <button type="button" onClick={() => setSheet("remind")} className={`${primaryButtonClass} h-12 w-full text-[15px]`}>
+              <MessageCircle className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" />
+              Remind the {owing.length} still to pay
+            </button>
+          )}
+          {owing.length > 0 && (
             <p className="flex items-center gap-2 text-[13px] text-warm-gray">
               <CreditCard className="h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> Paying from a fellowship fund? Tick people below, then Pay for them.
             </p>
@@ -312,7 +337,25 @@ export function PeopleView({
             className={`${inputClass} pl-10`}
           />
         </label>
-        <div className="flex flex-wrap items-center gap-2">
+        <QuickFilters
+          options={
+            leader
+              ? [
+                  ["status", "registered", "Not paid"],
+                  ["status", "partially_paid", "Part paid"],
+                  ["status", "fully_paid", "Paid in full"],
+                ]
+              : [
+                  ["status", "outstanding", "Still to pay"],
+                  ["room", "waiting", "Waiting for a room"],
+                  ["checkin", "out", "Not arrived"],
+                ]
+          }
+          filters={filters}
+          set={set}
+          count={count}
+        />
+        <div className={cn("flex flex-wrap items-center gap-2", leader && "hidden")}>
           <button
             type="button"
             onClick={() => setSheet("filters")}
@@ -324,7 +367,16 @@ export function PeopleView({
             <SlidersHorizontal className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
             Filters{active ? ` · ${active}` : ""}
           </button>
-          <div className="hidden flex-wrap items-center gap-2 sm:flex">
+          <button
+            type="button"
+            aria-expanded={moreFilters || active > 0}
+            onClick={() => setMoreFilters((v) => !v)}
+            className={cn("cm-press hidden h-10 items-center gap-2 rounded-full border border-stone-border bg-white px-4 text-sm font-medium sm:inline-flex", (moreFilters || active > 0) && "sm:hidden")}
+          >
+            <SlidersHorizontal className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
+            More filters
+          </button>
+          <div className={cn("hidden flex-wrap items-center gap-2", (moreFilters || active > 0) && "sm:flex")}>
             {menus.map((m) => (
               <FilterMenu
                 key={m.key}
@@ -362,7 +414,7 @@ export function PeopleView({
         <strong className="font-semibold">
           {shown.length} {shown.length === 1 ? "person" : "people"}
         </strong>
-        {outstanding > 0 && <span className="text-warm-gray"> · {formatCedis(outstanding)} outstanding</span>}
+        {outstanding > 0 && <span className="text-warm-gray"> · {formatCedis(outstanding)} still to pay</span>}
       </p>
       {shown.length > 0 && (
         <div className="-mt-2 flex flex-col gap-2">
@@ -372,7 +424,18 @@ export function PeopleView({
 
       {shown.length === 0 ? (
         <p className="rounded-[10px] border border-stone-border bg-white p-6 text-center text-[15px] text-warm-gray">
-          {rows.length ? "Nobody matches these filters." : "Nobody has registered yet."}
+          {rows.length ? (
+            "Nobody matches these filters."
+          ) : leader ? (
+            "Nobody from your group has registered yet."
+          ) : (
+            <span className="flex flex-col items-center gap-3">
+              Nobody has registered yet. Share the camp&apos;s link to start.
+              <button type="button" onClick={() => navigator.clipboard?.writeText(campLink).then(() => toast("Link copied"))} className={`${primaryButtonClass} h-11 px-5`}>
+                <Copy className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Copy the camp link
+              </button>
+            </span>
+          )}
         </p>
       ) : (
         <section className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
@@ -392,7 +455,7 @@ export function PeopleView({
                 <th className="px-3 py-3 font-medium max-md:hidden">{leader ? "Fellowship" : "Fellowship · room type"}</th>
                 <th className="px-3 py-3 font-medium max-sm:hidden">Payment</th>
                 {leader ? <th className="px-3 py-3 text-right font-medium max-sm:hidden">Paid</th> : <th className="px-3 py-3 font-medium max-lg:hidden">Room</th>}
-                <th className="py-3 pl-3 pr-4 text-right font-medium">Outstanding</th>
+                <th className="py-3 pl-3 pr-4 text-right font-medium">Still to pay</th>
               </tr>
             </thead>
             <tbody>
@@ -500,7 +563,14 @@ export function PeopleView({
         ))}
       </Sheet>
 
+      {leader && (
+        <a href="/leaders/guide" className="self-center text-[13px] text-warm-gray underline underline-offset-[3px]">
+          How Commune works for leaders, in five steps
+        </a>
+      )}
+
       <PaySheet open={sheet === "pay"} onClose={() => setSheet(null)} campId={campId} people={pickedOwing} leader={leader} />
+      {leader && <RemindSheet open={sheet === "remind"} onClose={() => setSheet(null)} campName={campName} people={owing} />}
       {!leader && (
         <>
           <TextSheet
@@ -809,6 +879,14 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
   );
 }
 
+/** Ready messages to start from (recognition, not recall). Plain letters only, so each stays cheap. Words in [brackets] are for the coordinator to fill in. */
+const TEMPLATES: [string, string][] = [
+  ["Payment reminder", "Please pay what's left of your camp fee soon. You can pay in Commune with MoMo or card."],
+  ["What to bring", "For camp, please bring your Bible, a notebook, toiletries, a towel and comfortable clothes."],
+  ["Check-in time", "Check-in at camp opens at [time] on [day]. Please have your pass ready on your phone."],
+  ["Your room", "Your room is on Commune now. Open it to see your room and who you're sharing with."],
+];
+
 function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[]; onSent: (n: number) => void }) {
   const [message, setMessage] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -859,6 +937,16 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
         )
       }
     >
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">Start from a ready message</span>
+        <div className="flex flex-wrap gap-2">
+          {TEMPLATES.map(([label, text]) => (
+            <button key={label} type="button" onClick={() => setMessage(text)} className="cm-press h-9 rounded-full border border-stone-border bg-white px-3.5 text-[13px] font-medium">
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Message
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} maxLength={MAX_COORDINATOR_MESSAGE} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
@@ -874,6 +962,91 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
         <span className="text-xs text-warm-gray">Each person gets their own text with their first name. Use plain letters; emoji and curly quotes cost more.</span>
       </div>
       <ErrorText>{error}</ErrorText>
+    </Sheet>
+  );
+}
+
+/** Three big filters with their counts, always in view. Tap again to show everyone. */
+function QuickFilters({
+  options,
+  filters,
+  set,
+  count,
+}: {
+  options: [keyof Filters, string, string][];
+  filters: Filters;
+  set: (key: keyof Filters, value: string) => void;
+  count: (key: keyof Filters, value: string) => number;
+}) {
+  return (
+    <div role="group" aria-label="Show only" className="grid grid-cols-3 gap-2">
+      {options.map(([key, value, label]) => {
+        const on = filters[key] === value;
+        return (
+          <button
+            key={`${key}:${value}`}
+            type="button"
+            aria-pressed={on}
+            onClick={() => set(key, value)}
+            className={cn(
+              "cm-press flex min-h-14 flex-col items-center justify-center rounded-[14px] border px-2 py-2 text-center",
+              on ? "border-soot bg-soot text-white" : "border-stone-border bg-white",
+            )}
+          >
+            <span className="font-display text-[22px] leading-none tabular-nums">{count(key, value)}</span>
+            <span className={cn("mt-1 text-[13px] leading-tight", on ? "text-white" : "text-warm-gray")}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * "Remind the 8 still to pay": one WhatsApp message per person, written for the leader with
+ * that person's own pay link, sent from the leader's phone (free). A copy button for anyone
+ * without WhatsApp.
+ */
+function RemindSheet({ open, onClose, campName, people }: { open: boolean; onClose: () => void; campName: string; people: PersonListRow[] }) {
+  const toast = useToast();
+  const [sent, setSent] = useState<Set<string>>(new Set());
+  const message = (r: PersonListRow) =>
+    `Hi ${firstName(r.full_name)}, a quick reminder about ${campName}: you still have ${formatCedis(outstandingOf(r))} to pay. You, or someone for you, can pay here: ${r.pay_link ?? ""}`;
+  const wa = (r: PersonListRow) => `https://wa.me/${(r.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(message(r))}`;
+  return (
+    <Sheet open={open} onClose={onClose} title={`Remind ${people.length} ${people.length === 1 ? "person" : "people"}`} subtitle="Each message opens in WhatsApp with their own pay link. Nothing is sent until you press send there.">
+      <ul className="flex flex-col">
+        {people.map((r) => (
+          <li key={r.id} className="flex items-center gap-3 border-t border-stone-border py-3 first:border-t-0">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="flex items-center gap-1.5 truncate text-[15px] font-medium">
+                {sent.has(r.id) && <Check className="h-4 w-4 flex-none text-st-paid" strokeWidth={2.4} aria-label="Opened" />}
+                {r.full_name}
+              </span>
+              <span className="text-[13px] text-warm-gray">{formatCedis(outstandingOf(r))} still to pay</span>
+            </span>
+            {r.phone && (
+              <a
+                href={wa(r)}
+                target="_blank"
+                rel="noopener"
+                onClick={() => setSent((s) => new Set(s).add(r.id))}
+                className="cm-press inline-flex h-11 items-center gap-1.5 rounded-full border border-stone-border bg-white px-4 text-sm font-medium"
+              >
+                <MessageCircle className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> WhatsApp
+              </a>
+            )}
+            <button
+              type="button"
+              aria-label={`Copy the message for ${r.full_name}`}
+              onClick={() => navigator.clipboard?.writeText(message(r)).then(() => toast("Message copied"))}
+              className="cm-press flex h-11 w-11 items-center justify-center rounded-full border border-stone-border bg-white"
+            >
+              <Copy className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </Sheet>
   );
 }

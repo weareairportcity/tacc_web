@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BedDouble, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquareHeart, ScanLine, Search, Settings, Users, X } from "lucide-react";
+import { BedDouble, BookOpen, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquareHeart, ScanLine, Search, Settings, Users, X } from "lucide-react";
 import type { FoundPerson } from "@/lib/camp/reports";
 import { cn } from "@/lib/utils";
 import { STATUS_COLOR, STATUS_WORD } from "../ui";
@@ -11,7 +11,8 @@ import { findPeopleAction } from "@/app/admin/camp/actions";
 
 /**
  * Commune's coordinator navigation: a rail on wide screens, a bottom bar on
- * phones. Today first, Settings last; Requests carries its count.
+ * phones. Five places used every day, then the rest under More (Requests
+ * carries its count, and shows on Today while any are waiting).
  */
 
 type Item = { path: string; label: string; icon: typeof Users };
@@ -21,12 +22,14 @@ export const NAV: Item[] = [
   { path: "/people", label: "People", icon: Users },
   { path: "/rooms", label: "Rooms", icon: BedDouble },
   { path: "/check-in", label: "Check-in", icon: ScanLine },
-  { path: "/requests", label: "Requests", icon: Inbox },
   { path: "/money", label: "Money", icon: CreditCard },
+  { path: "/requests", label: "Requests", icon: Inbox },
   { path: "/history", label: "History", icon: Clock },
   { path: "/feedback", label: "Feedback", icon: MessageSquareHeart },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
+// Wide screens: these five always show; the rest sit under More.
+const MAIN = ["", "/people", "/rooms", "/check-in", "/money"];
 const LEADER_NAV: Item[] = [
   { path: "/people", label: "People", icon: Users },
   { path: "/check-in", label: "Scan", icon: ScanLine },
@@ -41,31 +44,60 @@ function useActive(base: string) {
 
 export function Rail({ base, leader, requests }: { base: string; leader: boolean; requests: number }) {
   const active = useActive(base);
+  const link = ({ path, label, icon: Icon }: Item) => {
+    const on = active(path);
+    return (
+      <Link
+        key={path}
+        href={base + path}
+        aria-current={on ? "page" : undefined}
+        className={cn(
+          "flex h-[42px] items-center gap-3 rounded-[10px] px-3 font-medium transition-colors",
+          on ? "bg-white text-ink-black shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_#e8e6e5]" : "cm-hover text-[#57534e]",
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" />
+        {label}
+        {path === "/requests" && requests > 0 && (
+          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-signal px-1.5 text-[11px] font-semibold text-ink-black">
+            {requests}
+            <span className="sr-only"> waiting</span>
+          </span>
+        )}
+      </Link>
+    );
+  };
+  if (leader)
+    return (
+      <nav aria-label="Leader" className="flex flex-col gap-0.5 text-sm">
+        {LEADER_NAV.map(link)}
+        <Link href="/leaders/guide" className="cm-hover mt-3 flex h-9 items-center gap-2 rounded-[10px] px-3 text-[13px] font-medium text-warm-gray">
+          <BookOpen className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Guide
+        </Link>
+      </nav>
+    );
+  const rest = NAV.filter((n) => !MAIN.includes(n.path));
   return (
     <nav aria-label="Coordinator" className="flex flex-col gap-0.5 text-sm">
-      {(leader ? LEADER_NAV : NAV).map(({ path, label, icon: Icon }) => {
-        const on = active(path);
-        return (
-          <Link
-            key={path}
-            href={base + path}
-            aria-current={on ? "page" : undefined}
-            className={cn(
-              "flex h-[42px] items-center gap-3 rounded-[10px] px-3 font-medium transition-colors",
-              on ? "bg-white text-ink-black shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_#e8e6e5]" : "cm-hover text-[#57534e]",
-            )}
-          >
-            <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" />
-            {label}
-            {path === "/requests" && requests > 0 && (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-signal px-1.5 text-[11px] font-semibold text-ink-black">
-                {requests}
-                <span className="sr-only"> waiting</span>
-              </span>
-            )}
+      {NAV.filter((n) => MAIN.includes(n.path)).map(link)}
+      <details open={rest.some((n) => active(n.path)) || undefined} className="group mt-3">
+        <summary className="cm-hover flex h-9 cursor-pointer list-none items-center gap-2 rounded-[10px] px-3 text-[13px] font-medium text-warm-gray [&::-webkit-details-marker]:hidden">
+          <Ellipsis className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
+          More
+          {requests > 0 && (
+            <span className="ml-auto h-2 w-2 rounded-full bg-cyan-signal group-open:hidden">
+              <span className="sr-only">{requests} requests waiting</span>
+            </span>
+          )}
+        </summary>
+        <div className="mt-0.5 flex flex-col gap-0.5">
+          {rest.map(link)}
+          <Link href="/admin/camp/guide" className="cm-hover flex h-[42px] items-center gap-3 rounded-[10px] px-3 font-medium text-[#57534e]">
+            <BookOpen className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" />
+            Guide
           </Link>
-        );
-      })}
+        </div>
+      </details>
     </nav>
   );
 }

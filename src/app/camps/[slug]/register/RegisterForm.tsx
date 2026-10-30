@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BedDouble, Church, CircleSlash, User } from "lucide-react";
+import { BedDouble, Church, CircleSlash, Shirt, User } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/types";
 import { HumanCheck } from "@/components/camp/HumanCheck";
@@ -51,6 +51,18 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   const [pending, startTransition] = useOneAtATime();
   const [human, setHuman] = useState("");
   const [round, setRound] = useState(0);
+  // Three short steps: about you, where you'll sleep, then your code.
+  const [step, setStep] = useState<1 | 2>(1);
+  const aboutYou = useRef<HTMLDivElement>(null);
+
+  const next = () => {
+    for (const field of aboutYou.current?.querySelectorAll<HTMLInputElement>("input, select") ?? []) {
+      if (!field.checkValidity()) return field.reportValidity();
+    }
+    setError("");
+    setStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const set = <K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
@@ -75,6 +87,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           set("room_type_id", "");
           document.getElementById("room")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+        // Something about them (a phone, an email) needs fixing: back to step 1, everything kept.
+        else if (/phone|email|name|gender/i.test(result.error)) setStep(1);
         return setError(result.error);
       }
       // Already registered with this phone: sign in instead of a dead end.
@@ -86,9 +100,10 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   if (code) {
     return (
       <section className="cm-rise flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-seline-hero">
+        <Steps step={3} />
         <h2 className={titleClass}>You&apos;re registered</h2>
         <p className="text-[15px] leading-relaxed text-warm-gray">This is your sign-in code. We&apos;ve texted it to you too.</p>
-        <p className="rounded-[10px] bg-stone-canvas py-5 text-center font-mono text-3xl font-medium tracking-[0.2em]">{code}</p>
+        <p className="rounded-[10px] bg-stone-canvas py-5 text-center font-mono text-[26px] font-medium tracking-[0.08em] tabular-nums">{code}</p>
         <p className="rounded-[12px] bg-cyan-tint px-4 py-3 text-[15px] leading-relaxed">
           <strong className="font-semibold">Keep this code safe.</strong>{" "}Don&apos;t delete the text. You need the code each time you sign in on a new phone. Keep it to
           yourself.
@@ -114,162 +129,197 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
-      <fieldset className={cn(fieldsetClass, "cm-rise")}>
-        <Legend icon={User}>About you</Legend>
-        <Field label="Full name">
-          <input required autoComplete="name" className={inputClass} value={values.full_name} onChange={(e) => set("full_name", e.target.value)} />
-        </Field>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium" id="gender-label">
-            Gender
-          </span>
-          <div role="radiogroup" aria-labelledby="gender-label" className="grid grid-cols-2 gap-1 rounded-full border border-stone-border bg-stone-canvas p-1">
-            {(["female", "male"] as const).map((g) => (
-              <label
-                key={g}
-                className="cm-press flex h-10 cursor-pointer items-center justify-center rounded-full text-sm has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
-              >
-                <input required type="radio" name="gender" value={g} checked={values.gender === g} onChange={() => setGender(g)} className="sr-only" />
-                {g === "female" ? "Female" : "Male"}
-              </label>
-            ))}
-          </div>
-        </div>
-        <Field label="Phone number">
-          <input
-            required
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="055 111 2222"
-            className={inputClass}
-            value={values.phone}
-            onChange={(e) => set("phone", e.target.value)}
-          />
-        </Field>
-        <Field label="Email">
-          <input required type="email" autoComplete="email" className={inputClass} value={values.email} onChange={(e) => set("email", e.target.value)} />
-        </Field>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium" id="shirt-label">
-            T-shirt size
-          </span>
-          <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
-            {SHIRT_SIZES.map((z) => (
-              <label
-                key={z}
-                className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
-              >
-                <input type="radio" name="shirt" value={z} checked={values.shirt_size === z} onChange={() => set("shirt_size", z)} className="sr-only" />
-                {z}
-              </label>
-            ))}
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "60ms" }}>
-        <Legend icon={Church}>Your church</Legend>
-        <Field label="Fellowship">
-          <select required className={inputClass} value={values.fellowship} onChange={(e) => set("fellowship", e.target.value)}>
-            <option value="" disabled>
-              Choose your fellowship
-            </option>
-            {fellowshipGroups.map((g) => (
-              <optgroup key={g.pfcc} label={g.pfcc}>
-                {g.names.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
+      <Steps step={step} />
+      {step === 1 && (
+        <div ref={aboutYou} className="flex flex-col gap-5">
+          <fieldset className={cn(fieldsetClass, "cm-rise")}>
+            <Legend icon={User}>About you</Legend>
+            <Field label="Full name">
+              <input required autoComplete="name" className={inputClass} value={values.full_name} onChange={(e) => set("full_name", e.target.value)} />
+            </Field>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium" id="gender-label">
+                Gender
+              </span>
+              <div role="radiogroup" aria-labelledby="gender-label" className="grid grid-cols-2 gap-1 rounded-full border border-stone-border bg-stone-canvas p-1">
+                {(["female", "male"] as const).map((g) => (
+                  <label
+                    key={g}
+                    className="cm-press flex h-10 cursor-pointer items-center justify-center rounded-full text-sm has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
+                  >
+                    <input required type="radio" name="gender" value={g} checked={values.gender === g} onChange={() => setGender(g)} className="sr-only" />
+                    {g === "female" ? "Female" : "Male"}
+                  </label>
                 ))}
-              </optgroup>
-            ))}
-          </select>
-        </Field>
-        {churches.length > 1 && (
-          <Field label="Church">
-            <select required className={inputClass} value={values.church} onChange={(e) => set("church", e.target.value)}>
-              <option value="" disabled>
-                Choose
-              </option>
-              {churches.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
-      </fieldset>
-
-      <fieldset id="room" className={cn(fieldsetClass, "cm-rise scroll-mt-6 gap-2.5")} style={{ animationDelay: "120ms" }}>
-        <Legend icon={BedDouble}>Your room</Legend>
-        {roomTypes.map((t) => {
-          const state = placesState(t, values.gender);
-          const full = state === "full";
-          return (
-            <label
-              key={t.id}
-              aria-disabled={full || undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-[10px] border px-4 py-3.5",
-                full
-                  ? "cursor-not-allowed border-dashed border-stone-muted bg-stone-canvas"
-                  : "cm-press cursor-pointer border-stone-border has-[:checked]:border-2 has-[:checked]:border-soot has-[:checked]:bg-stone-canvas has-[:checked]:px-[15px] has-[:checked]:py-[13px]",
-              )}
-            >
+              </div>
+            </div>
+            <Field label="Phone number">
               <input
                 required
-                type="radio"
-                name="room_type"
-                value={t.id}
-                disabled={full}
-                checked={values.room_type_id === t.id}
-                onChange={() => set("room_type_id", t.id)}
-                className="h-[18px] w-[18px] accent-soot"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="055 111 2222"
+                className={inputClass}
+                value={values.phone}
+                onChange={(e) => set("phone", e.target.value)}
               />
-              {/* How many share a room, as a number. */}
-              <span className={cn("flex h-14 w-14 flex-none flex-col items-center justify-center rounded-[12px]", full ? "bg-[#f0efee]" : "bg-stone-rail")}>
-                <span className={cn("font-display text-2xl leading-none", full && "text-warm-gray")}>{t.capacity}</span>
-                <span className="text-[10px] text-warm-gray">per room</span>
-              </span>
-              <span className="flex flex-1 flex-col gap-0.5">
-                <span className={cn("text-[15px] font-medium", full && "text-warm-gray")}>{t.name}</span>
-                {full ? (
-                  <span className="flex items-center gap-1.5 text-[13px] text-warm-gray">
-                    <CircleSlash className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                    Full for {values.gender === "male" ? "men" : "women"}
-                  </span>
-                ) : typeof state === "number" ? (
-                  <span className="flex items-center gap-1.5 text-[13px]">
-                    <span className="cm-pulse h-1.5 w-1.5 flex-none rounded-full bg-cyan-signal" />
-                    Only {state} {state === 1 ? "place" : "places"} left
-                  </span>
-                ) : (
-                  <span className="text-[13px] text-warm-gray">Places left</span>
-                )}
-              </span>
-              <span className={cn("font-display text-lg tabular-nums", full && "text-ash-gray")}>{formatCedis(t.price_pesewas)}</span>
-            </label>
-          );
-        })}
-        {!values.gender && <p className="text-[13px] text-warm-gray">Choose your gender to see which rooms have places.</p>}
-      </fieldset>
-
-      <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm text-warm-gray">Total{chosen ? ` · ${chosen.name}` : ""}</span>
-          <span className="font-display text-[22px] tracking-[-0.02em] tabular-nums">
-            {chosen ? formatCedis(chosen.price_pesewas) : "—"}
-          </span>
+            </Field>
+            <Field label="Email">
+              <input required type="email" autoComplete="email" className={inputClass} value={values.email} onChange={(e) => set("email", e.target.value)} />
+            </Field>
+          </fieldset>
+          <button type="button" onClick={next} className={`${primaryButtonClass} h-[52px] w-full`}>
+            Next: where you&apos;ll sleep
+          </button>
         </div>
-        <ErrorText>{error}</ErrorText>
-        <HumanCheck onToken={setHuman} round={round} />
-        <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-          <Busy pending={pending} text="Saving your place…">Register</Busy>
-        </button>
-        <p className="text-center text-[13px] text-warm-gray">Nothing to pay now</p>
-      </div>
+      )}
+
+      {step === 2 && (
+        <>
+          <fieldset className={cn(fieldsetClass, "cm-rise")}>
+            <Legend icon={Church}>Your church</Legend>
+            <Field label="Fellowship">
+              <select required className={inputClass} value={values.fellowship} onChange={(e) => set("fellowship", e.target.value)}>
+                <option value="" disabled>
+                  Choose your fellowship
+                </option>
+                {fellowshipGroups.map((g) => (
+                  <optgroup key={g.pfcc} label={g.pfcc}>
+                    {g.names.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+            {churches.length > 1 && (
+              <Field label="Church">
+                <select required className={inputClass} value={values.church} onChange={(e) => set("church", e.target.value)}>
+                  <option value="" disabled>
+                    Choose
+                  </option>
+                  {churches.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </fieldset>
+
+          <fieldset id="room" className={cn(fieldsetClass, "cm-rise scroll-mt-6 gap-2.5")} style={{ animationDelay: "60ms" }}>
+            <Legend icon={BedDouble}>Where you&apos;ll sleep</Legend>
+            {roomTypes.map((t) => {
+              const state = placesState(t, values.gender);
+              const full = state === "full";
+              return (
+                <label
+                  key={t.id}
+                  aria-disabled={full || undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-[10px] border px-4 py-3.5",
+                    full
+                      ? "cursor-not-allowed border-dashed border-stone-muted bg-stone-canvas"
+                      : "cm-press cursor-pointer border-stone-border has-[:checked]:border-2 has-[:checked]:border-soot has-[:checked]:bg-stone-canvas has-[:checked]:px-[15px] has-[:checked]:py-[13px]",
+                  )}
+                >
+                  <input
+                    required
+                    type="radio"
+                    name="room_type"
+                    value={t.id}
+                    disabled={full}
+                    checked={values.room_type_id === t.id}
+                    onChange={() => set("room_type_id", t.id)}
+                    className="h-[18px] w-[18px] accent-soot"
+                  />
+                  {/* How many share a room, as a number. */}
+                  <span className={cn("flex h-14 w-14 flex-none flex-col items-center justify-center rounded-[12px]", full ? "bg-[#f0efee]" : "bg-stone-rail")}>
+                    <span className={cn("font-display text-2xl leading-none", full && "text-warm-gray")}>{t.capacity}</span>
+                    <span className="text-[10px] text-warm-gray">per room</span>
+                  </span>
+                  <span className="flex flex-1 flex-col gap-0.5">
+                    <span className={cn("text-[15px] font-medium", full && "text-warm-gray")}>{t.name}</span>
+                    {full ? (
+                      <span className="flex items-center gap-1.5 text-[13px] text-warm-gray">
+                        <CircleSlash className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                        Full for {values.gender === "male" ? "men" : "women"}
+                      </span>
+                    ) : typeof state === "number" ? (
+                      <span className="flex items-center gap-1.5 text-[13px]">
+                        <span className="cm-pulse h-1.5 w-1.5 flex-none rounded-full bg-cyan-signal" />
+                        Only {state} {state === 1 ? "place" : "places"} left
+                      </span>
+                    ) : (
+                      <span className="text-[13px] text-warm-gray">Places left</span>
+                    )}
+                  </span>
+                  <span className={cn("font-display text-lg tabular-nums", full && "text-ash-gray")}>{formatCedis(t.price_pesewas)}</span>
+                </label>
+              );
+            })}
+          </fieldset>
+
+          <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
+            <Legend icon={Shirt}>Camp T-shirt</Legend>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium" id="shirt-label">
+                Your size <span className="font-normal text-warm-gray">(you can skip this)</span>
+              </span>
+              <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
+                {SHIRT_SIZES.map((z) => (
+                  <label
+                    key={z}
+                    className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
+                  >
+                    <input type="radio" name="shirt" value={z} checked={values.shirt_size === z} onChange={() => set("shirt_size", z)} className="sr-only" />
+                    {z}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </fieldset>
+
+          <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm text-warm-gray">Total{chosen ? ` · ${chosen.name}` : ""}</span>
+              <span className="font-display text-[22px] tracking-[-0.02em] tabular-nums">
+                {chosen ? formatCedis(chosen.price_pesewas) : "—"}
+              </span>
+            </div>
+            <ErrorText>{error}</ErrorText>
+            <HumanCheck onToken={setHuman} round={round} />
+            <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
+              <Busy pending={pending} text="Saving your place…">Register</Busy>
+            </button>
+            <p className="text-center text-[13px] text-warm-gray">Nothing to pay now</p>
+        </div>
+          <button type="button" disabled={pending} onClick={() => setStep(1)} className="self-center text-[15px] text-warm-gray underline underline-offset-[3px]">
+            Back to about you
+          </button>
+        </>
+      )}
     </form>
+  );
+}
+
+/** "Step 1 of 3 · About you", with a bar per step: how far there is to go. */
+function Steps({ step }: { step: 1 | 2 | 3 }) {
+  const names = ["About you", "Where you'll sleep", "Your code"];
+  return (
+    <div className="flex flex-col gap-2" aria-label={`Step ${step} of 3: ${names[step - 1]}`}>
+      <span aria-hidden="true" className="flex gap-1.5">
+        {names.map((n, i) => (
+          <span key={n} className={cn("h-1 flex-1 rounded-full", i < step ? "bg-soot" : "bg-stone-border")} />
+        ))}
+      </span>
+      <span className="text-[13px] text-warm-gray">
+        Step {step} of 3 · {names[step - 1]}
+      </span>
+    </div>
   );
 }

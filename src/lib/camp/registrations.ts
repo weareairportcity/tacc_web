@@ -3,7 +3,7 @@ import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
 import { roomStatementsForRemoval } from "./assignments";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
-import { generateCode, hashCode, normalizeCode, CODE_LENGTH } from "./codes";
+import { generateSignInCode, hashCode, looksLikeSignInCode, normalizeCode } from "./codes";
 import { groupStatementsForRemoval } from "./groups";
 import { getRoomType, listRoomTypes, placesFor } from "./rooms";
 import {
@@ -121,7 +121,7 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
   if (existing) throw new AlreadyRegistered(input.phone);
 
   const id = crypto.randomUUID();
-  const code = generateCode();
+  const code = generateSignInCode();
   const price = input.roomType.price_pesewas;
   // Contact details stay out of the audit log.
   const after = { full_name: input.full_name, room_type_id: input.roomType.id, price_pesewas: price };
@@ -187,7 +187,7 @@ export async function getRegistrationWithCode(id: string) {
 /** The registration a code opens in this camp, or null. */
 export async function findByCode(campId: string, rawCode: string) {
   const code = normalizeCode(rawCode);
-  if (code.length !== CODE_LENGTH) return null;
+  if (!looksLikeSignInCode(code)) return null;
   const codeHash = hashCode(code);
   const [row] = await query<{ id: string }>(
     "app",
@@ -210,7 +210,7 @@ export async function resetCode(campId: string, rawPhone: string) {
     [campId, phone],
   );
   if (!row) return null;
-  const code = generateCode();
+  const code = generateSignInCode();
   await batch("app", [
     { sql: "UPDATE camp_registrations SET code_hash = ? WHERE id = ?", params: [hashCode(code), row.id] },
     auditStatement({ actor: `attendee:${row.id}`, campId, action: "registration.code_reset", entity: "registration", entityId: row.id }),

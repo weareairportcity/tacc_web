@@ -3,6 +3,9 @@ import { getCamp, ID } from "@/lib/camp/camps";
 import { listPeople, listPeopleForLeader, scopeFor } from "@/lib/camp/reports";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { listViews } from "@/lib/camp/views";
+import { campOrigin } from "@/lib/camp/origin";
+import { todayInGhana } from "@/lib/camp/registrations";
+import { makeToken } from "@/lib/camp/tokens";
 import { CampError } from "@/lib/camp/types";
 import { PFCC_GROUPS } from "@/lib/fellowships";
 import { NoAccess, pageStaff } from "../../access";
@@ -24,11 +27,15 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
   if (leader && camp.status === "draft") notFound();
 
   let rows: PersonListRow[];
+  // Leaders remind their own people to pay: each reminder carries that person's own pay link.
+  const origin = await campOrigin();
   try {
     rows = leader
       ? (await listPeopleForLeader(staff, camp.id, {})).map((r) => ({
           id: r.id,
           full_name: r.full_name,
+          phone: r.phone,
+          pay_link: r.status === "registered" || r.status === "partially_paid" ? `${origin}/camps/${camp.slug}/pay/${makeToken("pay", r.id)}` : undefined,
           fellowship: r.fellowship,
           pfcc: r.pfcc,
           status: r.status,
@@ -71,6 +78,10 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
       key={new URLSearchParams(query).get("q") ?? ""}
       campId={camp.id}
       leader={leader}
+      campName={camp.name}
+      campLink={`${origin}/camps/${camp.slug}`}
+      // From the day before camp, a leader's page leads with Scan.
+      scanNow={leader && todayInGhana() >= new Date(Date.parse(`${camp.starts_on}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10) && todayInGhana() <= camp.ends_on}
       scopeName={scope && scope.kind !== "all" ? scope.value : null}
       rows={rows}
       roomTypes={roomTypes.map((t) => t.name)}

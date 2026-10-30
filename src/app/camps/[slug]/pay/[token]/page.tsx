@@ -46,7 +46,7 @@ export default async function PayLinkPage({ params }: { params: Promise<{ slug: 
                 <dd>{formatCedis(reg.paid_pesewas)}</dd>
               </div>
               <div className="flex justify-between border-t border-stone-border pt-2 font-semibold">
-                <dt>Outstanding</dt>
+                <dt>Still to pay</dt>
                 <dd>{formatCedis(balance)}</dd>
               </div>
             </dl>

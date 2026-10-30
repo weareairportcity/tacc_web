@@ -13,6 +13,8 @@ import { forgotCodeAction, signInAction } from "./actions";
 export function SignIn({ slug, next }: { slug: string; next?: string }) {
   const router = useRouter();
   const [code, setCode] = useState("");
+  // Codes are digits now; the few older ones have letters, and this switch brings up the letters keyboard.
+  const [letters, setLetters] = useState(false);
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [lostError, setLostError] = useState("");
@@ -38,18 +40,22 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
         className="cm-rise order-1 flex flex-col gap-3.5 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card"
         style={{ animationDelay: "60ms" }}
       >
-        <Field label="Your sign-in code" hint="8 letters and numbers. Dashes and spaces are fine.">
+        <Field label="Your sign-in code" hint="The 12 numbers from the text we sent you. Spaces are fine.">
           <input
             required
             autoComplete="one-time-code"
+            inputMode={letters ? "text" : "numeric"}
             autoCapitalize="characters"
             spellCheck={false}
             className={`${inputClass} h-[60px] text-center font-mono text-[22px] tracking-[0.14em] uppercase sm:h-[60px] sm:text-[22px]`}
-            placeholder="ABCD-EFGH"
+            placeholder={letters ? "ABCD-EFGH" : "4831 2207 1693"}
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
         </Field>
+        <button type="button" onClick={() => setLetters((l) => !l)} className="-mt-1.5 self-start text-[13px] text-warm-gray underline underline-offset-[3px]">
+          {letters ? "My code is just numbers" : "My code has letters in it"}
+        </button>
         <ErrorText>{error}</ErrorText>
         <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-14 w-full text-[17px]`}>
           <Busy pending={pending} text="Signing in…">Sign in</Busy>

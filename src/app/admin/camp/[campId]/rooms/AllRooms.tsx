@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Busy } from "@/components/camp/brand";
 import { useMemo, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
@@ -89,7 +90,20 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
       </div>
 
       {shown.length === 0 ? (
-        <p className="rounded-[10px] border border-stone-border bg-white p-5 text-[15px] text-warm-gray">No rooms yet.</p>
+        rooms.length === 0 ? (
+          // The first job on this page: say it, with its button.
+          <div className="flex flex-col items-start gap-3 rounded-[14px] border border-stone-border bg-white p-6">
+            <p className="text-[17px] font-medium">No rooms yet</p>
+            <p className="max-w-prose text-[15px] leading-relaxed text-warm-gray">
+              Import the venue&apos;s list of rooms (a spreadsheet saved as CSV, with each room&apos;s name, type, gender and beds), or add them one at a time.
+            </p>
+            <button type="button" onClick={() => setImporting(true)} className={`${primaryButtonClass} h-11 px-5`}>
+              <Upload className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Import the venue&apos;s list
+            </button>
+          </div>
+        ) : (
+          <p className="rounded-[10px] border border-stone-border bg-white p-5 text-[15px] text-warm-gray">No rooms match. Try another type or gender.</p>
+        )
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           {shown.map((r) => (
@@ -184,10 +198,11 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
                 <h3 className="mb-1 text-[13px] font-semibold">In this room</h3>
                 {editing.occupants.map((o) => (
                   <div key={o.registration_id} className="flex min-h-11 items-center gap-3 border-t border-[#f0efee] text-sm">
-                    <span className="flex flex-1 items-center gap-1.5">
+                    {/* The same person panel as People and Requests. */}
+                    <Link href={`/admin/camp/${campId}/people?person=${o.registration_id}`} className="flex flex-1 items-center gap-1.5 underline-offset-[3px] hover:underline">
                       <Arrived on={!!o.checked_in} />
                       {o.full_name}
-                    </span>
+                    </Link>
                     <button
                       type="button"
                       disabled={pending}

@@ -18,7 +18,8 @@ export function LeaderSignIn({ next }: { next: string }) {
         e.preventDefault();
         setError("");
         setPending(true);
-        const r = await leaderSignInAction(code);
+        // A failed request mustn't leave the button on "Signing in…" for ever.
+        const r = await leaderSignInAction(code).catch(() => ({ ok: false as const, error: "Something went wrong. Please try again." }));
         if (!r.ok) {
           setPending(false);
           return setError(r.error);

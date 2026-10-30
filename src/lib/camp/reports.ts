@@ -246,6 +246,8 @@ export async function listPeople(campId: string, filters: PeopleFilters): Promis
 export type LeaderRow = {
   id: string;
   full_name: string;
+  /** Leaders may call or WhatsApp their own people. */
+  phone: string;
   fellowship: string;
   pfcc: string;
   status: RegistrationStatus;
@@ -256,17 +258,18 @@ export type LeaderRow = {
 };
 
 /**
- * Leaders: only their scope, applied in SQL. They see who registered, what
- * each has paid and has outstanding, and who cancelled. No phone, email,
- * group codes, room labels or payment times are selected at all: the list
- * comes sorted, latest payment first. Search is by name only.
+ * Leaders: only their scope, applied in SQL. They see who registered, their
+ * phone (to call or remind them), what each has paid and still has to pay, and
+ * who cancelled. No email, group codes, room labels or payment times are
+ * selected at all: the list comes sorted, latest payment first. Search is by
+ * name only.
  */
 export async function listPeopleForLeader(staff: Staff, campId: string, filters: PeopleFilters): Promise<LeaderRow[]> {
   const scope = scopeSql(scopeFor(staff));
   const where = filterSql(filters, { phoneSearch: false });
-  const rows = await query<{ id: string; full_name: string; fellowship: string; pfcc: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; has_room: number; last_paid_at: string | null } & GroupColumns>(
+  const rows = await query<{ id: string; full_name: string; phone: string; fellowship: string; pfcc: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; has_room: number; last_paid_at: string | null } & GroupColumns>(
     "app",
-    `SELECT r.id, r.full_name, r.fellowship, r.pfcc, r.status, r.price_pesewas, r.paid_pesewas, a.room_id IS NOT NULL AS has_room,
+    `SELECT r.id, r.full_name, r.phone, r.fellowship, r.pfcc, r.status, r.price_pesewas, r.paid_pesewas, a.room_id IS NOT NULL AS has_room,
        g.code AS group_code, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${scope.sql}${where.sql}
@@ -276,6 +279,7 @@ export async function listPeopleForLeader(staff: Staff, campId: string, filters:
   return rows.map((r) => ({
     id: r.id,
     full_name: r.full_name,
+    phone: r.phone,
     fellowship: r.fellowship,
     pfcc: r.pfcc,
     status: r.status,
