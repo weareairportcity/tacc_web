@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Link2, Users } from "lucide-react";
 import { CommuneLoader } from "@/components/camp/brand";
@@ -11,7 +12,7 @@ import { createGroupAction, leaveGroupAction, removeMemberAction, setAnyRoomActi
 function useGroupAction() {
   const router = useRouter();
   const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
   const act = (fn: () => Promise<ActionResult<unknown>>) => {
     setError("");
     startTransition(async () => {

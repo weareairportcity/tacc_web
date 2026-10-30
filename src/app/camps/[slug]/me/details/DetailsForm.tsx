@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
@@ -27,7 +28,7 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const set = (k: keyof ProfileInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setSaved(false);
     setV({ ...v, [k]: e.target.value });
@@ -152,7 +153,7 @@ function GenderSection({ slug, gender }: { slug: string; gender: GenderState }) 
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const to: Gender = gender.now === "male" ? "female" : "male";
   const leaves = [gender.inGroup && "your roommate group", gender.room && `room ${gender.room}`].filter(Boolean);
 

@@ -2,7 +2,8 @@
 import { leaveTo } from "@/components/camp/leave";
 
 import { Busy } from "@/components/camp/brand";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
@@ -676,7 +677,7 @@ function ViewsMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <div className="relative">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
@@ -742,7 +743,7 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
   }, [leader, open]);
   const [error, setError] = useState("");
   const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const total = people.reduce((n, r) => n + outstandingOf(r), 0);
   return (
     <Sheet
@@ -814,7 +815,7 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
   const [message, setMessage] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   // Each person gets their own "Hi <first name>, …" text; count parts for the longest name.
   const longest = people.reduce((a, p) => (firstName(p.full_name).length > firstName(a).length ? p.full_name : a), people[0]?.full_name ?? "");
   const texts = smsParts(coordinatorText(longest, message));

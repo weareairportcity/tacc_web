@@ -2,7 +2,8 @@
 import { leaveTo } from "@/components/camp/leave";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { CreditCard, Lock, Smartphone } from "lucide-react";
 import { cedisToPesewas, feeFor, formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
@@ -13,7 +14,7 @@ export function PayForSomeone({ slug, token, balance, feeBps }: { slug: string; 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   let pesewas: number | null = null;
   try {
     pesewas = cedisToPesewas(amount);

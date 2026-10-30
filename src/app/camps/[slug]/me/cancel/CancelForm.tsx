@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Clock } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
@@ -20,7 +21,7 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
   const [confirm, setConfirm] = useState(false);
   const [done, setDone] = useState("");
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
 
   if (waiting) {
     return (

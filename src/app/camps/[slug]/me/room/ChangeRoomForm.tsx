@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Clock, Info, RotateCcw } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
@@ -32,7 +33,7 @@ export function ChangeRoomForm({
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const now = types.find((t) => t.id === current)!;
   const target = types.find((t) => t.id === to);
 

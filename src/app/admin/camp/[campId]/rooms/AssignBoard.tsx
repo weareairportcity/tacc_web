@@ -1,7 +1,8 @@
 "use client";
 import { Busy } from "@/components/camp/brand";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronRight, GripVertical, Lock, MessageSquare, Plus, Shuffle, X } from "lucide-react";
@@ -39,7 +40,7 @@ export function AssignBoard({
   const [dragging, setDragging] = useState<Card | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [tapped, setTapped] = useState<Card | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const [confirmSms, setConfirmSms] = useState(false);
 
   if (!pools.length || !board) {

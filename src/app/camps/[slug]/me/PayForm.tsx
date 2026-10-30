@@ -1,7 +1,8 @@
 "use client";
 import { leaveTo } from "@/components/camp/leave";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Lock } from "lucide-react";
 import { cedisToPesewas, feeFor, formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import { Busy } from "@/components/camp/brand";
@@ -13,7 +14,7 @@ import { payAction } from "../actions";
 export function PayForm({ slug, balance, feeBps, dueOn }: { slug: string; balance: number; feeBps: number; dueOn: string }) {
   const [amount, setAmount] = useState(pesewasToCedisInput(balance));
   const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
 
   let pesewas: number | null = null;
   try {

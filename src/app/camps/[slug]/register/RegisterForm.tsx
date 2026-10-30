@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BedDouble, Church, CircleSlash, User } from "lucide-react";
@@ -47,7 +48,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   });
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
   const [human, setHuman] = useState("");
   const [round, setRound] = useState(0);
 

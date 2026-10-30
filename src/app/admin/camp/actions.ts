@@ -1,6 +1,8 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { allow } from "@/lib/camp/rate-limit";
 import { findPeople, getBulkReceipt, idsInScope, scopeFor } from "@/lib/camp/reports";
 import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
@@ -71,6 +73,16 @@ async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
 }
 
 /** Like run, for actions that only read: nothing changed, so nothing to refresh. */
+
+/**
+ * The same request from the same person within 10 seconds is a double tap, not a second wish:
+ * only the first goes through. Guards the actions that would cost money or send texts twice.
+ */
+async function once(actor: string, name: string, args: unknown[]) {
+  const key = createHash("sha256").update(JSON.stringify([actor, name, args])).digest("base64url").slice(0, 32);
+  if (!(await allow(`once:${key}`, 1, 10_000))) throw new CampError("That already went through a moment ago.");
+}
+
 async function look<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   try {
     return { ok: true, data: await fn() };
@@ -88,6 +100,7 @@ const nullable = (id: string | null) => (id && id.trim() ? id : null);
 export async function saveCampAction(id: string | null, input: CampInput) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "saveCampAction", [id, input]);
     const existing = nullable(id);
     if (existing) {
       await updateCamp(staff.email, existing, input);
@@ -148,6 +161,7 @@ export async function saveRoomTypeAction(
 ) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "saveRoomTypeAction", [campId, id, input]);
     const values = { name: input.name, price_pesewas: cedisToPesewas(String(input.price ?? "")), capacity: input.capacity };
     const existing = nullable(id);
     if (existing) await updateRoomType(staff.email, existing, values);
@@ -178,6 +192,7 @@ export async function deleteRoomTypeAction(id: string) {
 export async function saveRoomAction(campId: string, id: string | null, input: RoomInput) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "saveRoomAction", [campId, id, input]);
     const existing = nullable(id);
     if (existing) await updateRoom(staff.email, existing, input);
     else await createRoom(staff.email, campId, input);
@@ -196,6 +211,7 @@ export async function deleteRoomAction(id: string) {
 export async function importRoomsAction(campId: string, csvText: string) {
   return run<{ created: number; errors: CsvError[] }>(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "importRoomsAction", [campId, csvText]);
     if (typeof csvText !== "string" || csvText.length > 1024 * 1024) throw new CampError("The file must be under 1 MB.");
     return importRooms(staff.email, campId, csvText);
   });
@@ -215,6 +231,7 @@ export async function cancelRegistrationAction(id: string) {
 export async function recordRefundAction(registrationId: string, amountCedis: string, reference: string, note: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "recordRefundAction", [registrationId, amountCedis, reference, note]);
     const amount = cedisToPesewas(String(amountCedis));
     return (
       await recordRefund(staff.email, String(registrationId), {
@@ -283,6 +300,7 @@ export async function unassignManyAction(registrationIds: string[]) {
 export async function sendRoomSmsAction(campId: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "sendRoomSmsAction", [campId]);
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
     return sendRoomSms(staff.email, camp);
@@ -293,6 +311,7 @@ export async function sendRoomSmsAction(campId: string) {
 export async function sendThanksAction(campId: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "sendThanksAction", [campId]);
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
     return sendThanks(staff.email, camp, await campOrigin());
@@ -376,6 +395,7 @@ export async function updatePersonAction(campId: string, registrationId: string,
 export async function refundPersonAction(campId: string, registrationId: string, amountCedis: string, note: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "refundPersonAction", [campId, registrationId, amountCedis, note]);
     const person = await personIn(campId, registrationId);
     return refundThroughPaystack({
       registrationId: person.id,
@@ -406,6 +426,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function payForPeopleAction(campId: string, registrationIds: string[], note: string, payerEmail = "") {
   return run(async () => {
     const staff = await requireCampRole("coordinator", "leader");
+    await once(staff.email, "payForPeopleAction", [campId, registrationIds, note, payerEmail]);
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
     const ids = Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 100) : [];
@@ -435,6 +456,7 @@ export async function payForPeopleAction(campId: string, registrationIds: string
 export async function textPeopleAction(campId: string, registrationIds: string[], message: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
+    await once(staff.email, "textPeopleAction", [campId, registrationIds, message]);
     const text = String(message ?? "").trim();
     if (text.length < 3) throw new CampError("Write the message first.");
     if (text.length > MAX_COORDINATOR_MESSAGE) throw new CampError(`Keep it to ${MAX_COORDINATOR_MESSAGE} characters.`);
@@ -624,6 +646,7 @@ export async function findPeopleAction(campId: string, term: string) {
 export async function newLeaderCodeAction(kind: "fellowship" | "pfcc", value: string) {
   return run(async () => {
     const staff = await requireCampRole("admin");
+    await once(staff.email, "newLeaderCodeAction", [kind, value]);
     return newLeaderCode(staff.email, kind === "pfcc" ? "pfcc" : "fellowship", String(value));
   });
 }

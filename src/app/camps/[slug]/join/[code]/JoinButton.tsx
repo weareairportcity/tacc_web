@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, primaryButtonClass } from "@/components/camp/ui";
@@ -9,7 +10,7 @@ import { joinGroupAction, rememberJoinAction } from "../../actions";
 export function JoinButton({ slug, code, label = "Join the group" }: { slug: string; code: string; label?: string }) {
   const router = useRouter();
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <div className="flex flex-col gap-2">
       <button

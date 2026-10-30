@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Lock } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
@@ -15,7 +16,7 @@ export function FeedbackForm({ slug, token }: { slug: string; token: string }) {
   const [change, setChange] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
 
   if (done) {
     return (

@@ -1,12 +1,12 @@
 "use client";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Busy } from "@/components/camp/brand";
 
-import { useTransition } from "react";
 import { signOutAction } from "../actions";
 import { secondaryButtonClass } from "@/components/camp/ui";
 
 export function SignOut() {
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
   return (
     <button
       type="button"

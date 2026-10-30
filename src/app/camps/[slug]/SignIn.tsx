@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { CircleCheck } from "lucide-react";
 import { HumanCheck } from "@/components/camp/HumanCheck";
@@ -18,8 +19,8 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
   const [human, setHuman] = useState("");
   const [round, setRound] = useState(0);
   const [sent, setSent] = useState(false);
-  const [pending, start] = useTransition();
-  const [sending, startSend] = useTransition();
+  const [pending, start] = useOneAtATime();
+  const [sending, startSend] = useOneAtATime();
   const lost = useRef<HTMLInputElement>(null);
 
   return (

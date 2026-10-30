@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 import { InlineConfirm } from "@/components/camp/sheet";
@@ -15,7 +16,7 @@ export function SendThanks({ campId, pending: waiting, perPress }: { campId: str
   const router = useRouter();
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   if (waiting === 0) return <p className="text-sm text-warm-gray">Everyone who arrived has had their thank-you.</p>;
   const now = Math.min(waiting, perPress);
   return confirming ? (

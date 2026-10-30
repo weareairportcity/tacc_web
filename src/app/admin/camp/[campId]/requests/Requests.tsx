@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, Check, ChevronRight, RotateCcw, X } from "lucide-react";
@@ -91,7 +92,7 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
   const [note, setNote] = useState("");
   const [step, setStep] = useState<"view" | "approve" | "decline">("view");
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const overpaid = r.kind === "room_change" ? r.paid_pesewas - (r.to_price_pesewas ?? 0) : 0;
 
   const finish = (message: string) => {

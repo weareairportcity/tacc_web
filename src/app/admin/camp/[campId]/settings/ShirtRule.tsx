@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useToast } from "@/components/camp/toast";
 import { setShirtRuleAction } from "../../actions";
 
@@ -8,7 +9,7 @@ import { setShirtRuleAction } from "../../actions";
 export function ShirtRule({ campId, on: initial }: { campId: string; on: boolean }) {
   const toast = useToast();
   const [on, setOn] = useState(initial);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <label className="flex cursor-pointer items-start gap-3">
       <input

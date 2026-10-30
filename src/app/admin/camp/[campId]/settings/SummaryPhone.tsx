@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, inputClass } from "@/components/camp/ui";
 import { setMyPhoneAction } from "../../actions";
@@ -11,7 +12,7 @@ export function SummaryPhone({ phone }: { phone: string }) {
   const toast = useToast();
   const [value, setValue] = useState(phone ? `0${phone.slice(3)}` : "");
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <form
       className="flex flex-col gap-3"

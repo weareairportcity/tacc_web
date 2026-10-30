@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { CircleSlash, Plus, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
@@ -28,7 +29,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
   const toast = useToast();
   const [places, setPlaces] = useState<{ type: RoomType; gender: Gender } | null>(null);
   const [edit, setEdit] = useState<{ id: string | null; name: string; price: string; capacity: number } | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
 
   /** Saves places left straight from the stepper, with Undo back to what it was. */
   const savePlaces = (type: RoomType, gender: Gender, value: number | null, before: number | null) =>
@@ -180,7 +181,7 @@ function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId:
   const [draft, setDraft] = useState(initial);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <Sheet
       open

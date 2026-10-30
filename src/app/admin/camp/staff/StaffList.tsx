@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
@@ -21,7 +22,7 @@ export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string
   const router = useRouter();
   const [draft, setDraft] = useState<Staff>({ email: "", role: "coordinator", scope_kind: null, scope_value: null });
   const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
 
   const act = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
     setError("");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, ImageUp, Trash2 } from "lucide-react";
 import type { Camp, CampPhoto } from "@/lib/camp/types";
@@ -22,7 +23,7 @@ function Slot({ camp, kind, label, hint, shape }: { camp: Camp } & (typeof SLOTS
   const [credit, setCredit] = useState(camp[`${kind}_credit`]);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
 
   const upload = (file: File | undefined) => {
     if (!file) return;

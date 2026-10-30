@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Copy, KeyRound } from "lucide-react";
 import type { LeaderCode } from "@/lib/camp/leaders";
@@ -21,7 +22,7 @@ export function LeaderCodes({ scopes, codes }: { scopes: Scope[]; codes: LeaderC
   const toast = useToast();
   const [shown, setShown] = useState<{ key: string; code: string } | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const key = (s: Scope) => `${s.kind}:${s.value}`;
   const codeOf = (s: Scope) => codes.find((c) => c.scope_kind === s.kind && c.scope_value === s.value);
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "never");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Camera, Check, ChevronRight, CircleAlert, CloudOff, Flashlight, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
 import { Busy } from "@/components/camp/brand";
@@ -129,7 +130,7 @@ export function CheckIn({
   const search = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState("");
   const [found, setFound] = useState<Found[]>([]);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const video = useRef<HTMLVideoElement>(null);
   const busy = useRef(false);
   const w = WORDS[mode];
@@ -673,7 +674,7 @@ function Arrivals({
 
 /** "Show 50 more" and "Refresh list": quiet, with a busy state while it loads. */
 function ListButton({ onClick, children, wide }: { onClick: () => Promise<void>; children: React.ReactNode; wide?: boolean }) {
-  const [busy, start] = useTransition();
+  const [busy, start] = useOneAtATime();
   return (
     <button
       type="button"

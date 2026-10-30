@@ -1,7 +1,8 @@
 "use client";
 import { leaveTo } from "@/components/camp/leave";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Check, CreditCard, Link2, Lock, Phone, RotateCcw, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
@@ -39,7 +40,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<Mode>("view");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   const [paying, setPaying] = useState(false);
   const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
 

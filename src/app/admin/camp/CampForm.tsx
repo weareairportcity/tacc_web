@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
@@ -45,7 +46,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useOneAtATime();
 
   const set = <K extends keyof CampInput>(key: K, value: CampInput[K]) => {
     setValues((v) => ({ ...v, [key]: value }));

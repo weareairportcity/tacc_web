@@ -1,7 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, Trash2, Upload } from "lucide-react";
 import type { CsvError } from "@/lib/camp/csv";
@@ -25,7 +26,7 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
   const [importing, setImporting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
 
   const shown = useMemo(() => rooms.filter((r) => (!gender || r.gender === gender) && (!type || r.room_type_id === type)), [rooms, gender, type]);
   const editing = draft?.id ? rooms.find((r) => r.id === draft.id) : null;
@@ -280,7 +281,7 @@ function ImportSheet({ open, onClose, campId, roomTypes }: { open: boolean; onCl
   const router = useRouter();
   const toast = useToast();
   const [errors, setErrors] = useState<CsvError[]>([]);
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <Sheet open={open} onClose={onClose} title="Import rooms" subtitle="A spreadsheet saved as CSV">
       <p className="text-sm leading-relaxed">

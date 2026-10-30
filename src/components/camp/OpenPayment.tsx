@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState} from "react";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Clock, X } from "lucide-react";
 import type { OpenPayment } from "@/lib/camp/payments";
@@ -38,7 +39,7 @@ export function OpenPaymentCard({
 }) {
   const router = useRouter();
   const [note, setNote] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, start] = useOneAtATime();
   return (
     <div role="status" className={cn("flex flex-col gap-3 rounded-[14px] border border-stone-border bg-white p-4", className)}>
       <p className="flex items-start gap-2.5 text-sm">
