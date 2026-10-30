@@ -1,9 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { CircleSlash, Plus, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import type { Gender, RoomType } from "@/lib/camp/types";
@@ -25,7 +24,6 @@ const venueOf = (n: number | null): Venue => (n === null ? "plenty" : n === 0 ? 
  * number counts down by itself as people register; at 0 it shows Full.
  */
 export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes: RoomType[] }) {
-  const router = useRouter();
   const toast = useToast();
   const [places, setPlaces] = useState<{ type: RoomType; gender: Gender } | null>(null);
   const [edit, setEdit] = useState<{ id: string | null; name: string; price: string; capacity: number } | null>(null);
@@ -43,12 +41,10 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
             start(async () => {
               const u = await setPlacesLeftAction(type.id, gender, before);
               toast(u.ok ? "Undone" : u.error, { tone: u.ok ? "ok" : "error" });
-              router.refresh();
             }),
         },
       });
       setPlaces(null);
-      router.refresh();
     });
 
   return (
@@ -176,7 +172,6 @@ function PlacesSheet({ type, gender, pending, onClose, onSave }: { type: RoomTyp
 }
 
 function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId: string; draft: { id: string | null; name: string; price: string; capacity: number }; onClose: () => void; canDelete: boolean }) {
-  const router = useRouter();
   const toast = useToast();
   const [draft, setDraft] = useState(initial);
   const [confirm, setConfirm] = useState(false);
@@ -203,7 +198,6 @@ function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId:
                   if (!r.ok) return setError(r.error);
                   toast(`${draft.name.trim()} saved`);
                   onClose();
-                  router.refresh();
                 })
               }
               className={`${primaryButtonClass} flex-1`}
@@ -247,7 +241,6 @@ function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId:
                 }
                 toast(`${initial.name} deleted`);
                 onClose();
-                router.refresh();
               })
             }
           />

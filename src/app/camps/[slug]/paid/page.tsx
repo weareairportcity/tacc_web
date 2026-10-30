@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { daysUntil } from "@/lib/camp/registrations";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { Processing } from "./Processing";
 
 /**
@@ -17,9 +16,9 @@ export default async function PaidPage({
 }) {
   const { slug } = await params;
   const { reference } = await searchParams;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  if (!(await currentAttendee(camp.id))) redirect(`/camps/${camp.slug}`);
+  if (!me) redirect(`/camps/${camp.slug}`);
   if (!reference || !/^CAMP-[0-9A-F]{16}$/.test(reference)) redirect(`/camps/${camp.slug}/me`);
   const images = {
     name: camp.name,

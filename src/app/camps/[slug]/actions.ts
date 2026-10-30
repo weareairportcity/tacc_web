@@ -14,7 +14,7 @@ import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
 import { makeToken, readToken } from "@/lib/camp/tokens";
 import { campOrigin as origin } from "@/lib/camp/origin";
-import { currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
+import { campAndAttendee, currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
 import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { firstName, SIGN_OFF } from "@/lib/camp/sms";
@@ -82,7 +82,7 @@ export async function registerAction(slug: string, input: RegistrationInput, hum
       throw err;
     }
     const { id, code } = created;
-    await startAttendeeSession(id, hashCode(code));
+    await startAttendeeSession(id, hashCode(code), camp.ends_on);
     // The code is also on screen, so a failed text doesn't block anyone.
     await sendSMS(input.phone, registeredText(camp.name, input.full_name, code), COMMUNE_SENDER).catch(() => false);
     return { code: formatCode(code) };
@@ -95,7 +95,7 @@ export async function signInAction(slug: string, code: string) {
     await limitVisitor("signin", 10, 300, 15 * MINUTE);
     const found = await findByCode(camp.id, code);
     if (!found) throw new CampError("That code doesn't match a registration for this camp.");
-    await startAttendeeSession(found.id, found.codeHash);
+    await startAttendeeSession(found.id, found.codeHash, camp.ends_on);
     return null;
   });
 }
@@ -174,8 +174,8 @@ export async function cancelMyPaymentAction(slug: string, reference: string) {
 // they're the owner or a member before changing anything.
 
 async function signedIn(slug: string) {
-  const camp = await campFor(slug);
-  const me = await currentAttendee(camp.id);
+  const { camp, me } = await campAndAttendee(String(slug));
+  if (!camp) throw new CampError("This camp isn't available.");
   if (!me) throw new CampError("Please sign in again.");
   return { camp, me };
 }

@@ -1,8 +1,7 @@
 import { Users } from "lucide-react";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { getGroupByCode, getGroupFor } from "@/lib/camp/groups";
 import { readJoin } from "@/lib/camp/join-memory";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { JoinButton } from "../join/[code]/JoinButton";
 import { ForgetJoin } from "./MeControls";
 
@@ -14,8 +13,7 @@ import { ForgetJoin } from "./MeControls";
 export async function PendingJoin({ slug }: { slug: string }) {
   const code = await readJoin(slug);
   if (!code) return null;
-  const camp = await getCampBySlug(slug);
-  const me = camp && (await currentAttendee(camp.id));
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp || !me) return null;
   const [group, mine] = await Promise.all([getGroupByCode(camp.id, code), getGroupFor(me.id)]);
   if (

@@ -1,9 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
 import type { ScopeKind, Staff, StaffRole } from "@/lib/camp/types";
@@ -19,7 +18,6 @@ const ROLE_LABELS: Record<StaffRole, string> = {
 const scopeLabel = (s: Staff) => (s.role === "leader" ? `${s.scope_value}` : "All camps");
 
 export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string; bootstrap: string[] }) {
-  const router = useRouter();
   const [draft, setDraft] = useState<Staff>({ email: "", role: "coordinator", scope_kind: null, scope_value: null });
   const [error, setError] = useState("");
   const [pending, startTransition] = useOneAtATime();
@@ -30,7 +28,6 @@ export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string
       const result = await fn();
       if (!result.ok) return setError(result.error ?? "");
       after?.();
-      router.refresh();
     });
   };
 

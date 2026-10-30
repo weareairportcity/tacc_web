@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { cache } from "react";
 import { createClient } from "@/utils/supabase/server";
 import { query } from "@/lib/cf";
 import { currentLeader } from "./leaders";
@@ -16,21 +17,22 @@ import type { Staff, StaffRole } from "./types";
  * page check doesn't protect its actions.
  */
 
-export async function currentStaff(): Promise<Staff | null> {
+// Asked once per request: the layout, the page and an action share the answer (React cache).
+// getClaims checks the sign-in token's signature itself instead of asking Supabase each time.
+export const currentStaff = cache(async (): Promise<Staff | null> => {
   if (await onLeadersSide()) return currentLeader();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user?.email) return null;
-  const email = user.email.toLowerCase();
+  const { data } = await supabase.auth.getClaims();
+  const claimed = data?.claims?.email;
+  if (typeof claimed !== "string" || !claimed) return null;
+  const email = claimed.toLowerCase();
   const [row] = await query<Staff>(
     "app",
     "SELECT email, role, scope_kind, scope_value FROM camp_staff WHERE email = ?",
     [email],
   );
   return resolveStaff(email, row ?? null, process.env.CAMP_ADMIN_EMAILS ?? "");
-}
+});
 
 /** True on commune…/leaders. Set by the proxy on every request, so it can't be chosen by the visitor. */
 export async function onLeadersSide() {

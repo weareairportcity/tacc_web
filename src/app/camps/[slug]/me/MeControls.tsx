@@ -1,9 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Share2, Smartphone, X } from "lucide-react";
 import { ErrorText, secondaryButtonClass } from "@/components/camp/ui";
 import { forgetJoinAction, myPayLinkAction, withdrawRequestAction } from "../actions";
@@ -40,7 +39,6 @@ export function SharePayLink({ slug }: { slug: string }) {
 }
 
 export function WithdrawRequest({ slug, requestId }: { slug: string; requestId: string }) {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, start] = useOneAtATime();
   return (
@@ -52,7 +50,6 @@ export function WithdrawRequest({ slug, requestId }: { slug: string; requestId: 
           start(async () => {
             const r = await withdrawRequestAction(slug, requestId);
             if (!r.ok) return setError(r.error);
-            router.refresh();
           })
         }
         className="min-h-10 px-1 text-[13px] text-warm-gray underline underline-offset-[3px]"
@@ -118,7 +115,6 @@ export function InstallHint() {
 
 /** "No thanks" to a remembered friend's link. */
 export function ForgetJoin({ slug }: { slug: string }) {
-  const router = useRouter();
   const [pending, start] = useOneAtATime();
   return (
     <button
@@ -127,7 +123,6 @@ export function ForgetJoin({ slug }: { slug: string }) {
       onClick={() =>
         start(async () => {
           await forgetJoinAction(slug);
-          router.refresh();
         })
       }
       className={`${secondaryButtonClass} h-11 w-full`}

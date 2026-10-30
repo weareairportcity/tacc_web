@@ -1,9 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Clock, Info, RotateCcw } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { Gender, RoomType } from "@/lib/camp/types";
@@ -29,7 +28,6 @@ export function ChangeRoomForm({
   types: RoomType[];
   waiting: { id: string; to: string } | null;
 }) {
-  const router = useRouter();
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -61,7 +59,6 @@ export function ChangeRoomForm({
           setError("");
           const r = await askRoomChangeAction(slug, target.id, reason);
           if (!r.ok) return setError(r.error);
-          router.refresh();
         });
       }}
     >

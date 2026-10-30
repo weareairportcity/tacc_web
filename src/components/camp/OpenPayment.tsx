@@ -1,8 +1,7 @@
 "use client";
 
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Clock, X } from "lucide-react";
 import type { OpenPayment } from "@/lib/camp/payments";
 import type { PaymentStatus } from "@/lib/camp/types";
@@ -37,7 +36,6 @@ export function OpenPaymentCard({
   onCancel: ((reference: string) => Promise<ActionResult<PaymentStatus>>) | null;
   className?: string;
 }) {
-  const router = useRouter();
   const [note, setNote] = useState("");
   const [pending, start] = useOneAtATime();
   return (
@@ -69,7 +67,6 @@ export function OpenPaymentCard({
                   const r = await onCancel(payment.reference);
                   if (!r.ok) return setNote(r.error);
                   setNote(AFTER[r.data]);
-                  if (r.data !== "pending") router.refresh();
                 })
               }
               className="cm-press inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-stone-border bg-white px-4 text-sm font-medium disabled:opacity-60"

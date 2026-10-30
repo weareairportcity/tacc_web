@@ -1,16 +1,14 @@
 import { notFound, redirect } from "next/navigation";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { listMyRequests } from "@/lib/camp/requests";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { Intro } from "@/components/camp/subpage";
 import { CancelForm } from "./CancelForm";
 
 /** Cancelling, asking for money back, and the refund policy. */
 export default async function CancelPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
   const waiting = (await listMyRequests(me)).find((r) => r.kind === "refund" && r.status === "pending");
   const cancelled = me.status === "cancelled";

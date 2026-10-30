@@ -1,8 +1,7 @@
 "use client";
 
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Check, Copy, KeyRound } from "lucide-react";
 import type { LeaderCode } from "@/lib/camp/leaders";
 import { InlineConfirm } from "@/components/camp/sheet";
@@ -18,7 +17,6 @@ type Scope = { kind: "fellowship" | "pfcc"; value: string };
  * turns the old one off.
  */
 export function LeaderCodes({ scopes, codes }: { scopes: Scope[]; codes: LeaderCode[] }) {
-  const router = useRouter();
   const toast = useToast();
   const [shown, setShown] = useState<{ key: string; code: string } | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -65,7 +63,6 @@ export function LeaderCodes({ scopes, codes }: { scopes: Scope[]; codes: LeaderC
                       if (!r.ok) return toast(r.error, { tone: "error" });
                       setShown({ key: k, code: r.data.code });
                       toast(`New code for ${s.value}. Copy it now: it won't be shown again.`);
-                      router.refresh();
                     })
                   }
                 />
@@ -83,7 +80,6 @@ export function LeaderCodes({ scopes, codes }: { scopes: Scope[]; codes: LeaderC
                           if (!r.ok) return toast(r.error, { tone: "error" });
                           setShown({ key: k, code: r.data.code });
                           toast(`Code made for ${s.value}. Copy it now: it won't be shown again.`);
-                          router.refresh();
                         })
                   }
                   className="cm-press h-9 rounded-full border border-stone-border bg-white px-3.5 text-[13px] font-medium"
@@ -100,7 +96,6 @@ export function LeaderCodes({ scopes, codes }: { scopes: Scope[]; codes: LeaderC
                         if (!r.ok) return toast(r.error, { tone: "error" });
                         if (shown?.key === k) setShown(null);
                         toast(`${s.value}'s code turned off`);
-                        router.refresh();
                       })
                     }
                     className="cm-press h-9 rounded-full px-3 text-[13px] text-warm-gray"

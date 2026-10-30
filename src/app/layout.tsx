@@ -7,11 +7,14 @@ import GlobalAudioPlayer from "@/components/GlobalAudioPlayer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
+  // Not used by any page right now: download only if a page asks for it.
+  preload: false,
   subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  preload: false,
   subsets: ["latin"],
 });
 

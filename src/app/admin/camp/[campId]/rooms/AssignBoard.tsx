@@ -1,10 +1,9 @@
 "use client";
 import { Busy } from "@/components/camp/brand";
 
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronRight, GripVertical, Lock, MessageSquare, Plus, Shuffle, X } from "lucide-react";
 import type { getPoolBoard } from "@/lib/camp/assignments";
 import { Sheet } from "@/components/camp/sheet";
@@ -35,7 +34,6 @@ export function AssignBoard({
   board: Board | null;
   smsPending: number;
 }) {
-  const router = useRouter();
   const toast = useToast();
   const [dragging, setDragging] = useState<Card | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -80,11 +78,9 @@ export function AssignBoard({
             start(async () => {
               const u = await unassignManyAction(placed);
               toast(u.ok ? "Undone" : u.error, { tone: u.ok ? "ok" : "error" });
-              router.refresh();
             }),
         },
       });
-      router.refresh();
     });
 
   const takeOut = (registrationId: string, name: string, roomId: string, label: string) =>
@@ -98,11 +94,9 @@ export function AssignBoard({
             start(async () => {
               const u = await assignPersonAction(roomId, registrationId);
               toast(u.ok ? `${first(name)} back in ${label}` : u.error, { tone: u.ok ? "ok" : "error" });
-              router.refresh();
             }),
         },
       });
-      router.refresh();
     });
 
   return (
@@ -140,7 +134,6 @@ export function AssignBoard({
                     const r = await sendRoomSmsAction(campId);
                     if (!r.ok) return toast(r.error, { tone: "error" });
                     toast(`Texted ${r.data.sent} ${r.data.sent === 1 ? "person" : "people"} their room${r.data.failed ? `. ${r.data.failed} didn't go; press again to retry.` : r.data.remaining ? `. ${r.data.remaining} still to text.` : ""}`);
-                    router.refresh();
                   })
                 }
                 aria-busy={pending}

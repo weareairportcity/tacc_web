@@ -1,5 +1,5 @@
-import { CommuneLoading } from "@/components/camp/brand";
+import { StaffSkeleton } from "@/components/camp/skeleton";
 
 export default function Loading() {
-  return <CommuneLoading text="Loading" />;
+  return <StaffSkeleton title="Today" kind="today" />;
 }

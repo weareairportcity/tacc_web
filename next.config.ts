@@ -19,6 +19,11 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // Pages already visited stay in the phone's memory for 30 s, so Back and quick
+    // re-visits are instant. Any change (a server action) clears them.
+    staleTimes: {
+      dynamic: 30,
+    },
   },
   async headers() {
     return [

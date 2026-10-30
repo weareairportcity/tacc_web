@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef, useState} from "react";
+import { useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Check, ImageUp, Trash2 } from "lucide-react";
 import type { Camp, CampPhoto } from "@/lib/camp/types";
 import { CommuneLoader } from "@/components/camp/brand";
@@ -17,7 +16,6 @@ const SLOTS: { kind: CampPhoto; label: string; hint: string; shape: string }[] =
 ];
 
 function Slot({ camp, kind, label, hint, shape }: { camp: Camp } & (typeof SLOTS)[number]) {
-  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const url = camp[`${kind}_url`];
   const [credit, setCredit] = useState(camp[`${kind}_credit`]);
@@ -36,7 +34,6 @@ function Slot({ camp, kind, label, hint, shape }: { camp: Camp } & (typeof SLOTS
       const result = await uploadCampPhotoAction(camp.id, kind, form);
       if (!result.ok) return setError(result.error);
       setSaved(true);
-      router.refresh();
     });
   };
 
@@ -48,7 +45,6 @@ function Slot({ camp, kind, label, hint, shape }: { camp: Camp } & (typeof SLOTS
       if (!result.ok) return setError(result.error);
       if (!nextUrl) setCredit("");
       setSaved(true);
-      router.refresh();
     });
   };
 

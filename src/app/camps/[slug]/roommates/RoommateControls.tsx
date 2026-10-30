@@ -1,8 +1,7 @@
 "use client";
 
-import { useState} from "react";
+import { useOptimistic, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Check, Link2, Users } from "lucide-react";
 import { CommuneLoader } from "@/components/camp/brand";
 import { ErrorText, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
@@ -10,7 +9,6 @@ import { createGroupAction, leaveGroupAction, removeMemberAction, setAnyRoomActi
 
 /** Runs a server action, shows its error, and refreshes the page on success. */
 function useGroupAction() {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [pending, startTransition] = useOneAtATime();
   const act = (fn: () => Promise<ActionResult<unknown>>) => {
@@ -18,7 +16,6 @@ function useGroupAction() {
     startTransition(async () => {
       const result = await fn();
       if (!result.ok) return setError(result.error);
-      router.refresh();
     });
   };
   return { act, error, pending };
@@ -137,11 +134,23 @@ export function ShareLink({ url, campName, firstName }: { url: string; campName:
 /** "I don't mind who I'm with": skip choosing, a coordinator places them. Undo with the same button. */
 export function AnyRoom({ slug, on }: { slug: string; on: boolean }) {
   const { act, error, pending } = useGroupAction();
+  // The button changes the moment it's tapped; it goes back only if saving fails.
+  const [shown, show] = useOptimistic(on);
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" disabled={pending} onClick={() => act(() => setAnyRoomAction(slug, !on))} className={`${secondaryButtonClass} h-12 w-full text-[15px]`}>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          act(() => {
+            show(!on);
+            return setAnyRoomAction(slug, !on);
+          })
+        }
+        className={`${secondaryButtonClass} h-12 w-full text-[15px]`}
+      >
         <Spinner on={pending} />
-        {on ? "I'd like to choose after all" : "Put me in any room"}
+        {shown ? "I'd like to choose after all" : "Put me in any room"}
       </button>
       <ErrorText>{error}</ErrorText>
     </div>

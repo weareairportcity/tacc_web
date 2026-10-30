@@ -60,10 +60,16 @@ import {
 
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
-async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
+/**
+ * A change: on success the page the coordinator is on is rebuilt in this same response
+ * (revalidatePath), so the client doesn't need to ask again. `quiet` skips that, for scans:
+ * the scanning phone moves people in its own lists, and rebuilding the whole check-in page
+ * on every scan would read thousands of rows each time.
+ */
+async function run<T>(fn: () => Promise<T>, { quiet = false } = {}): Promise<ActionResult<T>> {
   try {
     const data = await fn();
-    revalidatePath("/admin/camp", "layout");
+    if (!quiet) revalidatePath("/admin/camp", "layout");
     return { ok: true, data };
   } catch (err) {
     if (err instanceof CampError) return { ok: false, error: err.message };
@@ -491,7 +497,7 @@ export async function scanAction(campId: string, tokenOrId: string, mode: ScanMo
     const scope = scopeFor(staff);
     // No counts here: the scanning phone adds one itself, and asks for fresh counts every 20 s.
     return markScan(staff.email, String(campId), scanTarget(tokenOrId), modeOf(mode), scope);
-  });
+  }, { quiet: true });
 }
 
 /** The scanning phone's counts, every 20 s. */
@@ -516,15 +522,20 @@ export async function undoScanAction(campId: string, registrationId: string, mod
     const scope = scopeFor(staff);
     await undoScan(staff.email, String(campId), String(registrationId), modeOf(mode), scope);
     return null;
-  });
+  }, { quiet: true });
 }
 
+// From a person's panel on People: the page shows it, so it's rebuilt as with any change.
 export async function checkInAction(campId: string, tokenOrId: string) {
-  return scanAction(campId, tokenOrId, "checkin");
+  const r = await scanAction(campId, tokenOrId, "checkin");
+  if (r.ok) revalidatePath("/admin/camp", "layout");
+  return r;
 }
 
 export async function undoCheckInAction(campId: string, registrationId: string) {
-  return undoScanAction(campId, registrationId, "checkin");
+  const r = await undoScanAction(campId, registrationId, "checkin");
+  if (r.ok) revalidatePath("/admin/camp", "layout");
+  return r;
 }
 
 /** The scanning phone's copy of the list, for checking people in with no signal. */
@@ -553,7 +564,7 @@ export async function syncScansAction(campId: string, scans: { key: string; targ
     });
     const results = [...bad, ...(await syncScans(staff.email, String(campId), good, scope))];
     return { results, counts: await arrivalCounts(String(campId), scope) };
-  });
+  }, { quiet: true });
 }
 
 /** One person's details, when a name is tapped on Check-in or a leader's People. */

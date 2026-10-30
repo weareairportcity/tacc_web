@@ -1,8 +1,7 @@
 "use client";
 
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 import { InlineConfirm } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
@@ -13,7 +12,6 @@ const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
 /** "Text N people", with a confirm: each text costs, and nobody is texted twice. */
 export function SendThanks({ campId, pending: waiting, perPress }: { campId: string; pending: number; perPress: number }) {
-  const router = useRouter();
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [pending, start] = useOneAtATime();
@@ -35,7 +33,6 @@ export function SendThanks({ campId, pending: waiting, perPress }: { campId: str
           const { sent, failed, remaining } = r.data;
           if (!sent) return toast("The texts didn't go. Press again to try again.", { tone: "error" });
           toast(`Texted ${people(sent)}${failed ? `. ${failed} didn't go; press again to retry.` : remaining ? `. ${remaining} still to text.` : ""}`, failed ? { tone: "error" } : undefined);
-          router.refresh();
         })
       }
     />

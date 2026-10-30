@@ -1,9 +1,8 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useMemo, useState} from "react";
+import { useMemo, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
 import { Minus, Plus, Trash2, Upload } from "lucide-react";
 import type { CsvError } from "@/lib/camp/csv";
 import type { Gender, RoomType, RoomWithOccupants } from "@/lib/camp/types";
@@ -18,7 +17,6 @@ type Draft = { id: string | null; label: string; room_type_id: string; gender: G
 
 /** Every room and who's in it. A room opens in a side panel to edit; nothing here is a separate page. */
 export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: RoomWithOccupants[]; roomTypes: RoomType[] }) {
-  const router = useRouter();
   const toast = useToast();
   const [gender, setGender] = useState<"" | Gender>("");
   const [type, setType] = useState("");
@@ -50,7 +48,6 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
       if (!r.ok) return setError(r.error);
       toast(id ? `${input.label} saved` : `${input.label} added`);
       close();
-      router.refresh();
     });
 
   return (
@@ -205,11 +202,9 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
                                 start(async () => {
                                   const u = await assignPersonAction(editing.id, o.registration_id);
                                   toast(u.ok ? "Undone" : u.error, { tone: u.ok ? "ok" : "error" });
-                                  router.refresh();
                                 }),
                             },
                           });
-                          router.refresh();
                         })
                       }
                       className="cm-press h-8 rounded-full border border-stone-border bg-white px-3 text-xs font-medium"
@@ -235,7 +230,6 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
                       if (!r.ok) return setError(r.error);
                       toast(`${editing.label} deleted`);
                       close();
-                      router.refresh();
                     })
                   }
                 />
@@ -278,7 +272,6 @@ export function Stepper({ value, min, max, onChange, labelledBy, label = "Number
 }
 
 function ImportSheet({ open, onClose, campId, roomTypes }: { open: boolean; onClose: () => void; campId: string; roomTypes: RoomType[] }) {
-  const router = useRouter();
   const toast = useToast();
   const [errors, setErrors] = useState<CsvError[]>([]);
   const [pending, start] = useOneAtATime();
@@ -306,7 +299,6 @@ function ImportSheet({ open, onClose, campId, roomTypes }: { open: boolean; onCl
               if (r.data.errors.length) return setErrors(r.data.errors);
               toast(`Imported ${r.data.created} rooms`);
               onClose();
-              router.refresh();
             });
           }}
         />

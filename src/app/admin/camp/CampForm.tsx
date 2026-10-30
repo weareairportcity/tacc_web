@@ -1,6 +1,6 @@
 "use client";
 
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
@@ -61,7 +61,6 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
       if (!result.ok) return setError(result.error);
       if (camp) {
         setSaved(true);
-        router.refresh();
       } else {
         router.push(`/admin/camp/${result.data}`);
       }

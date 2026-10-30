@@ -1,19 +1,18 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Save } from "lucide-react";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { registrationOpen } from "@/lib/camp/registrations";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { CampBackLink } from "@/components/camp/photos";
 import { SignIn } from "../SignIn";
 
 /** Signing in, on its own screen: the code, a reminder to keep it, and a new code by text. */
 export default async function SignInPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ next?: string; registered?: string }> }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
   const next = query.next?.startsWith(`/camps/${slug}/`) ? query.next : undefined;
-  if (await currentAttendee(camp.id)) redirect(next ?? `/camps/${camp.slug}/me`);
+  if (me) redirect(next ?? `/camps/${camp.slug}/me`);
 
   return (
     <div className="flex flex-col gap-6">

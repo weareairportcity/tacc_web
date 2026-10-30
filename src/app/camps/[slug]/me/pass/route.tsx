@@ -1,14 +1,12 @@
 import { ImageResponse } from "next/og";
 import { getMyRoom } from "@/lib/camp/assignments";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { passQrPng } from "@/lib/camp/pass";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 
 /** The pass as a PNG to keep in the phone's photos: name, camp, room and the check-in QR. */
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
-  const me = camp ? await currentAttendee(camp.id) : null;
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp || !me || me.status === "cancelled") return new Response("Not found", { status: 404 });
   const [qr, room] = await Promise.all([passQrPng(camp.id, me.id, 520), me.status === "fully_paid" ? getMyRoom(me.id) : null]);
   const dates = `${new Date(`${camp.starts_on}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })} – ${new Date(`${camp.ends_on}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;

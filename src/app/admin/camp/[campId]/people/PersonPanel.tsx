@@ -1,7 +1,7 @@
 "use client";
 import { leaveTo } from "@/components/camp/leave";
 
-import { useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Check, CreditCard, Link2, Lock, Phone, RotateCcw, Trash2 } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";

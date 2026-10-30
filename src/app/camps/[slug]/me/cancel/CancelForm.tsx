@@ -1,7 +1,7 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Clock } from "lucide-react";
@@ -59,7 +59,7 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
         const r = await askRefundAction(slug, amount, reason);
         if (!r.ok) return setError(r.error);
         setDone("Sent. We'll text you.");
-        return router.refresh();
+        return;
       }
       const r = await cancelMineAction(slug, reason, choice === "delete");
       if (!r.ok) {
@@ -68,7 +68,6 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
       }
       if (choice === "delete") return router.replace(`/camps/${slug}`);
       setDone(r.data.refundRequested ? "Cancelled. Your refund request is with the coordinators." : "Cancelled.");
-      router.refresh();
     });
 
   return (

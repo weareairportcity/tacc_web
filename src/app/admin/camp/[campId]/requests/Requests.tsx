@@ -1,9 +1,8 @@
 "use client";
 
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeftRight, Check, ChevronRight, RotateCcw, X } from "lucide-react";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import type { CampRequest } from "@/lib/camp/types";
@@ -86,7 +85,6 @@ export function Requests({ campId, requests, done, open: initialOpen }: { campId
 }
 
 function Decide({ campId, request: r, onDone }: { campId: string; request: CampRequest; onDone: () => void }) {
-  const router = useRouter();
   const toast = useToast();
   const [value, setValue] = useState(pesewasToCedisInput(Math.min(r.amount_pesewas ?? 0, r.paid_pesewas)));
   const [note, setNote] = useState("");
@@ -98,7 +96,6 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
   const finish = (message: string) => {
     toast(message);
     onDone();
-    router.refresh();
   };
 
   return (

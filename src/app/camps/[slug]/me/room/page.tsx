@@ -1,17 +1,15 @@
 import { notFound, redirect } from "next/navigation";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { listMyRequests } from "@/lib/camp/requests";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { Intro } from "@/components/camp/subpage";
 import { ChangeRoomForm } from "./ChangeRoomForm";
 
 /** Asking to move to another room type. A coordinator approves; the price follows. */
 export default async function ChangeRoomPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
   if (me.status === "cancelled") redirect(`/camps/${camp.slug}/me`);
   const [types, requests] = await Promise.all([listRoomTypes(camp.id), listMyRequests(me)]);

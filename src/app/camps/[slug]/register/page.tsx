@@ -1,8 +1,7 @@
 import { notFound, redirect } from "next/navigation";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { registrationOpen } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { CHURCHES, PFCC_GROUPS } from "@/lib/fellowships";
 import { CampBackLink } from "@/components/camp/photos";
 import { headlineClass } from "@/components/camp/ui";
@@ -10,11 +9,11 @@ import { RegisterForm } from "./RegisterForm";
 
 export default async function RegisterPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
   // No redirect when signed in: registering sets the session cookie, which
   // re-renders this page, and the form must stay put to show the new code.
-  const signedIn = Boolean(await currentAttendee(camp.id));
+  const signedIn = Boolean(me);
   if (!signedIn && !registrationOpen(camp)) redirect(`/camps/${camp.slug}`);
 
   return (

@@ -134,9 +134,10 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims checks the token's signature locally (refreshing it when it has expired), so most
+  // requests don't wait on Supabase. Pages still check roles themselves.
+  const { data: claimed } = await supabase.auth.getClaims();
+  const user = claimed?.claims?.sub ? claimed.claims : null;
 
   // Gate the admin areas; each page still checks its own role. Commune's
   // coordinator app has its own sign-in page, and its app manifest and

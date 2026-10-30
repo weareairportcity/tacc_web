@@ -1,18 +1,16 @@
 import { notFound, redirect } from "next/navigation";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { getMyRoom } from "@/lib/camp/assignments";
 import { getGroupFor } from "@/lib/camp/groups";
 import { getPrivateDetails } from "@/lib/camp/profile";
 import { todayInGhana } from "@/lib/camp/registrations";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { Intro } from "@/components/camp/subpage";
 import { DetailsForm } from "./DetailsForm";
 
 export default async function DetailsPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
   const [details, group, room] = await Promise.all([getPrivateDetails(me.id), getGroupFor(me.id), getMyRoom(me.id)]);
   return (

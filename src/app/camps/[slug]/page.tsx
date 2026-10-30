@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Church, Clock, CreditCard, MapPin, Phone, Users } from "lucide-react";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCedis } from "@/lib/camp/money";
 import { daysUntil, registrationPhase } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import type { Camp, RoomType } from "@/lib/camp/types";
 import { CampBanner, CampLogo, VenuePhoto } from "@/components/camp/photos";
 import { Card, StatusLine, formatDate, formatWeekday, headlineClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
@@ -19,10 +18,10 @@ import { cn } from "@/lib/utils";
  */
 export default async function CampLanding({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ next?: string }> }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
   const next = query.next?.startsWith(`/camps/${slug}/`) ? query.next : undefined;
-  if (await currentAttendee(camp.id)) redirect(next ?? `/camps/${camp.slug}/me`);
+  if (me) redirect(next ?? `/camps/${camp.slug}/me`);
   // Old links to the bottom sign-in box (…?next=…#sign-in) go to the sign-in screen.
   if (next) redirect(`/camps/${camp.slug}/sign-in?next=${encodeURIComponent(next)}`);
 

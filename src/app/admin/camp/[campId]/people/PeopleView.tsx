@@ -2,9 +2,9 @@
 import { leaveTo } from "@/components/camp/leave";
 
 import { Busy } from "@/components/camp/brand";
-import { useEffect, useMemo, useRef, useState} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, CreditCard, Download, MessageSquare, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { RegistrationStatus } from "@/lib/camp/types";
@@ -138,7 +138,6 @@ export function PeopleView({
   /** The URL's query string, so the first render (server and browser) matches. */
   initialQuery: string;
 }) {
-  const router = useRouter();
   const toast = useToast();
   const storageKey = `commune.people.${campId}`;
   const [filters, setFilters] = useState<Filters>(() => fromQuery(initialQuery));
@@ -262,7 +261,6 @@ export function PeopleView({
               if (!r.ok) return toast(r.error, { tone: "error" });
               setViews((v) => [...v.filter((x) => x.name !== r.data.name), { id: crypto.randomUUID(), ...r.data }].sort((a, b) => a.name.localeCompare(b.name)));
               toast(`Saved “${r.data.name}”`);
-              router.refresh();
             }}
             onDelete={async (view) => {
               const r = await deleteViewAction(view.id);
@@ -515,7 +513,7 @@ export function PeopleView({
               toast(`Texted ${n} ${n === 1 ? "person" : "people"}`);
             }}
           />
-          <PersonPanel key={person ?? "none"} campId={campId} id={person} onClose={() => setPerson(null)} onChanged={() => router.refresh()} />
+          <PersonPanel key={person ?? "none"} campId={campId} id={person} onClose={() => setPerson(null)} onChanged={() => undefined} />
         </>
       )}
       {leader && (

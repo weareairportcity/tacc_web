@@ -1,7 +1,7 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
@@ -45,7 +45,6 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
             const r = await updateMyDetailsAction(slug, v);
             if (!r.ok) return setError(r.error);
             setSaved(true);
-            router.refresh();
           });
         }}
       >
@@ -149,7 +148,6 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
 
 /** Gender, with what changing it means for their room and group. Saved on its own, after a confirm. */
 function GenderSection({ slug, gender }: { slug: string; gender: GenderState }) {
-  const router = useRouter();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -191,7 +189,6 @@ function GenderSection({ slug, gender }: { slug: string; gender: GenderState }) 
                     if (!r.ok) return setError(r.error);
                     setConfirm(false);
                     setDone(true);
-                    router.refresh();
                   })
                 }
                 className="cm-press h-11 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white"

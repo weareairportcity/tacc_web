@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftRight, Check, ChevronRight, CircleSlash, Clock, Download, Lock, MessageSquareHeart, RotateCcw, UserRound, Users, type LucideIcon } from "lucide-react";
 import { getMyRoom } from "@/lib/camp/assignments";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { feedbackOpen, hasAnswered } from "@/lib/camp/feedback";
 import { getGroupFor } from "@/lib/camp/groups";
 import { formatCedis } from "@/lib/camp/money";
@@ -12,7 +11,7 @@ import { getPrivateDetails } from "@/lib/camp/profile";
 import { daysUntil, listPayments, todayInGhana } from "@/lib/camp/registrations";
 import { listMyRequests } from "@/lib/camp/requests";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { formatDate, formatDay, headlineClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
@@ -32,9 +31,8 @@ const PAYMENT_LABELS = { pending: "Processing", success: "Paid", failed: "Not co
  */
 export default async function MyRegistration({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
 
   const fullyPaid = me.status === "fully_paid";

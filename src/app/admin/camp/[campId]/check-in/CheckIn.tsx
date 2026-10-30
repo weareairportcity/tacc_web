@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore} from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Camera, Check, ChevronRight, CircleAlert, CloudOff, Flashlight, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";

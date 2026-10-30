@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState} from "react";
+import { useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { CircleCheck } from "lucide-react";

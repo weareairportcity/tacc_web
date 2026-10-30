@@ -2,7 +2,7 @@
 import { leaveTo } from "@/components/camp/leave";
 
 import { Busy } from "@/components/camp/brand";
-import { useState} from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { CreditCard, Lock, Smartphone } from "lucide-react";
 import { cedisToPesewas, feeFor, formatCedis, pesewasToCedisInput } from "@/lib/camp/money";

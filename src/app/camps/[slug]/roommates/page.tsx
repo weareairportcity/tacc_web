@@ -1,11 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { Check, Link2, Lock, Plus } from "lucide-react";
-import { getCampBySlug } from "@/lib/camp/camps";
 import { getGroupFor } from "@/lib/camp/groups";
 import { campOrigin } from "@/lib/camp/origin";
 import { todayInGhana } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
-import { currentAttendee } from "@/lib/camp/session";
+import { campAndAttendee } from "@/lib/camp/session";
 import { Choice, Intro, Note } from "@/components/camp/subpage";
 import { formatDay } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
@@ -26,9 +25,8 @@ const initials = (name: string) =>
  */
 export default async function RoommatesPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const camp = await getCampBySlug(slug);
+  const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  const me = await currentAttendee(camp.id);
   if (!me) redirect(`/camps/${camp.slug}`);
   if (me.status !== "fully_paid") redirect(`/camps/${camp.slug}/me`);
 
