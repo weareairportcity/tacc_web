@@ -11,7 +11,11 @@ import type { Camp, Registration } from "./types";
  * hash, so issuing a new code ("forgot your code") signs out old sessions.
  */
 
-const COOKIE = "camp_attendee";
+// Covers the whole site: on commune.… a camp's pages have short addresses (/youth-camp-2026/me)
+// that don't start with /camps, where the older /camps-only cookie wasn't sent.
+const COOKIE = "commune_attendee";
+// Sessions from before 31 Oct 2026, still honoured until they expire or the person signs in again.
+const LEGACY = { name: "camp_attendee", path: "/camps" };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_DAYS = 30;
 // Browsers keep a cookie at most 400 days.
@@ -28,22 +32,27 @@ const same = (a: string, b: string) =>
 export async function startAttendeeSession(registrationId: string, codeHash: string, campEndsOn?: string) {
   const untilCampEnds = campEndsOn ? Date.parse(`${campEndsOn}T23:59:59Z`) + 3 * DAY_MS : 0;
   const expires = Math.min(Date.now() + MAX_DAYS * DAY_MS, Math.max(Date.now() + MIN_DAYS * DAY_MS, untilCampEnds || 0));
-  (await cookies()).set(COOKIE, `${registrationId}.${expires}.${sign(`${registrationId}.${expires}.${codeHash}`)}`, {
+  const jar = await cookies();
+  jar.set(COOKIE, `${registrationId}.${expires}.${sign(`${registrationId}.${expires}.${codeHash}`)}`, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/camps",
+    path: "/",
     maxAge: Math.floor((expires - Date.now()) / 1000),
   });
+  jar.delete(LEGACY);
 }
 
 export async function endAttendeeSession() {
-  (await cookies()).delete({ name: COOKIE, path: "/camps" });
+  const jar = await cookies();
+  jar.delete({ name: COOKIE, path: "/" });
+  jar.delete(LEGACY);
 }
 
 /** Whoever this phone is signed in as, if the cookie's signature checks out. Any camp. */
 async function signedInRegistration(): Promise<Registration | null> {
-  const [id, expires, signature] = (await cookies()).get(COOKIE)?.value.split(".") ?? [];
+  const jar = await cookies();
+  const [id, expires, signature] = (jar.get(COOKIE) ?? jar.get(LEGACY.name))?.value.split(".") ?? [];
   if (!id || !signature || !(Number(expires) > Date.now())) return null;
   const found = await getRegistrationWithCode(id).catch(() => null);
   if (!found) return null;

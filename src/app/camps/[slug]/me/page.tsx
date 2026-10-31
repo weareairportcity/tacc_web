@@ -163,12 +163,13 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         <>
           <Steps current={1} />
           <section aria-label="Your payment" className="cm-rise flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card sm:p-6" style={{ animationDelay: "60ms" }}>
-            <div className="flex items-baseline justify-between gap-3">
+            {/* Wraps under Bigger text, so the amount itself never breaks across lines. */}
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
               <span className="flex flex-col gap-1">
                 <span className="text-sm text-warm-gray">Still to pay</span>
-                <span className="font-display text-[40px] leading-none tracking-[-0.025em] tabular-nums">{formatCedis(balance)}</span>
+                <span className="font-display text-[40px] leading-none tracking-[-0.025em] whitespace-nowrap tabular-nums">{formatCedis(balance)}</span>
               </span>
-              <span className="text-right text-[13px] leading-normal text-warm-gray">
+              <span className="ml-auto text-right text-[13px] leading-normal text-warm-gray">
                 {me.room_type_name}
                 <br />
                 {formatCedis(me.price_pesewas)}
