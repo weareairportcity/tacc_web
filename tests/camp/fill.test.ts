@@ -42,11 +42,11 @@ describe("Fill rooms for me", () => {
 });
 
 describe("sign-in codes", () => {
-  it("are 12 digits, read out in fours", () => {
-    for (let i = 0; i < 200; i++) expect(generateSignInCode()).toMatch(/^\d{12}$/);
-    expect(SIGN_IN_DIGITS).toBe(12);
-    expect(formatCode("483122071693")).toBe("4831 2207 1693");
-    expect(normalizeCode("4831 2207 1693")).toBe("483122071693");
+  it("are 10 digits, read out like a phone number", () => {
+    for (let i = 0; i < 200; i++) expect(generateSignInCode()).toMatch(/^\d{10}$/);
+    expect(SIGN_IN_DIGITS).toBe(10);
+    expect(formatCode("4831220716")).toBe("483 122 0716");
+    expect(normalizeCode("483 122 0716")).toBe("4831220716");
     // Codes given out before keep their look.
     expect(formatCode("ABCDEFGH")).toBe("ABCD-EFGH");
   });

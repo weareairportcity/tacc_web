@@ -30,10 +30,12 @@ export function normalizeCode(raw: string): string {
 }
 
 /**
- * Sign-in codes are 12 digits: phones open the number pad, and they read out like a phone
- * number. 10^12 is as hard to guess as the 8-character codes given out before, which still work.
+ * Sign-in codes are 10 digits, grouped like a phone number (3-3-4), so phones open the number
+ * pad and people read them out easily. With 3,000 people in a camp and sign-in limited to 300
+ * tries per address per 15 minutes, one address guessing nonstop finds a code about every four
+ * months. The 8-character codes given out before still work.
  */
-export const SIGN_IN_DIGITS = 12;
+export const SIGN_IN_DIGITS = 10;
 const OLD_CODE_LENGTH = CODE_LENGTH;
 
 export function generateSignInCode(): string {
@@ -45,13 +47,13 @@ export function generateSignInCode(): string {
   return out;
 }
 
-/** A typed code that could be someone's: 12 digits, or one of the older 8-character codes. */
+/** A typed code that could be someone's: 10 digits, or one of the older 8-character codes. */
 export const looksLikeSignInCode = (normalized: string) =>
   (normalized.length === SIGN_IN_DIGITS && /^\d+$/.test(normalized)) || normalized.length === OLD_CODE_LENGTH;
 
-/** "483122071693" → "4831 2207 1693"; older codes "ABCDEFGH" → "ABCD-EFGH". */
+/** "4831220716" → "483 122 0716"; older codes "ABCDEFGH" → "ABCD-EFGH". */
 export const formatCode = (code: string) =>
-  code.length === SIGN_IN_DIGITS ? `${code.slice(0, 4)} ${code.slice(4, 8)} ${code.slice(8)}` : `${code.slice(0, 4)}-${code.slice(4)}`;
+  code.length === SIGN_IN_DIGITS ? `${code.slice(0, 3)} ${code.slice(3, 6)} ${code.slice(6)}` : `${code.slice(0, 4)}-${code.slice(4)}`;
 
 /**
  * Roommate group codes: 6 characters (32^6 ≈ 10^9), shared openly between

@@ -40,7 +40,7 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
         className="cm-rise order-1 flex flex-col gap-3.5 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card"
         style={{ animationDelay: "60ms" }}
       >
-        <Field label="Your sign-in code" hint="The 12 numbers from the text we sent you. Spaces are fine.">
+        <Field label="Your sign-in code" hint="The 10 numbers from the text we sent you. Spaces are fine.">
           <input
             required
             autoComplete="one-time-code"
@@ -48,7 +48,7 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
             autoCapitalize="characters"
             spellCheck={false}
             className={`${inputClass} h-[60px] text-center font-mono text-[22px] tracking-[0.14em] uppercase sm:h-[60px] sm:text-[22px]`}
-            placeholder={letters ? "ABCD-EFGH" : "4831 2207 1693"}
+            placeholder={letters ? "ABCD-EFGH" : "483 122 0716"}
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
