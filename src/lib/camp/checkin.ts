@@ -74,6 +74,8 @@ export type PersonCard = Arrival & {
   phone: string;
   emergency_name: string;
   emergency_phone: string;
+  /** Under 18, with a parent or guardian to call. Empty for leaders. */
+  guardian: string;
   any_room: number;
   /** People in their roommate group, or null if they're in none. */
   group_size: number | null;
@@ -82,9 +84,11 @@ export type PersonCard = Arrival & {
 /** Leaders get phone, money, room, arrival and T-shirt; health notes, emergency contacts and roommates stay with coordinators. */
 export async function personCard(campId: string, registrationId: string, scope: Scope = ALL): Promise<PersonCard> {
   const person = forViewer(await personFor(checkId(campId, "camp"), registrationId, scope), scope);
-  const [extra] = await query<Pick<PersonCard, "phone" | "emergency_name" | "emergency_phone" | "any_room" | "group_size">>(
+  const [extra] = await query<
+    Pick<PersonCard, "phone" | "emergency_name" | "emergency_phone" | "any_room" | "group_size"> & { is_minor: number; guardian_name: string; guardian_phone: string }
+  >(
     "app",
-    `SELECT r.phone, r.emergency_name, r.emergency_phone, r.any_room,
+    `SELECT r.phone, r.emergency_name, r.emergency_phone, r.any_room, r.is_minor, r.guardian_name, r.guardian_phone,
        (SELECT COUNT(*) FROM camp_group_members m WHERE m.group_id = (SELECT group_id FROM camp_group_members WHERE registration_id = r.id)) AS group_size
      FROM camp_registrations r WHERE r.id = ?`,
     [person.id],
@@ -95,6 +99,7 @@ export async function personCard(campId: string, registrationId: string, scope: 
     phone: extra?.phone ?? "",
     emergency_name: leader ? "" : (extra?.emergency_name ?? ""),
     emergency_phone: leader ? "" : (extra?.emergency_phone ?? ""),
+    guardian: leader || !extra?.is_minor ? "" : [extra.guardian_name, extra.guardian_phone ? `0${extra.guardian_phone.slice(3)}` : ""].filter(Boolean).join(" · "),
     any_room: extra?.any_room ?? 0,
     group_size: extra?.group_size || null,
   };

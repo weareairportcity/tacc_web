@@ -6,6 +6,7 @@ interface __BaseEnv_Env {
 	MEDIA: R2Bucket;
 	DB: D1Database;
 	APP_DB: D1Database;
+	STATS_DB: D1Database;
 	PUBLIC_ORIGIN: "https://sw-api.theairportcitychurch.com";
 	MEDIA_ORIGIN: "https://media.theairportcitychurch.com";
 	ALLOWED_ORIGINS: "https://soulwinning.theairportcitychurch.com,https://www.theairportcitychurch.com,https://theairportcitychurch.com,http://localhost:3000,http://127.0.0.1:3000,http://soulwinning.localhost:3000";

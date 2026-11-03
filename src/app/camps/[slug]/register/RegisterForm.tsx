@@ -88,7 +88,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           document.getElementById("room")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         // Something about them (a phone, an email) needs fixing: back to step 1, everything kept.
-        else if (/phone|email|name|gender/i.test(result.error)) setStep(1);
+        else if (/phone|email|name|gender|guardian/i.test(result.error)) setStep(1);
         return setError(result.error);
       }
       // Already registered with this phone: sign in instead of a dead end.
@@ -168,7 +168,53 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             <Field label="Email">
               <input required type="email" autoComplete="email" className={inputClass} value={values.email} onChange={(e) => set("email", e.target.value)} />
             </Field>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium" id="age-label">
+                Are you under 18?
+              </span>
+              <div role="radiogroup" aria-labelledby="age-label" className="grid grid-cols-2 gap-1 rounded-full border border-stone-border bg-stone-canvas p-1">
+                {([false, true] as const).map((minor) => (
+                  <label
+                    key={String(minor)}
+                    className="cm-press flex h-10 cursor-pointer items-center justify-center rounded-full text-sm has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
+                  >
+                    <input required type="radio" name="is_minor" checked={values.is_minor === minor} onChange={() => set("is_minor", minor)} className="sr-only" />
+                    {minor ? "Yes, under 18" : "No, 18 or over"}
+                  </label>
+                ))}
+              </div>
+            </div>
           </fieldset>
+          {values.is_minor && (
+            <fieldset className={cn(fieldsetClass, "cm-rise")}>
+              <Legend icon={User}>Your parent or guardian</Legend>
+              <p className="-mt-2 text-sm leading-relaxed text-warm-gray">Only coordinators see this, to reach them if they need to.</p>
+              <Field label="Their name">
+                <input required className={inputClass} value={values.guardian_name ?? ""} onChange={(e) => set("guardian_name", e.target.value)} />
+              </Field>
+              <Field label="Their phone">
+                <input
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="024 555 0101"
+                  className={inputClass}
+                  value={values.guardian_phone ?? ""}
+                  onChange={(e) => set("guardian_phone", e.target.value)}
+                />
+              </Field>
+              <label className="flex cursor-pointer items-start gap-3 text-[15px] leading-relaxed">
+                <input
+                  required
+                  type="checkbox"
+                  className="mt-1 h-5 w-5 flex-none accent-soot"
+                  checked={values.guardian_consent === true}
+                  onChange={(e) => set("guardian_consent", e.target.checked)}
+                />
+                My parent or guardian knows I&apos;m registering and agrees to me coming to this camp.
+              </label>
+            </fieldset>
+          )}
           <button type="button" onClick={next} className={`${primaryButtonClass} h-[52px] w-full`}>
             Next: where you&apos;ll sleep
           </button>
@@ -296,7 +342,11 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
               <Busy pending={pending} text="Saving your place…">Register</Busy>
             </button>
-            <p className="text-center text-[13px] text-warm-gray">Nothing to pay now</p>
+            <p className="text-center text-[13px] text-warm-gray">
+              Nothing to pay now. Registering means you agree to the{" "}
+              <Link href="/camps/terms" className="underline underline-offset-[3px]">Terms</Link> and{" "}
+              <Link href="/camps/privacy" className="underline underline-offset-[3px]">Privacy</Link> policy.
+            </p>
         </div>
           <button type="button" disabled={pending} onClick={() => setStep(1)} className="self-center text-[15px] text-warm-gray underline underline-offset-[3px]">
             Back to about you

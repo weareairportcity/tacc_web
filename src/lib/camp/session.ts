@@ -50,7 +50,7 @@ export async function endAttendeeSession() {
 }
 
 /** Whoever this phone is signed in as, if the cookie's signature checks out. Any camp. */
-async function signedInRegistration(): Promise<Registration | null> {
+export async function signedInRegistration(): Promise<Registration | null> {
   const jar = await cookies();
   const [id, expires, signature] = (jar.get(COOKIE) ?? jar.get(LEGACY.name))?.value.split(".") ?? [];
   if (!id || !signature || !(Number(expires) > Date.now())) return null;

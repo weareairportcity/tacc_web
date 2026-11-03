@@ -26,6 +26,13 @@
       "database_name": "tacc",
       "database_id": "2adc42e7-0955-4c21-ad7d-ad24422a969c",
       "migrations_dir": "migrations-tacc"
+    },
+    {
+      // Commune's usage counts (src/stats.ts), apart so they can never fill tacc.
+      "binding": "STATS_DB",
+      "database_name": "tacc_stats",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations-stats"
     }
   ],
   "r2_buckets": [

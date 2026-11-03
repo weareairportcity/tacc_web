@@ -31,10 +31,10 @@ describe("profile", () => {
     const { camp, roomTypeId } = await openCamp();
     const { id } = await register(camp, attendee(roomTypeId));
     await updateProfile(`attendee:${id}`, id, {
-      full_name: "Ama  Owusu", email: "AMA@x.com", shirt_size: "L", emergency_name: "Grace", emergency_phone: "024 555 0101", health_notes: "Asthma",
+      full_name: "Ama  Owusu", email: "AMA@x.com", shirt_size: "L", emergency_name: "Grace", emergency_phone: "024 555 0101", health_notes: "Asthma", health_consent: true,
     });
     expect(await getRegistration(id)).toMatchObject({ full_name: "Ama Owusu", email: "ama@x.com", shirt_size: "L" });
-    expect(await getPrivateDetails(id)).toEqual({ emergency_name: "Grace", emergency_phone: "233245550101", health_notes: "Asthma" });
+    expect(await getPrivateDetails(id)).toMatchObject({ emergency_name: "Grace", emergency_phone: "233245550101", health_notes: "Asthma" });
     expect(await getRegistration(id)).not.toHaveProperty("health_notes");
     const log = await query<{ after_json: string | null }>("app", "SELECT after_json FROM camp_audit_log WHERE entity_id = ? AND action = 'registration.profile'", [id]);
     expect(log).toEqual([{ after_json: null }]);

@@ -237,6 +237,12 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
           >
             <Row term="Contact" value={data.details.emergency_name ? `${data.details.emergency_name}${data.details.emergency_phone ? ` · ${ghanaPhone(data.details.emergency_phone)}` : ""}` : "—"} />
             <Row term="Health" value={data.details.health_notes || "—"} />
+            {data.details.is_minor === 1 && (
+              <Row
+                term="Under 18"
+                value={`Guardian: ${data.details.guardian_name || "—"}${data.details.guardian_phone ? ` · ${ghanaPhone(data.details.guardian_phone)}` : ""}`}
+              />
+            )}
           </Section>
 
           {data.requests.length > 0 && (

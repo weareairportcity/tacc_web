@@ -72,6 +72,7 @@ export function PersonCardSheet({
           ? ([
               ["Health", p.health_notes || "Nothing noted"],
               ["Emergency", p.emergency_name ? `${p.emergency_name}${p.emergency_phone ? ` · ${localPhone(p.emergency_phone)}` : ""}` : "Not added"],
+              ...(p.guardian ? ([["Under 18", `Guardian: ${p.guardian}`]] as [string, React.ReactNode][]) : []),
             ] as [string, React.ReactNode][])
           : []),
       ]

@@ -37,6 +37,7 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
           health_notes: details.health_notes,
         }}
         cancelled={me.status === "cancelled"}
+        healthAgreed={!!details.health_consent_at}
         gender={{
           now: me.gender,
           inGroup: !!group,

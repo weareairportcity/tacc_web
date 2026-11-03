@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { batch, post, query } from "@/lib/cf";
 import { FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
 import { auditStatement } from "./audit";
+import { accessStatements, whereFrom } from "./logs";
 import { campSecret } from "./codes";
 import { CampError, type ScopeKind, type Staff } from "./types";
 
@@ -80,14 +81,22 @@ export async function signInLeader(code: string) {
     maxAge: MAX_AGE_SECONDS,
   });
   const actor = leaderActor(row.scope_kind, row.scope_value);
-  await batch("app", [auditStatement({ actor, campId: null, action: "leader.sign_in", entity: "leader_code", entityId: row.id })]);
+  await batch("app", [
+    auditStatement({ actor, campId: null, action: "leader.sign_in", entity: "leader_code", entityId: row.id }),
+    ...accessStatements({ actor, role: "leader", event: "sign_in" }, await whereFrom()),
+  ]);
   return { kind: row.scope_kind, value: row.scope_value };
 }
 
 export async function signOutLeader() {
   const jar = await cookies();
   const leader = await currentLeader();
-  if (leader) await batch("app", [auditStatement({ actor: leader.email, campId: null, action: "leader.sign_out", entity: "leader_code", entityId: leader.codeId })]);
+  if (leader) {
+    await batch("app", [
+      auditStatement({ actor: leader.email, campId: null, action: "leader.sign_out", entity: "leader_code", entityId: leader.codeId }),
+      ...accessStatements({ actor: leader.email, role: "leader", event: "sign_out" }, await whereFrom()),
+    ]);
+  }
   // One delete per name per response; an older copy kept at /admin/camp is cleared by the proxy.
   jar.delete({ name: COOKIE, path: "/" });
 }

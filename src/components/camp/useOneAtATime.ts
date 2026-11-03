@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useTransition } from "react";
+import { noteTapTime } from "./count";
 
 /**
  * useTransition, but a second tap while the first is still running does nothing. React marks
@@ -13,11 +14,13 @@ export function useOneAtATime(): [boolean, (fn: () => void | Promise<void>) => v
   const run = useCallback((fn: () => void | Promise<void>) => {
     if (running.current) return;
     running.current = true;
+    const began = performance.now();
     start(async () => {
       try {
         await fn();
       } finally {
         running.current = false;
+        noteTapTime(Math.round(performance.now() - began));
       }
     });
   }, []);

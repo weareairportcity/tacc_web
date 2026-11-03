@@ -126,6 +126,11 @@ export type RegistrationInput = {
   church: string;
   room_type_id: string;
   shirt_size?: ShirtSize | "";
+  /** Under 18: a parent or guardian's name and phone, and that they agree. */
+  is_minor?: boolean;
+  guardian_name?: string;
+  guardian_phone?: string;
+  guardian_consent?: boolean;
 };
 
 /** Details an attendee can change themselves. Phone, gender and fellowship are a coordinator's. */
@@ -136,10 +141,17 @@ export type ProfileInput = {
   emergency_name: string;
   emergency_phone: string;
   health_notes: string;
+  /** The attendee ticked that they agree to health notes being kept (Act 843: special personal data). */
+  health_consent?: boolean;
 };
 
-/** Emergency contact and health notes: shown to the attendee and coordinators only. */
-export type PrivateDetails = Pick<ProfileInput, "emergency_name" | "emergency_phone" | "health_notes">;
+/** Emergency contact, health notes and guardian: shown to the attendee and coordinators only. */
+export type PrivateDetails = Pick<ProfileInput, "emergency_name" | "emergency_phone" | "health_notes"> & {
+  is_minor: number;
+  guardian_name: string;
+  guardian_phone: string;
+  health_consent_at: string | null;
+};
 
 export type RequestKind = "refund" | "room_change";
 export type RequestStatus = "pending" | "approved" | "declined" | "withdrawn";

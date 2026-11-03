@@ -4,7 +4,8 @@ import { bulkCheck, payCancel, bulkInit, payCheck, payInit, paystackTransactions
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms, sendSms } from "./sms";
-import { checkUsage } from "./usage";
+import { statsHourly, statsToday } from "./stats";
+import { checkUsage, type Usage } from "./usage";
 import { HttpError, UUID, json, readJson, timingSafeEqual, type AppEnv } from "./util";
 
 /**
@@ -16,8 +17,8 @@ import { HttpError, UUID, json, readJson, timingSafeEqual, type AppEnv } from ".
 
 type Statement = { sql: string; params?: unknown[] };
 
-/** "campaign" (soul winning, the default) or "app" (church app data). */
-const database = (env: AppEnv, which: unknown) => (which === "app" ? env.APP_DB : env.DB);
+/** "campaign" (soul winning, the default), "app" (church app data) or "stats" (Commune's usage counts). */
+const database = (env: AppEnv, which: unknown) => (which === "app" ? env.APP_DB : which === "stats" ? env.STATS_DB : env.DB);
 
 function requireAdmin(request: Request, env: AppEnv) {
   const header = request.headers.get("Authorization") ?? "";
@@ -160,6 +161,13 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
         cursor = page.truncated ? page.cursor : undefined;
       } while (cursor);
       return json({ removed });
+    }
+    case "/v1/admin/stats/today":
+      return statsToday(env);
+    case "/v1/admin/stats/hourly": {
+      // The hourly stats job on demand (tests; or to add a day up now). usage: pretend today's usage.
+      const { usage, now } = await readJson<{ usage?: Usage | null; now?: string }>(request);
+      return json(await statsHourly(env, usage ?? null, now ? new Date(now) : new Date()));
     }
     case "/v1/admin/usage": {
       // Today's usage against the free limits. notify:false = just look.

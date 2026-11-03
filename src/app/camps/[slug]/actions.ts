@@ -14,7 +14,8 @@ import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
 import { makeToken, readToken } from "@/lib/camp/tokens";
 import { campOrigin as origin } from "@/lib/camp/origin";
-import { campAndAttendee, currentAttendee, endAttendeeSession, startAttendeeSession } from "@/lib/camp/session";
+import { campAndAttendee, currentAttendee, endAttendeeSession, signedInRegistration, startAttendeeSession } from "@/lib/camp/session";
+import { noteAccess, noteActive } from "@/lib/camp/logs";
 import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { firstName, SIGN_OFF } from "@/lib/camp/sms";
@@ -94,8 +95,12 @@ export async function signInAction(slug: string, code: string) {
     const camp = await campFor(slug);
     await limitVisitor("signin", 10, 300, 15 * MINUTE);
     const found = await findByCode(camp.id, code);
-    if (!found) throw new CampError("That code doesn't match a registration for this camp.");
+    if (!found) {
+      await noteAccess({ actor: "visitor", role: "visitor", event: "sign_in_failed", campId: camp.id, ok: false });
+      throw new CampError("That code doesn't match a registration for this camp.");
+    }
     await startAttendeeSession(found.id, found.codeHash, camp.ends_on);
+    await noteAccess({ actor: `attendee:${found.id}`, role: "attendee", event: "sign_in", campId: camp.id });
     return null;
   });
 }
@@ -107,6 +112,7 @@ export async function forgotCodeAction(slug: string, phone: string, human?: stri
     const camp = await campFor(slug);
     await limitVisitor("forgot", 5, 100, 60 * MINUTE);
     await limit(`forgot-phone:${camp.id}:${String(phone).replace(/\D/g, "").slice(-9)}`, 3, 24 * 60 * MINUTE);
+    await noteAccess({ actor: "visitor", role: "visitor", event: "lost_code", campId: camp.id });
     const reset = await resetCode(camp.id, phone);
     if (reset) await sendSMS(reset.phone, newCodeText(camp.name, reset.name, reset.code), COMMUNE_SENDER);
     return null;
@@ -114,7 +120,16 @@ export async function forgotCodeAction(slug: string, phone: string, human?: stri
 }
 
 export async function signOutAction() {
+  const me = await signedInRegistration().catch(() => null);
+  if (me) await noteAccess({ actor: `attendee:${me.id}`, role: "attendee", event: "sign_out", campId: me.camp_id });
   await endAttendeeSession();
+}
+
+/** "Came today", for active users and retention. The page calls it once a day per phone (Seen.tsx). */
+export async function attendeeSeenAction() {
+  const me = await signedInRegistration().catch(() => null);
+  if (me) noteActive(`attendee:${me.id}`, "attendee", me.camp_id);
+  return Boolean(me);
 }
 
 export async function payAction(slug: string, amountCedis: string) {
@@ -129,6 +144,7 @@ export async function payAction(slug: string, amountCedis: string) {
     if (amount < 100) throw new CampError("The smallest payment is GHS 1.00.");
     if (amount > balance) throw new CampError("That's more than your balance.");
     const checkout = await startPayment(me.id, amount, `${await origin()}/camps/${camp.slug}/paid`);
+    await noteAccess({ actor: `attendee:${me.id}`, role: "attendee", event: "pay_start", campId: camp.id });
     return { url: checkout.authorization_url };
   });
 }
@@ -321,6 +337,8 @@ export async function payViaLinkAction(slug: string, token: string, amountCedis:
       email,
       name: String(payerName ?? "").trim().slice(0, 80),
     });
+    // Someone paying for them: not the attendee, so not under their name.
+    await noteAccess({ actor: "visitor", role: "visitor", event: "pay_start", campId: camp.id });
     return checkout.authorization_url;
   });
 }
@@ -346,6 +364,7 @@ export async function submitFeedbackAction(slug: string, token: string, input: F
       best: String(input?.best ?? ""),
       change: String(input?.change ?? ""),
     });
+    await noteAccess({ actor: "visitor", role: "visitor", event: "feedback", campId: camp.id });
     return null;
   });
 }

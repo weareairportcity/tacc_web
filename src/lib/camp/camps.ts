@@ -98,13 +98,16 @@ export async function getCampBySlug(slug: string): Promise<Camp | null> {
   return camp ?? null;
 }
 
+export const RESERVED_SLUGS = ["privacy", "terms", "cookies", "admin", "leaders", "camps"];
+
 async function uniqueSlug(name: string) {
   const base = slugify(name) || "camp";
   const rows = await query<{ slug: string }>("app", "SELECT slug FROM camps WHERE slug = ? OR slug LIKE ?", [
     base,
     `${base}-%`,
   ]);
-  const taken = new Set(rows.map((r) => r.slug));
+  // Commune's own pages live at these addresses (commune…/privacy), so no camp can have them.
+  const taken = new Set([...rows.map((r) => r.slug), ...RESERVED_SLUGS]);
   if (!taken.has(base)) return base;
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }

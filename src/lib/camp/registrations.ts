@@ -85,6 +85,14 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
   if (!fellowship) problems.push("Choose your fellowship.");
   if (!(CHURCHES as readonly string[]).includes(raw.church)) problems.push("Choose your church.");
   const shirt_size = checkShirtSize(raw.shirt_size, problems);
+  const is_minor = raw.is_minor === true;
+  const guardian_name = is_minor ? String(raw.guardian_name ?? "").replace(/\s+/g, " ").trim().slice(0, 120) : "";
+  const guardian_phone = is_minor ? normalizePhone(String(raw.guardian_phone ?? "")) : "";
+  if (is_minor) {
+    if (guardian_name.length < 2) problems.push("Enter your parent or guardian's name.");
+    if (!guardian_phone) problems.push("Enter your parent or guardian's phone as a Ghana number, e.g. 024 555 0101.");
+    if (raw.guardian_consent !== true) problems.push("Tick that your parent or guardian agrees to you coming.");
+  }
   const roomType = roomTypes.find((t) => t.id === raw.room_type_id);
   if (!roomType) problems.push("Choose a room type.");
   else if (GENDERS.includes(raw.gender) && placesFor(roomType, raw.gender) === 0) {
@@ -101,6 +109,9 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
     pfcc: fellowship!.pfcc,
     church: raw.church,
     shirt_size,
+    is_minor,
+    guardian_name,
+    guardian_phone: guardian_phone ?? "",
     roomType: roomType!,
   };
 }
@@ -128,8 +139,8 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
   const statements = [
     {
       sql: `INSERT INTO camp_registrations (id, camp_id, room_type_id, full_name, phone, email, gender, fellowship,
-              pfcc, church, price_pesewas, status, code_hash, shirt_size)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              pfcc, church, price_pesewas, status, code_hash, shirt_size, is_minor, guardian_name, guardian_phone, guardian_consent_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         camp.id,
@@ -145,6 +156,10 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
         price === 0 ? "fully_paid" : "registered",
         hashCode(code),
         input.shirt_size,
+        input.is_minor ? 1 : 0,
+        input.guardian_name,
+        input.guardian_phone,
+        input.is_minor ? new Date().toISOString() : null,
       ],
     },
     auditStatement({ actor: `attendee:${id}`, campId: camp.id, action: "registration.create", entity: "registration", entityId: id, after }),

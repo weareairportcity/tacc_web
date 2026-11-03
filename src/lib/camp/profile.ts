@@ -18,10 +18,11 @@ const actorOf = (me: Registration) => `attendee:${me.id}`;
 export async function getPrivateDetails(registrationId: string): Promise<PrivateDetails> {
   const [row] = await query<PrivateDetails>(
     "app",
-    "SELECT emergency_name, emergency_phone, health_notes FROM camp_registrations WHERE id = ?",
+    `SELECT emergency_name, emergency_phone, health_notes, is_minor, guardian_name, guardian_phone, health_consent_at
+     FROM camp_registrations WHERE id = ?`,
     [checkId(registrationId, "registration")],
   );
-  return row ?? { emergency_name: "", emergency_phone: "", health_notes: "" };
+  return row ?? { emergency_name: "", emergency_phone: "", health_notes: "", is_minor: 0, guardian_name: "", guardian_phone: "", health_consent_at: null };
 }
 
 export function validateProfile(raw: ProfileInput): ProfileInput {
@@ -38,7 +39,7 @@ export function validateProfile(raw: ProfileInput): ProfileInput {
   if (emergency_phone === null) problems.push("Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
   const health_notes = String(raw.health_notes ?? "").trim().slice(0, 1000);
   if (problems.length) throw new CampError(problems.join(" "));
-  return { full_name, email, shirt_size, emergency_name, emergency_phone: emergency_phone ?? "", health_notes };
+  return { full_name, email, shirt_size, emergency_name, emergency_phone: emergency_phone ?? "", health_notes, health_consent: raw.health_consent === true };
 }
 
 /** The attendee's own edit, or a coordinator's (actor is then their email). */
@@ -46,9 +47,19 @@ export async function updateProfile(actor: string, registrationId: string, raw: 
   const before = await getRegistration(registrationId);
   if (!before) throw new CampError("Unknown registration.");
   const input = validateProfile(raw);
+  // Health notes are special personal data (Act 843): an attendee writing them ticks that they
+  // agree. A coordinator noting what they were told is the church's own record. Removing the
+  // notes takes the agreement back.
+  const self = actor === `attendee:${before.id}`;
+  if (self && input.health_notes) {
+    const [had] = await query<{ health_consent_at: string | null }>("app", "SELECT health_consent_at FROM camp_registrations WHERE id = ?", [before.id]);
+    if (!had?.health_consent_at && !input.health_consent) throw new CampError("Tick that you agree to us keeping your health notes, or leave them empty.");
+  }
+  const consent = !input.health_notes ? "NULL" : self ? "coalesce(health_consent_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))" : "health_consent_at";
   await batch("app", [
     {
-      sql: `UPDATE camp_registrations SET full_name = ?, email = ?, shirt_size = ?, emergency_name = ?, emergency_phone = ?, health_notes = ?
+      sql: `UPDATE camp_registrations SET full_name = ?, email = ?, shirt_size = ?, emergency_name = ?, emergency_phone = ?, health_notes = ?,
+              health_consent_at = ${consent}
             WHERE id = ? AND deleted_at IS NULL`,
       params: [input.full_name, input.email, input.shirt_size, input.emergency_name, input.emergency_phone, input.health_notes, before.id],
     },
@@ -104,7 +115,7 @@ function wipeStatements(me: Registration) {
   return [
     {
       sql: `UPDATE camp_registrations SET full_name = 'Deleted', phone = ?, email = '', emergency_name = '', emergency_phone = '',
-              health_notes = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              health_notes = '', health_consent_at = NULL, guardian_name = '', guardian_phone = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?`,
       params: [`deleted:${me.id}`, hashCode(generateCode(16)), me.id],
     },

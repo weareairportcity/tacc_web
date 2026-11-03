@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { noteStaffSignInAction } from "../session";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 
@@ -23,8 +24,11 @@ export function SignInForm({ next }: { next: string }) {
     const { error: failed } = await createClient().auth.signInWithPassword({ email: email.trim(), password });
     if (failed) {
       setPending(false);
+      if (failed.message === "Invalid login credentials") void noteStaffSignInAction(false, email).catch(() => {});
       return setError(failed.message === "Invalid login credentials" ? "That email and password don't match." : failed.message);
     }
+    // For the sign-in log; the page doesn't wait for it.
+    void noteStaffSignInAction(true).catch(() => {});
     router.replace(next);
     router.refresh();
   };

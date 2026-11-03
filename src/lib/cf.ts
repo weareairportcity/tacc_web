@@ -5,7 +5,7 @@
  */
 import { SW_API_SERVER } from "./soulwinning/api";
 
-export type Db = "campaign" | "app";
+export type Db = "campaign" | "app" | "stats";
 
 /** For public reads: cache the answer in Next's data cache, tagged for revalidation. */
 export type CacheFor = { revalidate: number; tags: string[] };

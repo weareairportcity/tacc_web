@@ -2,6 +2,7 @@ import { handleAdmin } from "./admin";
 import { paystackWebhook, reconcile } from "./camp";
 import { sendDailySummaries } from "./camp-summary";
 import { deleteMedia, getMedia, postSongEvent, putMedia } from "./media";
+import { postVisit, statsHourly } from "./stats";
 import { getPhoto, putPhoto } from "./photos";
 import {
   getCampaign,
@@ -51,6 +52,7 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
     return getMedia(request, env, decodeURIComponent(path.slice(1)));
   }
   if (method === "POST" && path === "/v1/sotw/events") return postSongEvent(request, env);
+  if (method === "POST" && path === "/v1/c/v") return postVisit(request, env);
   if (method === "POST" && path === "/v1/camp/paystack/webhook") return paystackWebhook(request, env);
 
   if (path.startsWith("/v1/admin/media/") && method === "PUT") {
@@ -123,10 +125,19 @@ export default {
         .then((r) => console.log("camp summary", JSON.stringify(r)))
         .catch((e) => console.error("camp summary failed", e)),
     );
+    // Commune's counts go after the usage check: they pause themselves when today is busy.
     ctx.waitUntil(
       checkUsage(env as AppEnv)
-        .then((r) => console.log("usage", JSON.stringify(r)))
-        .catch((e) => console.error("usage check failed", e)),
+        .catch((e) => {
+          console.error("usage check failed", e);
+          return null;
+        })
+        .then((r) => {
+          if (r) console.log("usage", JSON.stringify({ ...r, usage: undefined }));
+          return statsHourly(env as AppEnv, (r && "usage" in r ? r.usage : null) ?? null, new Date(controller.scheduledTime));
+        })
+        .then((r) => console.log("stats", JSON.stringify(r)))
+        .catch((e) => console.error("stats failed", e)),
     );
   },
 } satisfies ExportedHandler<Env>;

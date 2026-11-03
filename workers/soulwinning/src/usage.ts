@@ -106,5 +106,5 @@ export async function checkUsage(env: UsageEnv, opts: { notify?: boolean } = {})
       if (await sendSms(env, env.ALERT_PHONE, message)) alerted.push(r.metric);
     }
   }
-  return { day: usage.day, report, alerted };
+  return { day: usage.day, report, alerted, usage };
 }

@@ -22,7 +22,22 @@ const Legend = ({ title, sub }: { title: string; sub: string }) => (
 
 type GenderState = { now: Gender; inGroup: boolean; room: string | null; canChange: boolean };
 
-export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug: string; phone: string; initial: ProfileInput; cancelled: boolean; gender: GenderState }) {
+export function DetailsForm({
+  slug,
+  phone,
+  initial,
+  cancelled,
+  gender,
+  healthAgreed,
+}: {
+  slug: string;
+  phone: string;
+  initial: ProfileInput;
+  cancelled: boolean;
+  gender: GenderState;
+  /** They already ticked the health agreement; it isn't asked again. */
+  healthAgreed: boolean;
+}) {
   const router = useRouter();
   const [v, setV] = useState(initial);
   const [showHealth, setShowHealth] = useState(!!initial.health_notes);
@@ -94,6 +109,18 @@ export function DetailsForm({ slug, phone, initial, cancelled, gender }: { slug:
             <Field label="Allergies, medicine or anything we should know">
               <textarea rows={3} autoFocus={!initial.health_notes} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={v.health_notes} onChange={set("health_notes")} />
             </Field>
+            {!healthAgreed && v.health_notes.trim() && (
+              <label className="cm-rise flex cursor-pointer items-start gap-3 text-[15px] leading-relaxed">
+                <input
+                  required
+                  type="checkbox"
+                  className="mt-1 h-5 w-5 flex-none accent-soot"
+                  checked={v.health_consent === true}
+                  onChange={(e) => setV({ ...v, health_consent: e.target.checked })}
+                />
+                I agree to the church keeping this so coordinators can look after me at camp. I can remove it any time.
+              </label>
+            )}
           </fieldset>
         ) : (
           // Most people have nothing to add: the box stays out of the way until asked for.

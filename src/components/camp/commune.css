@@ -170,3 +170,6 @@ dialog.cm-sheet::backdrop { background: rgba(12, 10, 9, 0.22); transition: backg
 
 /* "Bigger text": the attendee pages one step larger (BiggerText). */
 html[data-cm-text="big"] .cm-root { zoom: 1.15; }
+
+/* The cookie notice steps aside while a side panel or sheet is open. */
+body:has(dialog[open]) .cm-cookie-notice { display: none; }

@@ -44,7 +44,7 @@ export default async function CampAdminHome() {
           </div>
           {staff.role === "admin" && (
             <Link href="/admin/camp/staff" className={secondaryButtonClass}>
-              <Users className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Staff
+              <Users className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Staff, logs and activity
             </Link>
           )}
         </div>

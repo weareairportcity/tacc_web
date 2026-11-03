@@ -19,11 +19,13 @@ import {
  */
 
 export function applyMigrations(persistTo: string) {
-  execFileSync("npx", ["wrangler", "d1", "migrations", "apply", "tacc", "--local", "--persist-to", persistTo], {
-    cwd: WORKER_DIR,
-    stdio: "pipe",
-    env: { ...process.env, CI: "1" },
-  });
+  for (const db of ["tacc", "tacc_stats"]) {
+    execFileSync("npx", ["wrangler", "d1", "migrations", "apply", db, "--local", "--persist-to", persistTo], {
+      cwd: WORKER_DIR,
+      stdio: "pipe",
+      env: { ...process.env, CI: "1" },
+    });
+  }
 }
 
 async function waitForWorker(child: ReturnType<typeof spawn>, log: () => string) {

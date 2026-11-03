@@ -3,6 +3,9 @@ import Link from "next/link";
 import { CommuneLogo } from "@/components/camp/brand";
 import { BiggerText, biggerTextScript } from "@/components/camp/BiggerText";
 import { ServiceWorker } from "@/components/camp/ServiceWorker";
+import { Collector } from "@/components/camp/Collector";
+import { CookieNotice } from "@/components/camp/CookieNotice";
+import { Seen } from "@/components/camp/Seen";
 import "@/components/camp/commune.css";
 
 export const metadata: Metadata = {
@@ -30,7 +33,15 @@ export default function CampsLayout({ children }: { children: React.ReactNode })
       <ServiceWorker />
       <footer className="mx-auto flex max-w-xl flex-col items-center gap-2 px-5 pb-10 text-center text-xs text-warm-gray">
         <span>Commune is the camp app of The Airport City Church.</span>
+        <nav aria-label="Legal" className="flex gap-4">
+          <Link href="/camps/privacy" className="min-h-8 py-1.5 underline decoration-stone-muted underline-offset-[3px]">Privacy</Link>
+          <Link href="/camps/terms" className="min-h-8 py-1.5 underline decoration-stone-muted underline-offset-[3px]">Terms</Link>
+          <Link href="/camps/cookies" className="min-h-8 py-1.5 underline decoration-stone-muted underline-offset-[3px]">Cookies</Link>
+        </nav>
       </footer>
+      <Collector area="attendee" />
+      <Seen staff={false} />
+      <CookieNotice />
     </div>
   );
 }
