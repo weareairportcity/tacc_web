@@ -31,7 +31,7 @@
       // Commune's usage counts (src/stats.ts), apart so they can never fill tacc.
       "binding": "STATS_DB",
       "database_name": "tacc_stats",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "285be565-4a1f-415e-a02a-c233f57c82fe",
       "migrations_dir": "migrations-stats"
     }
   ],
