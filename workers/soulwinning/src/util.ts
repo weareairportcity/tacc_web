@@ -6,9 +6,15 @@ export type AppEnv = Env & {
   /** Tests point this at a fake; production uses mNotify's API. */
   MNOTIFY_API_URL?: string;
   ALERT_PHONE?: string;
-  PAYSTACK_SECRET_KEY?: string;
-  /** Tests point this at a fake Paystack. */
-  PAYSTACK_API_URL?: string;
+  /** expressPay's merchant ID and API key (src/expresspay.ts). */
+  EXPRESSPAY_MERCHANT_ID?: string;
+  EXPRESSPAY_API_KEY?: string;
+  /** Sandbox: https://sandbox.expresspaygh.com/api. Tests point it at a fake. Unset is live. */
+  EXPRESSPAY_API_URL?: string;
+  /** "1" once expressPay has switched on the Direct API: MoMo is then charged from Commune. */
+  EXPRESSPAY_DIRECT?: string;
+  /** expressPay's post-url (at most 64 characters for the Direct API). */
+  EXPRESSPAY_NOTIFY_URL?: string;
   /** Keys the HMAC of leaders' sign-in codes (src/camp-leaders.ts). */
   LEADER_CODE_SECRET?: string;
 };

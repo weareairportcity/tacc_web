@@ -16,20 +16,20 @@ web
 
 ## Product Purpose
 
-Replace a spreadsheet-and-WhatsApp camp process with one place where attendees register, pay through Paystack (mobile money or card), choose roommates, and see their room; and where coordinators see every number and assign rooms. Success means people pay on time without chasing, and every cedi reconciles exactly with Paystack.
+Replace a spreadsheet-and-WhatsApp camp process with one place where attendees register, pay through expressPay (mobile money or card), choose roommates, and see their room; and where coordinators see every number and assign rooms. Success means people pay on time without chasing, and every cedi reconciles exactly with expressPay.
 
 ## Operating Context
 
 - Ghana: amounts in GHS (cedis), phones in 0XX XXX XXXX format, mobile money is the main way to pay.
 - Attendees sign in with an 8-character code sent by SMS, never a password. Group codes like `7K4-F2Q` are shared between friends.
 - The attendee journey is a sequence of steps: register → pay (one or more instalments) → Fully Paid → roommates (optional, before the deadline) → room assigned by a coordinator.
-- Paystack's own checkout page handles the actual payment; the site sends people there and back.
+- expressPay's own checkout page handles card payments (and MoMo, until expressPay switches on its Direct API, after which MoMo is approved from Commune by a prompt on the phone). Refunds are sent by hand (MoMo or bank) and recorded with a reference: expressPay has no refund API.
 
 ## Capabilities and Constraints
 
 - Statuses: Registered, Partially paid, Fully paid, Cancelled. Group states: Open, Locked, Final.
 - Rooms and groups are single-gender and tied to one room type.
-- A Paystack fee is added on top of each payment and shown before paying.
+- expressPay's fee is added on top of each payment and shown before paying. The payer always covers it, never the church.
 - Built in Next.js 16 with Tailwind v4 and lucide-react icons, with no component library.
 
 ## Brand Commitments

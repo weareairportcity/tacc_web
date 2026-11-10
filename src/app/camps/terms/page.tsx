@@ -28,7 +28,7 @@ export default function TermsPage() {
       <section>
         <h2>Paying</h2>
         <ul>
-          <li>Payments go through Paystack. Paystack&rsquo;s fee is added to what you pay, and shown before you pay.</li>
+          <li>Payments go through expressPay, by mobile money or card. expressPay&rsquo;s fee is added to what you pay, and shown before you pay.</li>
           <li>You can pay all at once or in parts, by the payment date your camp shows.</li>
         </ul>
       </section>
@@ -37,7 +37,7 @@ export default function TermsPage() {
         <h2>Cancelling and refunds</h2>
         <ul>
           <li>You can cancel your registration from your camp page. That frees your place.</li>
-          <li>If you&rsquo;ve paid, cancelling asks the coordinators for a refund. Each refund is looked at on its own, and Paystack&rsquo;s fee can&rsquo;t be refunded.</li>
+          <li>If you&rsquo;ve paid, cancelling asks the coordinators for a refund. Each refund is looked at on its own and sent back by mobile money or bank. The payment fee can&rsquo;t be refunded.</li>
           <li>Changing to a cheaper room works the same way for the difference.</li>
         </ul>
       </section>

@@ -18,8 +18,8 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" });
 
 /**
- * Where Paystack sends a coordinator back after paying for several people,
- * and the receipt for one of those payments (from Money). Waits for Paystack
+ * Where expressPay sends a coordinator back after paying for several people,
+ * and the receipt for one of those payments (from Money). Waits for expressPay
  * to confirm; the webhook is what really credits it.
  */
 export function BulkPaid({ campId, reference, leader }: { campId: string; reference: string; leader: boolean }) {
@@ -48,7 +48,7 @@ export function BulkPaid({ campId, reference, leader }: { campId: string; refere
         {!state || ("status" in state && state.status === "pending") ? (
           <>
             <CommuneLoader size={56} />
-            <h1 className={`${headlineClass} text-[32px]`}>Confirming with Paystack…</h1>
+            <h1 className={`${headlineClass} text-[32px]`}>Confirming the payment…</h1>
             <p className="text-[15px] text-warm-gray">Mobile money can take a minute.</p>
           </>
         ) : done ? (
@@ -98,7 +98,7 @@ export function BulkPaid({ campId, reference, leader }: { campId: string; refere
               <dd>{formatCedis(receipt.amount_pesewas)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-warm-gray">Paystack fee</dt>
+              <dt className="text-warm-gray">Fee</dt>
               <dd>{formatCedis(receipt.fee_pesewas)}</dd>
             </div>
             <div className="flex justify-between border-t border-stone-border pt-2 text-[15px] font-semibold">

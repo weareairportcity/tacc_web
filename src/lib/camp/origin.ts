@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 
 /**
  * The site address for links we send out (sign-in texts, room texts,
- * Paystack's return URL). CAMP_PUBLIC_URL pins it in production so a request's
+ * expressPay's return URL). CAMP_PUBLIC_URL pins it in production so a request's
  * Host header can't change where those links point; without it (local dev)
  * the request's own host is used.
  */

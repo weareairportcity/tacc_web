@@ -5,7 +5,7 @@ import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCode, hashCode } from "@/lib/camp/codes";
 import { submitFeedback, type FeedbackInput } from "@/lib/camp/feedback";
 import { cedisToPesewas } from "@/lib/camp/money";
-import { cancelPayment, checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
+import { cancelPayment, checkPayment, startPayment, startPaymentFor, type Checkout, type HowToPay } from "@/lib/camp/payments";
 import { allow, allowVisitor } from "@/lib/camp/rate-limit";
 import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
@@ -132,7 +132,19 @@ export async function attendeeSeenAction() {
   return Boolean(me);
 }
 
-export async function payAction(slug: string, amountCedis: string) {
+/** Only the fields a client may send for how they pay; the Worker checks them again. */
+function readHow(raw: unknown): HowToPay {
+  const h = (raw ?? {}) as { method?: unknown; number?: unknown; network?: unknown };
+  if (h.method !== "momo") return { method: "card" };
+  const network = h.network === "mtn" || h.network === "telecel" || h.network === "airteltigo" ? h.network : "mtn";
+  return { method: "momo", number: String(h.number ?? "").slice(0, 20), network };
+}
+
+/** Where to send the payer: expressPay's page, or (MoMo from Commune) straight to the processing page. */
+const nextStep = (checkout: Checkout, processing: string) =>
+  checkout.authorization_url ?? `${processing}?reference=${encodeURIComponent(checkout.reference)}`;
+
+export async function payAction(slug: string, amountCedis: string, how?: HowToPay) {
   return run(async () => {
     const camp = await campFor(slug);
     const me = await currentAttendee(camp.id);
@@ -143,9 +155,10 @@ export async function payAction(slug: string, amountCedis: string) {
     if (balance <= 0) throw new CampError("You're already fully paid.");
     if (amount < 100) throw new CampError("The smallest payment is GHS 1.00.");
     if (amount > balance) throw new CampError("That's more than your balance.");
-    const checkout = await startPayment(me.id, amount, `${await origin()}/camps/${camp.slug}/paid`);
+    const back = `${await origin()}/camps/${camp.slug}/paid`;
+    const checkout = await startPayment(me.id, amount, back, readHow(how));
     await noteAccess({ actor: `attendee:${me.id}`, role: "attendee", event: "pay_start", campId: camp.id });
-    return { url: checkout.authorization_url };
+    return { url: nextStep(checkout, back) };
   });
 }
 
@@ -171,7 +184,7 @@ export async function checkPaymentAction(slug: string, reference: string) {
   });
 }
 
-/** "Cancel it" on the attendee's own payment that's still processing. Paystack is asked first. */
+/** "Cancel it" on the attendee's own payment that's still processing. expressPay is asked first. */
 export async function cancelMyPaymentAction(slug: string, reference: string) {
   return run(async () => {
     const camp = await campFor(slug);
@@ -318,7 +331,7 @@ export async function myPayLinkAction(slug: string) {
 }
 
 /** Someone paying through a pay link. The link names the registration; nothing else can be paid with it. */
-export async function payViaLinkAction(slug: string, token: string, amountCedis: string, payerName: string, payerEmail: string) {
+export async function payViaLinkAction(slug: string, token: string, amountCedis: string, payerName: string, payerEmail: string, how?: HowToPay) {
   return run(async () => {
     const camp = await campFor(slug);
     await limitVisitor("paylink", 20, 300, 60 * MINUTE);
@@ -333,13 +346,11 @@ export async function payViaLinkAction(slug: string, token: string, amountCedis:
     if (amount > balance) throw new CampError("That's more than what's outstanding.");
     const email = String(payerEmail ?? "").trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new CampError("Enter your email for the receipt.");
-    const checkout = await startPaymentFor(reg.id, amount, `${await origin()}/camps/${camp.slug}/pay/${token}/done`, {
-      email,
-      name: String(payerName ?? "").trim().slice(0, 80),
-    });
+    const back = `${await origin()}/camps/${camp.slug}/pay/${token}/done`;
+    const checkout = await startPaymentFor(reg.id, amount, back, { email, name: String(payerName ?? "").trim().slice(0, 80) }, readHow(how));
     // Someone paying for them: not the attendee, so not under their name.
     await noteAccess({ actor: "visitor", role: "visitor", event: "pay_start", campId: camp.id });
-    return checkout.authorization_url;
+    return nextStep(checkout, back);
   });
 }
 

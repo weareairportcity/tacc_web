@@ -25,7 +25,7 @@ export function LinkPaid({ slug, token, reference, first }: { slug: string; toke
       {status === "pending" ? (
         <>
           <CommuneLoader size={56} />
-          <h1 className={`${headlineClass} text-[32px]`}>Confirming with Paystack…</h1>
+          <h1 className={`${headlineClass} text-[32px]`}>Confirming your payment…</h1>
         </>
       ) : status === "success" ? (
         <h1 className={`cm-rise ${headlineClass} text-[32px]`}>

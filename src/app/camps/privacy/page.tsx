@@ -28,7 +28,7 @@ export default function PrivacyPage() {
           <li><strong className="font-medium">When you register:</strong> your name, phone, email, gender, fellowship, church, where you&rsquo;ll sleep and T-shirt size.</li>
           <li><strong className="font-medium">If you&rsquo;re under 18:</strong> your parent or guardian&rsquo;s name and phone, and that they agreed to you coming.</li>
           <li><strong className="font-medium">If you add them:</strong> an emergency contact, and health notes (allergies, medicine or a health need). Health notes are &ldquo;special personal data&rdquo;, so we only keep them if you tick that you agree.</li>
-          <li><strong className="font-medium">Payments:</strong> how much you paid, when, and Paystack&rsquo;s reference. Your card or mobile money details go to Paystack, never to us.</li>
+          <li><strong className="font-medium">Payments:</strong> how much you paid, when, and expressPay&rsquo;s reference. Card details go to expressPay, never to us. If you pay by MoMo in Commune, we pass your MoMo number to expressPay to send the approval prompt, and don&rsquo;t keep it.</li>
           <li><strong className="font-medium">At camp:</strong> when you checked in, your room and your roommate group.</li>
           <li><strong className="font-medium">Signing in:</strong> when you signed in or out, the town and country your internet connection is in, and the kind of phone (&ldquo;Android 15 · Chrome&rdquo;). We keep this for 90 days, to keep accounts safe.</li>
           <li><strong className="font-medium">Visits:</strong> which screens were opened, which buttons were used, how long things took to load, and errors, counted without your name or sign-in. See &ldquo;Counting visits&rdquo; below.</li>
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
         <ul>
           <li><strong className="font-medium">Camp coordinators</strong> see everything about the people in their camps, so they can run it.</li>
           <li><strong className="font-medium">Fellowship and PFCC leaders</strong> see their own people&rsquo;s names, phone numbers, payments and rooms. They don&rsquo;t see health notes, emergency contacts or guardian details.</li>
-          <li><strong className="font-medium">The companies Commune runs on</strong>, only to do their part: Paystack (payments), mNotify (texts), Cloudflare (stores the camp&rsquo;s information), Vercel (runs the website) and Supabase (coordinators&rsquo; sign-in). Some of them store information outside Ghana, under their own security and privacy commitments.</li>
+          <li><strong className="font-medium">The companies Commune runs on</strong>, only to do their part: expressPay (payments), mNotify (texts), Cloudflare (stores the camp&rsquo;s information), Vercel (runs the website) and Supabase (coordinators&rsquo; sign-in). Some of them store information outside Ghana, under their own security and privacy commitments.</li>
         </ul>
       </section>
 

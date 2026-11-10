@@ -9,8 +9,9 @@ import { listRoomTypes, placesFor } from "./rooms";
 import { CampError, type Gender, type Registration, type RoomType } from "./types";
 
 /**
- * Coordinator corrections the spec leaves manual: recording a refund made in
- * Paystack, and moving someone to another room type. Both are audited and
+ * Coordinator corrections the spec leaves manual: recording a refund sent by
+ * hand (MoMo, bank or cash; expressPay has no refund API), and moving someone
+ * to another room type. Both are audited and
  * keep payments untouched. Callers must have checked the coordinator role.
  */
 
@@ -69,12 +70,12 @@ export function listRefunds(registrationId: string): Promise<Refund[]> {
 }
 
 /**
- * Records money already sent back in Paystack. Lowers what the person has
+ * Records money already sent back by hand. Lowers what the person has
  * paid; unless they're cancelled, their status follows (a Fully Paid person
  * refunded in part becomes Partially Paid). Returns a warning if they're no
  * longer fully paid but still hold a group place or a bed.
  */
-export async function recordRefund(actor: string, registrationId: string, raw: RefundInput) {
+export async function recordRefund(actor: string, registrationId: string, raw: RefundInput, requestId: string | null = null) {
   const before = await getRegistration(registrationId);
   if (!before) throw new CampError("Unknown registration.");
   const input = {
@@ -91,10 +92,10 @@ export async function recordRefund(actor: string, registrationId: string, raw: R
   const results = await batch("app", [
     {
       // Guarded on what's actually been paid, so two coordinators can't refund the same money twice.
-      sql: `INSERT INTO camp_refunds (id, registration_id, amount_pesewas, reference, note, recorded_by)
-            SELECT ?, r.id, ?, ?, ?, ? FROM camp_registrations r WHERE r.id = ? AND ? <= ${NET_PAID.replaceAll("camp_registrations.id", "r.id")}
+      sql: `INSERT INTO camp_refunds (id, registration_id, amount_pesewas, reference, note, recorded_by, request_id)
+            SELECT ?, r.id, ?, ?, ?, ?, ? FROM camp_registrations r WHERE r.id = ? AND ? <= ${NET_PAID.replaceAll("camp_registrations.id", "r.id")}
             RETURNING id`,
-      params: [id, input.amount_pesewas, input.reference, input.note, actor, before.id, input.amount_pesewas],
+      params: [id, input.amount_pesewas, input.reference, input.note, actor, requestId, before.id, input.amount_pesewas],
     },
     auditStatement({
       actor,
@@ -154,7 +155,7 @@ export async function changeRoomType(actor: string, registrationId: string, room
   if (before.paid_pesewas > type.price_pesewas) {
     throw new CampError(
       `${before.full_name} has paid ${formatCedis(before.paid_pesewas)}, more than ${type.name}'s price of ${formatCedis(type.price_pesewas)}. ` +
-        `Refund ${formatCedis(before.paid_pesewas - type.price_pesewas)} in Paystack and record it first.`,
+        `Send ${formatCedis(before.paid_pesewas - type.price_pesewas)} back and record the refund first.`,
     );
   }
 

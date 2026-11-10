@@ -1,5 +1,5 @@
 /**
- * Goes to Paystack (or another site) and keeps the caller's transition pending
+ * Goes to expressPay (or another site) and keeps the caller's transition pending
  * until the page has gone, so the button stays disabled and can't start a
  * second checkout. Coming back with the browser's Back button reloads, so the
  * button isn't left spinning.

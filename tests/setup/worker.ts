@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   TEST_ADMIN_SECRET,
-  TEST_PAYSTACK_PORT,
+  TEST_PROVIDER_PORT,
   TEST_ALERT_PHONE,
-  TEST_PAYSTACK_SECRET,
+  TEST_EXPRESSPAY_KEY,
+  TEST_EXPRESSPAY_MERCHANT,
   TEST_WORKER_PORT,
   TEST_WORKER_URL,
   WORKER_DIR,
@@ -45,16 +46,20 @@ async function waitForWorker(child: ReturnType<typeof spawn>, log: () => string)
 export default async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "camp-d1-"));
   const envFile = join(dir, "test.env");
-  // A fake Paystack key and API, so the tests never reach the real Paystack.
+  // A fake expressPay account and API, so the tests never reach the real one.
   writeFileSync(
     envFile,
     [
       `ADMIN_SECRET=${TEST_ADMIN_SECRET}`,
-      `PAYSTACK_SECRET_KEY=${TEST_PAYSTACK_SECRET}`,
-      `PAYSTACK_API_URL=http://127.0.0.1:${TEST_PAYSTACK_PORT}`,
-      // Coordinator alerts go to the same fake server (tests/setup/paystack.ts records them).
+      `EXPRESSPAY_MERCHANT_ID=${TEST_EXPRESSPAY_MERCHANT}`,
+      `EXPRESSPAY_API_KEY=${TEST_EXPRESSPAY_KEY}`,
+      `EXPRESSPAY_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/expresspay`,
+      "EXPRESSPAY_NOTIFY_URL=https://worker.test/v1/camp/ep",
+      // MoMo from Commune on, so both ways of paying are tested.
+      "EXPRESSPAY_DIRECT=1",
+      // Coordinator alerts go to the same fake server (tests/setup/expresspay.ts records them).
       "MNOTIFY_API_KEY=fake-mnotify-key",
-      `MNOTIFY_API_URL=http://127.0.0.1:${TEST_PAYSTACK_PORT}/mnotify`,
+      `MNOTIFY_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/mnotify`,
       `ALERT_PHONE=${TEST_ALERT_PHONE}`,
       "LEADER_CODE_SECRET=leader-code-test-secret-at-least-32-chars",
       "",

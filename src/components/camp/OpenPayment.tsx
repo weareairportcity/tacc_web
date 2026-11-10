@@ -21,7 +21,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: 
 
 /**
  * A payment that's still processing, with a way out: Resume goes back to the
- * same Paystack checkout; Cancel it asks Paystack and clears it if nobody paid.
+ * same expressPay checkout; Cancel it asks expressPay and clears it if nobody paid.
  */
 export function OpenPaymentCard({
   payment,

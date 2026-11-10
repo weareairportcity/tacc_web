@@ -23,7 +23,7 @@ const LEADER: Step[] = [
   ["Sign in with your leader code", "The camp admin gives you a code for your fellowship or PFCC. Open the leaders' page, type it once, and this phone stays signed in."],
   ["See where your people are", "People opens on how many of your people are paid in full. Tap Not paid, Part paid or Paid in full to see just them. Tap a name for their phone and details."],
   ["Remind the ones still to pay", "Remind the people still to pay: each message opens in WhatsApp with that person's own pay link, written for you. Nothing sends until you press send there."],
-  ["Pay from a fellowship fund", "Tick the people the fund is paying for, then Pay for them. One Paystack payment clears every balance you picked."],
+  ["Pay from a fellowship fund", "Tick the people the fund is paying for, then Pay for them. One payment clears every balance you picked."],
   ["Scan at camp", "From the day before camp your page opens with Scan a pass. A green tick means they're checked in; if not, a sentence says why."],
 ];
 

@@ -19,6 +19,7 @@ const EMPTY: CampInput = {
   payment_due_on: "",
   roommate_deadline_on: "",
   fee_bps: 195,
+  momo_fee_bps: 195,
   status: "draft",
 };
 
@@ -94,7 +95,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             />
           </Field>
         ))}
-        <Field label="Paystack fee added to each payment (%)" hint="Attendees see it before they pay. 0 means the church covers it.">
+        <Field label="expressPay fee, card (%)" hint="Added to what the payer pays, and shown before they pay. On expressPay's own page the higher of the two fees applies.">
           <input
             required
             type="number"
@@ -104,6 +105,18 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             className={inputClass}
             value={values.fee_bps / 100}
             onChange={(e) => set("fee_bps", Math.round(Number(e.target.value) * 100))}
+          />
+        </Field>
+        <Field label="expressPay fee, MoMo (%)" hint="For MoMo paid from Commune itself, once expressPay switches that on.">
+          <input
+            required
+            type="number"
+            min={0}
+            max={20}
+            step={0.01}
+            className={inputClass}
+            value={(values.momo_fee_bps ?? values.fee_bps) / 100}
+            onChange={(e) => set("momo_fee_bps", Math.round(Number(e.target.value) * 100))}
           />
         </Field>
         <Field label="Status" hint={STATUS_HINTS[values.status]}>

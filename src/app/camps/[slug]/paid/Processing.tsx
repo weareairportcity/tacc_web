@@ -45,8 +45,8 @@ export function Processing({ slug, reference, camp, daysToCamp }: { slug: string
       <h1 className={`${titleClass} text-[26px]`}>Checking your payment</h1>
       <p className="max-w-xs text-[15px] leading-relaxed text-warm-gray">
         {waitedTooLong
-          ? "Still processing. Mobile money can take a while. You can close this page: your balance updates by itself once Paystack confirms."
-          : "Waiting for Paystack to confirm. If you paid by MoMo, approve the prompt on your phone."}
+          ? "Still processing. Mobile money can take a while. You can close this page: your balance updates by itself once expressPay confirms."
+          : "Waiting for expressPay to confirm. If you paid by MoMo, approve the prompt on your phone."}
       </p>
       <Link href={`/camps/${slug}/me`} className={`${secondaryButtonClass} h-12 px-6`}>
         Back to your registration
@@ -194,7 +194,7 @@ function Failed({ slug, reference, check }: { slug: string; reference: string; c
           {[
             [Phone, "Look for the MoMo prompt", "It closes after about a minute. Approve it with your PIN."],
             [Wallet, "Check your balance", `You need ${formatCedis(check.amount + check.fee)} in your wallet, fee included.`],
-            [CreditCard, "Or pay by card", "Visa and Mastercard work too. Pick Card on the Paystack screen."],
+            [CreditCard, "Or pay by card", "Visa and Mastercard work too. Pick Card when you pay."],
           ].map(([Icon, title, text], i) => {
             const I = Icon as typeof Phone;
             return (
@@ -216,7 +216,7 @@ function Failed({ slug, reference, check }: { slug: string; reference: string; c
         <p className="flex items-start gap-2.5">
           <ShieldCheck className="mt-0.5 h-[18px] w-[18px] flex-none" strokeWidth={1.6} aria-hidden="true" />
           <span>
-            If money did leave your account, it shows on your registration as soon as Paystack confirms it.{" "}
+            If money did leave your account, it shows on your registration as soon as expressPay confirms it.{" "}
             <span className="text-warm-gray">You won&apos;t be charged twice for the same payment.</span>
           </span>
         </p>

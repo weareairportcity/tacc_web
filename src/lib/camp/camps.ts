@@ -10,7 +10,7 @@ import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type 
  */
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
-  registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status,
+  registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, momo_fee_bps, status,
   logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only, help_phone`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -37,6 +37,7 @@ export function validateCampInput(raw: CampInput): CampInput {
     name: String(raw.name ?? "").trim(),
     venue: String(raw.venue ?? "").trim(),
     fee_bps: Number(raw.fee_bps),
+    momo_fee_bps: Number(raw.momo_fee_bps ?? raw.fee_bps),
   };
   const problems: string[] = [];
   if (!input.name) problems.push("Name is required.");
@@ -65,8 +66,9 @@ export function validateCampInput(raw: CampInput): CampInput {
       problems.push("The roommate deadline must be on or before the start date.");
     }
   }
-  if (!Number.isInteger(input.fee_bps) || input.fee_bps < 0 || input.fee_bps > 2000) {
-    problems.push("The Paystack fee must be between 0% and 20%, to two decimal places.");
+  for (const [key, label] of [["fee_bps", "card fee"], ["momo_fee_bps", "MoMo fee"]] as const) {
+    const bps = input[key]!;
+    if (!Number.isInteger(bps) || bps < 0 || bps > 2000) problems.push(`The ${label} must be between 0% and 20%, to two decimal places.`);
   }
   if (!CAMP_STATUSES.includes(input.status)) problems.push("Unknown status.");
 
@@ -119,8 +121,8 @@ export async function createCamp(actor: string, raw: CampInput): Promise<string>
   await batch("app", [
     {
       sql: `INSERT INTO camps (id, name, slug, venue, starts_on, ends_on, registration_opens_on,
-              registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, momo_fee_bps, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         input.name,
@@ -133,6 +135,7 @@ export async function createCamp(actor: string, raw: CampInput): Promise<string>
         input.payment_due_on,
         input.roommate_deadline_on,
         input.fee_bps,
+        input.momo_fee_bps,
         input.status,
       ],
     },
@@ -150,7 +153,7 @@ export async function updateCamp(actor: string, id: string, raw: CampInput) {
     {
       sql: `UPDATE camps SET name = ?, venue = ?, starts_on = ?, ends_on = ?, registration_opens_on = ?,
               registration_closes_on = ?, payment_due_on = ?, roommate_deadline_on = ?,
-              fee_bps = ?, status = ?
+              fee_bps = ?, momo_fee_bps = ?, status = ?
             WHERE id = ?`,
       params: [
         input.name,
@@ -162,6 +165,7 @@ export async function updateCamp(actor: string, id: string, raw: CampInput) {
         input.payment_due_on,
         input.roommate_deadline_on,
         input.fee_bps,
+        input.momo_fee_bps,
         input.status,
         id,
       ],

@@ -1,9 +1,8 @@
 import { batch, query } from "@/lib/cf";
-import { changeRoomType } from "./adjustments";
+import { changeRoomType, recordRefund } from "./adjustments";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { formatCedis } from "./money";
-import { refundThroughPaystack } from "./payments";
 import { refundRequestStatement } from "./profile";
 import { getRegistration } from "./registrations";
 import { getRoomType, placesFor } from "./rooms";
@@ -11,9 +10,10 @@ import { CampError, type CampRequest, type Registration, type RequestStatus } fr
 
 /**
  * Requests: refunds and room-type changes. Attendees ask; a coordinator
- * decides, case by case. Approving a refund sends it through Paystack;
- * approving a room change applies the new price (an upgrade leaves more to
- * pay, a downgrade refunds the difference first, through Paystack).
+ * decides, case by case. expressPay has no refund API, so a coordinator sends
+ * the money by hand (MoMo or bank) and approving records it, with the
+ * reference. Approving a room change applies the new price: an upgrade leaves
+ * more to pay; a downgrade records the refund of the difference first.
  */
 
 const actorOf = (me: Registration) => `attendee:${me.id}`;
@@ -128,20 +128,30 @@ export async function declineRequest(actor: string, id: string, note: string) {
   return request;
 }
 
-/** Sends the refund through Paystack, then marks the request approved. Amount may be less than asked. */
-export async function approveRefund(actor: string, id: string, amountPesewas: number, note: string) {
+const refundReference = (raw: string) => {
+  const reference = String(raw ?? "").trim().slice(0, 100);
+  if (reference.length < 3) throw new CampError("Enter the reference for the money you sent back (the MoMo or bank transaction ID).");
+  return reference;
+};
+
+/**
+ * Records a refund the coordinator has already sent by hand, and marks the
+ * request approved. Amount may be less than asked.
+ */
+export async function approveRefund(actor: string, id: string, amountPesewas: number, note: string, reference: string) {
   const request = await pending(id);
   if (request.kind !== "refund") throw new CampError("That isn't a refund request.");
-  if (!Number.isInteger(amountPesewas) || amountPesewas <= 0) throw new CampError("Enter the amount to refund.");
+  if (!Number.isInteger(amountPesewas) || amountPesewas <= 0) throw new CampError("Enter the amount you sent back.");
   if (amountPesewas > request.paid_pesewas) throw new CampError(`${request.full_name} has paid ${formatCedis(request.paid_pesewas)}.`);
-  // Claim the request first, so two coordinators can't both send it.
+  const ref = refundReference(reference);
+  // Claim the request first, so two coordinators can't both record it.
   const claimed = await batch("app", decide(actor, request, "approved", String(note ?? "").trim()));
   if (!claimed[0].results.length) throw new CampError("Someone has already decided this request.");
   try {
-    const sent = await refundThroughPaystack({ registrationId: request.registration_id, amountPesewas, actor, note, requestId: request.id });
-    return { request, ...sent };
+    const recorded = await recordRefund(actor, request.registration_id, { amount_pesewas: amountPesewas, reference: ref, note: String(note ?? "") }, request.id);
+    return { request, refunded_pesewas: amountPesewas, warning: recorded.warning };
   } catch (err) {
-    // Nothing went out: put the request back for another try.
+    // Nothing was recorded: put the request back for another try.
     await batch("app", [{ sql: "UPDATE camp_requests SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE id = ?", params: [request.id] }]);
     throw err;
   }
@@ -150,31 +160,27 @@ export async function approveRefund(actor: string, id: string, amountPesewas: nu
 /**
  * Moves them to the room type they asked for. Up: the new price applies and
  * the rest is theirs to pay. Down, having paid more than the new price: the
- * difference goes back through Paystack first.
+ * coordinator sends the difference back by hand first, and approving records
+ * that refund (with its reference) before the move.
  */
-export async function approveRoomChange(actor: string, id: string, note: string) {
+export async function approveRoomChange(actor: string, id: string, note: string, reference = "") {
   const request = await pending(id);
   if (request.kind !== "room_change" || !request.to_room_type_id || request.to_price_pesewas === null) {
     throw new CampError("That isn't a room change request.");
   }
   const overpaid = request.paid_pesewas - request.to_price_pesewas;
+  const ref = overpaid > 0 ? refundReference(reference) : "";
   const claimed = await batch("app", decide(actor, request, "approved", String(note ?? "").trim()));
   if (!claimed[0].results.length) throw new CampError("Someone has already decided this request.");
   try {
     if (overpaid > 0) {
-      await refundThroughPaystack({
-        registrationId: request.registration_id,
-        amountPesewas: overpaid,
-        actor,
-        note: `Moved to ${request.to_room_type_name}`,
-        requestId: request.id,
-      });
+      await recordRefund(actor, request.registration_id, { amount_pesewas: overpaid, reference: ref, note: `Moved to ${request.to_room_type_name}` }, request.id);
     }
     const moved = await changeRoomType(actor, request.registration_id, request.to_room_type_id);
     return { request, refunded: Math.max(0, overpaid), warning: moved.warning };
   } catch (err) {
     const now = await getRegistration(request.registration_id);
-    // Only reopen if nothing changed hands; a refund that went out stays recorded.
+    // Only reopen if nothing was recorded; a refund that went out stays recorded.
     if (now && now.paid_pesewas === request.paid_pesewas) {
       await batch("app", [{ sql: "UPDATE camp_requests SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE id = ?", params: [request.id] }]);
     }

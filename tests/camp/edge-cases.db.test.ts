@@ -111,7 +111,7 @@ describe("changing someone's room type", () => {
   it("is blocked when they've paid more than the new price, until the difference is refunded", async () => {
     const { camp, hostel, dorm } = await campWithTypes();
     const ama = await paidWithPayment(camp, hostel);
-    await expect(changeRoomType(ACTOR, ama.id, dorm)).rejects.toThrow("Refund GHS 200.00");
+    await expect(changeRoomType(ACTOR, ama.id, dorm)).rejects.toThrow("Send GHS 200.00 back");
     await recordRefund(ACTOR, ama.id, { amount_pesewas: 20000, reference: "RF", note: "downgrade" });
     await changeRoomType(ACTOR, ama.id, dorm);
     expect(await getRegistration(ama.id)).toMatchObject({ price_pesewas: 40000, paid_pesewas: 40000, status: "fully_paid" });

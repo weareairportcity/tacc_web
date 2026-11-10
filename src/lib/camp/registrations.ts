@@ -251,14 +251,14 @@ export async function listFlaggedPayments(campId: string): Promise<FlaggedPaymen
     `SELECT p.id, p.created_at, p.registration_id, p.reference, p.amount_pesewas, p.fee_pesewas, p.charged_pesewas,
             p.status, p.flag, p.paid_at, p.bulk_id, p.payer_name, r.full_name, r.phone
      FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
-     WHERE r.camp_id = ? AND p.flag IN ('amount_mismatch', 'over_balance')
+     WHERE r.camp_id = ? AND p.flag IN ('amount_mismatch', 'over_balance', 'paystack_unchecked')
      ORDER BY p.created_at DESC`,
     [checkId(campId, "camp")],
   );
 }
 
 /**
- * Coordinator-only. Payments stay as they are; refunds happen in Paystack.
+ * Coordinator-only. Payments stay as they are; refunds are sent by hand and recorded.
  * Also takes the person out of their roommate group and their room. Returns a
  * warning when that group was already locked.
  */

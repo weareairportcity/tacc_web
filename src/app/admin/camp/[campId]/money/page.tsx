@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ChevronRight, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { actorName } from "@/lib/camp/history-words";
 import { formatCedis } from "@/lib/camp/money";
-import { reconcileWithPaystack } from "@/lib/camp/reconciliation";
 import { listFlaggedPayments } from "@/lib/camp/registrations";
 import { listBulkPayments } from "@/lib/camp/reports";
-import { formatDate, headlineClass, titleClass } from "@/components/camp/ui";
+import { formatDate, headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
+import { ExpressPayCheck } from "./ExpressPayCheck";
 
 const FLAG_WORDS: Record<string, string> = {
   amount_mismatch: "paid the wrong amount",
   over_balance: "paid after their balance was covered",
+  paystack_unchecked: "started a Paystack payment before the switch: check Paystack's dashboard",
 };
 
-/** Money: does it match Paystack, what needs a look, and what coordinators paid for people. */
+/** Money: does it match expressPay, what needs a look, and what coordinators paid for people. */
 export default async function MoneyPage({ params }: { params: Promise<{ campId: string }> }) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
@@ -24,16 +25,8 @@ export default async function MoneyPage({ params }: { params: Promise<{ campId: 
   const camp = await getCamp(campId);
   if (!camp) notFound();
 
-  const [report, flagged, bulks] = await Promise.all([
-    // Only Commune's own sentences are shown as they are; anything else is a plain "couldn't reach".
-    reconcileWithPaystack(camp.id).catch((err) => ({
-      error: err instanceof Error && /^[A-Z].*[.!?]$/.test(err.message) ? err.message : "Couldn't reach Paystack to check. Try again in a minute.",
-    })),
-    listFlaggedPayments(camp.id),
-    listBulkPayments(camp.id),
-  ]);
+  const [flagged, bulks] = await Promise.all([listFlaggedPayments(camp.id), listBulkPayments(camp.id)]);
   const base = `/admin/camp/${camp.id}`;
-  const checkedAt = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" });
 
   return (
     <div className="flex flex-col gap-6">
@@ -44,52 +37,7 @@ export default async function MoneyPage({ params }: { params: Promise<{ campId: 
         </a>
       </header>
 
-      {"error" in report ? (
-        <p className="flex items-start gap-2 rounded-[10px] border border-stone-border bg-white p-5 text-sm">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.7} aria-hidden="true" />
-          {report.error}
-        </p>
-      ) : (
-        <section role="status" className="cm-rise flex flex-wrap items-center gap-4 rounded-2xl bg-white p-5 shadow-seline-hero">
-          <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true" className="flex-none">
-            <circle className="cm-ring" pathLength={1} cx="22" cy="22" r="20" fill="none" stroke={report.problems.length ? "#1c1917" : "#0ca30c"} strokeWidth="2.5" transform="rotate(-90 22 22)" />
-            {report.problems.length ? (
-              <g className="cm-drop">
-                <path d="M22 13v11" stroke="#1c1917" strokeWidth="2.8" strokeLinecap="round" />
-                <circle cx="22" cy="30" r="1.8" fill="#1c1917" />
-              </g>
-            ) : (
-              <path className="cm-tick" pathLength={1} d="M13 22.5l6 6 12-13" fill="none" stroke="#0ca30c" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-            )}
-          </svg>
-          <span className="flex flex-1 flex-col gap-0.5">
-            <span className={`${titleClass} text-[22px]`}>
-              {report.problems.length ? `${report.problems.length} don't match Paystack` : "Matches Paystack"}
-            </span>
-            <span className="text-[13px] text-warm-gray">
-              Checked {checkedAt} · {report.checked} payments
-              {report.awaitingRefund > 0 && ` · ${report.awaitingRefund} waiting for a refund`}
-              {!report.complete && " · Paystack had more than we read"}
-            </span>
-          </span>
-          <Link href={`${base}/money`} prefetch={false} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
-            <RefreshCw className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Check again
-          </Link>
-        </section>
-      )}
-
-      {"problems" in report && report.problems.length > 0 && (
-        <Section title="Doesn't match">
-          {report.problems.map((p) => (
-            <li key={p.reference} className="flex flex-col gap-0.5 border-t border-stone-border px-4 py-3 text-sm first:border-t-0">
-              <span className="font-medium">{p.full_name ?? p.reference}</span>
-              <span className="text-[13px] text-warm-gray">
-                {p.issue} Commune: {p.ours}. Paystack: {p.paystack}.
-              </span>
-            </li>
-          ))}
-        </Section>
-      )}
+      <ExpressPayCheck campId={camp.id} />
 
       {flagged.length > 0 && (
         <Section title={`To look at · ${flagged.length}`}>

@@ -31,7 +31,8 @@ import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/re
 import { listRefunds } from "@/lib/camp/adjustments";
 import { arrivalCounts, arrivalPage, findArrivals, getArrival, markScan, personCard, scanRoster, syncScans, undoScan, type ArrivalTab, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
 import { getGroupFor } from "@/lib/camp/groups";
-import { cancelPayment, checkBulkPayment, listOpenPaymentsByReference, listOpenPaymentsFor, refundThroughPaystack, startBulkPayment } from "@/lib/camp/payments";
+import { cancelPayment, checkBulkPayment, listOpenPaymentsByReference, listOpenPaymentsFor, startBulkPayment } from "@/lib/camp/payments";
+import { checkChunk, paymentsToCheck } from "@/lib/camp/reconciliation";
 import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
 import { approveRefund, approveRoomChange, declineRequest, listMyRequests } from "@/lib/camp/requests";
 import { deleteView, saveView } from "@/lib/camp/views";
@@ -427,18 +428,21 @@ export async function updatePersonAction(campId: string, registrationId: string,
   });
 }
 
-/** Sends money back through Paystack straight away (a coordinator's own decision). */
-export async function refundPersonAction(campId: string, registrationId: string, amountCedis: string, note: string) {
+/**
+ * Records money a coordinator has sent back by hand (a coordinator's own
+ * decision): expressPay has no refund API. The reference is the MoMo or bank
+ * transaction ID. Returns the amount and any warning for the coordinator.
+ */
+export async function refundPersonAction(campId: string, registrationId: string, amountCedis: string, reference: string, note: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    await once(staff.email, "refundPersonAction", [campId, registrationId, amountCedis, note]);
+    await once(staff.email, "refundPersonAction", [campId, registrationId, amountCedis, reference, note]);
     const person = await personIn(campId, registrationId);
-    return refundThroughPaystack({
-      registrationId: person.id,
-      amountPesewas: cedisToPesewas(String(amountCedis)),
-      actor: staff.email,
-      note: String(note ?? "").slice(0, 300),
-    });
+    const ref = String(reference ?? "").trim();
+    if (ref.length < 3) throw new CampError("Enter the reference for the money you sent back (the MoMo or bank transaction ID).");
+    const amount = cedisToPesewas(String(amountCedis));
+    const { warning } = await recordRefund(staff.email, person.id, { amount_pesewas: amount, reference: ref, note: String(note ?? "").slice(0, 300) });
+    return { refunded_pesewas: amount, warning };
   });
 }
 
@@ -455,9 +459,9 @@ export async function payLinkAction(campId: string, registrationId: string) {
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * One Paystack checkout for several people's balances. Returns where to send
- * the payer. Leaders pay for their own people only; with no email on
- * Commune, they give one for Paystack's receipt.
+ * One expressPay checkout for several people's balances. Returns where to
+ * send the payer. Leaders pay for their own people only; with no email on
+ * Commune, they give one for expressPay's receipt.
  */
 export async function payForPeopleAction(campId: string, registrationIds: string[], note: string, payerEmail = "") {
   return run(async () => {
@@ -468,7 +472,7 @@ export async function payForPeopleAction(campId: string, registrationIds: string
     const ids = Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 100) : [];
     const leader = staff.role === "leader";
     const email = leader ? String(payerEmail ?? "").trim().toLowerCase() : staff.email;
-    if (leader && !EMAIL.test(email)) throw new CampError("Enter your email for the Paystack receipt.");
+    if (leader && !EMAIL.test(email)) throw new CampError("Enter your email for the receipt.");
     if (leader && (await idsInScope(camp.id, ids, scopeFor(staff))).length !== new Set(ids).size) throw new CampError(`You can only pay for people in ${staff.scope_value}.`);
     const checkout = await startBulkPayment({
       campId: camp.id,
@@ -481,7 +485,24 @@ export async function payForPeopleAction(campId: string, registrationIds: string
     await batch("app", [
       auditStatement({ actor: staff.email, campId: camp.id, action: "payment.bulk_start", entity: "bulk_payment", entityId: checkout.reference, after: { people: ids.length, amount: checkout.amount_pesewas } }),
     ]);
+    if (!checkout.authorization_url) throw new CampError("expressPay couldn't start the payment. Please try again.");
     return checkout.authorization_url;
+  });
+}
+
+/** "Check all with expressPay", step 1: which payments to ask about (the last 30 days). */
+export async function paymentsToCheckAction(campId: string) {
+  return look(async () => {
+    await requireCampRole("coordinator");
+    return paymentsToCheck(String(campId));
+  });
+}
+
+/** Step 2, a chunk at a time so the page can show progress. Read-only. */
+export async function checkWithExpressPayAction(campId: string, references: string[]) {
+  return look(async () => {
+    await requireCampRole("coordinator");
+    return checkChunk(String(campId), Array.isArray(references) ? references.map(String) : []);
   });
 }
 
@@ -614,17 +635,19 @@ export async function findArrivalsAction(campId: string, term: string) {
 
 // Requests
 
-export async function approveRefundAction(requestId: string, amountCedis: string, note: string) {
+/** Records the refund the coordinator sent by hand (with its reference) and approves the request. */
+export async function approveRefundAction(requestId: string, amountCedis: string, note: string, reference: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    return approveRefund(staff.email, String(requestId), cedisToPesewas(String(amountCedis)), String(note ?? ""));
+    return approveRefund(staff.email, String(requestId), cedisToPesewas(String(amountCedis)), String(note ?? ""), String(reference ?? ""));
   });
 }
 
-export async function approveRoomChangeAction(requestId: string, note: string) {
+/** A downgrade they've overpaid for needs the reference of the difference sent back. */
+export async function approveRoomChangeAction(requestId: string, note: string, reference = "") {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    return approveRoomChange(staff.email, String(requestId), String(note ?? ""));
+    return approveRoomChange(staff.email, String(requestId), String(note ?? ""), String(reference ?? ""));
   });
 }
 
@@ -728,7 +751,7 @@ export async function openPaymentsForAction(campId: string, registrationIds: str
   });
 }
 
-/** "Cancel it": gives up on an unfinished checkout once Paystack confirms nobody paid. Logged. */
+/** "Cancel it": gives up on an unfinished checkout once expressPay confirms nobody paid. Logged. */
 export async function cancelPaymentAction(campId: string, reference: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator", "leader");

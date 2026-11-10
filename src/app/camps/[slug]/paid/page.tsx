@@ -4,18 +4,20 @@ import { campAndAttendee } from "@/lib/camp/session";
 import { Processing } from "./Processing";
 
 /**
- * Where Paystack sends the attendee back. It never marks anything paid: it
- * asks the Worker, which only trusts Paystack's verify endpoint.
+ * Where expressPay sends the attendee back (?order-id=…&token=…), and where
+ * MoMo from Commune lands (?reference=…). It never marks anything paid: it
+ * asks the Worker, which only trusts expressPay's query endpoint.
  */
 export default async function PaidPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ reference?: string }>;
+  searchParams: Promise<{ reference?: string; "order-id"?: string }>;
 }) {
   const { slug } = await params;
-  const { reference } = await searchParams;
+  const q = await searchParams;
+  const reference = q.reference ?? q["order-id"];
   const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
   if (!me) redirect(`/camps/${camp.slug}`);

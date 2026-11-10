@@ -20,6 +20,7 @@ import { PayForm } from "./PayForm";
 import { ResumePayment } from "./ResumePayment";
 import { SignOut } from "./SignOut";
 import { PendingJoin } from "./PendingJoin";
+import { payOptions } from "@/lib/camp/payments";
 
 const PAYMENT_LABELS = { pending: "Processing", success: "Paid", failed: "Not completed" } as const;
 
@@ -39,7 +40,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
   const cancelled = me.status === "cancelled";
   // After camp, people who arrived are asked how it went.
   const askFeedback = !cancelled && !!me.checked_in_at && feedbackOpen(camp);
-  const [payments, group, room, details, requests, qr, answered, roomTypes] = await Promise.all([
+  const [payments, group, room, details, requests, qr, answered, roomTypes, payWays] = await Promise.all([
     listPayments(me.id),
     fullyPaid ? getGroupFor(me.id) : null,
     fullyPaid ? getMyRoom(me.id) : null,
@@ -48,6 +49,8 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
     fullyPaid ? passQrSvg(camp.id, me.id) : null,
     askFeedback ? hasAnswered(camp.id, me.id) : true,
     fullyPaid ? listRoomTypes(camp.id) : [],
+    // Only asked while there's something to pay: can MoMo be charged from Commune?
+    cancelled || fullyPaid ? { momo_direct: false, ready: true } : payOptions(),
   ]);
   const sleeps = roomTypes.find((t) => t.id === me.room_type_id)?.capacity;
   const balance = me.price_pesewas - me.paid_pesewas;
@@ -182,7 +185,14 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
               <Clock className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" />
               Paid {formatCedis(me.paid_pesewas)} · due {formatDay(camp.payment_due_on)}
             </p>
-            <PayForm slug={camp.slug} balance={balance} feeBps={camp.fee_bps} dueOn={formatDate(camp.payment_due_on)} />
+            <PayForm
+              slug={camp.slug}
+              balance={balance}
+              fees={camp}
+              momoDirect={payWays.momo_direct}
+              phone={me.phone}
+              dueOn={formatDate(camp.payment_due_on)}
+            />
             <SharePayLink slug={camp.slug} />
           </section>
           <LockedPass balance={balance} />

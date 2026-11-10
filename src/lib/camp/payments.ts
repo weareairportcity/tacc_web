@@ -1,11 +1,12 @@
 import { post, query } from "@/lib/cf";
 import { checkId } from "./camps";
+import type { MomoNetwork, PayMethod } from "./money";
 import { CampError, type PaymentStatus } from "./types";
 
 /**
- * The Next side of camp payments. The Worker holds the Paystack key and does
- * the real work (workers/soulwinning/src/camp.ts); callers here have already
- * checked that the signed-in attendee owns the registration.
+ * The Next side of camp payments. The Worker holds the expressPay keys and
+ * does the real work (workers/soulwinning/src/camp.ts); callers here have
+ * already checked that the signed-in attendee owns the registration.
  */
 
 /** Worker errors meant for the attendee pass through; anything else is generic. */
@@ -22,19 +23,38 @@ async function worker<T>(path: string, body: unknown): Promise<T> {
 
 export type Checkout = {
   reference: string;
-  authorization_url: string;
+  /** expressPay's page to send the payer to; null for MoMo charged from Commune (approve on the phone). */
+  authorization_url: string | null;
   amount_pesewas: number;
   fee_pesewas: number;
   charged_pesewas: number;
+  /** MoMo charged from Commune: the prompt is on the phone. */
+  waiting?: boolean;
 };
 
-export function startPayment(registrationId: string, amountPesewas: number, callbackUrl: string) {
+/** How someone pays: expressPay's page (card, or MoMo picked there), or MoMo straight from Commune. */
+export type HowToPay = { method: "card" } | { method: "momo"; number: string; network: MomoNetwork };
+
+const howFields = (how: HowToPay | undefined) =>
+  how?.method === "momo" ? { method: "momo", momo_number: how.number, momo_network: how.network } : { method: "card" };
+
+export function startPayment(registrationId: string, amountPesewas: number, callbackUrl: string, how?: HowToPay) {
   return worker<Checkout>("/v1/admin/camp/pay-init", {
     registration_id: registrationId,
     amount_pesewas: amountPesewas,
     callback_url: callbackUrl,
+    ...howFields(how),
   });
 }
+
+export type PayOptions = { momo_direct: boolean; ready: boolean };
+
+/** Whether MoMo can be charged from Commune (expressPay's Direct API is on). Unknown counts as no. */
+export async function payOptions(): Promise<PayOptions> {
+  return post<PayOptions>("/v1/admin/camp/pay-options", {}).catch(() => ({ momo_direct: false, ready: false }));
+}
+
+export const methodOf = (how: HowToPay | undefined): PayMethod => how?.method ?? "card";
 
 export async function checkPayment(registrationId: string, reference: string): Promise<PaymentStatus> {
   return (await worker<{ status: PaymentStatus }>("/v1/admin/camp/check", { registration_id: registrationId, reference }))
@@ -42,13 +62,14 @@ export async function checkPayment(registrationId: string, reference: string): P
 }
 
 /** A payment link opened by someone else (a parent or sponsor): their receipt email and name. */
-export function startPaymentFor(registrationId: string, amountPesewas: number, callbackUrl: string, payer: { email: string; name: string }) {
+export function startPaymentFor(registrationId: string, amountPesewas: number, callbackUrl: string, payer: { email: string; name: string }, how?: HowToPay) {
   return worker<Checkout>("/v1/admin/camp/pay-init", {
     registration_id: registrationId,
     amount_pesewas: amountPesewas,
     callback_url: callbackUrl,
     payer_email: payer.email,
     payer_name: payer.name,
+    ...howFields(how),
   });
 }
 
@@ -77,19 +98,21 @@ export function checkBulkPayment(campId: string, reference: string) {
   return worker<{ status: PaymentStatus; people: number; credited: number }>("/v1/admin/camp/bulk-check", { camp_id: campId, reference });
 }
 
-/** Sends money back through Paystack. Paystack's fees are never refunded. */
-export function refundThroughPaystack(input: { registrationId: string; amountPesewas: number; actor: string; note: string; requestId?: string }) {
-  return worker<{ refunded_pesewas: number; short_pesewas: number }>("/v1/admin/camp/refund", {
-    registration_id: input.registrationId,
-    amount_pesewas: input.amountPesewas,
-    actor: input.actor,
-    note: input.note,
-    request_id: input.requestId,
-  });
+export type ProviderAnswer = {
+  reference: string;
+  outcome: "approved" | "declined" | "waiting" | "unknown" | "no_token" | "no_answer";
+  amount_pesewas: number | null;
+  currency: string | null;
+  text: string;
+};
+
+/** What expressPay says about up to 40 payments, by reference. Read-only. */
+export async function askExpressPay(references: string[]) {
+  return (await post<{ results: ProviderAnswer[] }>("/v1/admin/camp/provider-check", { references })).results;
 }
 
 /**
- * Gives up on a payment nobody finished, after asking Paystack (see the
+ * Gives up on a payment nobody finished, after asking expressPay (see the
  * Worker's payCancel). "pending" means mobile money is still waiting for
  * approval on a phone; "success" means it went through after all.
  */

@@ -9,12 +9,12 @@ import { register } from "@/lib/camp/registrations";
 import { getDashboard, listPeople, peopleCsv } from "@/lib/camp/reports";
 import { createRoom, createRoomType } from "@/lib/camp/rooms";
 import type { Camp, Gender, Registration } from "@/lib/camp/types";
-import { sendWebhook, startFakePaystack, succeed } from "../setup/paystack";
+import { sendNotice, startFakeExpressPay, succeed } from "../setup/expresspay";
 
 /**
  * Phase 7 load check: a 700-person camp end to end on the local Worker and
  * D1, with work fired in parallel the way a busy registration week would.
- * Run on its own (it uses the fake Paystack port):
+ * Run on its own (it uses the fake expressPay port):
  *   CAMP_LOAD=1 npx vitest run tests/load
  * Timings print at the end; docs/camp/LOAD_CHECK.md records a run.
  */
@@ -50,7 +50,7 @@ describe.skipIf(!run)("a 700-person camp", { timeout: 900_000 }, () => {
   let people: Registration[] = [];
 
   beforeAll(async () => {
-    paystack = await startFakePaystack();
+    paystack = await startFakeExpressPay();
   });
   afterAll(() => new Promise<void>((resolve) => (paystack ? paystack.close(() => resolve()) : resolve())));
 
@@ -130,7 +130,7 @@ describe.skipIf(!run)("a 700-person camp", { timeout: 900_000 }, () => {
           const checkout = await startPayment(p.id, p.amount, "http://localhost/camps/load/paid");
           succeed(checkout.reference);
           const twice = webhooks++ % 5 === 0;
-          await Promise.all(Array.from({ length: twice ? 2 : 1 }, () => sendWebhook(checkout.reference)));
+          await Promise.all(Array.from({ length: twice ? 2 : 1 }, () => sendNotice(checkout.reference)));
         }
       }),
     );

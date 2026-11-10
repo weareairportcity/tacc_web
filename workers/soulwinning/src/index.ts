@@ -1,5 +1,5 @@
 import { handleAdmin } from "./admin";
-import { paystackWebhook, reconcile } from "./camp";
+import { expressPayNotice, reconcile } from "./camp";
 import { sendDailySummaries } from "./camp-summary";
 import { deleteMedia, getMedia, postSongEvent, putMedia } from "./media";
 import { postVisit, statsHourly } from "./stats";
@@ -34,7 +34,7 @@ function requireAdminToken(request: Request, env: AppEnv) {
  *   Photo links          → /v1/photo/… (signed, expiring)
  *   Admin (Next server)  → /v1/admin/* with ADMIN_SECRET
  *   Hourly SMS           → cron trigger
- *   Camp payments        → /v1/admin/camp/* (Next server), /v1/camp/paystack/webhook,
+ *   Camp payments        → /v1/admin/camp/* (Next server), /v1/camp/ep (expressPay),
  *                          and a 10-minute reconciliation cron. See src/camp.ts.
  *   Camp evening text    → the hourly cron at 7 pm (src/camp-summary.ts).
  */
@@ -53,7 +53,8 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
   }
   if (method === "POST" && path === "/v1/sotw/events") return postSongEvent(request, env);
   if (method === "POST" && path === "/v1/c/v") return postVisit(request, env);
-  if (method === "POST" && path === "/v1/camp/paystack/webhook") return paystackWebhook(request, env);
+  // expressPay's post-url. Short, because the Direct API allows 64 characters for it.
+  if ((method === "POST" || method === "GET") && path === "/v1/camp/ep") return expressPayNotice(request, env);
 
   if (path.startsWith("/v1/admin/media/") && method === "PUT") {
     requireAdminToken(request, env);

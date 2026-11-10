@@ -66,8 +66,8 @@ export const actorName = (actor: string, person: string | null) =>
     ? (person ?? "An attendee")
     : actor.startsWith("leader:")
       ? `${actor.split(":").slice(2).join(":")} leader`
-      : actor === "paystack"
-        ? "Paystack"
+      : actor === "paystack" || actor === "expresspay"
+        ? actor === "paystack" ? "Paystack" : "expressPay"
         : actor.startsWith("system")
           ? "Commune"
           : actor.split("@")[0];

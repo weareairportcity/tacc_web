@@ -1,28 +1,31 @@
+import * as ep from "./expresspay";
 import { sendSms } from "./sms";
 import { HttpError, UUID, json, nowIso, readJson, timingSafeEqual, type AppEnv } from "./util";
 
 /**
- * Camp payments through Paystack. The Paystack secret lives only here.
+ * Camp payments through expressPay (src/expresspay.ts holds the keys).
  *
  *   Next server (ADMIN_SECRET) → /v1/admin/camp/pay-init, /check, /reconcile,
- *                                /bulk-init, /bulk-check, /refund
- *   Paystack                   → /v1/camp/paystack/webhook (via workers.dev)
- *   Every 10 minutes           → reconcile, for webhooks that never arrived
+ *                                /bulk-init, /bulk-check, /pay-cancel,
+ *                                /pay-options, /provider-check
+ *   expressPay                 → /v1/camp/ep (the post-url notice)
+ *   Every 10 minutes           → reconcile, for notices that never arrived
  *
  * A coordinator can pay for several people in one checkout (a "bulk"
- * payment): one camp_bulk_payments row carries the Paystack reference and the
- * fee, and each person's share is a camp_payments row pointing at it. Shares
- * are settled together, through the bulk, never on their own.
+ * payment): one camp_bulk_payments row carries the reference, expressPay's
+ * token and the fee, and each person's share is a camp_payments row pointing
+ * at it. Shares are settled together, through the bulk, never on their own.
  *
- * The webhook and reconciliation never trust what they're told: both ask
- * Paystack's verify endpoint and credit a payment only when the amount and
- * currency match exactly. Crediting is one guarded D1 batch (payment, audit
- * entry, registration balance and status), so a repeat does nothing and two
- * payments can never add up to more than the price.
+ * Nothing is trusted on its word: the notice, the return page and
+ * reconciliation all ask expressPay's query endpoint, and a payment is
+ * credited only when the amount and currency match exactly. Crediting is one
+ * guarded D1 batch (payment, audit entry, registration balance and status),
+ * so a repeat does nothing and two payments can never add up to more than the
+ * price. Refunds are sent by hand and recorded on the Next side.
  */
 
-const API = (env: AppEnv) => env.PAYSTACK_API_URL || "https://api.paystack.co";
-const ACTOR = "paystack";
+const ACTOR = "expresspay";
+const PROVIDER = "expresspay";
 const MIN_PESEWAS = 100;
 /** A checkout nobody finished is given up on after this long. */
 const ABANDON_AFTER_MS = 60 * 60 * 1000;
@@ -46,6 +49,9 @@ type Payment = {
   bulk_id: string | null;
   checkout_url?: string | null;
   payer_name?: string | null;
+  provider: string;
+  provider_token: string | null;
+  method: string | null;
 };
 
 /** A checkout opened this recently, for the same amount and payer, is reopened rather than started again. */
@@ -62,12 +68,12 @@ type Bulk = {
   status: "pending" | "success" | "failed";
   flag: string | null;
   checked_at: string | null;
+  provider: string;
+  provider_token: string | null;
 };
 
-type Verified = { status?: string; amount?: number; currency?: string; paid_at?: string | null };
-
 /**
- * Paystack's fee, passed on so the church receives the full instalment:
+ * expressPay's fee, passed on so the church receives the full instalment:
  * charged × (1 − rate) ≥ amount. Integer maths, rounded up to the pesewa.
  * Mirrored in src/lib/camp/money.ts for the fee shown before paying.
  */
@@ -76,21 +82,30 @@ export function feeFor(amountPesewas: number, feeBps: number) {
   return Math.ceil((amountPesewas * 10000) / (10000 - feeBps)) - amountPesewas;
 }
 
-async function paystack<T>(env: AppEnv, path: string, init: RequestInit = {}) {
-  if (!env.PAYSTACK_SECRET_KEY) throw new HttpError(503, "payments are not set up");
-  const res = await fetch(`${API(env)}${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
-  });
-  const body = (await res.json().catch(() => ({}))) as { status?: boolean; message?: string; data?: T };
-  return { ok: res.ok && body.status === true, message: body.message ?? "", data: body.data };
+/**
+ * The rate for a payment. MoMo from Commune (Direct API) has its own rate. On
+ * expressPay's page the payer can still pick either, so the higher of the two
+ * applies there and the church never covers a fee. Mirrored in money.ts.
+ */
+export function rateFor(method: "card" | "momo", camp: { fee_bps: number; momo_fee_bps: number }, direct: boolean) {
+  return direct && method === "momo" ? camp.momo_fee_bps : Math.max(camp.fee_bps, camp.momo_fee_bps);
+}
+
+const MSISDN = /^233[25]\d{8}$/;
+const NETWORKS: ep.Network[] = ["mtn", "telecel", "airteltigo"];
+
+/** "024 412 3456", "+233 24…" → "233244123456", or null. */
+export function msisdn(input: unknown) {
+  const digits = String(input ?? "").replace(/\D/g, "");
+  const n = digits.startsWith("233") ? digits : digits.startsWith("0") ? `233${digits.slice(1)}` : digits.length === 9 ? `233${digits}` : digits;
+  return MSISDN.test(n) ? n : null;
 }
 
 const reference = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   return `CAMP-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 };
-// Still starts CAMP- so the Paystack check report picks bulk payments up too.
+// Still starts CAMP- so the notice and the expressPay check pick bulk payments up too.
 const bulkReference = () => reference().replace("CAMP-", "CAMP-B");
 
 const audit = (env: AppEnv, campId: string | null, action: string, entityId: string, after: unknown) =>
@@ -180,7 +195,7 @@ async function textFullyPaid(env: AppEnv, registrationId: string) {
 }
 
 /** Marks a payment successful and updates the balance, all or nothing. */
-async function credit(env: AppEnv, p: Payment, verified: Verified, raw: string) {
+async function credit(env: AppEnv, p: Payment, paidAt: string | null, raw: string) {
   const now = nowIso();
   const campId = await campIdOf(env, p.registration_id);
   const [updated] = await env.APP_DB.batch([
@@ -188,7 +203,7 @@ async function credit(env: AppEnv, p: Payment, verified: Verified, raw: string) 
       `UPDATE camp_payments SET status = 'success', flag = NULL, paid_at = ?2, checked_at = ?3, raw_json = ?4
        WHERE id = ?5 AND status <> 'success'
          AND amount_pesewas + ${netPaid("?1")} <= (SELECT price_pesewas FROM camp_registrations WHERE id = ?1)`,
-    ).bind(p.registration_id, verified.paid_at ?? now, now, raw, p.id),
+    ).bind(p.registration_id, paidAt ?? now, now, raw, p.id),
     // Only when the update above changed the payment, so a repeat logs nothing.
     env.APP_DB.prepare(
       `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, after_json)
@@ -205,7 +220,7 @@ async function credit(env: AppEnv, p: Payment, verified: Verified, raw: string) 
     .bind(p.id)
     .first<{ status: string }>();
   if (now2?.status === "success") return "success"; // credited by a concurrent call
-  // Paid on Paystack, but the balance was already covered: refund in Paystack.
+  // Paid, but the balance was already covered: a coordinator sends it back by hand.
   await flagPayment(env, p, "over_balance", raw, { amount_pesewas: p.amount_pesewas });
   return "failed";
 }
@@ -222,9 +237,23 @@ const touch = (env: AppEnv, p: Payment) =>
   env.APP_DB.prepare("UPDATE camp_payments SET checked_at = ? WHERE id = ?").bind(nowIso(), p.id).run();
 
 /**
- * Asks Paystack about one payment and applies the answer. `giveUp` fails an
+ * A checkout from before the switch to expressPay can't be asked about any
+ * more. Still pending, it's set aside (failed, flagged) so it doesn't block a
+ * new payment; Money lists it so a coordinator can check Paystack's dashboard.
+ */
+async function retirePaystack(env: AppEnv, table: "camp_payments" | "camp_bulk_payments", id: string) {
+  await env.APP_DB.prepare(`UPDATE ${table} SET status = 'failed', flag = 'paystack_unchecked', checked_at = ? WHERE id = ? AND status = 'pending'`)
+    .bind(nowIso(), id)
+    .run();
+}
+
+/** Did expressPay take exactly what we asked? */
+const exact = (a: ep.Answer, charged: number, currency: string) => a.amountPesewas === charged && (a.currency ?? "GHS") === currency;
+
+/**
+ * Asks expressPay about one payment and applies the answer. `giveUp` fails an
  * unfinished checkout straight away (when the attendee starts a new one).
- * A payment marked failed is still credited if Paystack later says it went
+ * A payment marked failed is still credited if expressPay later says it went
  * through, because the money was taken.
  */
 async function settle(env: AppEnv, p: Payment, giveUp = false): Promise<Payment["status"]> {
@@ -236,40 +265,43 @@ async function settle(env: AppEnv, p: Payment, giveUp = false): Promise<Payment[
     const now = await env.APP_DB.prepare("SELECT status FROM camp_payments WHERE id = ?").bind(p.id).first<{ status: Payment["status"] }>();
     return now?.status ?? p.status;
   }
-  const v = await paystack<Verified>(env, `/transaction/verify/${encodeURIComponent(p.reference)}`);
+  if (p.provider !== PROVIDER) {
+    if (p.status === "pending") await retirePaystack(env, "camp_payments", p.id);
+    return p.status === "pending" ? "failed" : p.status;
+  }
   const old = Date.now() - Date.parse(p.created_at) > ABANDON_AFTER_MS;
+  const a = p.provider_token ? await ep.query(env, p.provider_token) : null;
 
-  if (!v.ok || !v.data) {
-    // Paystack doesn't know it: the checkout never started.
-    if (p.status === "pending" && (giveUp || old)) await markFailed(env, p, null);
+  if (!a) {
+    // No token (the checkout never started) or expressPay didn't answer.
+    if (p.status === "pending" && !p.provider_token && (giveUp || old)) await markFailed(env, p, null);
     else await touch(env, p);
-    return giveUp || old ? "failed" : p.status;
+    return p.status === "pending" && !p.provider_token && (giveUp || old) ? "failed" : p.status;
   }
 
-  const raw = JSON.stringify(v.data).slice(0, 20_000);
-  switch (v.data.status) {
-    case "success":
-      if (v.data.amount !== p.charged_pesewas || v.data.currency !== p.currency) {
-        await flagPayment(env, p, "amount_mismatch", raw, {
+  switch (a.outcome) {
+    case "approved":
+      if (!exact(a, p.charged_pesewas, p.currency)) {
+        await flagPayment(env, p, "amount_mismatch", a.raw, {
           expected: { amount: p.charged_pesewas, currency: p.currency },
-          received: { amount: v.data.amount, currency: v.data.currency },
+          received: { amount: a.amountPesewas, currency: a.currency },
         });
         return "failed";
       }
-      return credit(env, p, v.data, raw);
-    case "failed":
-    case "reversed":
-      await markFailed(env, p, raw);
+      return credit(env, p, a.processedAt, a.raw);
+    case "declined":
+      await markFailed(env, p, a.raw);
       return "failed";
-    case "abandoned":
+    case "unknown":
+      // Nobody has paid on expressPay's page (yet).
       if (p.status === "pending" && (giveUp || old)) {
-        await markFailed(env, p, raw);
+        await markFailed(env, p, a.raw);
         return "failed";
       }
       await touch(env, p);
       return p.status;
     default:
-      // ongoing, pending, processing, queued: mobile money still waiting.
+      // Waiting: MoMo still to be approved on the phone. Never given up on here.
       await touch(env, p);
       return p.status;
   }
@@ -293,38 +325,43 @@ const setBulk = (env: AppEnv, bulk: Bulk, status: Bulk["status"], raw: string | 
     .run();
 
 /**
- * The bulk version of settle: asks Paystack about the one checkout, then
+ * The bulk version of settle: asks expressPay about the one checkout, then
  * credits each person's share. A share that no longer fits (they paid in the
  * meantime) is flagged over_balance for a refund; the rest still count.
  */
 async function settleBulk(env: AppEnv, bulk: Bulk, giveUp = false): Promise<Bulk["status"]> {
   if (bulk.status === "success" || bulk.flag === "amount_mismatch") return bulk.status;
-  const v = await paystack<Verified>(env, `/transaction/verify/${encodeURIComponent(bulk.reference)}`);
-  const old = Date.now() - Date.parse(bulk.created_at) > ABANDON_AFTER_MS;
   const shares = await sharesOf(env, bulk.id);
   const failShares = async (raw: string | null) => {
     for (const p of shares) await markFailed(env, p, raw);
     await setBulk(env, bulk, "failed", raw);
   };
+  if (bulk.provider !== PROVIDER) {
+    if (bulk.status !== "pending") return bulk.status;
+    for (const p of shares) await retirePaystack(env, "camp_payments", p.id);
+    await retirePaystack(env, "camp_bulk_payments", bulk.id);
+    return "failed";
+  }
+  const old = Date.now() - Date.parse(bulk.created_at) > ABANDON_AFTER_MS;
+  const a = bulk.provider_token ? await ep.query(env, bulk.provider_token) : null;
 
-  if (!v.ok || !v.data) {
-    if (bulk.status === "pending" && (giveUp || old)) {
+  if (!a) {
+    if (bulk.status === "pending" && !bulk.provider_token && (giveUp || old)) {
       await failShares(null);
       return "failed";
     }
     await env.APP_DB.prepare("UPDATE camp_bulk_payments SET checked_at = ? WHERE id = ?").bind(nowIso(), bulk.id).run();
     return bulk.status;
   }
-  const raw = JSON.stringify(v.data).slice(0, 20_000);
-  switch (v.data.status) {
-    case "success": {
-      if (v.data.amount !== bulk.charged_pesewas || v.data.currency !== bulk.currency) {
-        await setBulk(env, bulk, "failed", raw, "amount_mismatch");
-        for (const p of shares) await flagPayment(env, p, "amount_mismatch", raw, { bulk: bulk.reference });
+  switch (a.outcome) {
+    case "approved": {
+      if (!exact(a, bulk.charged_pesewas, bulk.currency)) {
+        await setBulk(env, bulk, "failed", a.raw, "amount_mismatch");
+        for (const p of shares) await flagPayment(env, p, "amount_mismatch", a.raw, { bulk: bulk.reference });
         return "failed";
       }
-      for (const p of shares) if (p.status !== "success") await credit(env, p, v.data, raw);
-      await setBulk(env, bulk, "success", raw, null, v.data.paid_at ?? nowIso());
+      for (const p of shares) if (p.status !== "success") await credit(env, p, a.processedAt, a.raw);
+      await setBulk(env, bulk, "success", a.raw, null, a.processedAt ?? nowIso());
       await env.APP_DB.prepare(
         `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, after_json)
          VALUES (?, ?, 'payment.bulk_success', 'bulk_payment', ?, ?)`,
@@ -333,24 +370,101 @@ async function settleBulk(env: AppEnv, bulk: Bulk, giveUp = false): Promise<Bulk
         .run();
       return "success";
     }
-    case "failed":
-    case "reversed":
-      await failShares(raw);
+    case "declined":
+      await failShares(a.raw);
       return "failed";
-    case "abandoned":
+    case "unknown":
       if (bulk.status === "pending" && (giveUp || old)) {
-        await failShares(raw);
+        await failShares(a.raw);
         return "failed";
       }
+      await env.APP_DB.prepare("UPDATE camp_bulk_payments SET checked_at = ? WHERE id = ?").bind(nowIso(), bulk.id).run();
       return bulk.status;
     default:
+      await env.APP_DB.prepare("UPDATE camp_bulk_payments SET checked_at = ? WHERE id = ?").bind(nowIso(), bulk.id).run();
       return bulk.status;
   }
 }
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-/** Starts a Paystack checkout. The Next server has already checked ownership. */
+type HowToPay = { method: "card" | "momo"; momo: { msisdn: string; network: ep.Network } | null };
+
+/** Card means expressPay's page (where MoMo can still be picked); MoMo with a number is charged from Commune. */
+function howToPay(body: { method?: unknown; momo_number?: unknown; momo_network?: unknown }, env: AppEnv): HowToPay {
+  if (body.method !== "momo" || !ep.directMomo(env)) return { method: "card", momo: null };
+  const number = msisdn(body.momo_number);
+  if (!number) throw new HttpError(400, "Enter the MoMo number, like 024 123 4567.");
+  const network = NETWORKS.find((n) => n === body.momo_network);
+  if (!network) throw new HttpError(400, "Pick the MoMo network.");
+  return { method: "momo", momo: { msisdn: number, network } };
+}
+
+/** What the Next server needs to know before showing the pay screen. */
+export function payOptions(env: AppEnv) {
+  return json({ momo_direct: ep.directMomo(env), ready: ep.configured(env) });
+}
+
+type Started = { reference: string; authorization_url: string | null; amount_pesewas: number; fee_pesewas: number; charged_pesewas: number; resumed?: boolean; waiting?: boolean };
+
+/**
+ * Opens the checkout at expressPay for a payment row already written, or for
+ * MoMo sends the prompt to the phone. On any refusal the row is failed
+ * (init_failed) so a new payment can start.
+ */
+async function open(
+  env: AppEnv,
+  row: { table: "camp_payments" | "camp_bulk_payments"; id: string; reference: string; charged: number },
+  how: HowToPay,
+  redirectUrl: string,
+  customer: ep.Customer,
+  failShares?: string,
+): Promise<{ url: string | null; waiting: boolean }> {
+  const fail = async (message: string, raw?: string) => {
+    const now = nowIso();
+    await env.APP_DB.batch([
+      env.APP_DB.prepare(`UPDATE ${row.table} SET status = 'failed', flag = 'init_failed', checked_at = ?, raw_json = ? WHERE id = ?`).bind(
+        now,
+        raw ?? JSON.stringify({ message }),
+        row.id,
+      ),
+      ...(failShares
+        ? [env.APP_DB.prepare("UPDATE camp_payments SET status = 'failed', flag = 'init_failed', checked_at = ? WHERE bulk_id = ?").bind(now, failShares)]
+        : []),
+    ]);
+  };
+
+  const started = await ep.submit(env, {
+    orderId: row.reference,
+    amountPesewas: row.charged,
+    redirectUrl: how.momo ? null : redirectUrl,
+    customer,
+    direct: Boolean(how.momo),
+  });
+  if ("error" in started) {
+    console.error("expressPay submit refused", row.reference, started.error);
+    await fail(started.error);
+    throw new HttpError(502, "expressPay couldn't start the payment. Please try again.");
+  }
+  const url = how.momo ? null : ep.checkoutUrl(env, started.token);
+  await env.APP_DB.prepare(`UPDATE ${row.table} SET provider_token = ?, checkout_url = ? WHERE id = ?`).bind(started.token, url, row.id).run();
+  if (!how.momo) return { url, waiting: false };
+
+  const a = await ep.chargeMomo(env, started.token, how.momo.msisdn, how.momo.network);
+  // No answer: the prompt may still have gone out, so the payment stays pending and is checked as usual.
+  if (!a || a.outcome === "waiting" || a.outcome === "approved") return { url: null, waiting: true };
+  await fail(a.text, a.raw);
+  throw new HttpError(402, `MoMo didn't go through: ${a.text || "declined"}. Check the number and network, then try again.`);
+}
+
+const customerFor = (reg: { full_name: string; email: string; phone: string; camp_name: string }, payer: { email: string | null; name: string }) => ({
+  name: payer.name || reg.full_name,
+  email: payer.email ?? reg.email,
+  phone: reg.phone,
+  description: `${reg.camp_name}: ${reg.full_name}`,
+});
+
+/** Starts a payment. The Next server has already checked ownership. */
 export async function payInit(request: Request, env: AppEnv) {
   const body = await readJson<{
     registration_id?: unknown;
@@ -359,6 +473,9 @@ export async function payInit(request: Request, env: AppEnv) {
     // Someone else paying through a pay link: their receipt email and name.
     payer_email?: unknown;
     payer_name?: unknown;
+    method?: unknown;
+    momo_number?: unknown;
+    momo_network?: unknown;
   }>(request);
   const payerEmail = typeof body.payer_email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.payer_email) ? body.payer_email : null;
   const payerName = typeof body.payer_name === "string" ? body.payer_name.trim().slice(0, 80) : "";
@@ -369,51 +486,70 @@ export async function payInit(request: Request, env: AppEnv) {
   if (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount < MIN_PESEWAS) {
     throw new HttpError(400, "The smallest payment is GHS 1.00.");
   }
+  if (!ep.configured(env)) throw new HttpError(503, "payments are not set up");
+  const how = howToPay(body, env);
 
   const reg = await env.APP_DB.prepare(
-    `SELECT r.id, r.email, r.price_pesewas, r.status, c.fee_bps, c.status AS camp_status
+    `SELECT r.id, r.email, r.full_name, r.phone, r.price_pesewas, r.status, c.fee_bps, c.momo_fee_bps, c.status AS camp_status, c.name AS camp_name
      FROM camp_registrations r JOIN camps c ON c.id = r.camp_id WHERE r.id = ?`,
   )
     .bind(registrationId)
-    .first<{ id: string; email: string; price_pesewas: number; status: string; fee_bps: number; camp_status: string }>();
+    .first<{
+      id: string;
+      email: string;
+      full_name: string;
+      phone: string;
+      price_pesewas: number;
+      status: string;
+      fee_bps: number;
+      momo_fee_bps: number;
+      camp_status: string;
+      camp_name: string;
+    }>();
   if (!reg) throw new HttpError(404, "registration not found");
   if (reg.status === "cancelled") throw new HttpError(409, "This registration has been cancelled.");
   if (reg.camp_status === "archived") throw new HttpError(409, "This camp is no longer taking payments.");
 
+  const fee = feeFor(amount, rateFor(how.method, reg, ep.directMomo(env)));
+  const method = how.momo ? "momo" : null;
+
   // An earlier checkout still open: settle it first, so two can't overpay.
-  const { results: open } = await env.APP_DB.prepare(
+  const { results: open0 } = await env.APP_DB.prepare(
     "SELECT * FROM camp_payments WHERE registration_id = ? AND status = 'pending'",
   )
     .bind(registrationId)
     .all<Payment>();
   // A second tab (or a second tap) for the same payment opens the same checkout, so paying in
   // both can't charge twice. One that's still being opened is waited for, not replaced.
-  const fee0 = feeFor(amount, reg.fee_bps);
-  for (const p of open ?? []) {
+  for (const p of open0 ?? []) {
     const age = Date.now() - Date.parse(p.created_at);
-    if (p.bulk_id || p.amount_pesewas !== amount || (p.payer_name ?? "") !== payerName || age > RESUME_WITHIN_MS) continue;
+    if (p.bulk_id || method || p.method || p.amount_pesewas !== amount || (p.payer_name ?? "") !== payerName || age > RESUME_WITHIN_MS) continue;
     if (p.checkout_url) {
-      return json({ reference: p.reference, authorization_url: p.checkout_url, amount_pesewas: amount, fee_pesewas: p.fee_pesewas ?? fee0, charged_pesewas: p.charged_pesewas, resumed: true });
+      return json({ reference: p.reference, authorization_url: p.checkout_url, amount_pesewas: amount, fee_pesewas: p.fee_pesewas, charged_pesewas: p.charged_pesewas, resumed: true } satisfies Started);
     }
     if (age < 30_000) throw new HttpError(409, "Your payment is already opening. Give it a moment, then try again.");
   }
-  for (const p of open ?? []) {
+  for (const p of open0 ?? []) {
     if ((await settle(env, p, true)) === "pending") {
-      throw new HttpError(409, "Your last payment is still processing. Wait for it to finish, then try again.");
+      throw new HttpError(
+        409,
+        p.method === "momo"
+          ? "Your last MoMo payment is still waiting. Approve or decline it on your phone, then try again."
+          : "Your last payment is still processing. Wait for it to finish, then try again.",
+      );
     }
   }
 
-  const fee = feeFor(amount, reg.fee_bps);
   const id = crypto.randomUUID();
   const ref = reference();
   // Guarded: no other pending payment, and the amount fits the balance.
   const inserted = await env.APP_DB.prepare(
-    `INSERT INTO camp_payments (id, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, payer_name)
-     SELECT ?, ?, ?, ?, ?, ?, ?
+    `INSERT INTO camp_payments (id, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, payer_name, provider, method)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
      WHERE NOT EXISTS (SELECT 1 FROM camp_payments WHERE registration_id = ? AND status = 'pending')
        AND ? <= (SELECT price_pesewas - paid_pesewas FROM camp_registrations WHERE id = ?)`,
   )
-    .bind(id, registrationId, ref, amount, fee, amount + fee, payerName, registrationId, amount, registrationId)
+    .bind(id, registrationId, ref, amount, fee, amount + fee, payerName, PROVIDER, method, registrationId, amount, registrationId)
     .run();
   if (inserted.meta.changes !== 1) {
     const now = await env.APP_DB.prepare("SELECT price_pesewas - paid_pesewas AS balance FROM camp_registrations WHERE id = ?")
@@ -424,33 +560,21 @@ export async function payInit(request: Request, env: AppEnv) {
     throw new HttpError(409, "Your last payment is still processing. Wait for it to finish, then try again.");
   }
 
-  const init = await paystack<{ authorization_url?: string }>(env, "/transaction/initialize", {
-    method: "POST",
-    body: JSON.stringify({
-      email: payerEmail ?? reg.email,
-      amount: amount + fee,
-      currency: "GHS",
-      reference: ref,
-      callback_url: callbackUrl,
-      metadata: { registration_id: registrationId, payment_id: id },
-    }),
-  });
-  if (!init.ok || !init.data?.authorization_url) {
-    await env.APP_DB.prepare(
-      "UPDATE camp_payments SET status = 'failed', flag = 'init_failed', checked_at = ?, raw_json = ? WHERE id = ?",
-    )
-      .bind(nowIso(), JSON.stringify({ message: init.message }), id)
-      .run();
-    throw new HttpError(502, "Paystack couldn't start the payment. Please try again.");
-  }
-  await env.APP_DB.prepare("UPDATE camp_payments SET checkout_url = ? WHERE id = ?").bind(init.data.authorization_url, id).run();
+  const opened = await open(
+    env,
+    { table: "camp_payments", id, reference: ref, charged: amount + fee },
+    how,
+    callbackUrl,
+    customerFor(reg, { email: payerEmail, name: payerName }),
+  );
   return json({
     reference: ref,
-    authorization_url: init.data.authorization_url,
+    authorization_url: opened.url,
     amount_pesewas: amount,
     fee_pesewas: fee,
     charged_pesewas: amount + fee,
-  });
+    waiting: opened.waiting,
+  } satisfies Started);
 }
 
 /** The processing page asking "has it gone through?". Throttled per payment. */
@@ -504,31 +628,43 @@ export async function reconcile(env: AppEnv, olderThanMs = RECONCILE_AFTER_MS) {
 }
 
 /**
- * Paystack's own list of camp transactions (references starting CAMP-) in a
- * date range, for the coordinators' reconciliation report. Only the fields
- * the report compares; no customer details.
+ * "Check all with expressPay": what expressPay says about each of these
+ * references, for the coordinators' report. expressPay has no list endpoint,
+ * so the report asks about the payments Commune knows, a few dozen at a time.
+ * Read-only: nothing here changes a payment.
  */
-export async function paystackTransactions(request: Request, env: AppEnv) {
-  const { from, to } = await readJson<{ from?: unknown; to?: unknown }>(request);
-  const iso = (v: unknown) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
-  const range = { from: iso(from), to: iso(to) };
-  if (!range.from || !range.to) throw new HttpError(400, "from and to dates required");
+export async function providerCheck(request: Request, env: AppEnv) {
+  const { references } = await readJson<{ references?: unknown }>(request);
+  const refs = Array.isArray(references) ? [...new Set(references.filter((r): r is string => typeof r === "string" && /^CAMP-[0-9A-Z-]{6,40}$/.test(r)))] : [];
+  if (refs.length === 0 || refs.length > 40) throw new HttpError(400, "send 1 to 40 references");
+  const { results: rows } = await env.APP_DB.prepare(
+    `SELECT reference, provider_token FROM camp_payments WHERE reference IN (SELECT value FROM json_each(?1)) AND bulk_id IS NULL
+     UNION ALL SELECT reference, provider_token FROM camp_bulk_payments WHERE reference IN (SELECT value FROM json_each(?1))`,
+  )
+    .bind(JSON.stringify(refs))
+    .all<{ reference: string; provider_token: string | null }>();
 
-  type Tx = { reference: string; amount: number; currency: string; status: string; paid_at: string | null };
-  const found: Tx[] = [];
-  for (let page = 1; page <= 50; page++) {
-    const query = new URLSearchParams({ from: range.from, to: range.to, perPage: "100", page: String(page) });
-    const res = await paystack<Tx[]>(env, `/transaction?${query}`);
-    if (!res.ok) throw new HttpError(502, `Paystack: ${res.message || "list failed"}`);
-    const rows = res.data ?? [];
-    for (const t of rows) {
-      if (t.reference?.startsWith("CAMP-")) {
-        found.push({ reference: t.reference, amount: t.amount, currency: t.currency, status: t.status, paid_at: t.paid_at ?? null });
+  type Seen = { reference: string; outcome: ep.Answer["outcome"] | "no_token" | "no_answer"; amount_pesewas: number | null; currency: string | null; text: string };
+  const found: Seen[] = [];
+  const queue = [...(rows ?? [])];
+  // Six at a time keeps well inside the Worker's subrequest limits.
+  await Promise.all(
+    Array.from({ length: 6 }, async () => {
+      for (let row = queue.shift(); row; row = queue.shift()) {
+        if (!row.provider_token) {
+          found.push({ reference: row.reference, outcome: "no_token", amount_pesewas: null, currency: null, text: "" });
+          continue;
+        }
+        const a = await ep.query(env, row.provider_token);
+        found.push(
+          a
+            ? { reference: row.reference, outcome: a.outcome, amount_pesewas: a.amountPesewas, currency: a.currency, text: a.text }
+            : { reference: row.reference, outcome: "no_answer", amount_pesewas: null, currency: null, text: "" },
+        );
       }
-    }
-    if (rows.length < 100) return json({ transactions: found, complete: true });
-  }
-  return json({ transactions: found, complete: false });
+    }),
+  );
+  return json({ results: found });
 }
 
 export async function postReconcile(request: Request, env: AppEnv) {
@@ -537,43 +673,34 @@ export async function postReconcile(request: Request, env: AppEnv) {
   return json(await reconcile(env, minutes * 60 * 1000));
 }
 
-async function signature(secret: string, body: string) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-512" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(body));
-  return Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 /**
- * Paystack's webhook: the only unauthenticated write. The signature is checked
- * on the raw body before anything is parsed, then the payment is verified with
- * Paystack rather than trusting the event's own fields.
+ * expressPay's post-url: it calls this when a pending payment (MoMo) finishes,
+ * with the order-id and token. Unsigned, so it's only a nudge: the payment is
+ * looked up by both, then expressPay is asked. Always answers 200, as
+ * expressPay asks; unknown or mismatched notices do nothing.
  */
-export async function paystackWebhook(request: Request, env: AppEnv) {
-  if (!env.PAYSTACK_SECRET_KEY) throw new HttpError(503, "payments are not set up");
-  const raw = await request.text();
-  if (raw.length > 256 * 1024) throw new HttpError(413, "request too large");
-  const given = (request.headers.get("x-paystack-signature") ?? "").toLowerCase();
-  if (!given || !timingSafeEqual(given, await signature(env.PAYSTACK_SECRET_KEY, raw))) {
-    throw new HttpError(401, "bad signature");
-  }
-
-  let event: { event?: string; data?: { reference?: unknown } };
+export async function expressPayNotice(request: Request, env: AppEnv) {
+  const url = new URL(request.url);
+  const raw = (await request.text()).slice(0, 8 * 1024);
+  let fields: Record<string, unknown> = Object.fromEntries(url.searchParams);
   try {
-    event = JSON.parse(raw);
+    fields = { ...fields, ...(raw.trim().startsWith("{") ? JSON.parse(raw) : Object.fromEntries(new URLSearchParams(raw))) };
   } catch {
-    throw new HttpError(400, "invalid JSON");
+    // Not a body we can read; the query string may still have it.
   }
-  const ref = event.data?.reference;
-  if (event.event === "charge.success" && typeof ref === "string") {
+  const ref = String(fields["order-id"] ?? fields.order_id ?? "");
+  const token = String(fields.token ?? "");
+  if (/^CAMP-[0-9A-Z-]{6,40}$/.test(ref) && token && token.length <= 1024) {
+    // The token is the proof: only expressPay and Commune know it. No time throttle, so a real
+    // notice for a checkout given up on a moment ago (money taken after all) is never dropped.
+    const same = (stored: string | null) => Boolean(stored) && stored!.length === token.length && timingSafeEqual(stored!, token);
     const p = await paymentByReference(env, ref);
-    if (p) await settle(env, p);
-    else {
+    if (p && !p.bulk_id && same(p.provider_token)) await settle(env, p);
+    else if (!p) {
       const bulk = await bulkByReference(env, ref);
-      if (bulk) await settleBulk(env, bulk);
+      if (bulk && same(bulk.provider_token)) await settleBulk(env, bulk);
     }
   }
-  // Always 200 once signed, or Paystack keeps retrying events we don't use.
   return json({ ok: true });
 }
 
@@ -581,7 +708,7 @@ export async function paystackWebhook(request: Request, env: AppEnv) {
 
 /**
  * A coordinator pays the outstanding balances of several people in one
- * Paystack checkout. The Next server has checked the coordinator role and
+ * expressPay checkout. The Next server has checked the coordinator role and
  * that everyone is in this camp. Each share is exactly that person's balance.
  */
 export async function bulkInit(request: Request, env: AppEnv) {
@@ -603,7 +730,10 @@ export async function bulkInit(request: Request, env: AppEnv) {
   if (ids.length === 0) throw new HttpError(400, "Choose at least one person.");
   if (ids.length > 100) throw new HttpError(400, "Pay for up to 100 people at a time.");
 
-  const camp = await env.APP_DB.prepare("SELECT fee_bps, status FROM camps WHERE id = ?").bind(campId).first<{ fee_bps: number; status: string }>();
+  if (!ep.configured(env)) throw new HttpError(503, "payments are not set up");
+  const camp = await env.APP_DB.prepare("SELECT fee_bps, momo_fee_bps, status, name FROM camps WHERE id = ?")
+    .bind(campId)
+    .first<{ fee_bps: number; momo_fee_bps: number; status: string; name: string }>();
   if (!camp) throw new HttpError(404, "camp not found");
   if (camp.status === "archived") throw new HttpError(409, "This camp is no longer taking payments.");
 
@@ -633,21 +763,22 @@ export async function bulkInit(request: Request, env: AppEnv) {
   }
 
   const amount = owing.reduce((sum, r) => sum + r.balance, 0);
-  const fee = feeFor(amount, camp.fee_bps);
+  // Bulk payments always use expressPay's page, so the higher rate applies.
+  const fee = feeFor(amount, rateFor("card", camp, ep.directMomo(env)));
   const bulkId = crypto.randomUUID();
   const ref = bulkReference();
   const results = await env.APP_DB.batch([
     env.APP_DB.prepare(
-      `INSERT INTO camp_bulk_payments (id, camp_id, reference, paid_by, note, amount_pesewas, fee_pesewas, charged_pesewas)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(bulkId, campId, ref, paidBy, note, amount, fee, amount + fee),
+      `INSERT INTO camp_bulk_payments (id, camp_id, reference, paid_by, note, amount_pesewas, fee_pesewas, charged_pesewas, provider)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(bulkId, campId, ref, paidBy, note, amount, fee, amount + fee, PROVIDER),
     ...owing.map((r, i) =>
       env.APP_DB.prepare(
-        `INSERT INTO camp_payments (id, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, bulk_id, payer_name)
-         SELECT ?, ?, ?, ?, 0, ?, ?, ?
+        `INSERT INTO camp_payments (id, registration_id, reference, amount_pesewas, fee_pesewas, charged_pesewas, bulk_id, payer_name, provider)
+         SELECT ?, ?, ?, ?, 0, ?, ?, ?, ?
          WHERE NOT EXISTS (SELECT 1 FROM camp_payments WHERE registration_id = ? AND status = 'pending')
            AND ? = (SELECT price_pesewas - paid_pesewas FROM camp_registrations WHERE id = ? AND status <> 'cancelled')`,
-      ).bind(crypto.randomUUID(), r.id, `${ref}-${i + 1}`, r.balance, r.balance, bulkId, note || paidBy, r.id, r.balance, r.id),
+      ).bind(crypto.randomUUID(), r.id, `${ref}-${i + 1}`, r.balance, r.balance, bulkId, note || paidBy, PROVIDER, r.id, r.balance, r.id),
     ),
   ]);
   if (results.slice(1).some((r) => r.meta.changes !== 1)) {
@@ -658,29 +789,22 @@ export async function bulkInit(request: Request, env: AppEnv) {
     throw new HttpError(409, "Someone's balance changed just now. Refresh and try again.");
   }
 
-  const init = await paystack<{ authorization_url?: string }>(env, "/transaction/initialize", {
-    method: "POST",
-    body: JSON.stringify({
+  const opened = await open(
+    env,
+    { table: "camp_bulk_payments", id: bulkId, reference: ref, charged: amount + fee },
+    { method: "card", momo: null },
+    callbackUrl,
+    {
+      name: paidBy.includes("@") ? paidBy.split("@")[0] : paidBy,
       email,
-      amount: amount + fee,
-      currency: "GHS",
-      reference: ref,
-      callback_url: callbackUrl,
-      metadata: { bulk_id: bulkId, people: owing.length },
-    }),
-  });
-  if (!init.ok || !init.data?.authorization_url) {
-    await env.APP_DB.batch([
-      env.APP_DB.prepare("UPDATE camp_payments SET status = 'failed', flag = 'init_failed', checked_at = ? WHERE bulk_id = ?").bind(nowIso(), bulkId),
-      env.APP_DB.prepare("UPDATE camp_bulk_payments SET status = 'failed', flag = 'init_failed', checked_at = ?, raw_json = ? WHERE id = ?")
-        .bind(nowIso(), JSON.stringify({ message: init.message }), bulkId),
-    ]);
-    throw new HttpError(502, "Paystack couldn't start the payment. Please try again.");
-  }
-  await env.APP_DB.prepare("UPDATE camp_bulk_payments SET checkout_url = ? WHERE id = ?").bind(init.data.authorization_url, bulkId).run();
+      phone: "",
+      description: `${camp.name}: ${owing.length} ${owing.length === 1 ? "person" : "people"}${note ? ` (${note})` : ""}`,
+    },
+    bulkId,
+  );
   return json({
     reference: ref,
-    authorization_url: init.data.authorization_url,
+    authorization_url: opened.url,
     people: owing.length,
     amount_pesewas: amount,
     fee_pesewas: fee,
@@ -689,10 +813,10 @@ export async function bulkInit(request: Request, env: AppEnv) {
 }
 
 /**
- * "Cancel it" on a payment that's still processing. Asks Paystack first: if
+ * "Cancel it" on a payment that's still processing. Asks expressPay first: if
  * it was paid it's credited; if nobody finished the checkout it's given up,
  * so a new payment can start; if mobile money is still waiting for approval
- * on a phone it stays as it is. Never cancels a payment Paystack might
+ * on a phone it stays as it is. Never cancels a payment expressPay might
  * still take.
  */
 export async function payCancel(request: Request, env: AppEnv) {
@@ -723,72 +847,4 @@ export async function bulkCheck(request: Request, env: AppEnv) {
   const status = bulk.status === "pending" && !recent ? await settleBulk(env, bulk) : bulk.status;
   const shares = await sharesOf(env, bulk.id);
   return json({ status, people: shares.length, credited: shares.filter((p) => p.status === "success").length });
-}
-
-// ─── Refunds through Paystack ────────────────────────────────────────────────
-
-type Paid = Payment & { refunded: number; paystack_reference: string };
-
-/**
- * Sends money back through Paystack's refund API, newest payment first, and
- * records each refund (which lowers what the person has paid). Paystack fees
- * are never refunded: only the part of a payment that counted towards the
- * balance can come back. The Next server has checked the coordinator role.
- */
-export async function refund(request: Request, env: AppEnv) {
-  const body = await readJson<{ registration_id?: unknown; amount_pesewas?: unknown; actor?: unknown; note?: unknown; request_id?: unknown }>(request);
-  const registrationId = typeof body.registration_id === "string" && UUID.test(body.registration_id) ? body.registration_id : null;
-  const actor = typeof body.actor === "string" ? body.actor.slice(0, 254) : "";
-  const note = typeof body.note === "string" ? body.note.trim().slice(0, 300) : "";
-  const requestId = typeof body.request_id === "string" && UUID.test(body.request_id) ? body.request_id : null;
-  const amount = body.amount_pesewas;
-  if (!registrationId || !actor) throw new HttpError(400, "registration_id and actor required");
-  if (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount < 1) throw new HttpError(400, "Enter the amount to refund.");
-
-  const reg = await env.APP_DB.prepare("SELECT camp_id, paid_pesewas FROM camp_registrations WHERE id = ?")
-    .bind(registrationId)
-    .first<{ camp_id: string; paid_pesewas: number }>();
-  if (!reg) throw new HttpError(404, "registration not found");
-  if (amount > reg.paid_pesewas) throw new HttpError(400, "That's more than they've paid.");
-
-  const { results } = await env.APP_DB.prepare(
-    `SELECT p.*, COALESCE(b.reference, p.reference) AS paystack_reference,
-            (SELECT COALESCE(SUM(f.amount_pesewas), 0) FROM camp_refunds f WHERE f.payment_id = p.id) AS refunded
-     FROM camp_payments p LEFT JOIN camp_bulk_payments b ON b.id = p.bulk_id
-     WHERE p.registration_id = ? AND p.status = 'success' ORDER BY p.paid_at DESC, p.created_at DESC`,
-  )
-    .bind(registrationId)
-    .all<Paid>();
-
-  let left = amount;
-  let sent = 0;
-  for (const p of results ?? []) {
-    if (left <= 0) break;
-    const take = Math.min(left, p.amount_pesewas - p.refunded);
-    if (take <= 0) continue;
-    const res = await paystack<{ id?: number | string; status?: string }>(env, "/refund", {
-      method: "POST",
-      body: JSON.stringify({ transaction: p.paystack_reference, amount: take, currency: p.currency, merchant_note: note || "Camp refund" }),
-    });
-    if (!res.ok) {
-      if (sent === 0) throw new HttpError(502, `Paystack refused the refund: ${res.message || "please try again"}.`);
-      break;
-    }
-    const id = crypto.randomUUID();
-    await env.APP_DB.batch([
-      env.APP_DB.prepare(
-        `INSERT INTO camp_refunds (id, registration_id, amount_pesewas, reference, note, recorded_by, payment_id, request_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, registrationId, take, String(res.data?.id ?? ""), note, actor, p.id, requestId),
-      env.APP_DB.prepare(
-        `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, after_json)
-         VALUES (?, ?, 'registration.refund', 'registration', ?, ?)`,
-      ).bind(reg.camp_id, actor, registrationId, JSON.stringify({ refund_id: id, amount_pesewas: take, via: "paystack", payment: p.reference })),
-      refreshRegistration(env, registrationId),
-    ]);
-    sent += take;
-    left -= take;
-  }
-  if (sent === 0) throw new HttpError(409, "There's nothing left on Paystack to refund for this person.");
-  return json({ refunded_pesewas: sent, short_pesewas: amount - sent });
 }

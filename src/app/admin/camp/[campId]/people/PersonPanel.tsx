@@ -118,11 +118,15 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
         <Refund
           paid={data.person.paid_pesewas}
           name={data.person.full_name}
+          phone={data.person.phone}
           pending={pending}
           error={error}
           onCancel={() => setMode("view")}
-          onSend={(amount, note) =>
-            act(() => refundPersonAction(campId, data.person.id, amount, note), (r: { refunded_pesewas: number }) => `Refunded ${formatCedis(r.refunded_pesewas)}`)
+          onSend={(amount, reference, note) =>
+            act(
+              () => refundPersonAction(campId, data.person.id, amount, reference, note),
+              (r: { refunded_pesewas: number; warning: string | null }) => r.warning ?? `Recorded a refund of ${formatCedis(r.refunded_pesewas)}`,
+            )
           }
         />
       ) : (
@@ -540,17 +544,45 @@ function RoomChoice({ id, label, note, checked, onPick }: { id: string; label: s
   );
 }
 
-function Refund({ paid, name, pending, error, onCancel, onSend }: { paid: number; name: string; pending: boolean; error: string; onCancel: () => void; onSend: (amount: string, note: string) => void }) {
+/**
+ * expressPay has no refund API: the coordinator sends the money back by MoMo
+ * or bank first, then records it here with the transaction reference.
+ */
+function Refund({
+  paid,
+  name,
+  phone,
+  pending,
+  error,
+  onCancel,
+  onSend,
+}: {
+  paid: number;
+  name: string;
+  phone: string;
+  pending: boolean;
+  error: string;
+  onCancel: () => void;
+  onSend: (amount: string, reference: string, note: string) => void;
+}) {
   const [amount, setAmount] = useState(pesewasToCedisInput(paid));
+  const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const first = name.split(" ")[0];
   return (
     <div className="flex flex-col gap-4">
-      <Field label="Amount" hint={`Up to ${formatCedis(paid)}. Paystack fees aren't refunded.`}>
+      <p className="rounded-[10px] bg-stone-canvas p-4 text-sm leading-relaxed">
+        Send the money to {first} yourself first, by MoMo to <span className="tabular-nums">{ghanaPhone(phone)}</span> or by bank. Then record it here so their balance is right.
+      </p>
+      <Field label="Amount sent back" hint={`Up to ${formatCedis(paid)}. The payment fee isn't refunded.`}>
         <span className="relative flex">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-warm-gray">GHS</span>
           <input inputMode="decimal" className={`${inputClass} pl-12 text-base tabular-nums`} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </span>
+      </Field>
+      <Field label="Reference" hint="The MoMo or bank transaction ID, so it can be traced.">
+        <input required className={inputClass} value={reference} onChange={(e) => setReference(e.target.value)} maxLength={100} autoComplete="off" />
       </Field>
       <Field label="Note (optional)">
         <input className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
@@ -558,21 +590,21 @@ function Refund({ paid, name, pending, error, onCancel, onSend }: { paid: number
       <ErrorText>{error}</ErrorText>
       {confirming ? (
         <InlineConfirm
-          question={`Send GHS ${amount} back to ${name.split(" ")[0]}?`}
-          detail="Through Paystack, to the MoMo or card they used. Can't be undone."
-          confirmLabel="Yes, refund"
+          question={`Record GHS ${amount} sent back to ${first}?`}
+          detail="What they've paid goes down by this much. Can't be undone."
+          confirmLabel="Yes, record it"
           primary
           pending={pending}
           onCancel={() => setConfirming(false)}
-          onConfirm={() => onSend(amount, note)}
+          onConfirm={() => onSend(amount, reference, note)}
         />
       ) : (
         <div className="flex gap-2">
           <button type="button" onClick={onCancel} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
             Cancel
           </button>
-          <button type="button" onClick={() => setConfirming(true)} className={`${primaryButtonClass} flex-1`}>
-            Refund GHS {amount}
+          <button type="button" disabled={reference.trim().length < 3} onClick={() => setConfirming(true)} className={`${primaryButtonClass} flex-1`}>
+            Record refund
           </button>
         </div>
       )}

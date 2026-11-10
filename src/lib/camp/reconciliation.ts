@@ -1,129 +1,69 @@
-import { post, query } from "@/lib/cf";
+import { query } from "@/lib/cf";
 import { checkId, getCamp } from "./camps";
-import { CampError, type PaymentStatus } from "./types";
+import { askExpressPay } from "./payments";
+import { addReports, CHECK_CHUNK, CHECK_DAYS, compare, emptyReport, type OurPayment, type Reconciliation } from "./reconciliation-shared";
+import { CampError } from "./types";
+
+export { addReports, CHECK_CHUNK, CHECK_DAYS, compare, emptyReport, type Reconciliation, type ReconciliationProblem } from "./reconciliation-shared";
 
 /**
- * The pilot's acceptance check: every camp payment the app knows about
- * against Paystack's own transaction list, one by one. "Reconciles exactly"
- * means `problems` is empty. Read-only on both sides.
+ * "Check all with expressPay": every camp payment from the last 30 days
+ * against what expressPay says about it, one by one. expressPay has no way to
+ * list transactions, but every camp payment starts in Commune with our
+ * reference and expressPay's token, so asking about each one finds the cases
+ * that matter: paid there but not credited here, credited here but not paid
+ * there, and the wrong amount. Read-only on both sides; the 10-minute check
+ * and the notice do the crediting.
  */
 
-type PaystackTx = { reference: string; amount: number; currency: string; status: string; paid_at: string | null };
-
-type OurPayment = {
-  reference: string;
-  full_name: string;
-  amount_pesewas: number;
-  charged_pesewas: number;
-  status: PaymentStatus;
-  flag: string | null;
-};
-
-export type ReconciliationProblem = {
-  reference: string;
-  full_name: string | null;
-  ours: string;
-  paystack: string;
-  issue: string;
-};
-
-export type Reconciliation = {
-  checked: number;
-  matched: number;
-  /** Paid on Paystack after the balance was covered: known, waiting for a refund. */
-  awaitingRefund: number;
-  problems: ReconciliationProblem[];
-  /** False if Paystack had more pages than we read; widen the check before trusting it. */
-  complete: boolean;
-};
-
-const describe = (tx: PaystackTx | undefined) => (tx ? `${tx.status}, ${tx.currency} ${(tx.amount / 100).toFixed(2)}` : "not found");
-
-export async function reconcileWithPaystack(campId: string, now = new Date()): Promise<Reconciliation> {
+/**
+ * The camp's expressPay payments from the last 30 days, oldest first. A
+ * coordinator's payment for several people is one expressPay payment, so the
+ * bulk row is checked, not its shares. Sample payments never went anywhere.
+ */
+export async function paymentsToCheck(campId: string, now = new Date()): Promise<string[]> {
   const camp = await getCamp(checkId(campId, "camp"));
   if (!camp) throw new CampError("Unknown camp.");
-
-  const [ours, { transactions, complete }] = await Promise.all([
-    query<OurPayment>(
-      "app",
-      `SELECT * FROM (
-         SELECT p.reference, r.full_name, p.amount_pesewas, p.charged_pesewas, p.status, p.flag, p.created_at
-         FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
-         -- Sample payments (test camps) never went through Paystack, so there's nothing to check them against.
-         -- A coordinator's payment for several people is one Paystack transaction: compare the bulk row, not its shares.
-         WHERE r.camp_id = ?1 AND p.provider <> 'sample' AND p.bulk_id IS NULL
-         UNION ALL
-         SELECT b.reference, (SELECT COUNT(*) FROM camp_payments s WHERE s.bulk_id = b.id) || ' people, paid by ' || b.paid_by,
-           b.amount_pesewas, b.charged_pesewas, b.status, b.flag, b.created_at
-         FROM camp_bulk_payments b WHERE b.camp_id = ?1)
-       ORDER BY created_at`,
-      [camp.id],
-    ),
-    post<{ transactions: PaystackTx[]; complete: boolean }>("/v1/admin/camp/paystack-transactions", {
-      // A day either side, for time zones and late payments.
-      from: new Date(Date.parse(camp.created_at) - 86_400_000).toISOString(),
-      to: new Date(now.getTime() + 86_400_000).toISOString(),
-    }),
-  ]);
-
-  const paystack = new Map(transactions.map((t) => [t.reference, t]));
-  const problems: ReconciliationProblem[] = [];
-  let matched = 0;
-  let awaitingRefund = 0;
-
-  for (const p of ours) {
-    const tx = paystack.get(p.reference);
-    paystack.delete(p.reference);
-    const paidThere = tx?.status === "success";
-    const rightAmount = tx?.amount === p.charged_pesewas && tx?.currency === "GHS";
-    const problem = (issue: string) =>
-      problems.push({
-        reference: p.reference,
-        full_name: p.full_name,
-        ours: `${p.status}${p.flag ? ` (${p.flag.replace("_", " ")})` : ""}, GHS ${(p.charged_pesewas / 100).toFixed(2)}`,
-        paystack: describe(tx),
-        issue,
-      });
-
-    if (p.status === "success") {
-      if (!paidThere) problem("Credited here but not paid on Paystack.");
-      else if (!rightAmount) problem("Credited here, but Paystack's amount differs.");
-      else matched++;
-    } else if (paidThere) {
-      if (p.flag === "over_balance") awaitingRefund++;
-      else if (p.flag === "amount_mismatch") problem("Paid on Paystack with the wrong amount: refund it.");
-      else problem("Paid on Paystack but not credited here.");
-    } else {
-      matched++;
-    }
-  }
-
-  // Camp references Paystack has that no camp here does.
-  if (paystack.size) {
-    const known = new Set(
-      (
-        await query<{ reference: string }>(
-          "app",
-          `SELECT reference FROM camp_payments WHERE reference IN (SELECT value FROM json_each(?1))
-           UNION SELECT reference FROM camp_bulk_payments WHERE reference IN (SELECT value FROM json_each(?1))`,
-          [JSON.stringify([...paystack.keys()])],
-        )
-      ).map((r) => r.reference),
-    );
-    for (const tx of paystack.values()) {
-      if (known.has(tx.reference) || tx.status !== "success") continue;
-      problems.push({ reference: tx.reference, full_name: null, ours: "not found", paystack: describe(tx), issue: "Paid on Paystack but unknown here." });
-    }
-  }
-
-  // Shares of a paid bulk checkout that no longer fitted a balance: known, waiting for a refund.
-  const [shares] = await query<{ n: number }>(
+  const since = new Date(now.getTime() - CHECK_DAYS * 86_400_000).toISOString();
+  const rows = await query<{ reference: string }>(
     "app",
-    `SELECT COUNT(*) AS n FROM camp_payments p JOIN camp_bulk_payments b ON b.id = p.bulk_id
-     WHERE b.camp_id = ? AND b.status = 'success' AND p.flag = 'over_balance'`,
-    [camp.id],
+    `SELECT reference FROM (
+       SELECT p.reference, p.created_at FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+       WHERE r.camp_id = ?1 AND p.provider = 'expresspay' AND p.bulk_id IS NULL AND p.created_at >= ?2
+       UNION ALL
+       SELECT b.reference, b.created_at FROM camp_bulk_payments b WHERE b.camp_id = ?1 AND b.provider = 'expresspay' AND b.created_at >= ?2)
+     ORDER BY created_at`,
+    [camp.id, since],
   );
-  awaitingRefund += shares?.n ?? 0;
+  return rows.map((r) => r.reference);
+}
 
-  return { checked: ours.length, matched, awaitingRefund, problems, complete };
+/** Checks up to CHECK_CHUNK of this camp's payments. References from another camp are ignored. */
+export async function checkChunk(campId: string, references: string[]): Promise<Reconciliation> {
+  const refs = [...new Set(references.map(String))].filter((r) => /^CAMP-[0-9A-Z-]{6,40}$/.test(r)).slice(0, CHECK_CHUNK);
+  const report = emptyReport();
+  if (!refs.length) return report;
+  const ours = await query<OurPayment>(
+    "app",
+    `SELECT p.reference, r.full_name, p.charged_pesewas, p.status, p.flag
+     FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+     WHERE r.camp_id = ?1 AND p.bulk_id IS NULL AND p.reference IN (SELECT value FROM json_each(?2))
+     UNION ALL
+     SELECT b.reference, (SELECT COUNT(*) FROM camp_payments s WHERE s.bulk_id = b.id) || ' people, paid by ' || b.paid_by,
+       b.charged_pesewas, b.status, b.flag
+     FROM camp_bulk_payments b WHERE b.camp_id = ?1 AND b.reference IN (SELECT value FROM json_each(?2))`,
+    [checkId(campId, "camp"), JSON.stringify(refs)],
+  );
+  if (!ours.length) return report;
+  const answers = new Map((await askExpressPay(ours.map((p) => p.reference))).map((a) => [a.reference, a]));
+  for (const p of ours) compare(p, answers.get(p.reference), report);
+  return report;
+}
+
+/** The whole check in one go (tests, scripts). The Money page runs it a chunk at a time to show progress. */
+export async function checkWithExpressPay(campId: string, now = new Date()): Promise<Reconciliation> {
+  const refs = await paymentsToCheck(campId, now);
+  let report = emptyReport();
+  for (let i = 0; i < refs.length; i += CHECK_CHUNK) report = addReports(report, await checkChunk(campId, refs.slice(i, i + CHECK_CHUNK)));
+  return report;
 }

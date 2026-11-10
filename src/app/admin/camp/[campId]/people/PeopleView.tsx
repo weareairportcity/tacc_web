@@ -798,7 +798,7 @@ const EMAIL_KEY = "commune.payEmail";
 
 function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[]; leader: boolean }) {
   const [note, setNote] = useState("");
-  // Leaders have no email on Commune, and Paystack sends its receipt to one. Remembered on this phone.
+  // Leaders have no email on Commune, and expressPay sends its receipt to one. Remembered on this phone.
   const [email, setEmail] = useState("");
   useEffect(() => {
     if (!leader || !open) return;
@@ -818,7 +818,7 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
       open={open}
       onClose={onClose}
       title={`Pay for ${people.length} ${people.length === 1 ? "person" : "people"}`}
-      subtitle="One Paystack payment clears every balance."
+      subtitle="One payment clears every balance."
       footer={
         <button
           type="button"
@@ -829,7 +829,7 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
               setError("");
               setBlockers(null);
               if (leader) {
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Enter your email for the Paystack receipt.");
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Enter your email for the receipt.");
                 try {
                   localStorage.setItem(EMAIL_KEY, email.trim());
                 } catch {}
@@ -846,7 +846,7 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
           }
           className={`${primaryButtonClass} h-[52px] w-full`}
         >
-          <Busy pending={pending} text="Opening Paystack…">{`Pay ${formatCedis(total)} + fee`}</Busy>
+          <Busy pending={pending} text="Opening expressPay…">{`Pay ${formatCedis(total)} + fee`}</Busy>
         </button>
       }
     >
@@ -862,14 +862,14 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
         <span>Balances</span>
         <span>{formatCedis(total)}</span>
       </p>
-      <p className="-mt-3 text-[13px] text-warm-gray">Paystack adds its fee on the next page.</p>
+      <p className="-mt-3 text-[13px] text-warm-gray">The fee is added on top. You&apos;ll see the total on expressPay&apos;s page, MoMo or card.</p>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Note (optional)
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Zion fellowship fund" className={inputClass} />
       </label>
       {leader && (
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Your email, for the Paystack receipt
+          Your email, for the receipt
           <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
         </label>
       )}

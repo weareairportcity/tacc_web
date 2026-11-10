@@ -1,6 +1,6 @@
 import { sendDailySummaries } from "./camp-summary";
 import { leaderCodeCheck, leaderCodeNew, leaderCodeOff } from "./camp-leaders";
-import { bulkCheck, payCancel, bulkInit, payCheck, payInit, paystackTransactions, postReconcile, refund } from "./camp";
+import { bulkCheck, payCancel, bulkInit, payCheck, payInit, payOptions, postReconcile, providerCheck } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms, sendSms } from "./sms";
@@ -191,16 +191,16 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return payCheck(request, env);
     case "/v1/admin/camp/reconcile":
       return postReconcile(request, env);
-    case "/v1/admin/camp/paystack-transactions":
-      return paystackTransactions(request, env);
+    case "/v1/admin/camp/provider-check":
+      return providerCheck(request, env);
+    case "/v1/admin/camp/pay-options":
+      return payOptions(env);
     case "/v1/admin/camp/bulk-init":
       return bulkInit(request, env);
     case "/v1/admin/camp/bulk-check":
       return bulkCheck(request, env);
     case "/v1/admin/camp/pay-cancel":
       return payCancel(request, env);
-    case "/v1/admin/camp/refund":
-      return refund(request, env);
     case "/v1/admin/camp/leader-code/new":
       return leaderCodeNew(request, env);
     case "/v1/admin/camp/leader-code/check":

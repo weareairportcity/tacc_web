@@ -44,7 +44,7 @@ export default async function CancelPage({ params }: { params: Promise<{ slug: s
             <strong className="font-semibold">Refunds are sent to the number that paid</strong>{" "}(or the card), in 1 to 5 working days. If a friend paid for you, it goes back to
             them.
           </li>
-          <li>The Paystack fee you paid can&apos;t be given back.</li>
+          <li>The payment fee you paid can&apos;t be given back.</li>
         </ul>
       </section>
     </div>

@@ -344,7 +344,7 @@ export type Dashboard = {
     expected: number;
     collected: number;
     outstanding: number;
-    /** Still held for cancelled registrations: refund it in Paystack, then record it. */
+    /** Still held for cancelled registrations: send it back by hand, then record it. */
     paidByCancelled: number;
     refunded: number;
     fees: number;
@@ -594,7 +594,8 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
   const where: string[] = ["(l.camp_id = ? OR (l.camp_id IS NULL AND l.actor LIKE 'leader:%'))"];
   const params: unknown[] = [campId];
   if (filters.who === "attendees") where.push("l.actor LIKE 'attendee:%'");
-  else if (filters.who === "paystack") where.push("l.actor = 'paystack'");
+  // "Payments": expressPay now, and Paystack's entries from before the switch.
+  else if (filters.who === "paystack") where.push("l.actor IN ('expresspay', 'paystack')");
   else if (filters.who) {
     where.push("l.actor = ?");
     params.push(filters.who);

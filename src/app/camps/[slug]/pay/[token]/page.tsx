@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCedis } from "@/lib/camp/money";
+import { payOptions } from "@/lib/camp/payments";
 import { getRegistration } from "@/lib/camp/registrations";
 import { readToken } from "@/lib/camp/tokens";
 import { CampBanner } from "@/components/camp/photos";
@@ -19,6 +20,7 @@ export default async function PayLinkPage({ params }: { params: Promise<{ slug: 
   if (!camp || !reg || reg.camp_id !== camp.id) notFound();
   const first = reg.full_name.split(" ")[0];
   const balance = reg.price_pesewas - reg.paid_pesewas;
+  const payWays = reg.status !== "cancelled" && balance > 0 ? await payOptions() : { momo_direct: false };
 
   return (
     <section className="cm-rise mt-2 flex flex-col overflow-hidden rounded-2xl bg-white shadow-seline-hero">
@@ -50,7 +52,7 @@ export default async function PayLinkPage({ params }: { params: Promise<{ slug: 
                 <dd>{formatCedis(balance)}</dd>
               </div>
             </dl>
-            <PayForSomeone slug={camp.slug} token={token} balance={balance} feeBps={camp.fee_bps} />
+            <PayForSomeone slug={camp.slug} token={token} balance={balance} fees={camp} momoDirect={payWays.momo_direct} />
           </>
         )}
       </div>

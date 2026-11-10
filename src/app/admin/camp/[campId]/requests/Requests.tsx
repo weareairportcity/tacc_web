@@ -75,7 +75,7 @@ export function Requests({ campId, requests, done, open: initialOpen }: { campId
           })}
         </ul>
       )}
-      <p className="text-[13px] text-warm-gray">Refunds are decided case by case. Paystack fees aren&apos;t refunded.</p>
+      <p className="text-[13px] text-warm-gray">Refunds are decided case by case. Send the money by MoMo or bank yourself, then record it here with its reference. The payment fee isn&apos;t refunded.</p>
 
       <Sheet open={!!current} onClose={() => setOpen(null)} title={current?.full_name ?? ""} subtitle={current ? line(current) : undefined}>
         {current && <Decide key={current.id} campId={campId} request={current} onDone={() => setOpen(null)} />}
@@ -88,10 +88,14 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
   const toast = useToast();
   const [value, setValue] = useState(pesewasToCedisInput(Math.min(r.amount_pesewas ?? 0, r.paid_pesewas)));
   const [note, setNote] = useState("");
+  const [reference, setReference] = useState("");
   const [step, setStep] = useState<"view" | "approve" | "decline">("view");
   const [error, setError] = useState("");
   const [pending, start] = useOneAtATime();
   const overpaid = r.kind === "room_change" ? r.paid_pesewas - (r.to_price_pesewas ?? 0) : 0;
+  // A refund, or a downgrade they've overpaid for: money goes back by hand first, then it's recorded here.
+  const sendsMoney = r.kind === "refund" || overpaid > 0;
+  const first = r.full_name.split(" ")[0];
 
   const finish = (message: string) => {
     toast(message);
@@ -131,12 +135,22 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
         </p>
       ) : (
         <>
+          {sendsMoney && (
+            <p className="rounded-[10px] bg-stone-canvas p-4 text-sm leading-relaxed">
+              To approve, send {r.kind === "refund" ? "the refund" : formatCedis(overpaid)} to {first} first, by MoMo or bank. Then enter the transaction reference.
+            </p>
+          )}
           {r.kind === "refund" && (
-            <Field label="Amount to refund" hint={`Up to ${formatCedis(r.paid_pesewas)}.`}>
+            <Field label="Amount sent back" hint={`Up to ${formatCedis(r.paid_pesewas)}.`}>
               <span className="relative flex">
                 <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-warm-gray">GHS</span>
                 <input inputMode="decimal" className={`${inputClass} pl-12 text-base tabular-nums`} value={value} onChange={(e) => setValue(e.target.value)} />
               </span>
+            </Field>
+          )}
+          {sendsMoney && (
+            <Field label="Reference" hint="The MoMo or bank transaction ID, so it can be traced.">
+              <input className={inputClass} value={reference} onChange={(e) => setReference(e.target.value)} maxLength={100} autoComplete="off" />
             </Field>
           )}
           <Field label="Note to them (optional)">
@@ -146,15 +160,13 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
           {step === "approve" ? (
             <InlineConfirm
               question={
-                r.kind === "refund"
-                  ? `Send GHS ${value} to ${r.full_name.split(" ")[0]}?`
-                  : `Move ${r.full_name.split(" ")[0]} to ${r.to_room_type_name}?`
+                r.kind === "refund" ? `Record GHS ${value} sent back to ${first}?` : `Move ${first} to ${r.to_room_type_name}?`
               }
               detail={
                 r.kind === "refund"
-                  ? "Through Paystack. Can't be undone."
+                  ? "What they've paid goes down by this much. Can't be undone."
                   : overpaid > 0
-                    ? `${formatCedis(overpaid)} goes back through Paystack first. They leave their group and room.`
+                    ? `The ${formatCedis(overpaid)} you sent back is recorded first. They leave their group and room.`
                     : "They leave their group and room."
               }
               confirmLabel="Yes"
@@ -164,12 +176,12 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
               onConfirm={() =>
                 start(async () => {
                   setError("");
-                  const res = r.kind === "refund" ? await approveRefundAction(r.id, value, note) : await approveRoomChangeAction(r.id, note);
+                  const res = r.kind === "refund" ? await approveRefundAction(r.id, value, note, reference) : await approveRoomChangeAction(r.id, note, reference);
                   if (!res.ok) {
                     setStep("view");
                     return setError(res.error);
                   }
-                  finish(r.kind === "refund" ? `Refunded ${r.full_name.split(" ")[0]}` : `${r.full_name.split(" ")[0]} moved to ${r.to_room_type_name}`);
+                  finish(r.kind === "refund" ? `Recorded ${first}'s refund` : `${first} moved to ${r.to_room_type_name}`);
                 })
               }
             />
@@ -195,8 +207,8 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
               <button type="button" onClick={() => setStep("decline")} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
                 Decline
               </button>
-              <button type="button" onClick={() => setStep("approve")} className={`${primaryButtonClass} h-12 flex-1`}>
-                {r.kind === "refund" ? `Refund GHS ${value}` : "Approve"}
+              <button type="button" disabled={sendsMoney && reference.trim().length < 3} onClick={() => setStep("approve")} className={`${primaryButtonClass} h-12 flex-1`}>
+                {r.kind === "refund" ? "Record refund" : "Approve"}
               </button>
             </div>
           )}

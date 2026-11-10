@@ -23,8 +23,13 @@ export type Camp = {
   registration_closes_on: string;
   payment_due_on: string;
   roommate_deadline_on: string;
-  /** Paystack's fee, passed on to attendees, in basis points (195 = 1.95%). */
+  /**
+   * expressPay's fees, passed on to the payer, in basis points (195 = 1.95%).
+   * fee_bps is for expressPay's own page (card, or MoMo picked there);
+   * momo_fee_bps for MoMo charged from Commune. See rateFor in money.ts.
+   */
   fee_bps: number;
+  momo_fee_bps: number;
   status: CampStatus;
   /** Images on R2 (media.theairportcitychurch.com), each with its credit line. Empty means none. */
   logo_url: string;
@@ -44,7 +49,10 @@ export const CAMP_PHOTOS = ["logo", "banner", "venue_photo"] as const;
 export type CampPhoto = (typeof CAMP_PHOTOS)[number];
 
 /** What a coordinator fills in; id, slug and created_at are set on save. */
-export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "help_phone" | `${CampPhoto}_url` | `${CampPhoto}_credit`>;
+export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "help_phone" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
+  /** Defaults to fee_bps. */
+  momo_fee_bps?: number;
+};
 
 export type RoomType = {
   id: string;
@@ -197,7 +205,7 @@ export type Payment = {
   bulk_id: string | null;
   /** Who paid through a pay link, or the coordinator's note on a bulk payment. */
   payer_name: string;
-  /** Paystack's checkout, kept while pending so it can be resumed. */
+  /** expressPay's checkout page, kept while pending so it can be resumed. */
   checkout_url?: string | null;
 };
 

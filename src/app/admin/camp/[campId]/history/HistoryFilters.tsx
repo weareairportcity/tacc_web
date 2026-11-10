@@ -25,7 +25,7 @@ export function HistoryFilters({ actors, kinds }: { actors: string[]; kinds: [st
   );
   return (
     <div className="flex flex-wrap gap-2">
-      {select("who", "Who", [["", "Anyone"], ["attendees", "Attendees"], ["paystack", "Paystack"], ...actors.map((a) => [a, a.split("@")[0]] as [string, string])])}
+      {select("who", "Who", [["", "Anyone"], ["attendees", "Attendees"], ["paystack", "Payments"], ...actors.map((a) => [a, a.split("@")[0]] as [string, string])])}
       {select("what", "What", [["", "Everything"], ...kinds])}
       {select("when", "When", [["", "Any time"], ["1", "Today"], ["7", "Last 7 days"], ["30", "Last 30 days"]])}
     </div>

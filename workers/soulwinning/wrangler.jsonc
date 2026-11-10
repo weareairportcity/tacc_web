@@ -51,5 +51,8 @@
     "ALLOWED_ORIGINS": "https://soulwinning.theairportcitychurch.com,https://www.theairportcitychurch.com,https://theairportcitychurch.com,http://localhost:3000,http://127.0.0.1:3000,http://soulwinning.localhost:3000"
   }
   // Secrets (wrangler secret put): ADMIN_SECRET, PHOTO_SIGNING_SECRET,
-  // MNOTIFY_API_KEY, MNOTIFY_SENDER_ID, PAYSTACK_SECRET_KEY
+  // MNOTIFY_API_KEY, MNOTIFY_SENDER_ID, EXPRESSPAY_MERCHANT_ID,
+  // EXPRESSPAY_API_KEY, EXPRESSPAY_NOTIFY_URL (the workers.dev address +
+  // /v1/camp/ep), and EXPRESSPAY_API_URL / EXPRESSPAY_DIRECT when needed
+  // (unset = live, no Direct MoMo). See src/expresspay.ts.
 }
