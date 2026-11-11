@@ -51,8 +51,8 @@ describe("fees", () => {
     const checkout = await pay(id, 20000);
     expect(checkout).toMatchObject({ amount_pesewas: 20000, fee_pesewas: 398, charged_pesewas: 20398 });
     expect(orders.get(checkout.reference)).toMatchObject({ amount: 20398, currency: "GHS", firstname: "Ama" });
-    // No email: expressPay needs a different one per customer, and families share.
-    expect(orders.get(checkout.reference)?.email).toBeNull();
+    // expressPay needs a different email per customer; every test attendee shares one, so it's made from the registration.
+    expect(orders.get(checkout.reference)?.email).toBe(`r-${id.replace(/-/g, "").slice(0, 16)}@commune.theairportcitychurch.com`);
     // The payer goes to expressPay's page for this token, and comes back to us.
     expect(checkout.authorization_url).toBe(`http://127.0.0.1:8792/expresspay/checkout.php?token=${encodeURIComponent(orders.get(checkout.reference)!.token)}`);
     expect(orders.get(checkout.reference)?.redirect).toBe(CALLBACK);
@@ -60,6 +60,14 @@ describe("fees", () => {
     for (const amount of [100, 18000, 33333, 60000]) {
       expect((await pay(id, amount)).fee_pesewas).toBe(feeFor(amount, 195));
     }
+  });
+});
+
+describe("the email expressPay gets", () => {
+  it("is the person's own when nobody else registered with it", async () => {
+    const own = `kojo.${Date.now()}@example.com`;
+    const { id } = await registered({ email: own });
+    expect(orders.get((await pay(id, 10000)).reference)?.email).toBe(own);
   });
 });
 
@@ -462,7 +470,7 @@ describe("paying for several people", () => {
     });
     expect(checkout).toMatchObject({ people: 2, amount_pesewas: 60000 + 40000, fee_pesewas: feeFor(100000, 195) });
     expect(orders.get(checkout.reference)).toMatchObject({ amount: checkout.charged_pesewas });
-    expect(orders.get(checkout.reference)?.email).toBeNull();
+    expect(orders.get(checkout.reference)?.email).toBe(ACTOR);
 
     succeed(checkout.reference);
     expect(await checkBulkPayment(camp.id, checkout.reference)).toMatchObject({ status: "success", people: 2, credited: 2 });

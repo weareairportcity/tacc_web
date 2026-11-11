@@ -116,6 +116,8 @@ export function startFakeExpressPay(): Promise<Server> {
         const reference = f.get("order-id") ?? "";
         const amount = (f.get("amount") ?? "").match(/^(\d+)\.(\d{2})$/);
         if (failSubmit || !reference || !amount || !f.get("post-url")?.startsWith("https://")) return send(200, { status: 3, message: "Invalid Request" });
+        // The live API (not the sandbox) refuses a payment without an email.
+        if (!f.get("email")) return send(200, { status: 3, message: "Invalid Request - email ()" });
         const token = `${crypto.randomUUID().replace(/-/g, "")}.${Date.now()}`;
         orders.set(reference, {
           reference,

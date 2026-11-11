@@ -395,8 +395,28 @@ async function open(
   return url;
 }
 
-const customerFor = (reg: { full_name: string; phone: string; camp_name: string }, payerName: string): ep.Customer => ({
+/** An address made from an id, on Commune's domain, for people without a unique email of their own. */
+const madeEmail = (prefix: string, id: string) => `${prefix}-${id.replace(/-/g, "").slice(0, 16)}@commune.theairportcitychurch.com`;
+
+/**
+ * The email expressPay gets for a registration: theirs if no other
+ * registration uses it (they then get expressPay's email receipt too), else
+ * one made from the registration, so two people never share one.
+ */
+async function payerEmail(env: AppEnv, registrationId: string, email: string) {
+  const own = email.trim().toLowerCase();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(own) && own.length <= 64) {
+    const others = await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM camp_registrations WHERE lower(email) = ? AND id <> ?")
+      .bind(own, registrationId)
+      .first<{ n: number }>();
+    if (!others?.n) return own;
+  }
+  return madeEmail("r", registrationId);
+}
+
+const customerFor = async (env: AppEnv, reg: { id: string; email: string; full_name: string; phone: string; camp_name: string }, payerName: string): Promise<ep.Customer> => ({
   name: payerName || reg.full_name,
+  email: await payerEmail(env, reg.id, reg.email),
   phone: reg.phone,
   description: `${reg.camp_name}: ${reg.full_name}`,
 });
@@ -423,12 +443,13 @@ export async function payInit(request: Request, env: AppEnv) {
   const method: PayMethod = body.method === "momo" ? "momo" : "card";
 
   const reg = await env.APP_DB.prepare(
-    `SELECT r.id, r.full_name, r.phone, r.price_pesewas, r.status, c.fee_bps, c.momo_fee_bps, c.status AS camp_status, c.name AS camp_name
+    `SELECT r.id, r.email, r.full_name, r.phone, r.price_pesewas, r.status, c.fee_bps, c.momo_fee_bps, c.status AS camp_status, c.name AS camp_name
      FROM camp_registrations r JOIN camps c ON c.id = r.camp_id WHERE r.id = ?`,
   )
     .bind(registrationId)
     .first<{
       id: string;
+      email: string;
       full_name: string;
       phone: string;
       price_pesewas: number;
@@ -491,7 +512,7 @@ export async function payInit(request: Request, env: AppEnv) {
     throw new HttpError(409, "Your last payment is still processing. Wait for it to finish, then try again.");
   }
 
-  const url = await open(env, { table: "camp_payments", id, reference: ref, charged: amount + fee }, callbackUrl, customerFor(reg, payerName));
+  const url = await open(env, { table: "camp_payments", id, reference: ref, charged: amount + fee }, callbackUrl, await customerFor(env, reg, payerName));
   return json({ reference: ref, authorization_url: url, amount_pesewas: amount, fee_pesewas: fee, charged_pesewas: amount + fee } satisfies Started);
 }
 
@@ -711,6 +732,8 @@ export async function bulkInit(request: Request, env: AppEnv) {
     callbackUrl,
     {
       name: paidBy.includes("@") ? paidBy.split("@")[0] : paidBy,
+      // A coordinator's own email; leaders have none on Commune.
+      email: paidBy.includes("@") && paidBy.length <= 64 ? paidBy : madeEmail("b", bulkId),
       phone: "",
       description: `${camp.name}: ${owing.length} ${owing.length === 1 ? "person" : "people"}${note ? ` (${note})` : ""}`,
     },

@@ -54,10 +54,12 @@ export function toPesewas(value: unknown): number | null {
 const SUBMIT_STATUS: Record<number, string> = { 2: "invalid credentials", 3: "invalid request", 4: "invalid IP" };
 
 /**
- * No email: expressPay needs a different email for every customer, and family
- * members often share one. Commune texts its own receipt instead.
+ * expressPay's live API refuses a payment without an email ("Invalid Request -
+ * email ()"), and each customer needs a different one. camp.ts picks it
+ * (payerEmail): the person's own when nobody else uses it, else one made from
+ * their registration.
  */
-export type Customer = { name: string; phone: string; description: string };
+export type Customer = { name: string; email: string; phone: string; description: string };
 
 /** Starts a checkout. Returns expressPay's token, or why it refused. */
 export async function submit(
@@ -75,6 +77,7 @@ export async function submit(
     const [first, ...rest] = input.customer.name.trim().split(/\s+/);
     fields.firstname = (first || "Camp").slice(0, 32);
     fields.lastname = (rest.join(" ") || "-").slice(0, 64);
+    fields.email = input.customer.email.slice(0, 64);
     if (input.customer.phone) fields.phonenumber = input.customer.phone.slice(0, 64);
     fields["order-desc"] = input.customer.description.slice(0, 256);
   }
