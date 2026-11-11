@@ -91,8 +91,11 @@ export function CheckIn({
   initialMode,
   leader,
   shirtPaidOnly,
+  shirtsOn = true,
 }: {
   campId: string;
+  /** This camp has a camp T-shirt (Settings). Off: check-in only. */
+  shirtsOn?: boolean;
   /** T-shirts only for people who've paid in full (the camp's setting). */
   shirtPaidOnly: boolean;
   counts: ScanCounts;
@@ -103,7 +106,7 @@ export function CheckIn({
   const toast = useToast();
   const stored = useSyncExternalStore(() => () => {}, savedMode, () => "checkin" as ScanMode);
   const [chosen, setChosen] = useState<ScanMode | null>(initialMode);
-  const mode = chosen ?? stored;
+  const mode: ScanMode = shirtsOn ? (chosen ?? stored) : "checkin";
   const [counts, setCounts] = useState(initial);
   // The lists load 50 at a time; this phone's own scans move people between them straight away.
   const [lists, setLists] = useState(initialLists);
@@ -359,7 +362,7 @@ export function CheckIn({
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <h1 className={`${headlineClass} text-[34px]`}>{w.title}</h1>
-        <div role="tablist" aria-label="What you're doing" className="flex gap-1 rounded-full border border-stone-border bg-white p-[3px]">
+        {shirtsOn && <div role="tablist" aria-label="What you're doing" className="flex gap-1 rounded-full border border-stone-border bg-white p-[3px]">
           {(["checkin", "shirt"] as const).map((m) => (
             <button
               key={m}
@@ -373,7 +376,7 @@ export function CheckIn({
               {m === "checkin" ? "Check-in" : "T-shirts"}
             </button>
           ))}
-        </div>
+        </div>}
       </header>
 
       <OfflineStrip online={offline.online} waiting={offline.queue.length} sending={offline.sending} problems={offline.problems} onClear={offline.clearProblems} />

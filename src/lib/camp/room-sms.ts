@@ -34,7 +34,7 @@ export function listRoomSmsPending(campId: string): Promise<Pending[]> {
 }
 
 export const roomText = (camp: Pick<Camp, "name">, firstName: string, label: string, type: string) =>
-  `Hi ${firstName}, your room at ${camp.name} is ${label} (${type}). See you there! - The Airport City Church`;
+  `Hi ${firstName}, your room at ${camp.name} is ${label} (${type}). See you at camp! - The Airport City Church`;
 
 /**
  * Sends up to MAX_PER_SEND people their room. A text that fails isn't marked

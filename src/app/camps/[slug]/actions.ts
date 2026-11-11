@@ -64,9 +64,9 @@ async function limitVisitor(name: string, perPhone: number, perAddress: number, 
 
 // No link, so each fits one SMS part; the code is what matters, so keep the text.
 const registeredText = (campName: string, name: string, code: string) =>
-  `Hi ${firstName(name)}, you're registered for ${campName}! Your sign-in code is ${formatCode(code)}. Please keep this text safe. ${SIGN_OFF}`;
+  `Hi ${firstName(name)}, you're registered for ${campName}! Your sign-in code is ${formatCode(code)}. Please keep this message, as you'll need the code to sign in. ${SIGN_OFF}`;
 const newCodeText = (campName: string, name: string, code: string) =>
-  `Hi ${firstName(name)}, here's your new sign-in code for ${campName}: ${formatCode(code)}. Your old code no longer works. ${SIGN_OFF}`;
+  `Hi ${firstName(name)}, here is your new sign-in code for ${campName}: ${formatCode(code)}. Your old code will no longer work. ${SIGN_OFF}`;
 
 /** `registered`: that phone is already registered, so the page sends them to sign in instead. */
 const NOT_SURE = "We couldn't check this was you and not a computer. Wait a moment and try again.";
@@ -293,10 +293,13 @@ export async function cancelMineAction(slug: string, reason: string, deleteDetai
   });
 }
 
-export async function deleteMyDetailsAction(slug: string) {
+/** Removing everything about them. The page asks why and confirms twice; the reason is kept in the history. */
+export async function deleteMyDetailsAction(slug: string, reason: string) {
   return run(async () => {
     const { camp, me } = await signedIn(slug);
-    await deleteMyDetails(me);
+    const why = String(reason ?? "").trim().slice(0, 300);
+    if (why.length < 3) throw new CampError("Tell us why you're leaving.");
+    await deleteMyDetails(me, why);
     await endAttendeeSession();
     revalidatePath(`/camps/${camp.slug}`, "layout");
     return null;

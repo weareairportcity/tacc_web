@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Bell, Check, EllipsisVertical, Share, Smartphone, X } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
-import { primaryButtonClass } from "@/components/camp/ui";
+import { ErrorText, primaryButtonClass } from "@/components/camp/ui";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { cn } from "@/lib/utils";
 import { usePush, type PushActions } from "./usePush";
@@ -109,11 +109,7 @@ export function NotifyPrompt({ who, actions }: { who: "attendee" | "staff"; acti
           </Step>
         </ol>
 
-        {push.error && (
-          <p role="alert" className="text-[14px] text-st-cancelled">
-            {push.error}
-          </p>
-        )}
+        <ErrorText>{push.error}</ErrorText>
 
         <div className="flex flex-col gap-2">
           {step === "install" && push.platform !== "ios" && push.installable && (

@@ -8,7 +8,7 @@ import { CampError } from "@/lib/camp/types";
 import { TEST_WORKER_URL } from "../setup/constants";
 import { checkWithExpressPay } from "@/lib/camp/reconciliation";
 import { TEST_ALERT_PHONE } from "../setup/constants";
-import { orders, sendNotice, setFailSubmit, setOrder, smsSent, startFakeExpressPay, succeed } from "../setup/expresspay";
+import { orders, refuseEmail, sendNotice, setFailSubmit, setOrder, smsSent, startFakeExpressPay, succeed } from "../setup/expresspay";
 import { ACTOR, registered } from "./helpers";
 
 // Payments end to end: src/lib/camp → local Worker → fake expressPay, with
@@ -51,8 +51,8 @@ describe("fees", () => {
     const checkout = await pay(id, 20000);
     expect(checkout).toMatchObject({ amount_pesewas: 20000, fee_pesewas: 398, charged_pesewas: 20398 });
     expect(orders.get(checkout.reference)).toMatchObject({ amount: 20398, currency: "GHS", firstname: "Ama" });
-    // expressPay needs a different email per customer; every test attendee shares one, so it's made from the registration.
-    expect(orders.get(checkout.reference)?.email).toBe(`r-${id.replace(/-/g, "").slice(0, 16)}@commune.theairportcitychurch.com`);
+    // Their own email, so expressPay's email receipt reaches them (the live API accepts a shared one).
+    expect(orders.get(checkout.reference)?.email).toBe("ama@example.com");
     // The payer goes to expressPay's page for this token, and comes back to us.
     expect(checkout.authorization_url).toBe(`http://127.0.0.1:8792/expresspay/checkout.php?token=${encodeURIComponent(orders.get(checkout.reference)!.token)}`);
     expect(orders.get(checkout.reference)?.redirect).toBe(CALLBACK);
@@ -64,10 +64,23 @@ describe("fees", () => {
 });
 
 describe("the email expressPay gets", () => {
-  it("is the person's own when nobody else registered with it", async () => {
-    const own = `kojo.${Date.now()}@example.com`;
-    const { id } = await registered({ email: own });
-    expect(orders.get((await pay(id, 10000)).reference)?.email).toBe(own);
+  it("is the person's own, even when family members share it", async () => {
+    const own = `family.${Date.now()}@example.com`;
+    const a = await registered({ email: own });
+    const b = await registered({ email: own });
+    expect(orders.get((await pay(a.id, 10000)).reference)?.email).toBe(own);
+    expect(orders.get((await pay(b.id, 10000)).reference)?.email).toBe(own);
+  });
+
+  it("falls back to one made from the registration if expressPay refuses it", async () => {
+    const { id } = await registered({ email: `refuse.me.${Date.now()}@example.com` });
+    refuseEmail.add("refuse.me");
+    try {
+      const checkout = await pay(id, 10000);
+      expect(orders.get(checkout.reference)?.email).toBe(`r-${id.replace(/-/g, "").slice(0, 16)}@commune.theairportcitychurch.com`);
+    } finally {
+      refuseEmail.clear();
+    }
   });
 });
 
@@ -145,7 +158,7 @@ describe("expressPay's notice", () => {
   it("texts the person once, when their payments reach the full price", async () => {
     const { camp, id } = await registered();
     const phone = (await getRegistration(id))!.phone;
-    const fullyPaidTexts = () => smsSent.filter((s) => s.recipient.includes(phone) && s.message.includes("you're fully paid"));
+    const fullyPaidTexts = () => smsSent.filter((s) => s.recipient.includes(phone) && s.message.includes("You're now fully paid"));
 
     const first = await pay(id, 30000);
     succeed(first.reference);
@@ -158,7 +171,9 @@ describe("expressPay's notice", () => {
     await sendNotice(second.reference);
     await sendNotice(second.reference); // a repeat doesn't text again
     expect(fullyPaidTexts()).toHaveLength(1);
-    expect(fullyPaidTexts()[0].message).toMatch(new RegExp(`^Hi Ama, you're fully paid for ${camp.name}\\. Thank you!.* - The Airport City Church$`));
+    expect(fullyPaidTexts()[0].message).toMatch(
+      new RegExp(`^Hi Ama, we've received your payment of GHS 300 for ${camp.name}\\. You're now fully paid\\. Thank you!.* Receipt: https://\\S+/camps/r/${second.reference} - The Airport City Church$`),
+    );
   });
 
   it("texts the coordinator when an amount doesn't match", async () => {
@@ -168,7 +183,7 @@ describe("expressPay's notice", () => {
     await sendNotice(checkout.reference);
     expect(smsSent.find((s) => s.message.includes(checkout.reference))).toEqual({
       recipient: [`233${TEST_ALERT_PHONE.slice(1)}`],
-      message: `The Airport City Church, Commune: payment ${checkout.reference} needs a look (amount mismatch).`,
+      message: `Commune: a payment needs a look because the amount paid doesn't match what was asked. Reference: ${checkout.reference}. Please check Money in Commune. - The Airport City Church`,
     });
   });
 

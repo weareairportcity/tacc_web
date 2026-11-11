@@ -67,7 +67,7 @@ export async function askForRefund(me: Registration, amountPesewas: number, reas
     auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "request.refund", entity: "registration", entityId: me.id, after: { amount_pesewas: amountPesewas }, ifChanged: true }),
   ]);
   if (!results[0].results.length) throw new CampError("You already have a refund request waiting.");
-  await newRequest(me, { refund: amountPesewas });
+  await newRequest(me, { refund: amountPesewas }, text);
 }
 
 export async function askForRoomChange(me: Registration, roomTypeId: string, reason: string) {
@@ -87,7 +87,7 @@ export async function askForRoomChange(me: Registration, roomTypeId: string, rea
     auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "request.room_change", entity: "registration", entityId: me.id, after: { to_room_type_id: type.id }, ifChanged: true }),
   ]);
   if (!results[0].results.length) throw new CampError("You already asked to change rooms. Withdraw that request first.");
-  await newRequest(me, { room: type.name });
+  await newRequest(me, { room: type.name }, String(reason ?? ""));
 }
 
 export async function withdrawRequest(me: Registration, requestId: string) {

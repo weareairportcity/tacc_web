@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GoBack } from "./GoBack";
 import { headlineClass } from "./ui";
 import { LEGAL } from "@/lib/camp/legal";
 
@@ -6,6 +7,7 @@ import { LEGAL } from "@/lib/camp/legal";
 export function LegalPage({ title, lead, children }: { title: string; lead: string; children: React.ReactNode }) {
   return (
     <article className="flex flex-col gap-6 pt-4">
+      <GoBack />
       <header className="flex flex-col gap-2">
         <h1 className={`${headlineClass} text-[34px]`}>{title}</h1>
         <p className="text-[15px] leading-relaxed text-warm-gray">{lead}</p>

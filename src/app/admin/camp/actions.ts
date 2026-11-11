@@ -10,7 +10,7 @@ import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
-import { createCamp, getCamp, setCampPhoto, setShirtPaidOnly, updateCamp, setHelpPhone } from "@/lib/camp/camps";
+import { createCamp, getCamp, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone } from "@/lib/camp/camps";
 import { putMedia } from "@/lib/cf";
 import type { CsvError } from "@/lib/camp/csv";
 import { cedisToPesewas } from "@/lib/camp/money";
@@ -124,6 +124,15 @@ export async function setShirtRuleAction(campId: string, on: boolean) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     await setShirtPaidOnly(staff.email, String(campId), on === true);
+    return null;
+  });
+}
+
+/** Settings: whether the camp has a T-shirt at all. */
+export async function setShirtsOnAction(campId: string, on: boolean) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await setShirtsOn(staff.email, String(campId), on === true);
     return null;
   });
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeftRight, Check, ChevronRight, CircleSlash, Clock, Download, Lock, MessageSquareHeart, RotateCcw, UserRound, Users, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown, ChevronRight, CircleSlash, Clock, Download, Lock, MessageSquareHeart, QrCode, RotateCcw, UserRound, Users, type LucideIcon } from "lucide-react";
 import { getMyRoom } from "@/lib/camp/assignments";
 import { feedbackOpen, hasAnswered } from "@/lib/camp/feedback";
 import { getGroupFor } from "@/lib/camp/groups";
@@ -164,7 +164,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
       {!cancelled && !fullyPaid && (
         <>
           <Steps current={1} />
-          <section aria-label="Your payment" className="cm-rise flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card sm:p-6" style={{ animationDelay: "60ms" }}>
+          <section id="pay" aria-label="Your payment" className="cm-rise scroll-mt-20 flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card sm:p-6" style={{ animationDelay: "60ms" }}>
             {/* Wraps under Bigger text, so the amount itself never breaks across lines. */}
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <span className="flex flex-col gap-1">
@@ -197,15 +197,28 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
       )}
 
       {fullyPaid && (
-        <section aria-label="Your pass" className="cm-rise flex flex-col overflow-hidden rounded-2xl bg-white shadow-seline-hero" style={{ animationDelay: "60ms" }}>
+        // Folded until camp: the pass is one line. From the first day of camp it opens by itself, ready to scan.
+        <details
+          open={todayInGhana() >= camp.starts_on}
+          aria-label="Your pass"
+          className="group cm-rise flex flex-col overflow-hidden rounded-2xl bg-white shadow-seline-hero"
+          style={{ animationDelay: "60ms" }}
+        >
+          <summary className="cm-press flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-5 py-3 [&::-webkit-details-marker]:hidden">
+            <QrCode className="h-6 w-6 flex-none" strokeWidth={1.6} aria-hidden="true" />
+            <span className="flex flex-1 flex-col">
+              <span className="text-[16px] font-medium">Your check-in pass</span>
+              <span className="flex items-center gap-1.5 text-[13px] text-warm-gray">
+                <Check className="h-3.5 w-3.5 text-st-paid" strokeWidth={2.4} aria-hidden="true" /> Paid in full · show the QR at check-in
+              </span>
+            </span>
+            <span className="text-sm text-warm-gray group-open:hidden">Show</span>
+            <span className="hidden text-sm text-warm-gray group-open:inline">Hide</span>
+            <ChevronDown className="h-4 w-4 text-warm-gray transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" strokeWidth={1.7} aria-hidden="true" />
+          </summary>
           <CampBanner camp={camp} className="h-[84px]" />
           <div className="flex flex-col gap-3.5 p-5">
-            <p className="flex items-center justify-between gap-3 text-[13px]">
-              <span className="text-[15px] font-medium">{me.full_name}</span>
-              <span className="flex items-center gap-1.5">
-                <Check className="h-4 w-4 text-st-paid" strokeWidth={2.4} aria-hidden="true" /> Paid in full
-              </span>
-            </p>
+            <p className="text-[15px] font-medium">{me.full_name}</p>
             {qr && (
               <div className="flex flex-col items-center gap-3 rounded-[12px] border border-stone-border px-3.5 pt-[18px] pb-4">
                 <span className="w-[196px] bg-white [&_svg]:h-auto [&_svg]:w-full" role="img" aria-label="Your check-in QR code" dangerouslySetInnerHTML={{ __html: qr }} />
@@ -216,7 +229,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
               </div>
             )}
           </div>
-        </section>
+        </details>
       )}
 
       {fullyPaid && (

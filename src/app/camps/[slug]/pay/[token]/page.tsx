@@ -4,7 +4,7 @@ import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCedis } from "@/lib/camp/money";
 import { getRegistration } from "@/lib/camp/registrations";
 import { readToken } from "@/lib/camp/tokens";
-import { CampBanner } from "@/components/camp/photos";
+import { CampBackLink, CampBanner } from "@/components/camp/photos";
 import { formatDate, headlineClass } from "@/components/camp/ui";
 import { PayForSomeone } from "./PayForSomeone";
 
@@ -21,7 +21,9 @@ export default async function PayLinkPage({ params }: { params: Promise<{ slug: 
   const balance = reg.price_pesewas - reg.paid_pesewas;
 
   return (
-    <section className="cm-rise mt-2 flex flex-col overflow-hidden rounded-2xl bg-white shadow-seline-hero">
+    <div className="flex flex-col gap-3">
+    <CampBackLink href={`/camps/${camp.slug}`} camp={camp} />
+    <section className="cm-rise flex flex-col overflow-hidden rounded-2xl bg-white shadow-seline-hero">
       <CampBanner camp={camp} className="h-28" />
       <div className="flex flex-col gap-5 p-5 sm:p-6">
         <p className="text-sm text-warm-gray">
@@ -55,5 +57,6 @@ export default async function PayLinkPage({ params }: { params: Promise<{ slug: 
         )}
       </div>
     </section>
+    </div>
   );
 }

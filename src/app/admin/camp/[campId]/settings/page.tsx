@@ -53,7 +53,7 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
         <HelpPhone campId={camp.id} phone={camp.help_phone} />
       </Section>
       <Section title="T-shirts" text="Who can collect one when their pass is scanned.">
-        <ShirtRule campId={camp.id} on={!!camp.shirt_paid_only} />
+        <ShirtRule campId={camp.id} shirtsOn={camp.shirts_on !== 0} on={!!camp.shirt_paid_only} />
       </Section>
       <Section
         title="Notifications"

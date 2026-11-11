@@ -55,9 +55,8 @@ const SUBMIT_STATUS: Record<number, string> = { 2: "invalid credentials", 3: "in
 
 /**
  * expressPay's live API refuses a payment without an email ("Invalid Request -
- * email ()"), and each customer needs a different one. camp.ts picks it
- * (payerEmail): the person's own when nobody else uses it, else one made from
- * their registration.
+ * email ()"). camp.ts sends the attendee's own (payerEmail), with one made
+ * from the registration if that's missing or refused.
  */
 export type Customer = { name: string; email: string; phone: string; description: string };
 
@@ -84,7 +83,8 @@ export async function submit(
   const { data } = await call(env, "/submit.php", fields);
   const status = Number(data.status);
   if (status === 1 && typeof data.token === "string" && data.token) return { token: data.token };
-  return { error: SUBMIT_STATUS[status] ?? (typeof data.message === "string" ? data.message : "no answer") };
+  // expressPay's own words when it gives them ("Invalid Request - email ()"), so the reason is kept and acted on.
+  return { error: typeof data.message === "string" && data.message ? data.message : (SUBMIT_STATUS[status] ?? "no answer") };
 }
 
 export type Answer = {

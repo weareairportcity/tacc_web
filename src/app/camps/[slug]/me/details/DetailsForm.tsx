@@ -3,12 +3,12 @@
 import { Busy } from "@/components/camp/brand";
 import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { useRouter } from "next/navigation";
-import { Check, Trash2 } from "lucide-react";
+import { Check } from "lucide-react";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass, secondaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { changeMyGenderAction, deleteMyDetailsAction, updateMyDetailsAction } from "../../actions";
+import { changeMyGenderAction, updateMyDetailsAction } from "../../actions";
+import { DeleteMe } from "../DeleteMe";
 
 const fieldset = "m-0 flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card";
 
@@ -29,8 +29,14 @@ export function DetailsForm({
   cancelled,
   gender,
   healthAgreed,
+  shirtsOn = true,
+  paid = 0,
 }: {
+  /** What they've paid, for the refund line when removing themselves. */
+  paid?: number;
   slug: string;
+  /** The camp has a camp T-shirt; off hides the size question. */
+  shirtsOn?: boolean;
   phone: string;
   initial: ProfileInput;
   cancelled: boolean;
@@ -38,12 +44,10 @@ export function DetailsForm({
   /** They already ticked the health agreement; it isn't asked again. */
   healthAgreed: boolean;
 }) {
-  const router = useRouter();
   const [v, setV] = useState(initial);
   const [showHealth, setShowHealth] = useState(!!initial.health_notes);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [confirm, setConfirm] = useState(false);
   const [pending, start] = useOneAtATime();
   const set = (k: keyof ProfileInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setSaved(false);
@@ -75,7 +79,7 @@ export function DetailsForm({
           <Field label="Email" hint="For your receipts.">
             <input required type="email" autoComplete="email" className={inputClass} value={v.email} onChange={set("email")} />
           </Field>
-          <div className="flex flex-col gap-1.5">
+          {shirtsOn && <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium" id="shirt-label">
               T-shirt size
             </span>
@@ -90,7 +94,7 @@ export function DetailsForm({
                 </label>
               ))}
             </div>
-          </div>
+          </div>}
         </fieldset>
 
         <fieldset className={cn(fieldset, !initial.emergency_name && "ring-2 ring-cyan-signal")}>
@@ -145,37 +149,7 @@ export function DetailsForm({
       <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
         <h2 className="text-[15px] font-semibold">Delete my details</h2>
         <p className="text-sm text-warm-gray">{cancelled ? "Removes everything about you from Commune." : "This cancels your place at camp and removes everything about you."}</p>
-        {confirm ? (
-          <div role="alertdialog" aria-label="Confirm" className="cm-pop flex flex-col gap-3 rounded-[12px] border-2 border-soot p-4">
-            <p className="text-[15px] font-semibold">Delete your details? This can&apos;t be undone.</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirm(false)} className="cm-press h-11 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
-                Keep them
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() =>
-                  start(async () => {
-                    const r = await deleteMyDetailsAction(slug);
-                    if (!r.ok) {
-                      setConfirm(false);
-                      return setError(r.error);
-                    }
-                    router.replace(`/camps/${slug}`);
-                  })
-                }
-                className="cm-press h-11 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white"
-              >
-                <Busy pending={pending} text="Deleting…">Yes, delete</Busy>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button type="button" onClick={() => setConfirm(true)} className="cm-press inline-flex h-12 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
-            <Trash2 className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Delete my details
-          </button>
-        )}
+        <DeleteMe slug={slug} cancelled={cancelled} paid={paid} />
       </section>
     </>
   );

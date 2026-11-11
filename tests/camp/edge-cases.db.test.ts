@@ -177,7 +177,7 @@ describe("texting everyone their room", () => {
     expect(await sendRoomSms(ACTOR, camp, fakeSms)).toEqual({ sent: 2, failed: 1, remaining: 1 });
     expect(sent.filter((s) => s.text.includes("A1")).map((s) => s.to)).toEqual(expect.arrayContaining([[ama.phone], [efua.phone]]));
     expect(sent.find((s) => s.to[0] === ama.phone)!.text).toBe(
-      `Hi ${ama.full_name.split(" ")[0]}, your room at ${camp.name} is A1 (Hostel). See you there! - The Airport City Church`,
+      `Hi ${ama.full_name.split(" ")[0]}, your room at ${camp.name} is A1 (Hostel). See you at camp! - The Airport City Church`,
     );
 
     // Only A2 is retried; then nothing is left.

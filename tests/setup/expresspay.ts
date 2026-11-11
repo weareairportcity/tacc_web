@@ -31,6 +31,8 @@ export const orders = new Map<string, Order>();
 export const smsSent: { recipient: string[]; message: string }[] = [];
 /** Telegram Bot API calls the Worker made: method and JSON body. */
 export const telegramCalls: { method: string; body: Record<string, unknown> }[] = [];
+/** Parts of emails the fake refuses, like the live API refusing one. */
+export const refuseEmail = new Set<string>();
 /** Web Push deliveries, by the endpoint's last path part. */
 export const pushes: { id: string; authorization: string; encoding: string; body: Buffer }[] = [];
 /** Endpoint ids that answer 410 Gone (the browser dropped them). */
@@ -117,7 +119,8 @@ export function startFakeExpressPay(): Promise<Server> {
         const amount = (f.get("amount") ?? "").match(/^(\d+)\.(\d{2})$/);
         if (failSubmit || !reference || !amount || !f.get("post-url")?.startsWith("https://")) return send(200, { status: 3, message: "Invalid Request" });
         // The live API (not the sandbox) refuses a payment without an email.
-        if (!f.get("email")) return send(200, { status: 3, message: "Invalid Request - email ()" });
+        const email = f.get("email") ?? "";
+        if (!email || [...refuseEmail].some((part) => email.includes(part))) return send(200, { status: 3, message: `Invalid Request - email (${email})` });
         const token = `${crypto.randomUUID().replace(/-/g, "")}.${Date.now()}`;
         orders.set(reference, {
           reference,

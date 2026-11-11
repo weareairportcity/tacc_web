@@ -1,3 +1,4 @@
+import { summaries } from "./camp-summary";
 import { HttpError, json, readJson, timingSafeEqual, type AppEnv } from "./util";
 
 /**
@@ -56,13 +57,32 @@ const offOf = (chat: Pick<Chat, "off_json">): string[] => {
   }
 };
 
-/** Sends to every linked group that hasn't turned this kind off. Never throws. */
+/** Text for Telegram's HTML mode: names and notes can't break the formatting. */
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * A structured message: bold title, then one "Label: value" per line, so a
+ * glance down the left side finds what you need.
+ */
+export function card(icon: string, title: string, lines: (readonly [string, string] | string | null | false | 0)[], footer?: string) {
+  const out = [`${icon} <b>${esc(title)}</b>`, ""];
+  for (const l of lines) {
+    if (!l) continue;
+    // A string is a section heading, with a gap above it.
+    if (typeof l === "string") out.push(...(out.at(-1) === "" ? [] : [""]), `<b>${esc(l.toUpperCase())}</b>`);
+    else if (l[1]) out.push(`${esc(l[0])}: <b>${esc(l[1])}</b>`);
+  }
+  if (footer) out.push("", `<i>${esc(footer)}</i>`);
+  return out.join("\n");
+}
+
+/** Sends to every linked group that hasn't turned this kind off. `text` is Telegram HTML (see card). Never throws. */
 export async function tellGroups(env: AppEnv, kind: TgKind, text: string) {
   if (!telegramConfigured(env)) return 0;
   try {
     const { results } = await env.APP_DB.prepare("SELECT * FROM camp_telegram_chats").all<Chat>();
     const chats = (results ?? []).filter((c) => !offOf(c).includes(kind));
-    const sent = await Promise.all(chats.map((c) => api(env, "sendMessage", { chat_id: c.chat_id, text, disable_web_page_preview: true })));
+    const sent = await Promise.all(chats.map((c) => api(env, "sendMessage", { chat_id: c.chat_id, text, parse_mode: "HTML", disable_web_page_preview: true })));
     return sent.filter(Boolean).length;
   } catch (err) {
     console.error("telegram send", err);
@@ -79,6 +99,7 @@ function settingsKeyboard(off: string[]) {
 const HELP = [
   "I post Commune updates for the coordinators here.",
   "",
+  "/summary: where each camp stands right now",
   "/settings: choose which updates come here",
   "/test: send a test message",
   "/unlink: stop posting here",
@@ -148,6 +169,14 @@ export async function telegramHook(request: Request, env: AppEnv) {
       else if (from !== chat.owner_user_id) await say(`Only ${chat.owner_name || "the person who linked this group"} can change these.`);
       else await say("Tap to turn each kind of update on or off:", { reply_markup: settingsKeyboard(offOf(chat)) });
       break;
+    case "/summary":
+      if (!chat) await say("This group isn't linked yet. Send /link followed by the code.");
+      else {
+        const texts = await summaries(env);
+        if (!texts.length) await say("No camp is open right now.");
+        for (const text of texts) await say(text, { parse_mode: "HTML" });
+      }
+      break;
     case "/test":
       await say(chat ? "This is a test. Commune updates will look like this. ✅" : "This group isn't linked yet. Send /link followed by the code.");
       break;
@@ -176,6 +205,7 @@ export async function telegramSetup(env: AppEnv, origin: string) {
   });
   await api(env, "setMyCommands", {
     commands: [
+      { command: "summary", description: "Where each camp stands right now" },
       { command: "settings", description: "Choose which updates come here" },
       { command: "test", description: "Send a test message" },
       { command: "unlink", description: "Stop posting here" },

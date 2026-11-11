@@ -10,6 +10,7 @@ import { createGroup } from "@/lib/camp/groups";
 import { assignGroup, assignPerson, unassignMany } from "@/lib/camp/assignments";
 import { createRoom } from "@/lib/camp/rooms";
 import { CampError } from "@/lib/camp/types";
+import { getCamp, setShirtsOn } from "@/lib/camp/camps";
 import { ACTOR, attendee, openCamp, paidUp, paidWithPayment } from "./helpers";
 
 // Commune v2: what attendees manage themselves, check-in, the People filters,
@@ -166,3 +167,25 @@ describe("evening summary", () => {
   });
 });
 
+
+describe("camp T-shirts switch", () => {
+  it("is on by default and can be turned off, with the change in the history", async () => {
+    const { camp } = await openCamp();
+    expect((await getCamp(camp.id))?.shirts_on).toBe(1);
+    await setShirtsOn(ACTOR, camp.id, false);
+    expect((await getCamp(camp.id))?.shirts_on).toBe(0);
+    const [row] = await query<{ action: string }>("app", "SELECT action FROM camp_audit_log WHERE entity_id = ? AND action = 'camp.shirts'", [camp.id]);
+    expect(row?.action).toBe("camp.shirts");
+  });
+});
+
+describe("removing yourself completely", () => {
+  it("keeps the reason they gave in the history", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const me = (await getRegistration((await register(camp, attendee(roomTypeId))).id))!;
+    await deleteMyDetails(me, "I registered by mistake");
+    const [row] = await query<{ after_json: string }>("app", "SELECT after_json FROM camp_audit_log WHERE entity_id = ? AND action = 'registration.delete_details'", [me.id]);
+    expect(JSON.parse(row.after_json)).toEqual({ reason: "I registered by mistake" });
+    expect((await getRegistration(me.id))?.full_name).toBe("Deleted");
+  });
+});

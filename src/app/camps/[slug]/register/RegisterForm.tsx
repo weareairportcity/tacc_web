@@ -10,12 +10,14 @@ import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/t
 import { HumanCheck } from "@/components/camp/HumanCheck";
 import { Busy } from "@/components/camp/brand";
 import { placesState } from "@/components/camp/places";
-import { ErrorText, Field, inputClass, primaryButtonClass, titleClass } from "@/components/camp/ui";
+import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { registerAction } from "../actions";
 
 type Props = {
   slug: string;
+  /** The camp has a camp T-shirt; off hides the size question. */
+  shirtsOn?: boolean;
   signedIn: boolean;
   roomTypes: RoomType[];
   fellowshipGroups: { pfcc: string; names: string[] }[];
@@ -34,7 +36,7 @@ function Legend({ icon: Icon, children }: { icon: typeof User; children: React.R
   );
 }
 
-export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches }: Props) {
+export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches, shirtsOn = true }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<RegistrationInput>({
     full_name: "",
@@ -108,10 +110,13 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           <strong className="font-semibold">Keep this code safe.</strong>{" "}Don&apos;t delete the text. You need the code each time you sign in on a new phone. Keep it to
           yourself.
         </p>
-        <Link href={`/camps/${slug}/me`} className={`${primaryButtonClass} h-[52px] w-full`}>
-          Continue to payment
+        <Link href={`/camps/${slug}/me#pay`} className={`${primaryButtonClass} h-[52px] w-full`}>
+          Pay now
         </Link>
-        <p className="text-center text-[13px] text-warm-gray">You can pay later.</p>
+        <Link href={`/camps/${slug}/me`} className={`${secondaryButtonClass} h-12 w-full`}>
+          Pay later, go to my home
+        </Link>
+        <p className="text-center text-[13px] text-warm-gray">Pay any time before the due date, all at once or in parts.</p>
       </section>
     );
   }
@@ -310,7 +315,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             })}
           </fieldset>
 
-          <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
+          {shirtsOn && <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
             <Legend icon={Shirt}>Camp T-shirt</Legend>
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium" id="shirt-label">
@@ -328,7 +333,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
                 ))}
               </div>
             </div>
-          </fieldset>
+          </fieldset>}
 
           <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
             <div className="flex items-baseline justify-between">

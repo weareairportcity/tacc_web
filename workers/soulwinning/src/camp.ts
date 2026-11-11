@@ -72,6 +72,7 @@ type Bulk = {
   provider: string;
   provider_token: string | null;
   note?: string | null;
+  fee_pesewas?: number;
 };
 
 /**
@@ -155,13 +156,14 @@ async function flagPayment(env: AppEnv, p: Payment, flag: string, raw: string, d
     refreshRegistration(env, p.registration_id),
   ]);
   if (env.ALERT_PHONE) {
-    await sendSms(env, env.ALERT_PHONE, `The Airport City Church, Commune: payment ${p.reference} needs a look (${flag.replace("_", " ")}).`, "Commune");
+    const why = flag === "amount_mismatch" ? "the amount paid doesn't match what was asked" : flag === "over_balance" ? "it was paid after the balance was already covered" : "it needs checking";
+    await sendSms(env, env.ALERT_PHONE, `Commune: a payment needs a look because ${why}. Reference: ${p.reference}. Please check Money in Commune. - The Airport City Church`, "Commune");
   }
-  await paymentProblem(env, p.registration_id, flag);
+  await paymentProblem(env, p.registration_id, flag, p);
 }
 
 /** Marks a payment successful and updates the balance, all or nothing. */
-async function credit(env: AppEnv, p: Payment, paidAt: string | null, raw: string) {
+async function credit(env: AppEnv, p: Payment, paidAt: string | null, raw: string, bulk: { note: string | null } | null = null) {
   const now = nowIso();
   const campId = await campIdOf(env, p.registration_id);
   const [updated] = await env.APP_DB.batch([
@@ -179,7 +181,7 @@ async function credit(env: AppEnv, p: Payment, paidAt: string | null, raw: strin
   ]);
   if (updated.meta.changes === 1) {
     // Receipt text and notifications, once per payment.
-    await paymentReceived(env, { ...p, payer_name: p.payer_name ?? null }, ACTOR);
+    await paymentReceived(env, { ...p, payer_name: p.payer_name ?? null }, ACTOR, bulk);
     return "success";
   }
 
@@ -328,7 +330,7 @@ async function settleBulk(env: AppEnv, bulk: Bulk, giveUp = false): Promise<Bulk
         for (const p of shares) await flagPayment(env, p, "amount_mismatch", a.raw, { bulk: bulk.reference });
         return "failed";
       }
-      for (const p of shares) if (p.status !== "success") await credit(env, p, a.processedAt, a.raw);
+      for (const p of shares) if (p.status !== "success") await credit(env, p, a.processedAt, a.raw, { note: bulk.note || null });
       await setBulk(env, bulk, "success", a.raw, null, a.processedAt ?? nowIso());
       await env.APP_DB.prepare(
         `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, after_json)
@@ -336,7 +338,7 @@ async function settleBulk(env: AppEnv, bulk: Bulk, giveUp = false): Promise<Bulk
       )
         .bind(bulk.camp_id, ACTOR, bulk.id, JSON.stringify({ reference: bulk.reference, people: shares.length, paid_by: bulk.paid_by }))
         .run();
-      await bulkPaymentReceived(env, { ...bulk, amount_pesewas: shares.reduce((n, p) => n + p.amount_pesewas, 0), note: bulk.note ?? null }, shares.length).catch(() => undefined);
+      await bulkPaymentReceived(env, { ...bulk, amount_pesewas: shares.reduce((n, p) => n + p.amount_pesewas, 0), note: bulk.note || null }, shares.length).catch(() => undefined);
       return "success";
     }
     case "declined":
@@ -369,6 +371,8 @@ async function open(
   redirectUrl: string,
   customer: ep.Customer,
   failShares?: string,
+  /** Tried once if expressPay refuses `customer.email` (made from the registration, so never shared). */
+  fallbackEmail?: string,
 ): Promise<string> {
   const fail = async (message: string, raw?: string) => {
     const now = nowIso();
@@ -384,7 +388,11 @@ async function open(
     ]);
   };
 
-  const started = await ep.submit(env, { orderId: row.reference, amountPesewas: row.charged, redirectUrl, customer });
+  let started = await ep.submit(env, { orderId: row.reference, amountPesewas: row.charged, redirectUrl, customer });
+  if ("error" in started && /email/i.test(started.error) && fallbackEmail && fallbackEmail !== customer.email) {
+    console.warn("expressPay refused the email, trying the made one", row.reference, started.error);
+    started = await ep.submit(env, { orderId: row.reference, amountPesewas: row.charged, redirectUrl, customer: { ...customer, email: fallbackEmail } });
+  }
   if ("error" in started) {
     console.error("expressPay submit refused", row.reference, started.error);
     await fail(started.error);
@@ -399,24 +407,20 @@ async function open(
 const madeEmail = (prefix: string, id: string) => `${prefix}-${id.replace(/-/g, "").slice(0, 16)}@commune.theairportcitychurch.com`;
 
 /**
- * The email expressPay gets for a registration: theirs if no other
- * registration uses it (they then get expressPay's email receipt too), else
- * one made from the registration, so two people never share one.
+ * The email expressPay gets: the attendee's own, so expressPay's email
+ * receipt reaches them, even when family members share one (the live API
+ * accepts a repeated email for guest checkouts; checked 11 Nov 2026). With
+ * no usable email, or if expressPay ever refuses it, one made from the
+ * registration (see open's fallback).
  */
-async function payerEmail(env: AppEnv, registrationId: string, email: string) {
+const payerEmail = (registrationId: string, email: string) => {
   const own = email.trim().toLowerCase();
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(own) && own.length <= 64) {
-    const others = await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM camp_registrations WHERE lower(email) = ? AND id <> ?")
-      .bind(own, registrationId)
-      .first<{ n: number }>();
-    if (!others?.n) return own;
-  }
-  return madeEmail("r", registrationId);
-}
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(own) && own.length <= 64 ? own : madeEmail("r", registrationId);
+};
 
-const customerFor = async (env: AppEnv, reg: { id: string; email: string; full_name: string; phone: string; camp_name: string }, payerName: string): Promise<ep.Customer> => ({
+const customerFor = (reg: { id: string; email: string; full_name: string; phone: string; camp_name: string }, payerName: string): ep.Customer => ({
   name: payerName || reg.full_name,
-  email: await payerEmail(env, reg.id, reg.email),
+  email: payerEmail(reg.id, reg.email),
   phone: reg.phone,
   description: `${reg.camp_name}: ${reg.full_name}`,
 });
@@ -512,7 +516,7 @@ export async function payInit(request: Request, env: AppEnv) {
     throw new HttpError(409, "Your last payment is still processing. Wait for it to finish, then try again.");
   }
 
-  const url = await open(env, { table: "camp_payments", id, reference: ref, charged: amount + fee }, callbackUrl, await customerFor(env, reg, payerName));
+  const url = await open(env, { table: "camp_payments", id, reference: ref, charged: amount + fee }, callbackUrl, customerFor(reg, payerName), undefined, madeEmail("r", reg.id));
   return json({ reference: ref, authorization_url: url, amount_pesewas: amount, fee_pesewas: fee, charged_pesewas: amount + fee } satisfies Started);
 }
 
@@ -738,6 +742,7 @@ export async function bulkInit(request: Request, env: AppEnv) {
       description: `${camp.name}: ${owing.length} ${owing.length === 1 ? "person" : "people"}${note ? ` (${note})` : ""}`,
     },
     bulkId,
+    madeEmail("b", bulkId),
   );
   return json({
     reference: ref,

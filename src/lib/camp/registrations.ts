@@ -174,7 +174,18 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
     }
     throw err;
   }
-  await newRegistration({ id, camp_id: camp.id, full_name: input.full_name, camp_name: camp.name, room_type_name: input.roomType.name });
+  await newRegistration({
+    id,
+    camp_id: camp.id,
+    full_name: input.full_name,
+    camp_name: camp.name,
+    room_type_name: input.roomType.name,
+    price_pesewas: price,
+    gender: input.gender,
+    fellowship: input.fellowship,
+    pfcc: input.pfcc,
+    church: input.church,
+  });
   return { id, code };
 }
 

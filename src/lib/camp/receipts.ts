@@ -14,6 +14,8 @@ export type Receipt = {
   paid_at: string;
   payer_name: string | null;
   bulk: boolean;
+  /** "momo" or "card", as chosen before paying; null on older payments. */
+  method: string | null;
   full_name: string;
   room_type_name: string;
   price_pesewas: number;
@@ -33,7 +35,7 @@ export async function getReceipt(reference: string): Promise<Receipt | null> {
   if (!REFERENCE.test(ref)) return null;
   const [row] = await query<Omit<Receipt, "bulk" | "transaction_id"> & { bulk_id: string | null; raw_json: string | null }>(
     "app",
-    `SELECT p.reference, p.amount_pesewas, p.fee_pesewas, p.charged_pesewas, COALESCE(p.paid_at, p.created_at) AS paid_at, p.payer_name,
+    `SELECT p.reference, p.amount_pesewas, p.fee_pesewas, p.charged_pesewas, COALESCE(p.paid_at, p.created_at) AS paid_at, p.payer_name, p.method,
             p.bulk_id, p.raw_json, r.full_name, t.name AS room_type_name, r.price_pesewas, r.paid_pesewas,
             c.name AS camp_name, c.slug AS camp_slug, c.starts_on, c.ends_on
      FROM camp_payments p

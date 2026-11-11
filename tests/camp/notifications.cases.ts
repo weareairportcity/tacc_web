@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { post, query } from "@/lib/cf";
-import { checkPayment, startPayment } from "@/lib/camp/payments";
+import { checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import { notifyPrefs, savePushSub } from "@/lib/camp/push";
 import { getReceipt } from "@/lib/camp/receipts";
 import { askForRefund } from "@/lib/camp/requests";
@@ -92,10 +92,20 @@ describe("the coordinators' Telegram group", () => {
 
     // Other test files register people at the same time, so only this test's people are looked at.
     const { id } = await registered({ full_name: "Abena Owusu" });
-    expect(about("Abena Owusu")).toEqual([expect.stringMatching(/^🙋 New registration\nAbena Owusu registered for .+ \(Hostel\)\.$/)]);
+    // Laid out one fact per line, not one long sentence.
+    const reg = about("Abena Owusu");
+    expect(reg).toHaveLength(1);
+    expect(reg[0].split("\n").slice(0, 4)).toEqual(["🙋 <b>New registration</b>", "", "Name: <b>Abena Owusu</b>", "Gender: <b>Female</b>"]);
+    expect(reg[0]).toContain("Room type: <b>Hostel (GHS 600.00)</b>");
+    expect(telegramCalls.find((c) => String(c.body.text).includes("Abena Owusu"))?.body.parse_mode).toBe("HTML");
 
     await payInFull(id, 20000);
-    expect(about("Abena Owusu").at(-1)).toMatch(/^💰 Payment received\nAbena Owusu paid GHS 200 for .+\. GHS 400 left\.$/);
+    const paid = about("Abena Owusu").at(-1)!;
+    expect(paid).toMatch(/^💰 <b>Payment received<\/b>\n/);
+    expect(paid).toContain("Paid by: <b>Abena Owusu (themselves)</b>");
+    expect(paid).toContain("Amount: <b>GHS 200 + GHS 3.98 fee</b>");
+    expect(paid).toContain("Paid with: <b>Mobile money</b>");
+    expect(paid).toContain("Balance: <b>GHS 400 left of GHS 600</b>");
   });
 
   it("lets only the person who linked it turn kinds off, and then stops sending them", async () => {
@@ -115,11 +125,42 @@ describe("the coordinators' Telegram group", () => {
     expect(about("Kofi Quiet")).toEqual([]);
     // Other kinds still come.
     await payInFull(id, 10000);
-    expect(about("Kofi Quiet")).toEqual([expect.stringMatching(/^💰 Payment received/)]);
+    expect(about("Kofi Quiet")).toEqual([expect.stringMatching(/^💰 <b>Payment received/)]);
     const paid = (await getRegistration(id))!;
     await askForRefund(paid, 5000, "Paid by mistake");
-    expect(about("Kofi Quiet").at(-1)).toMatch(/^📨 New request\nKofi Quiet asked for GHS 50\.00 back\.$/);
+    expect(about("Kofi Quiet").at(-1)).toMatch(/^📨 <b>New refund request<\/b>\n\nAttendee: <b>Kofi Quiet<\/b>\nAsking for: <b>GHS 50\.00 back<\/b>/);
+    expect(about("Kofi Quiet").at(-1)).toContain("Reason: <b>Paid by mistake</b>");
     await hook({ callback_query: { id: "q3", from: { id: OWNER }, data: "t:registration", message: { chat: { id: GROUP }, message_id: 5 } } });
+  });
+});
+
+describe("who paid", () => {
+  beforeEach(() => {
+    telegramCalls.length = 0;
+  });
+
+  it("is named in the receipt text and the Telegram update when someone else pays through the pay link", async () => {
+    const { id } = await registered({ full_name: "Efua Paidfor" });
+    const checkout = await startPaymentFor(id, 20000, CALLBACK, "Kwesi Mensah", "card");
+    succeed(checkout.reference);
+    await checkPayment(id, checkout.reference);
+    expect(smsSent.find((s) => s.message.includes(checkout.reference))?.message).toMatch(
+      /^Hi Efua, Kwesi Mensah has paid GHS 200 towards your place at .+\. You have GHS 400 left to pay\. Receipt: /,
+    );
+    expect(about("Efua Paidfor").at(-1)).toContain("Paid by: <b>Kwesi Mensah (pay link)</b>");
+  });
+});
+
+describe("/summary in Telegram", () => {
+  it("lays out each open camp in sections, at any time", async () => {
+    const { camp } = await registered();
+    telegramCalls.length = 0;
+    await command("/summary");
+    const mine = sentToGroup().find((t) => t.includes(camp.name))!;
+    expect(mine).toMatch(/^📊 <b>/);
+    for (const part of ["<b>PEOPLE</b>", "Registered: <b>", "<b>MONEY</b>", "Still owed: <b>", "<b>ROOMS</b>", "<b>NEEDS YOU</b>", "Requests waiting: <b>", "<i>As of "]) {
+      expect(mine).toContain(part);
+    }
   });
 });
 
@@ -140,7 +181,7 @@ describe("app notifications", () => {
     expect(mine[0].authorization).toMatch(/^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=[\w-]+$/);
     expect(await read(p, mine[0].body)).toEqual({
       title: "Payment received",
-      body: expect.stringMatching(/^We received GHS 200\. GHS 400 left to pay by .+\. Tap for your receipt\.$/),
+      body: expect.stringMatching(/^We received GHS 200\. You have GHS 400 left to pay by .+\. Tap to see your receipt\.$/),
       url: `/camps/r/${checkout.reference}`,
       tag: `payment_received:${id}`,
     });
@@ -149,7 +190,9 @@ describe("app notifications", () => {
 
     // The receipt text has the same link, and the receipt page has the payment.
     const text = smsSent.find((s) => s.message.includes(checkout.reference));
-    expect(text?.message).toMatch(/^Hi Yaw, we received GHS 200 for .+\. GHS 400 left\. Receipt: https:\/\/commune\.theairportcitychurch\.com\/camps\/r\/CAMP-[0-9A-F]{16} - The Airport City Church$/);
+    expect(text?.message).toMatch(
+      /^Hi Yaw, we've received your payment of GHS 200 for .+\. You have GHS 400 left to pay\. Receipt: https:\/\/commune\.theairportcitychurch\.com\/camps\/r\/CAMP-[0-9A-F]{16} - The Airport City Church$/,
+    );
     expect(await getReceipt(checkout.reference)).toMatchObject({ full_name: "Yaw Boateng", amount_pesewas: 20000, paid_pesewas: 20000 });
     expect(await getReceipt("CAMP-0000000000000000")).toBeNull();
   });

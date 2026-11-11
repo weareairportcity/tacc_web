@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
-import { secondaryButtonClass } from "@/components/camp/ui";
+import { ErrorText, secondaryButtonClass } from "@/components/camp/ui";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { usePush, type PushActions } from "./usePush";
 
@@ -80,11 +80,7 @@ export function NotifySettings({ actions, kinds }: { actions: PushActions; kinds
           </button>
         )}
       </div>
-      {push.error && (
-        <p role="alert" className="text-[14px] text-st-cancelled">
-          {push.error}
-        </p>
-      )}
+      <ErrorText>{push.error}</ErrorText>
 
       <fieldset className="flex flex-col" disabled={!off}>
         <legend className="mb-1 text-sm font-medium">What to notify me about</legend>
@@ -105,11 +101,7 @@ export function NotifySettings({ actions, kinds }: { actions: PushActions; kinds
           );
         })}
       </fieldset>
-      {saveError && (
-        <p role="alert" className="text-[14px] text-st-cancelled">
-          {saveError}
-        </p>
-      )}
+      <ErrorText>{saveError}</ErrorText>
     </div>
   );
 }

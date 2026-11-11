@@ -96,16 +96,16 @@ export function refundRequestStatement(registration: Registration, amount: numbe
 export async function cancelMine(me: Registration, reason: string, deleteDetails: boolean) {
   if (me.status === "cancelled") throw new CampError("Your registration is already cancelled.");
   const extra: { sql: string; params: unknown[] }[] = me.paid_pesewas > 0 ? [refundRequestStatement(me, me.paid_pesewas, String(reason ?? "").trim(), actorOf(me))] : [];
-  if (deleteDetails) extra.push(...wipeStatements(me));
+  if (deleteDetails) extra.push(...wipeStatements(me, reason));
   await cancelRegistration(actorOf(me), me.id, extra);
-  await cancelled(me);
+  await cancelled(me, String(reason ?? ""), deleteDetails);
   return { refundRequested: me.paid_pesewas > 0 };
 }
 
 /** Deleting details after an earlier cancel. */
-export async function deleteMyDetails(me: Registration) {
-  if (me.status !== "cancelled") return cancelMine(me, "", true);
-  await batch("app", wipeStatements(me));
+export async function deleteMyDetails(me: Registration, reason = "") {
+  if (me.status !== "cancelled") return cancelMine(me, reason, true);
+  await batch("app", wipeStatements(me, reason));
   return { refundRequested: false };
 }
 
@@ -113,7 +113,7 @@ export async function deleteMyDetails(me: Registration) {
  * Removes name, phone, email and notes. The row stays so payments, refunds and
  * the audit log still add up; the code is replaced, so it can't be signed into.
  */
-function wipeStatements(me: Registration) {
+function wipeStatements(me: Registration, reason = "") {
   return [
     {
       sql: `UPDATE camp_registrations SET full_name = 'Deleted', phone = ?, email = '', emergency_name = '', emergency_phone = '',
@@ -121,6 +121,6 @@ function wipeStatements(me: Registration) {
             WHERE id = ?`,
       params: [`deleted:${me.id}`, hashCode(generateCode(16)), me.id],
     },
-    auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "registration.delete_details", entity: "registration", entityId: me.id }),
+    auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "registration.delete_details", entity: "registration", entityId: me.id, after: reason ? { reason: reason.slice(0, 300) } : undefined }),
   ];
 }

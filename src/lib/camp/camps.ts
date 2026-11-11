@@ -11,7 +11,7 @@ import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type 
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
   registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, momo_fee_bps, status,
-  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only, help_phone`;
+  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only, shirts_on, help_phone`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ID = /^[0-9a-f-]{36}$/i;
@@ -181,6 +181,16 @@ export async function setShirtPaidOnly(actor: string, id: string, on: boolean) {
   await batch("app", [
     { sql: "UPDATE camps SET shirt_paid_only = ? WHERE id = ?", params: [on ? 1 : 0, id] },
     auditStatement({ actor, campId: id, action: "camp.shirt_rule", entity: "camp", entityId: id, before: { shirt_paid_only: before.shirt_paid_only }, after: { shirt_paid_only: on ? 1 : 0 } }),
+  ]);
+}
+
+/** Settings: whether this camp has a camp T-shirt at all. Off hides sizes and T-shirt scanning. */
+export async function setShirtsOn(actor: string, id: string, on: boolean) {
+  const before = await getCamp(id);
+  if (!before) throw new CampError("Unknown camp.");
+  await batch("app", [
+    { sql: "UPDATE camps SET shirts_on = ? WHERE id = ?", params: [on ? 1 : 0, id] },
+    auditStatement({ actor, campId: id, action: "camp.shirts", entity: "camp", entityId: id, before: { shirts_on: before.shirts_on }, after: { shirts_on: on ? 1 : 0 } }),
   ]);
 }
 

@@ -40,6 +40,8 @@ export type Camp = {
   venue_photo_credit: string;
   /** 1: T-shirts only for people who've paid in full (Settings). */
   shirt_paid_only: number;
+  /** 0: this camp has no camp T-shirt (Settings). */
+  shirts_on: number;
   /** 233XXXXXXXXX, or empty: attendees' "Need help?" number. */
   help_phone: string;
 };
@@ -49,7 +51,7 @@ export const CAMP_PHOTOS = ["logo", "banner", "venue_photo"] as const;
 export type CampPhoto = (typeof CAMP_PHOTOS)[number];
 
 /** What a coordinator fills in; id, slug and created_at are set on save. */
-export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "help_phone" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
+export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "shirts_on" | "help_phone" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
   /** Defaults to fee_bps. */
   momo_fee_bps?: number;
 };
