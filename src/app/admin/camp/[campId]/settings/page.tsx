@@ -1,3 +1,5 @@
+import { NotifySettings, STAFF_KINDS } from "@/components/camp/notifications/NotifySettings";
+import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction } from "../../actions";
 import { notFound } from "next/navigation";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { getStaffPhone } from "@/lib/camp/staff";
@@ -52,6 +54,12 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
       </Section>
       <Section title="T-shirts" text="Who can collect one when their pass is scanned.">
         <ShirtRule campId={camp.id} on={!!camp.shirt_paid_only} />
+      </Section>
+      <Section
+        title="Notifications"
+        text="On your phone, for you only. The coordinators' Telegram group has its own switches: send /settings there."
+      >
+        <NotifySettings kinds={STAFF_KINDS} actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />
       </Section>
       <Section title="Evening text" text="A short summary at 7 pm, to you.">
         <SummaryPhone phone={phone} />

@@ -1,3 +1,4 @@
+import { roomReady } from "./notify";
 import { batch, query } from "@/lib/cf";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { auditStatement } from "./audit";
@@ -60,6 +61,7 @@ export async function sendRoomSms(actor: string, camp: Camp, send = (to: string,
             params: [p.registration_id, p.room_id],
           },
         ]);
+        await roomReady(p.registration_id, camp.slug, camp.name, p.label, p.room_type_name);
         sent++;
       }),
     );

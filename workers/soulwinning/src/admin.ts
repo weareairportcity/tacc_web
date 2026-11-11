@@ -1,3 +1,5 @@
+import { notifyEndpoint, notifyPrefs, pushSubscribe, sendReminders } from "./notify";
+import { telegramSetup } from "./telegram";
 import { sendDailySummaries } from "./camp-summary";
 import { leaderCodeCheck, leaderCodeNew, leaderCodeOff } from "./camp-leaders";
 import { bulkCheck, payCancel, bulkInit, payCheck, payInit, postReconcile, providerCheck } from "./camp";
@@ -193,6 +195,16 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return postReconcile(request, env);
     case "/v1/admin/camp/provider-check":
       return providerCheck(request, env);
+    case "/v1/admin/camp/notify":
+      return notifyEndpoint(request, env);
+    case "/v1/admin/camp/push-subscribe":
+      return pushSubscribe(request, env);
+    case "/v1/admin/camp/notify-prefs":
+      return notifyPrefs(request, env);
+    case "/v1/admin/camp/reminders":
+      return json(await sendReminders(env, new Date(), true));
+    case "/v1/admin/telegram/setup":
+      return json(await telegramSetup(env, new URL(request.url).origin));
     case "/v1/admin/camp/bulk-init":
       return bulkInit(request, env);
     case "/v1/admin/camp/bulk-check":

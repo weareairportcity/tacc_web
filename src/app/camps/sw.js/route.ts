@@ -5,7 +5,8 @@
  * cached for good since they never change. The check-in page is kept under
  * one address whatever pass it was opened with, so a pass scanned by the
  * camera app with no signal still opens it. Registered at "/" only on
- * commune.theairportcitychurch.com, where every path is Commune.
+ * commune.theairportcitychurch.com, where every path is Commune. Also shows
+ * app notifications and opens the right page when one is tapped.
  */
 
 const WORKER = `
@@ -16,6 +17,37 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("commune-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
+  );
+});
+
+// App notifications (src/lib/camp/push.ts). The Worker sends {title, body, url, tag}.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {}
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Commune", {
+      body: data.body || "",
+      tag: data.tag,
+      icon: "/commune/icon-192.png",
+      badge: "/commune/icon-192.png",
+      data: { url: data.url || "/camps" },
+    }),
+  );
+});
+
+// Tapping one opens the page it's about, in Commune if it's already open.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/camps", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ("navigate" in c && c.url.startsWith(self.location.origin)) return c.focus().then(() => c.navigate(url));
+      }
+      return self.clients.openWindow(url);
+    }),
   );
 });
 

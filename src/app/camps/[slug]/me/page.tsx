@@ -15,7 +15,9 @@ import { campAndAttendee } from "@/lib/camp/session";
 import { CampBanner, CampLogo } from "@/components/camp/photos";
 import { formatDate, formatDay, headlineClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { InstallHint, SharePayLink, WithdrawRequest } from "./MeControls";
+import { SharePayLink, WithdrawRequest } from "./MeControls";
+import { NotifyPrompt } from "@/components/camp/notifications/NotifyPrompt";
+import { notifyPrefsAction, pushRemoveAction, pushSubscribeAction } from "../actions";
 import { PayForm } from "./PayForm";
 import { ResumePayment } from "./ResumePayment";
 import { SignOut } from "./SignOut";
@@ -282,8 +284,10 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </p>
       ))}
 
-      {/* Only once there's a pass worth keeping on the home screen. */}
-      {fullyPaid && <InstallHint />}
+      {/* Add to Home Screen and turn on notifications: every visit until both are done. */}
+      {!cancelled && (
+        <NotifyPrompt who="attendee" actions={{ save: pushSubscribeAction.bind(null, camp.slug), remove: pushRemoveAction, prefs: notifyPrefsAction.bind(null, camp.slug) }} />
+      )}
 
       <section className="flex flex-col">
         <h2 className={`${titleClass} mb-3`}>Your registration</h2>
@@ -337,6 +341,11 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
                     {p.status === "success" && <Check className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />}
                     {PAYMENT_LABELS[p.status]}
                   </span>
+                  {p.status === "success" && (
+                    <Link href={`/camps/r/${encodeURIComponent(p.reference)}`} className="underline decoration-stone-muted underline-offset-[3px]">
+                      Receipt
+                    </Link>
+                  )}
                 </span>
               </li>
             ))}

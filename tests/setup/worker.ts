@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,9 @@ import {
   TEST_ADMIN_SECRET,
   TEST_PROVIDER_PORT,
   TEST_ALERT_PHONE,
+  TEST_TELEGRAM_LINK_CODE,
+  TEST_TELEGRAM_SECRET,
+  TEST_TELEGRAM_TOKEN,
   TEST_EXPRESSPAY_KEY,
   TEST_EXPRESSPAY_MERCHANT,
   TEST_WORKER_PORT,
@@ -18,6 +22,14 @@ import {
  * migration applied, so database tests exercise the same SQL path as
  * production. Nothing remote is touched: --local only, temp persistence.
  */
+
+/** A fresh VAPID key pair for the local Worker. */
+function vapidKeys() {
+  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const jwk = privateKey.export({ format: "jwk" });
+  const pub = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x!, "base64url"), Buffer.from(jwk.y!, "base64url")]).toString("base64url");
+  return [`VAPID_PUBLIC_KEY=${pub}`, `VAPID_PRIVATE_KEY=${jwk.d}`];
+}
 
 export function applyMigrations(persistTo: string) {
   for (const db of ["tacc", "tacc_stats"]) {
@@ -55,6 +67,12 @@ export default async function setup() {
       `EXPRESSPAY_API_KEY=${TEST_EXPRESSPAY_KEY}`,
       `EXPRESSPAY_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/expresspay`,
       "EXPRESSPAY_NOTIFY_URL=https://worker.test/v1/camp/ep",
+      // Telegram and app notifications go to the same fake server.
+      `TELEGRAM_BOT_TOKEN=${TEST_TELEGRAM_TOKEN}`,
+      `TELEGRAM_WEBHOOK_SECRET=${TEST_TELEGRAM_SECRET}`,
+      `TELEGRAM_LINK_CODE=${TEST_TELEGRAM_LINK_CODE}`,
+      `TELEGRAM_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/telegram`,
+      ...vapidKeys(),
       // Coordinator alerts go to the same fake server (tests/setup/expresspay.ts records them).
       "MNOTIFY_API_KEY=fake-mnotify-key",
       `MNOTIFY_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/mnotify`,

@@ -1,4 +1,5 @@
 import * as ep from "./expresspay";
+import { bulkPaymentReceived, paymentFailed, paymentProblem, paymentReceived } from "./notify";
 import { sendSms } from "./sms";
 import { HttpError, UUID, json, nowIso, readJson, timingSafeEqual, type AppEnv } from "./util";
 
@@ -70,6 +71,7 @@ type Bulk = {
   checked_at: string | null;
   provider: string;
   provider_token: string | null;
+  note?: string | null;
 };
 
 /**
@@ -155,36 +157,7 @@ async function flagPayment(env: AppEnv, p: Payment, flag: string, raw: string, d
   if (env.ALERT_PHONE) {
     await sendSms(env, env.ALERT_PHONE, `The Airport City Church, Commune: payment ${p.reference} needs a look (${flag.replace("_", " ")}).`, "Commune");
   }
-}
-
-const shortDay = (date: string) =>
-  new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-
-/**
- * "You're fully paid", once per person: the audit row is the claim, so a
- * repeat webhook or a second payment never texts twice. Points them at
- * roommates while the deadline hasn't passed.
- */
-async function textFullyPaid(env: AppEnv, registrationId: string) {
-  const r = await env.APP_DB.prepare(
-    `SELECT r.full_name, r.phone, r.status, c.id AS camp_id, c.name, c.roommate_deadline_on, c.ends_on
-     FROM camp_registrations r JOIN camps c ON c.id = r.camp_id WHERE r.id = ?`,
-  )
-    .bind(registrationId)
-    .first<{ full_name: string; phone: string; status: string; camp_id: string; name: string; roommate_deadline_on: string; ends_on: string }>();
-  const today = nowIso().slice(0, 10);
-  if (!r || r.status !== "fully_paid" || !/^233\d{9}$/.test(r.phone) || today > r.ends_on) return;
-  const claim = await env.APP_DB.prepare(
-    `INSERT INTO camp_audit_log (camp_id, actor, action, entity, entity_id, after_json)
-     SELECT ?1, ?2, 'registration.fully_paid_sms', 'registration', ?3, '{}'
-     WHERE NOT EXISTS (SELECT 1 FROM camp_audit_log WHERE action = 'registration.fully_paid_sms' AND entity_id = ?3)`,
-  )
-    .bind(r.camp_id, ACTOR, registrationId)
-    .run();
-  if (claim.meta.changes !== 1) return;
-  const first = r.full_name.trim().split(/\s+/)[0];
-  const next = today <= r.roommate_deadline_on ? ` Next, choose your roommates by ${shortDay(r.roommate_deadline_on)} in Commune.` : "";
-  await sendSms(env, r.phone, `Hi ${first}, you're fully paid for ${r.name}. Thank you!${next} - The Airport City Church`, "Commune");
+  await paymentProblem(env, p.registration_id, flag);
 }
 
 /** Marks a payment successful and updates the balance, all or nothing. */
@@ -205,7 +178,8 @@ async function credit(env: AppEnv, p: Payment, paidAt: string | null, raw: strin
     refreshRegistration(env, p.registration_id),
   ]);
   if (updated.meta.changes === 1) {
-    await textFullyPaid(env, p.registration_id).catch(() => undefined);
+    // Receipt text and notifications, once per payment.
+    await paymentReceived(env, { ...p, payer_name: p.payer_name ?? null }, ACTOR);
     return "success";
   }
 
@@ -284,6 +258,7 @@ async function settle(env: AppEnv, p: Payment, giveUp = false): Promise<Payment[
       return credit(env, p, a.processedAt, a.raw);
     case "declined":
       await markFailed(env, p, a.raw);
+      if (p.status === "pending") await paymentFailed(env, p.registration_id, p.amount_pesewas);
       return "failed";
     case "unknown":
       // Nobody has paid on expressPay's page (yet).
@@ -361,6 +336,7 @@ async function settleBulk(env: AppEnv, bulk: Bulk, giveUp = false): Promise<Bulk
       )
         .bind(bulk.camp_id, ACTOR, bulk.id, JSON.stringify({ reference: bulk.reference, people: shares.length, paid_by: bulk.paid_by }))
         .run();
+      await bulkPaymentReceived(env, { ...bulk, amount_pesewas: shares.reduce((n, p) => n + p.amount_pesewas, 0), note: bulk.note ?? null }, shares.length).catch(() => undefined);
       return "success";
     }
     case "declined":

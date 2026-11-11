@@ -1,3 +1,5 @@
+import { ATTENDEE_KINDS, NotifySettings } from "@/components/camp/notifications/NotifySettings";
+import { notifyPrefsAction, pushRemoveAction, pushSubscribeAction } from "../../actions";
 import { notFound, redirect } from "next/navigation";
 import { getMyRoom } from "@/lib/camp/assignments";
 import { getGroupFor } from "@/lib/camp/groups";
@@ -46,6 +48,13 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
           canChange: me.status !== "cancelled" && todayInGhana() <= camp.roommate_deadline_on,
         }}
       />
+      <section id="notifications" className="flex flex-col gap-3 rounded-[14px] border border-stone-border bg-white p-4 sm:p-5">
+        <h2 className="text-[17px] font-medium">Notifications</h2>
+        <NotifySettings
+          kinds={ATTENDEE_KINDS}
+          actions={{ save: pushSubscribeAction.bind(null, camp.slug), remove: pushRemoveAction, prefs: notifyPrefsAction.bind(null, camp.slug) }}
+        />
+      </section>
     </div>
   );
 }

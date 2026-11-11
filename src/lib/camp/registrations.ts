@@ -1,3 +1,4 @@
+import { newRegistration } from "./notify";
 import { batch, query } from "@/lib/cf";
 import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
 import { roomStatementsForRemoval } from "./assignments";
@@ -173,6 +174,7 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
     }
     throw err;
   }
+  await newRegistration({ id, camp_id: camp.id, full_name: input.full_name, camp_name: camp.name, room_type_name: input.roomType.name });
   return { id, code };
 }
 

@@ -13,6 +13,17 @@ export type AppEnv = Env & {
   EXPRESSPAY_API_URL?: string;
   /** expressPay's post-url. */
   EXPRESSPAY_NOTIFY_URL?: string;
+  /** Web Push keys (src/webpush.ts) and the contact sent with them. */
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
+  /** The coordinators' Telegram bot (src/telegram.ts). TELEGRAM_API_URL is for tests. */
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  TELEGRAM_LINK_CODE?: string;
+  TELEGRAM_API_URL?: string;
+  /** Where people open Commune (receipt links). Default https://commune.theairportcitychurch.com. */
+  COMMUNE_URL?: string;
   /** Keys the HMAC of leaders' sign-in codes (src/camp-leaders.ts). */
   LEADER_CODE_SECRET?: string;
 };

@@ -1,7 +1,8 @@
+import { newRequest, requestAnswered } from "./notify";
 import { batch, query } from "@/lib/cf";
 import { changeRoomType, recordRefund } from "./adjustments";
 import { auditStatement } from "./audit";
-import { checkId } from "./camps";
+import { checkId, getCamp } from "./camps";
 import { formatCedis } from "./money";
 import { refundRequestStatement } from "./profile";
 import { getRegistration } from "./registrations";
@@ -17,6 +18,12 @@ import { CampError, type CampRequest, type Registration, type RequestStatus } fr
  */
 
 const actorOf = (me: Registration) => `attendee:${me.id}`;
+
+/** "Your request was answered", on their phone. */
+async function tellAttendee(request: CampRequest, text: string) {
+  const camp = await getCamp(request.camp_id).catch(() => null);
+  if (camp) await requestAnswered(request.registration_id, camp.slug, text);
+}
 
 const SELECT = `SELECT q.id, q.created_at, q.camp_id, q.registration_id, r.full_name, r.fellowship, t.name AS room_type_name,
     q.kind, q.status, q.amount_pesewas, q.to_room_type_id, n.name AS to_room_type_name, n.price_pesewas AS to_price_pesewas,
@@ -60,6 +67,7 @@ export async function askForRefund(me: Registration, amountPesewas: number, reas
     auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "request.refund", entity: "registration", entityId: me.id, after: { amount_pesewas: amountPesewas }, ifChanged: true }),
   ]);
   if (!results[0].results.length) throw new CampError("You already have a refund request waiting.");
+  await newRequest(me, { refund: amountPesewas });
 }
 
 export async function askForRoomChange(me: Registration, roomTypeId: string, reason: string) {
@@ -79,6 +87,7 @@ export async function askForRoomChange(me: Registration, roomTypeId: string, rea
     auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "request.room_change", entity: "registration", entityId: me.id, after: { to_room_type_id: type.id }, ifChanged: true }),
   ]);
   if (!results[0].results.length) throw new CampError("You already asked to change rooms. Withdraw that request first.");
+  await newRequest(me, { room: type.name });
 }
 
 export async function withdrawRequest(me: Registration, requestId: string) {
@@ -125,6 +134,8 @@ export async function declineRequest(actor: string, id: string, note: string) {
   const request = await pending(id);
   const results = await batch("app", decide(actor, request, "declined", String(note ?? "").trim()));
   if (!results[0].results.length) throw new CampError("Someone has already decided this request.");
+  const what = request.kind === "refund" ? "Your refund request" : `Your request to move to ${request.to_room_type_name}`;
+  await tellAttendee(request, `${what} was not approved.${String(note ?? "").trim() ? ` Note: ${String(note).trim().slice(0, 200)}` : ""}`);
   return request;
 }
 
@@ -149,6 +160,7 @@ export async function approveRefund(actor: string, id: string, amountPesewas: nu
   if (!claimed[0].results.length) throw new CampError("Someone has already decided this request.");
   try {
     const recorded = await recordRefund(actor, request.registration_id, { amount_pesewas: amountPesewas, reference: ref, note: String(note ?? "") }, request.id);
+    await tellAttendee(request, `Your refund of ${formatCedis(amountPesewas)} was approved and sent to you.`);
     return { request, refunded_pesewas: amountPesewas, warning: recorded.warning };
   } catch (err) {
     // Nothing was recorded: put the request back for another try.
@@ -177,6 +189,7 @@ export async function approveRoomChange(actor: string, id: string, note: string,
       await recordRefund(actor, request.registration_id, { amount_pesewas: overpaid, reference: ref, note: `Moved to ${request.to_room_type_name}` }, request.id);
     }
     const moved = await changeRoomType(actor, request.registration_id, request.to_room_type_id);
+    await tellAttendee(request, `You've been moved to ${request.to_room_type_name}.${overpaid > 0 ? ` We sent ${formatCedis(overpaid)} back to you.` : ""}`);
     return { request, refunded: Math.max(0, overpaid), warning: moved.warning };
   } catch (err) {
     const now = await getRegistration(request.registration_id);

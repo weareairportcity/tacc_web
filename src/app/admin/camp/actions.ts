@@ -1,5 +1,6 @@
 "use server";
 
+import { notifyPrefs, removePushSub, savePushSub } from "@/lib/camp/push";
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { allow } from "@/lib/camp/rate-limit";
@@ -756,4 +757,38 @@ export async function cancelPaymentAction(campId: string, reference: string) {
     ]);
     return status;
   });
+}
+
+// ─── App notifications ───────────────────────────────────────────────────────
+
+export async function staffPushSubscribeAction(subscription: unknown) {
+  return run(
+    async () => {
+      const staff = await requireCampRole("coordinator");
+      await savePushSub(`staff:${staff.email}`, subscription);
+      return true;
+    },
+    { quiet: true },
+  );
+}
+
+export async function staffPushRemoveAction(endpoint: string) {
+  return run(
+    async () => {
+      await requireCampRole("coordinator");
+      await removePushSub(endpoint);
+      return true;
+    },
+    { quiet: true },
+  );
+}
+
+export async function staffNotifyPrefsAction(off?: string[]) {
+  return run(
+    async () => {
+      const staff = await requireCampRole("coordinator");
+      return notifyPrefs(`staff:${staff.email}`, off);
+    },
+    { quiet: true },
+  );
 }

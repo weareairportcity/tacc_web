@@ -1,3 +1,5 @@
+import { NotifyPrompt } from "@/components/camp/notifications/NotifyPrompt";
+import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction } from "../actions";
 import Link from "next/link";
 import { Check, ChevronDown } from "lucide-react";
 import { getCamp, ID, listCamps } from "@/lib/camp/camps";
@@ -85,6 +87,8 @@ export default async function CampShell({ children, params }: { children: React.
         </div>
       </div>
       <OpenPayments campId={camp.id} payments={open} />
+      {/* Coordinators: add to Home Screen and turn on notifications, every visit until done. */}
+      {!leader && <NotifyPrompt who="staff" actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />}
       <BottomBar base={base} leader={leader} requests={counts.requests} />
     </ToastProvider>
   );

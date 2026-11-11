@@ -1,9 +1,9 @@
 "use client";
 
 import { Busy } from "@/components/camp/brand";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { Share2, Smartphone, X } from "lucide-react";
+import { Share2 } from "lucide-react";
 import { ErrorText, secondaryButtonClass } from "@/components/camp/ui";
 import { forgetJoinAction, myPayLinkAction, withdrawRequestAction } from "../actions";
 
@@ -61,59 +61,6 @@ export function WithdrawRequest({ slug, requestId }: { slug: string; requestId: 
   );
 }
 
-type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
-
-/** "Add Commune to your home screen", when the browser offers it and it isn't already installed. */
-export function InstallHint() {
-  const [event, setEvent] = useState<InstallEvent | null>(null);
-  const [hidden, setHidden] = useState(true);
-  useEffect(() => {
-    let dismissed = false;
-    try {
-      dismissed = localStorage.getItem("commune.install") === "no";
-    } catch {}
-    if (dismissed || window.matchMedia("(display-mode: standalone)").matches) return;
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setEvent(e as InstallEvent);
-      setHidden(false);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
-  if (hidden || !event) return null;
-  return (
-    <section className="cm-rise flex items-center gap-3 rounded-[10px] bg-cyan-tint px-4 py-3">
-      <Smartphone className="h-5 w-5 flex-none text-cyan-deep" strokeWidth={1.6} aria-hidden="true" />
-      <span className="flex-1 text-sm">Add Commune to your home screen</span>
-      <button
-        type="button"
-        onClick={async () => {
-          await event.prompt();
-          setHidden(true);
-        }}
-        className={`${secondaryButtonClass} h-9 px-3.5 text-[13px]`}
-      >
-        Add
-      </button>
-      <button
-        type="button"
-        aria-label="Not now"
-        onClick={() => {
-          setHidden(true);
-          try {
-            localStorage.setItem("commune.install", "no");
-          } catch {}
-        }}
-        className="flex h-9 w-9 items-center justify-center text-warm-gray"
-      >
-        <X className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
-      </button>
-    </section>
-  );
-}
-
-/** "No thanks" to a remembered friend's link. */
 export function ForgetJoin({ slug }: { slug: string }) {
   const [pending, start] = useOneAtATime();
   return (

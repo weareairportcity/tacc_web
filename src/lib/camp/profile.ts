@@ -1,3 +1,4 @@
+import { cancelled } from "./notify";
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
@@ -97,6 +98,7 @@ export async function cancelMine(me: Registration, reason: string, deleteDetails
   const extra: { sql: string; params: unknown[] }[] = me.paid_pesewas > 0 ? [refundRequestStatement(me, me.paid_pesewas, String(reason ?? "").trim(), actorOf(me))] : [];
   if (deleteDetails) extra.push(...wipeStatements(me));
   await cancelRegistration(actorOf(me), me.id, extra);
+  await cancelled(me);
   return { refundRequested: me.paid_pesewas > 0 };
 }
 

@@ -22,6 +22,7 @@ import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { firstName, SIGN_OFF } from "@/lib/camp/sms";
 import { forgetJoin, rememberJoin } from "@/lib/camp/join-memory";
 import { isHuman } from "@/lib/camp/turnstile";
+import { notifyPrefs, removePushSub, savePushSub } from "@/lib/camp/push";
 
 /**
  * Attendee actions. Server actions are reachable by direct POST, so each one
@@ -367,5 +368,31 @@ export async function submitFeedbackAction(slug: string, token: string, input: F
     });
     await noteAccess({ actor: "visitor", role: "visitor", event: "feedback", campId: camp.id });
     return null;
+  });
+}
+
+// ─── App notifications ───────────────────────────────────────────────────────
+
+/** This phone turned notifications on: they go to whoever is signed in here. */
+export async function pushSubscribeAction(slug: string, subscription: unknown) {
+  return run(async () => {
+    const { me } = await signedIn(slug);
+    await savePushSub(`attendee:${me.id}`, subscription);
+    return true;
+  });
+}
+
+export async function pushRemoveAction(endpoint: string) {
+  return run(async () => {
+    await removePushSub(endpoint);
+    return true;
+  });
+}
+
+/** Which notifications they turned off (and the key a phone subscribes with). `off` changes them. */
+export async function notifyPrefsAction(slug: string, off?: string[]) {
+  return run(async () => {
+    const { me } = await signedIn(slug);
+    return notifyPrefs(`attendee:${me.id}`, off);
   });
 }

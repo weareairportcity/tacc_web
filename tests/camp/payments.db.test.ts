@@ -715,3 +715,6 @@ describe("stored on the registration", () => {
     expect(row.last_paid_at).toBeTruthy();
   });
 });
+
+// Notifications run here too: they need this file's fake expressPay/Telegram/push server.
+import "./notifications.cases";

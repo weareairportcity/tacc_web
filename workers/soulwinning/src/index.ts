@@ -1,6 +1,8 @@
 import { handleAdmin } from "./admin";
 import { expressPayNotice, reconcile } from "./camp";
 import { sendDailySummaries } from "./camp-summary";
+import { sendReminders } from "./notify";
+import { telegramHook } from "./telegram";
 import { deleteMedia, getMedia, postSongEvent, putMedia } from "./media";
 import { postVisit, statsHourly } from "./stats";
 import { getPhoto, putPhoto } from "./photos";
@@ -55,6 +57,8 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
   if (method === "POST" && path === "/v1/c/v") return postVisit(request, env);
   // expressPay's post-url (the notice that a payment finished).
   if ((method === "POST" || method === "GET") && path === "/v1/camp/ep") return expressPayNotice(request, env);
+  // Telegram's webhook for the coordinators' bot (checked by its secret token header).
+  if (method === "POST" && path === "/v1/tg/hook") return telegramHook(request, env);
 
   if (path.startsWith("/v1/admin/media/") && method === "PUT") {
     requireAdminToken(request, env);
@@ -125,6 +129,11 @@ export default {
       sendDailySummaries(env as AppEnv, new Date(controller.scheduledTime))
         .then((r) => console.log("camp summary", JSON.stringify(r)))
         .catch((e) => console.error("camp summary failed", e)),
+    );
+    ctx.waitUntil(
+      sendReminders(env as AppEnv, new Date(controller.scheduledTime))
+        .then((r) => console.log("camp reminders", JSON.stringify(r)))
+        .catch((e) => console.error("camp reminders failed", e)),
     );
     // Commune's counts go after the usage check: they pause themselves when today is busy.
     ctx.waitUntil(

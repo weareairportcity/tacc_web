@@ -1,4 +1,5 @@
 import { sendSms } from "./sms";
+import { tellGroups, telegramConfigured } from "./telegram";
 import type { AppEnv } from "./util";
 
 /**
@@ -54,8 +55,10 @@ export async function sendDailySummaries(env: AppEnv, now = new Date(), force = 
   ).all<{ phone: string }>();
   const phones = [...new Set((staff ?? []).map((s) => s.phone))];
   const sent: Record<string, number> = {};
+  // The Telegram group gets the same summary (when its "Evening summary" switch is on).
+  const groups = telegramConfigured(env) ? ((await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM camp_telegram_chats").first<{ n: number }>())?.n ?? 0) : 0;
   for (const camp of camps ?? []) {
-    if (!phones.length) break;
+    if (!phones.length && !groups) break;
     // Claim the day first: a second run the same day inserts nothing and stops.
     const claim = await env.APP_DB.prepare(
       "INSERT INTO camp_daily_summaries (camp_id, day, recipients) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
@@ -66,6 +69,7 @@ export async function sendDailySummaries(env: AppEnv, now = new Date(), force = 
     const text = summaryText(camp.name, await numbers(env, camp.id, day));
     const ok = await Promise.all(phones.map((p) => sendSms(env, p, text, "Commune")));
     sent[camp.name] = ok.filter(Boolean).length;
+    if (groups) await tellGroups(env, "daily", `🌙 ${text.replace(/ - The Airport City Church$/, "")}`);
   }
   return { day, sent };
 }

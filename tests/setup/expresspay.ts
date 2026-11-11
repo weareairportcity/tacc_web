@@ -29,6 +29,12 @@ type Order = {
 export const orders = new Map<string, Order>();
 /** Texts the Worker sent through the fake mNotify. */
 export const smsSent: { recipient: string[]; message: string }[] = [];
+/** Telegram Bot API calls the Worker made: method and JSON body. */
+export const telegramCalls: { method: string; body: Record<string, unknown> }[] = [];
+/** Web Push deliveries, by the endpoint's last path part. */
+export const pushes: { id: string; authorization: string; encoding: string; body: Buffer }[] = [];
+/** Endpoint ids that answer 410 Gone (the browser dropped them). */
+export const gonePushIds = new Set<string>();
 /** Every query.php call, by token, so tests can see what was asked. */
 export const queried: string[] = [];
 
@@ -71,6 +77,18 @@ function answer(o: Order) {
 
 export function startFakeExpressPay(): Promise<Server> {
   const server = createServer((req, res) => {
+    // Web Push bodies are binary: kept as bytes.
+    if (req.method === "POST" && req.url?.startsWith("/push/")) {
+      const chunks: Buffer[] = [];
+      req.on("data", (c) => chunks.push(c));
+      req.on("end", () => {
+        const id = req.url!.slice("/push/".length);
+        pushes.push({ id, authorization: String(req.headers.authorization ?? ""), encoding: String(req.headers["content-encoding"] ?? ""), body: Buffer.concat(chunks) });
+        res.writeHead(gonePushIds.has(id) ? 410 : 201);
+        res.end();
+      });
+      return;
+    }
     let body = "";
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
@@ -82,6 +100,11 @@ export function startFakeExpressPay(): Promise<Server> {
         const { recipient, message } = JSON.parse(body);
         smsSent.push({ recipient, message });
         return send(200, { status: "success" });
+      }
+      if (req.method === "POST" && req.url?.startsWith("/telegram/bot")) {
+        const method = req.url.split("/").pop() ?? "";
+        telegramCalls.push({ method, body: body ? JSON.parse(body) : {} });
+        return send(200, { ok: true, result: method === "getMe" ? { username: "commune_test_bot" } : method === "sendMessage" ? { message_id: telegramCalls.length } : true });
       }
       if (req.method !== "POST" || !req.url?.startsWith("/expresspay/")) return send(404, {});
       const f = new URLSearchParams(body);
