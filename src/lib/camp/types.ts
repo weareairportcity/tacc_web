@@ -25,8 +25,8 @@ export type Camp = {
   roommate_deadline_on: string;
   /**
    * expressPay's fees, passed on to the payer, in basis points (195 = 1.95%).
-   * fee_bps is for expressPay's own page (card, or MoMo picked there);
-   * momo_fee_bps for MoMo charged from Commune. See rateFor in money.ts.
+   * fee_bps for people who say they'll pay by card, momo_fee_bps for MoMo.
+   * See rateFor in money.ts.
    */
   fee_bps: number;
   momo_fee_bps: number;

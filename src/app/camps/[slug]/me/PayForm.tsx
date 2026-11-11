@@ -13,13 +13,12 @@ import { payAction } from "../actions";
 
 /**
  * Pay all (the one big button), or "Pay part now" for an amount box. Most people never see
- * the box. The fee is shown before anyone pays. With MoMo from Commune switched on, they
- * pick MoMo or card first and see that method's exact fee.
+ * the box. They pick MoMo or card first, and see that way's exact fee before paying.
  */
-export function PayForm({ slug, balance, fees, momoDirect, phone, dueOn }: { slug: string; balance: number; fees: Fees; momoDirect: boolean; phone: string; dueOn: string }) {
-  const how = useHowToPay(fees, momoDirect, phone);
+export function PayForm({ slug, balance, fees, dueOn }: { slug: string; balance: number; fees: Fees; dueOn: string }) {
+  const how = useHowToPay(fees);
   const feeBps = how.rate;
-  const busyText = how.method === "momo" ? "Sending the prompt…" : "Opening expressPay…";
+  const busyText = "Opening expressPay…";
   const [part, setPart] = useState(false);
   const [amount, setAmount] = useState(pesewasToCedisInput(Math.round(balance / 2 / 100) * 100 || balance));
   const [error, setError] = useState("");
@@ -45,8 +44,7 @@ export function PayForm({ slug, balance, fees, momoDirect, phone, dueOn }: { slu
   const pay = (value: string) =>
     startTransition(async () => {
       setError("");
-      if (!how.ready) return setError(how.problem || "Check how you're paying.");
-      const result = await payAction(slug, value, how.how);
+      const result = await payAction(slug, value, how.method);
       if (!result.ok) return setError(result.error);
       await leaveTo(result.data.url);
     });
@@ -118,7 +116,7 @@ export function PayForm({ slug, balance, fees, momoDirect, phone, dueOn }: { slu
           <dd>{valid ? formatCedis(pesewas!) : "—"}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-warm-gray">{how.direct ? (how.method === "momo" ? "MoMo fee" : "Card fee") : "Fee"}</dt>
+          <dt className="text-warm-gray">{how.method === "momo" ? "MoMo fee" : "Card fee"}</dt>
           <dd>{valid ? formatCedis(fee) : "—"}</dd>
         </div>
         <div className="flex justify-between border-t border-stone-border pt-1.5 font-medium">

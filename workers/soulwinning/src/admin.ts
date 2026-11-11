@@ -1,6 +1,6 @@
 import { sendDailySummaries } from "./camp-summary";
 import { leaderCodeCheck, leaderCodeNew, leaderCodeOff } from "./camp-leaders";
-import { bulkCheck, payCancel, bulkInit, payCheck, payInit, payOptions, postReconcile, providerCheck } from "./camp";
+import { bulkCheck, payCancel, bulkInit, payCheck, payInit, postReconcile, providerCheck } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
 import { runSms, sendSms } from "./sms";
@@ -193,8 +193,6 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return postReconcile(request, env);
     case "/v1/admin/camp/provider-check":
       return providerCheck(request, env);
-    case "/v1/admin/camp/pay-options":
-      return payOptions(env);
     case "/v1/admin/camp/bulk-init":
       return bulkInit(request, env);
     case "/v1/admin/camp/bulk-check":

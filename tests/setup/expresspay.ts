@@ -17,12 +17,11 @@ type Order = {
   /** In pesewas, as asked; tests may change it to fake a mismatch. */
   amount: number;
   currency: string;
-  email: string;
+  /** Null when none was sent (Commune sends none). */
+  email: string | null;
   firstname: string;
   phonenumber: string;
   redirect: string;
-  direct: boolean;
-  momo: { number: string; network: string } | null;
   status: OrderStatus;
   created_at: string;
 };
@@ -36,11 +35,6 @@ export const queried: string[] = [];
 let failSubmit = false;
 export const setFailSubmit = (fail: boolean) => {
   failSubmit = fail;
-};
-/** What direct/checkout.php answers for the next MoMo prompts. */
-let momoAnswer: OrderStatus = "waiting";
-export const setMomoAnswer = (status: OrderStatus) => {
-  momoAnswer = status;
 };
 
 export function setOrder(reference: string, patch: Partial<Order>) {
@@ -94,7 +88,7 @@ export function startFakeExpressPay(): Promise<Server> {
       const path = req.url.slice("/expresspay".length);
       const signedIn = f.get("merchant-id") === TEST_EXPRESSPAY_MERCHANT && f.get("api-key") === TEST_EXPRESSPAY_KEY;
 
-      if (path === "/submit.php" || path === "/direct/submit.php") {
+      if (path === "/submit.php") {
         if (!signedIn) return send(200, { status: 2, message: "Invalid Credentials" });
         const reference = f.get("order-id") ?? "";
         const amount = (f.get("amount") ?? "").match(/^(\d+)\.(\d{2})$/);
@@ -105,23 +99,14 @@ export function startFakeExpressPay(): Promise<Server> {
           token,
           amount: Number(amount[1]) * 100 + Number(amount[2]),
           currency: f.get("currency") ?? "",
-          email: f.get("email") ?? "",
+          email: f.get("email"),
           firstname: f.get("firstname") ?? "",
           phonenumber: f.get("phonenumber") ?? "",
           redirect: f.get("redirect-url") ?? "",
-          direct: path.startsWith("/direct"),
-          momo: null,
           status: "unpaid",
           created_at: new Date().toISOString(),
         });
         return send(200, { status: 1, "order-id": reference, token, message: "Success" });
-      }
-      if (path === "/direct/checkout.php") {
-        const o = [...orders.values()].find((x) => x.token === f.get("token"));
-        if (!o || !o.direct) return send(200, { result: 3, "result-text": "Error in transaction data or system error" });
-        o.momo = { number: f.get("mobile-number") ?? "", network: f.get("mobile-network") ?? "" };
-        o.status = momoAnswer;
-        return send(200, answer(o));
       }
       if (path === "/query.php") {
         if (f.get("merchant-id") !== TEST_EXPRESSPAY_MERCHANT) return send(200, { result: 3, "result-text": "Invalid Credentials" });

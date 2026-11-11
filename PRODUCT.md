@@ -23,7 +23,7 @@ Replace a spreadsheet-and-WhatsApp camp process with one place where attendees r
 - Ghana: amounts in GHS (cedis), phones in 0XX XXX XXXX format, mobile money is the main way to pay.
 - Attendees sign in with an 8-character code sent by SMS, never a password. Group codes like `7K4-F2Q` are shared between friends.
 - The attendee journey is a sequence of steps: register → pay (one or more instalments) → Fully Paid → roommates (optional, before the deadline) → room assigned by a coordinator.
-- expressPay's own checkout page handles card payments (and MoMo, until expressPay switches on its Direct API, after which MoMo is approved from Commune by a prompt on the phone). Refunds are sent by hand (MoMo or bank) and recorded with a reference: expressPay has no refund API.
+- Payers choose Mobile money (1.5% fee) or Card (2.5%) in Commune, then pay on expressPay's own page. The payer covers the fee. Commune sends expressPay no email, because it needs a unique one per customer. Its Direct API needs PCI DSS certification, so Commune doesn't use it. Refunds are sent by hand (MoMo or bank) and recorded with a reference: expressPay has no refund API.
 
 ## Capabilities and Constraints
 

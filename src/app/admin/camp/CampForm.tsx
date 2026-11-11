@@ -18,8 +18,8 @@ const EMPTY: CampInput = {
   registration_closes_on: "",
   payment_due_on: "",
   roommate_deadline_on: "",
-  fee_bps: 195,
-  momo_fee_bps: 195,
+  fee_bps: 250,
+  momo_fee_bps: 150,
   status: "draft",
 };
 
@@ -95,7 +95,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             />
           </Field>
         ))}
-        <Field label="expressPay fee, card (%)" hint="Added to what the payer pays, and shown before they pay. On expressPay's own page the higher of the two fees applies.">
+        <Field label="expressPay fee, card (%)" hint="For people who choose Card. Added to what they pay and shown first. 2.5% covers international cards.">
           <input
             required
             type="number"
@@ -107,7 +107,7 @@ export function CampForm({ camp, onDone }: { camp?: Camp; onDone?: () => void })
             onChange={(e) => set("fee_bps", Math.round(Number(e.target.value) * 100))}
           />
         </Field>
-        <Field label="expressPay fee, MoMo (%)" hint="For MoMo paid from Commune itself, once expressPay switches that on.">
+        <Field label="expressPay fee, MoMo (%)" hint="For people who choose Mobile money. Coordinators paying for several people pay the higher fee.">
           <input
             required
             type="number"

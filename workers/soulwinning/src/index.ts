@@ -53,7 +53,7 @@ async function route(request: Request, env: AppEnv): Promise<Response> {
   }
   if (method === "POST" && path === "/v1/sotw/events") return postSongEvent(request, env);
   if (method === "POST" && path === "/v1/c/v") return postVisit(request, env);
-  // expressPay's post-url. Short, because the Direct API allows 64 characters for it.
+  // expressPay's post-url (the notice that a payment finished).
   if ((method === "POST" || method === "GET") && path === "/v1/camp/ep") return expressPayNotice(request, env);
 
   if (path.startsWith("/v1/admin/media/") && method === "PUT") {

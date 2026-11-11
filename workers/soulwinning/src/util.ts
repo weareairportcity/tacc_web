@@ -11,9 +11,7 @@ export type AppEnv = Env & {
   EXPRESSPAY_API_KEY?: string;
   /** Sandbox: https://sandbox.expresspaygh.com/api. Tests point it at a fake. Unset is live. */
   EXPRESSPAY_API_URL?: string;
-  /** "1" once expressPay has switched on the Direct API: MoMo is then charged from Commune. */
-  EXPRESSPAY_DIRECT?: string;
-  /** expressPay's post-url (at most 64 characters for the Direct API). */
+  /** expressPay's post-url. */
   EXPRESSPAY_NOTIFY_URL?: string;
   /** Keys the HMAC of leaders' sign-in codes (src/camp-leaders.ts). */
   LEADER_CODE_SECRET?: string;

@@ -2,15 +2,15 @@
 -- as history (provider = 'paystack'); new ones are written with 'expresspay'.
 -- Undo with migrations-tacc/down/0021_camp_expresspay.down.sql.
 
--- camps.fee_bps is now the fee for expressPay's own checkout page (card, or
--- MoMo picked there). momo_fee_bps is for MoMo started from Commune itself
--- (expressPay's Direct API), where we know the method before charging.
-ALTER TABLE camps ADD COLUMN momo_fee_bps INTEGER NOT NULL DEFAULT 195 CHECK (momo_fee_bps BETWEEN 0 AND 2000);
-UPDATE camps SET momo_fee_bps = fee_bps;
+-- The payer says MoMo or card before going to expressPay, and pays that fee:
+-- camps.fee_bps for card (2.5% covers international cards; local are 1.95%),
+-- momo_fee_bps for MoMo (1.5%). expressPay's rates, Nov 2026.
+ALTER TABLE camps ADD COLUMN momo_fee_bps INTEGER NOT NULL DEFAULT 150 CHECK (momo_fee_bps BETWEEN 0 AND 2000);
+UPDATE camps SET fee_bps = MAX(fee_bps, 250);
 
 -- expressPay's token for a checkout: its query endpoint needs it, not our reference.
 ALTER TABLE camp_payments ADD COLUMN provider_token TEXT;
--- 'momo' when the person paid by MoMo from Commune; NULL for expressPay's page.
+-- 'momo' or 'card': how the payer said they'd pay (sets the fee). NULL on old rows.
 ALTER TABLE camp_payments ADD COLUMN method TEXT;
 
 ALTER TABLE camp_bulk_payments ADD COLUMN provider TEXT NOT NULL DEFAULT 'paystack';

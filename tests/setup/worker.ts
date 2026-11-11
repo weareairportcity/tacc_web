@@ -55,8 +55,6 @@ export default async function setup() {
       `EXPRESSPAY_API_KEY=${TEST_EXPRESSPAY_KEY}`,
       `EXPRESSPAY_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/expresspay`,
       "EXPRESSPAY_NOTIFY_URL=https://worker.test/v1/camp/ep",
-      // MoMo from Commune on, so both ways of paying are tested.
-      "EXPRESSPAY_DIRECT=1",
       // Coordinator alerts go to the same fake server (tests/setup/expresspay.ts records them).
       "MNOTIFY_API_KEY=fake-mnotify-key",
       `MNOTIFY_API_URL=http://127.0.0.1:${TEST_PROVIDER_PORT}/mnotify`,

@@ -7,7 +7,7 @@ import { HttpError, UUID, json, nowIso, readJson, timingSafeEqual, type AppEnv }
  *
  *   Next server (ADMIN_SECRET) → /v1/admin/camp/pay-init, /check, /reconcile,
  *                                /bulk-init, /bulk-check, /pay-cancel,
- *                                /pay-options, /provider-check
+ *                                /provider-check
  *   expressPay                 → /v1/camp/ep (the post-url notice)
  *   Every 10 minutes           → reconcile, for notices that never arrived
  *
@@ -83,23 +83,16 @@ export function feeFor(amountPesewas: number, feeBps: number) {
 }
 
 /**
- * The rate for a payment. MoMo from Commune (Direct API) has its own rate. On
- * expressPay's page the payer can still pick either, so the higher of the two
- * applies there and the church never covers a fee. Mirrored in money.ts.
+ * The rate for a payment, by how the payer said they'd pay. expressPay's page
+ * still offers both, so someone who picks MoMo and then pays by card leaves the
+ * church the difference on that payment (the church's choice, Nov 2026).
+ * Mirrored in money.ts.
  */
-export function rateFor(method: "card" | "momo", camp: { fee_bps: number; momo_fee_bps: number }, direct: boolean) {
-  return direct && method === "momo" ? camp.momo_fee_bps : Math.max(camp.fee_bps, camp.momo_fee_bps);
+export function rateFor(method: PayMethod, camp: { fee_bps: number; momo_fee_bps: number }) {
+  return method === "momo" ? camp.momo_fee_bps : camp.fee_bps;
 }
 
-const MSISDN = /^233[25]\d{8}$/;
-const NETWORKS: ep.Network[] = ["mtn", "telecel", "airteltigo"];
-
-/** "024 412 3456", "+233 24…" → "233244123456", or null. */
-export function msisdn(input: unknown) {
-  const digits = String(input ?? "").replace(/\D/g, "");
-  const n = digits.startsWith("233") ? digits : digits.startsWith("0") ? `233${digits.slice(1)}` : digits.length === 9 ? `233${digits}` : digits;
-  return MSISDN.test(n) ? n : null;
-}
+export type PayMethod = "card" | "momo";
 
 const reference = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
@@ -388,38 +381,19 @@ async function settleBulk(env: AppEnv, bulk: Bulk, giveUp = false): Promise<Bulk
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-type HowToPay = { method: "card" | "momo"; momo: { msisdn: string; network: ep.Network } | null };
-
-/** Card means expressPay's page (where MoMo can still be picked); MoMo with a number is charged from Commune. */
-function howToPay(body: { method?: unknown; momo_number?: unknown; momo_network?: unknown }, env: AppEnv): HowToPay {
-  if (body.method !== "momo" || !ep.directMomo(env)) return { method: "card", momo: null };
-  const number = msisdn(body.momo_number);
-  if (!number) throw new HttpError(400, "Enter the MoMo number, like 024 123 4567.");
-  const network = NETWORKS.find((n) => n === body.momo_network);
-  if (!network) throw new HttpError(400, "Pick the MoMo network.");
-  return { method: "momo", momo: { msisdn: number, network } };
-}
-
-/** What the Next server needs to know before showing the pay screen. */
-export function payOptions(env: AppEnv) {
-  return json({ momo_direct: ep.directMomo(env), ready: ep.configured(env) });
-}
-
-type Started = { reference: string; authorization_url: string | null; amount_pesewas: number; fee_pesewas: number; charged_pesewas: number; resumed?: boolean; waiting?: boolean };
+type Started = { reference: string; authorization_url: string; amount_pesewas: number; fee_pesewas: number; charged_pesewas: number; resumed?: boolean };
 
 /**
- * Opens the checkout at expressPay for a payment row already written, or for
- * MoMo sends the prompt to the phone. On any refusal the row is failed
- * (init_failed) so a new payment can start.
+ * Opens the checkout at expressPay for a payment row already written. On any
+ * refusal the row is failed (init_failed) so a new payment can start.
  */
 async function open(
   env: AppEnv,
   row: { table: "camp_payments" | "camp_bulk_payments"; id: string; reference: string; charged: number },
-  how: HowToPay,
   redirectUrl: string,
   customer: ep.Customer,
   failShares?: string,
-): Promise<{ url: string | null; waiting: boolean }> {
+): Promise<string> {
   const fail = async (message: string, raw?: string) => {
     const now = nowIso();
     await env.APP_DB.batch([
@@ -434,32 +408,19 @@ async function open(
     ]);
   };
 
-  const started = await ep.submit(env, {
-    orderId: row.reference,
-    amountPesewas: row.charged,
-    redirectUrl: how.momo ? null : redirectUrl,
-    customer,
-    direct: Boolean(how.momo),
-  });
+  const started = await ep.submit(env, { orderId: row.reference, amountPesewas: row.charged, redirectUrl, customer });
   if ("error" in started) {
     console.error("expressPay submit refused", row.reference, started.error);
     await fail(started.error);
     throw new HttpError(502, "expressPay couldn't start the payment. Please try again.");
   }
-  const url = how.momo ? null : ep.checkoutUrl(env, started.token);
+  const url = ep.checkoutUrl(env, started.token);
   await env.APP_DB.prepare(`UPDATE ${row.table} SET provider_token = ?, checkout_url = ? WHERE id = ?`).bind(started.token, url, row.id).run();
-  if (!how.momo) return { url, waiting: false };
-
-  const a = await ep.chargeMomo(env, started.token, how.momo.msisdn, how.momo.network);
-  // No answer: the prompt may still have gone out, so the payment stays pending and is checked as usual.
-  if (!a || a.outcome === "waiting" || a.outcome === "approved") return { url: null, waiting: true };
-  await fail(a.text, a.raw);
-  throw new HttpError(402, `MoMo didn't go through: ${a.text || "declined"}. Check the number and network, then try again.`);
+  return url;
 }
 
-const customerFor = (reg: { full_name: string; email: string; phone: string; camp_name: string }, payer: { email: string | null; name: string }) => ({
-  name: payer.name || reg.full_name,
-  email: payer.email ?? reg.email,
+const customerFor = (reg: { full_name: string; phone: string; camp_name: string }, payerName: string): ep.Customer => ({
+  name: payerName || reg.full_name,
   phone: reg.phone,
   description: `${reg.camp_name}: ${reg.full_name}`,
 });
@@ -470,14 +431,10 @@ export async function payInit(request: Request, env: AppEnv) {
     registration_id?: unknown;
     amount_pesewas?: unknown;
     callback_url?: unknown;
-    // Someone else paying through a pay link: their receipt email and name.
-    payer_email?: unknown;
+    // Someone else paying through a pay link: their name.
     payer_name?: unknown;
     method?: unknown;
-    momo_number?: unknown;
-    momo_network?: unknown;
   }>(request);
-  const payerEmail = typeof body.payer_email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.payer_email) ? body.payer_email : null;
   const payerName = typeof body.payer_name === "string" ? body.payer_name.trim().slice(0, 80) : "";
   const registrationId = typeof body.registration_id === "string" && UUID.test(body.registration_id) ? body.registration_id : null;
   const amount = body.amount_pesewas;
@@ -487,16 +444,15 @@ export async function payInit(request: Request, env: AppEnv) {
     throw new HttpError(400, "The smallest payment is GHS 1.00.");
   }
   if (!ep.configured(env)) throw new HttpError(503, "payments are not set up");
-  const how = howToPay(body, env);
+  const method: PayMethod = body.method === "momo" ? "momo" : "card";
 
   const reg = await env.APP_DB.prepare(
-    `SELECT r.id, r.email, r.full_name, r.phone, r.price_pesewas, r.status, c.fee_bps, c.momo_fee_bps, c.status AS camp_status, c.name AS camp_name
+    `SELECT r.id, r.full_name, r.phone, r.price_pesewas, r.status, c.fee_bps, c.momo_fee_bps, c.status AS camp_status, c.name AS camp_name
      FROM camp_registrations r JOIN camps c ON c.id = r.camp_id WHERE r.id = ?`,
   )
     .bind(registrationId)
     .first<{
       id: string;
-      email: string;
       full_name: string;
       phone: string;
       price_pesewas: number;
@@ -510,8 +466,7 @@ export async function payInit(request: Request, env: AppEnv) {
   if (reg.status === "cancelled") throw new HttpError(409, "This registration has been cancelled.");
   if (reg.camp_status === "archived") throw new HttpError(409, "This camp is no longer taking payments.");
 
-  const fee = feeFor(amount, rateFor(how.method, reg, ep.directMomo(env)));
-  const method = how.momo ? "momo" : null;
+  const fee = feeFor(amount, rateFor(method, reg));
 
   // An earlier checkout still open: settle it first, so two can't overpay.
   const { results: open0 } = await env.APP_DB.prepare(
@@ -523,7 +478,7 @@ export async function payInit(request: Request, env: AppEnv) {
   // both can't charge twice. One that's still being opened is waited for, not replaced.
   for (const p of open0 ?? []) {
     const age = Date.now() - Date.parse(p.created_at);
-    if (p.bulk_id || method || p.method || p.amount_pesewas !== amount || (p.payer_name ?? "") !== payerName || age > RESUME_WITHIN_MS) continue;
+    if (p.bulk_id || (p.method ?? "card") !== method || p.amount_pesewas !== amount || (p.payer_name ?? "") !== payerName || age > RESUME_WITHIN_MS) continue;
     if (p.checkout_url) {
       return json({ reference: p.reference, authorization_url: p.checkout_url, amount_pesewas: amount, fee_pesewas: p.fee_pesewas, charged_pesewas: p.charged_pesewas, resumed: true } satisfies Started);
     }
@@ -560,21 +515,8 @@ export async function payInit(request: Request, env: AppEnv) {
     throw new HttpError(409, "Your last payment is still processing. Wait for it to finish, then try again.");
   }
 
-  const opened = await open(
-    env,
-    { table: "camp_payments", id, reference: ref, charged: amount + fee },
-    how,
-    callbackUrl,
-    customerFor(reg, { email: payerEmail, name: payerName }),
-  );
-  return json({
-    reference: ref,
-    authorization_url: opened.url,
-    amount_pesewas: amount,
-    fee_pesewas: fee,
-    charged_pesewas: amount + fee,
-    waiting: opened.waiting,
-  } satisfies Started);
+  const url = await open(env, { table: "camp_payments", id, reference: ref, charged: amount + fee }, callbackUrl, customerFor(reg, payerName));
+  return json({ reference: ref, authorization_url: url, amount_pesewas: amount, fee_pesewas: fee, charged_pesewas: amount + fee } satisfies Started);
 }
 
 /** The processing page asking "has it gone through?". Throttled per payment. */
@@ -716,17 +658,15 @@ export async function bulkInit(request: Request, env: AppEnv) {
     camp_id?: unknown;
     registration_ids?: unknown;
     paid_by?: unknown;
-    payer_email?: unknown;
     note?: unknown;
     callback_url?: unknown;
   }>(request);
   const campId = typeof body.camp_id === "string" && UUID.test(body.camp_id) ? body.camp_id : null;
   const ids = Array.isArray(body.registration_ids) ? [...new Set(body.registration_ids.filter((x): x is string => typeof x === "string" && UUID.test(x)))] : [];
   const paidBy = typeof body.paid_by === "string" ? body.paid_by.slice(0, 254) : "";
-  const email = typeof body.payer_email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.payer_email) ? body.payer_email : null;
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 200) : "";
   const callbackUrl = typeof body.callback_url === "string" && /^https?:\/\//.test(body.callback_url) ? body.callback_url : null;
-  if (!campId || !paidBy || !email || !callbackUrl) throw new HttpError(400, "camp_id, paid_by, payer_email and callback_url required");
+  if (!campId || !paidBy || !callbackUrl) throw new HttpError(400, "camp_id, paid_by and callback_url required");
   if (ids.length === 0) throw new HttpError(400, "Choose at least one person.");
   if (ids.length > 100) throw new HttpError(400, "Pay for up to 100 people at a time.");
 
@@ -763,8 +703,8 @@ export async function bulkInit(request: Request, env: AppEnv) {
   }
 
   const amount = owing.reduce((sum, r) => sum + r.balance, 0);
-  // Bulk payments always use expressPay's page, so the higher rate applies.
-  const fee = feeFor(amount, rateFor("card", camp, ep.directMomo(env)));
+  // Coordinators aren't asked how they'll pay, so the higher rate applies.
+  const fee = feeFor(amount, Math.max(camp.fee_bps, camp.momo_fee_bps));
   const bulkId = crypto.randomUUID();
   const ref = bulkReference();
   const results = await env.APP_DB.batch([
@@ -789,14 +729,12 @@ export async function bulkInit(request: Request, env: AppEnv) {
     throw new HttpError(409, "Someone's balance changed just now. Refresh and try again.");
   }
 
-  const opened = await open(
+  const url = await open(
     env,
     { table: "camp_bulk_payments", id: bulkId, reference: ref, charged: amount + fee },
-    { method: "card", momo: null },
     callbackUrl,
     {
       name: paidBy.includes("@") ? paidBy.split("@")[0] : paidBy,
-      email,
       phone: "",
       description: `${camp.name}: ${owing.length} ${owing.length === 1 ? "person" : "people"}${note ? ` (${note})` : ""}`,
     },
@@ -804,7 +742,7 @@ export async function bulkInit(request: Request, env: AppEnv) {
   );
   return json({
     reference: ref,
-    authorization_url: opened.url,
+    authorization_url: url,
     people: owing.length,
     amount_pesewas: amount,
     fee_pesewas: fee,

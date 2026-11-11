@@ -53,6 +53,6 @@
   // Secrets (wrangler secret put): ADMIN_SECRET, PHOTO_SIGNING_SECRET,
   // MNOTIFY_API_KEY, MNOTIFY_SENDER_ID, EXPRESSPAY_MERCHANT_ID,
   // EXPRESSPAY_API_KEY, EXPRESSPAY_NOTIFY_URL (the workers.dev address +
-  // /v1/camp/ep), and EXPRESSPAY_API_URL / EXPRESSPAY_DIRECT when needed
-  // (unset = live, no Direct MoMo). See src/expresspay.ts.
+  // /v1/camp/ep), and EXPRESSPAY_API_URL for the sandbox (unset = live).
+  // See src/expresspay.ts.
 }

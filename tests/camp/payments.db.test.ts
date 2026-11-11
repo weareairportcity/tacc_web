@@ -8,7 +8,7 @@ import { CampError } from "@/lib/camp/types";
 import { TEST_WORKER_URL } from "../setup/constants";
 import { checkWithExpressPay } from "@/lib/camp/reconciliation";
 import { TEST_ALERT_PHONE } from "../setup/constants";
-import { orders, sendNotice, setFailSubmit, setMomoAnswer, setOrder, smsSent, startFakeExpressPay, succeed } from "../setup/expresspay";
+import { orders, sendNotice, setFailSubmit, setOrder, smsSent, startFakeExpressPay, succeed } from "../setup/expresspay";
 import { ACTOR, registered } from "./helpers";
 
 // Payments end to end: src/lib/camp → local Worker → fake expressPay, with
@@ -50,7 +50,9 @@ describe("fees", () => {
     const { id } = await registered();
     const checkout = await pay(id, 20000);
     expect(checkout).toMatchObject({ amount_pesewas: 20000, fee_pesewas: 398, charged_pesewas: 20398 });
-    expect(orders.get(checkout.reference)).toMatchObject({ amount: 20398, currency: "GHS", email: "ama@example.com", firstname: "Ama", direct: false });
+    expect(orders.get(checkout.reference)).toMatchObject({ amount: 20398, currency: "GHS", firstname: "Ama" });
+    // No email: expressPay needs a different one per customer, and families share.
+    expect(orders.get(checkout.reference)?.email).toBeNull();
     // The payer goes to expressPay's page for this token, and comes back to us.
     expect(checkout.authorization_url).toBe(`http://127.0.0.1:8792/expresspay/checkout.php?token=${encodeURIComponent(orders.get(checkout.reference)!.token)}`);
     expect(orders.get(checkout.reference)?.redirect).toBe(CALLBACK);
@@ -397,67 +399,33 @@ describe("checking all with expressPay", () => {
   });
 });
 
-describe("MoMo from Commune (Direct API)", () => {
-  const momo = (id: string, amount: number, number = "0241234567", network: "mtn" | "telecel" | "airteltigo" = "mtn") =>
-    startPayment(id, amount, CALLBACK, { method: "momo", number, network });
-
-  it("sends the prompt to the phone, charges the MoMo rate, and credits it when approved", async () => {
+describe("MoMo or card", () => {
+  it("charges the fee for the way they said they'd pay", async () => {
     const { camp, id } = await registered();
-    await query("app", "UPDATE camps SET fee_bps = 250, momo_fee_bps = 100 WHERE id = ?", [camp.id]);
-    const checkout = await momo(id, 20000);
-    expect(checkout).toMatchObject({ authorization_url: null, waiting: true, fee_pesewas: feeFor(20000, 100) });
-    expect(orders.get(checkout.reference)).toMatchObject({ direct: true, momo: { number: "233241234567", network: "MTN_MM" }, status: "waiting" });
-    expect((await listPayments(id))[0]).toMatchObject({ status: "pending" });
-
-    succeed(checkout.reference);
-    await sendNotice(checkout.reference);
-    expect(await getRegistration(id)).toMatchObject({ paid_pesewas: 20000, status: "partially_paid" });
+    await query("app", "UPDATE camps SET fee_bps = 250, momo_fee_bps = 150 WHERE id = ?", [camp.id]);
+    const momo = await startPayment(id, 20000, CALLBACK, "momo");
+    expect(momo).toMatchObject({ fee_pesewas: feeFor(20000, 150), charged_pesewas: 20000 + feeFor(20000, 150) });
+    expect(momo.authorization_url).toContain("checkout.php?token=");
+    expect((await listPayments(id))[0]).toMatchObject({ status: "pending", fee_pesewas: feeFor(20000, 150) });
+    await longAgo(momo.reference);
+    expect((await startPayment(id, 20000, CALLBACK, "card")).fee_pesewas).toBe(feeFor(20000, 250));
   });
 
-  it("charges the higher rate on expressPay's page, where either can be picked", async () => {
-    const { camp, id } = await registered();
-    await query("app", "UPDATE camps SET fee_bps = 100, momo_fee_bps = 250 WHERE id = ?", [camp.id]);
-    expect((await pay(id, 20000)).fee_pesewas).toBe(feeFor(20000, 250));
-  });
-
-  it("names the network the way expressPay does", async () => {
-    for (const [number, network, code] of [
-      ["0201234567", "telecel", "VODAFONE_CASH"],
-      ["0271234567", "airteltigo", "TIGO_CASH"],
-      ["0561234567", "airteltigo", "AIRTEL_MM"],
-    ] as const) {
-      const { id } = await registered();
-      const checkout = await momo(id, 10000, number, network);
-      expect(orders.get(checkout.reference)?.momo?.network).toBe(code);
-    }
-  });
-
-  it("says why when the prompt is declined, and lets them try again", async () => {
+  it("reopens the same checkout only for the same way of paying", async () => {
     const { id } = await registered();
-    setMomoAnswer("declined");
-    try {
-      await expect(momo(id, 20000)).rejects.toThrow("MoMo didn't go through");
-    } finally {
-      setMomoAnswer("waiting");
-    }
-    expect((await listPayments(id))[0]).toMatchObject({ status: "failed", flag: "init_failed" });
-    await expect(momo(id, 20000)).resolves.toMatchObject({ waiting: true });
+    const first = await startPayment(id, 20000, CALLBACK, "momo");
+    expect(await startPayment(id, 20000, CALLBACK, "momo")).toMatchObject({ reference: first.reference, resumed: true });
+    // Switching to card gives up the unpaid MoMo checkout and opens a new one at the card fee.
+    const card = await startPayment(id, 20000, CALLBACK, "card");
+    expect(card.reference).not.toBe(first.reference);
   });
 
-  it("waits for a prompt still on the phone before starting another", async () => {
-    const { id } = await registered();
-    await momo(id, 20000);
-    await expect(momo(id, 20000)).rejects.toThrow("still waiting");
-  });
-
-  it("refuses a number that isn't a Ghana mobile number", async () => {
-    const { id } = await registered();
-    await expect(momo(id, 20000, "0301234567")).rejects.toThrow("MoMo number");
-    expect(await listPayments(id)).toEqual([]);
-  });
-
-  it("is on in the test Worker", async () => {
-    expect(await post("/v1/admin/camp/pay-options", {})).toEqual({ momo_direct: true, ready: true });
+  it("coordinators paying for several people pay the higher fee", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    await query("app", "UPDATE camps SET fee_bps = 250, momo_fee_bps = 150 WHERE id = ?", [camp.id]);
+    const a = (await getRegistration((await register(camp, attendeeInput(roomTypeId))).id))!;
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    expect(checkout.fee_pesewas).toBe(feeFor(60000, 250));
   });
 });
 
@@ -493,7 +461,8 @@ describe("paying for several people", () => {
       campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "coord@test.local", note: "Zion fund", callbackUrl: CALLBACK,
     });
     expect(checkout).toMatchObject({ people: 2, amount_pesewas: 60000 + 40000, fee_pesewas: feeFor(100000, 195) });
-    expect(orders.get(checkout.reference)).toMatchObject({ amount: checkout.charged_pesewas, email: "coord@test.local", direct: false });
+    expect(orders.get(checkout.reference)).toMatchObject({ amount: checkout.charged_pesewas });
+    expect(orders.get(checkout.reference)?.email).toBeNull();
 
     succeed(checkout.reference);
     expect(await checkBulkPayment(camp.id, checkout.reference)).toMatchObject({ status: "success", people: 2, credited: 2 });
@@ -538,10 +507,10 @@ describe("paying for several people", () => {
 });
 
 describe("pay links", () => {
-  it("lets someone else pay, with their email for the receipt and their name on the payment", async () => {
+  it("lets someone else pay, with their name on the payment", async () => {
     const { id } = await registered();
-    const checkout = await startPaymentFor(id, 30000, CALLBACK, { email: "dad@example.com", name: "Daddy" });
-    expect(orders.get(checkout.reference)).toMatchObject({ email: "dad@example.com", firstname: "Daddy" });
+    const checkout = await startPaymentFor(id, 30000, CALLBACK, "Daddy", "card");
+    expect(orders.get(checkout.reference)).toMatchObject({ firstname: "Daddy" });
     succeed(checkout.reference);
     await checkPayment(id, checkout.reference);
     expect((await listPayments(id))[0]).toMatchObject({ payer_name: "Daddy", status: "success" });

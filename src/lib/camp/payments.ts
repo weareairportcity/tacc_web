@@ -1,6 +1,6 @@
 import { post, query } from "@/lib/cf";
 import { checkId } from "./camps";
-import type { MomoNetwork, PayMethod } from "./money";
+import type { PayMethod } from "./money";
 import { CampError, type PaymentStatus } from "./types";
 
 /**
@@ -23,53 +23,36 @@ async function worker<T>(path: string, body: unknown): Promise<T> {
 
 export type Checkout = {
   reference: string;
-  /** expressPay's page to send the payer to; null for MoMo charged from Commune (approve on the phone). */
-  authorization_url: string | null;
+  /** expressPay's page to send the payer to. */
+  authorization_url: string;
   amount_pesewas: number;
   fee_pesewas: number;
   charged_pesewas: number;
-  /** MoMo charged from Commune: the prompt is on the phone. */
-  waiting?: boolean;
 };
 
-/** How someone pays: expressPay's page (card, or MoMo picked there), or MoMo straight from Commune. */
-export type HowToPay = { method: "card" } | { method: "momo"; number: string; network: MomoNetwork };
-
-const howFields = (how: HowToPay | undefined) =>
-  how?.method === "momo" ? { method: "momo", momo_number: how.number, momo_network: how.network } : { method: "card" };
-
-export function startPayment(registrationId: string, amountPesewas: number, callbackUrl: string, how?: HowToPay) {
+/** method: how the payer says they'll pay on expressPay's page; it sets the fee. */
+export function startPayment(registrationId: string, amountPesewas: number, callbackUrl: string, method: PayMethod = "card") {
   return worker<Checkout>("/v1/admin/camp/pay-init", {
     registration_id: registrationId,
     amount_pesewas: amountPesewas,
     callback_url: callbackUrl,
-    ...howFields(how),
+    method,
   });
 }
-
-export type PayOptions = { momo_direct: boolean; ready: boolean };
-
-/** Whether MoMo can be charged from Commune (expressPay's Direct API is on). Unknown counts as no. */
-export async function payOptions(): Promise<PayOptions> {
-  return post<PayOptions>("/v1/admin/camp/pay-options", {}).catch(() => ({ momo_direct: false, ready: false }));
-}
-
-export const methodOf = (how: HowToPay | undefined): PayMethod => how?.method ?? "card";
 
 export async function checkPayment(registrationId: string, reference: string): Promise<PaymentStatus> {
   return (await worker<{ status: PaymentStatus }>("/v1/admin/camp/check", { registration_id: registrationId, reference }))
     .status;
 }
 
-/** A payment link opened by someone else (a parent or sponsor): their receipt email and name. */
-export function startPaymentFor(registrationId: string, amountPesewas: number, callbackUrl: string, payer: { email: string; name: string }, how?: HowToPay) {
+/** A payment link opened by someone else (a parent or sponsor), with their name. */
+export function startPaymentFor(registrationId: string, amountPesewas: number, callbackUrl: string, payerName: string, method: PayMethod) {
   return worker<Checkout>("/v1/admin/camp/pay-init", {
     registration_id: registrationId,
     amount_pesewas: amountPesewas,
     callback_url: callbackUrl,
-    payer_email: payer.email,
-    payer_name: payer.name,
-    ...howFields(how),
+    payer_name: payerName,
+    method,
   });
 }
 
