@@ -17,7 +17,7 @@ const STORED: [string, string][] = [
   ["cm_count_off", "“Don't count my visits”, if you chose it."],
   ["cm_seen_day", "The day this phone last told Commune you came, so it only tells it once a day."],
   ["commune.install", "That you closed the “Add to home screen” tip."],
-  ["commune.people…, commune.scanMode, commune.payEmail", "Coordinators only: their filters, scan mode and receipt email."],
+  ["commune.people…, commune.scanMode", "Coordinators only: their filters and scan mode."],
 ];
 
 /** Every cookie and stored setting Commune uses. All are needed for Commune to work or remember a choice; none are for advertising. */

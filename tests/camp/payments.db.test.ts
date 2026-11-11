@@ -424,7 +424,7 @@ describe("MoMo or card", () => {
     const { camp, roomTypeId } = await openCamp();
     await query("app", "UPDATE camps SET fee_bps = 250, momo_fee_bps = 150 WHERE id = ?", [camp.id]);
     const a = (await getRegistration((await register(camp, attendeeInput(roomTypeId))).id))!;
-    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, note: "", callbackUrl: CALLBACK });
     expect(checkout.fee_pesewas).toBe(feeFor(60000, 250));
   });
 });
@@ -458,7 +458,7 @@ describe("paying for several people", () => {
     const b = await newPerson(camp, roomTypeId);
     await payFor(b.id, 20000);
     const checkout = await startBulkPayment({
-      campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "coord@test.local", note: "Zion fund", callbackUrl: CALLBACK,
+      campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, note: "Zion fund", callbackUrl: CALLBACK,
     });
     expect(checkout).toMatchObject({ people: 2, amount_pesewas: 60000 + 40000, fee_pesewas: feeFor(100000, 195) });
     expect(orders.get(checkout.reference)).toMatchObject({ amount: checkout.charged_pesewas });
@@ -477,7 +477,7 @@ describe("paying for several people", () => {
     const { camp, roomTypeId } = await openCamp();
     const a = await newPerson(camp, roomTypeId);
     const b = await newPerson(camp, roomTypeId);
-    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, note: "", callbackUrl: CALLBACK });
     succeed(checkout.reference);
     await checkBulkPayment(camp.id, checkout.reference);
     const report = await checkWithExpressPay(camp.id);
@@ -490,14 +490,14 @@ describe("paying for several people", () => {
     const a = await newPerson(camp, roomTypeId);
     await payFor(a.id, 60000);
     await expect(
-      startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK }),
+      startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, note: "", callbackUrl: CALLBACK }),
     ).rejects.toThrow("already fully paid");
   });
 
   it("a repeated notice and a reconcile change nothing after success", async () => {
     const { camp, roomTypeId } = await openCamp();
     const a = await newPerson(camp, roomTypeId);
-    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: ACTOR, note: "", callbackUrl: CALLBACK });
     succeed(checkout.reference);
     await sendNotice(checkout.reference);
     await sendNotice(checkout.reference);
@@ -607,7 +607,7 @@ import { cancelPayment, listMyOpenBulkPayments, listOpenPaymentsFor } from "@/li
 
 describe("a payment still processing", () => {
   const bulk = (campId: string, ids: string[], paidBy = ACTOR) =>
-    startBulkPayment({ campId, registrationIds: ids, paidBy, payerEmail: "c@test.local", note: "", callbackUrl: CALLBACK });
+    startBulkPayment({ campId, registrationIds: ids, paidBy, note: "", callbackUrl: CALLBACK });
 
   it("can be resumed: its checkout link is kept while it's pending", async () => {
     const { camp, roomTypeId } = await openCamp();
@@ -669,7 +669,7 @@ describe("pay-for-people receipt", () => {
     const { camp, roomTypeId } = await openCamp();
     const a = await newPerson(camp, roomTypeId);
     const b = await newPerson(camp, roomTypeId);
-    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, payerEmail: "c@test.local", note: "Zion fund", callbackUrl: CALLBACK });
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id, b.id], paidBy: ACTOR, note: "Zion fund", callbackUrl: CALLBACK });
     succeed(checkout.reference);
     await checkBulkPayment(camp.id, checkout.reference);
     const receipt = await getBulkReceipt(camp.id, checkout.reference);

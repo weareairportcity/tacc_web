@@ -63,7 +63,6 @@ export function startBulkPayment(input: {
   campId: string;
   registrationIds: string[];
   paidBy: string;
-  payerEmail: string;
   note: string;
   callbackUrl: string;
 }) {
@@ -71,7 +70,6 @@ export function startBulkPayment(input: {
     camp_id: input.campId,
     registration_ids: input.registrationIds,
     paid_by: input.paidBy,
-    payer_email: input.payerEmail,
     note: input.note,
     callback_url: input.callbackUrl,
   });

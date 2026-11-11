@@ -456,29 +456,23 @@ export async function payLinkAction(campId: string, registrationId: string) {
   });
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /**
  * One expressPay checkout for several people's balances. Returns where to
- * send the payer. Leaders pay for their own people only; with no email on
- * Commune, they give one for expressPay's receipt.
+ * send the payer. Leaders pay for their own people only.
  */
-export async function payForPeopleAction(campId: string, registrationIds: string[], note: string, payerEmail = "") {
+export async function payForPeopleAction(campId: string, registrationIds: string[], note: string) {
   return run(async () => {
     const staff = await requireCampRole("coordinator", "leader");
-    await once(staff.email, "payForPeopleAction", [campId, registrationIds, note, payerEmail]);
+    await once(staff.email, "payForPeopleAction", [campId, registrationIds, note]);
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
     const ids = Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 100) : [];
     const leader = staff.role === "leader";
-    const email = leader ? String(payerEmail ?? "").trim().toLowerCase() : staff.email;
-    if (leader && !EMAIL.test(email)) throw new CampError("Enter your email for the receipt.");
     if (leader && (await idsInScope(camp.id, ids, scopeFor(staff))).length !== new Set(ids).size) throw new CampError(`You can only pay for people in ${staff.scope_value}.`);
     const checkout = await startBulkPayment({
       campId: camp.id,
       registrationIds: ids,
       paidBy: staff.email,
-      payerEmail: email,
       note: String(note ?? ""),
       callbackUrl: `${await campOrigin()}${leader ? "/leaders" : "/admin/camp"}/${camp.id}/money/paid`,
     });

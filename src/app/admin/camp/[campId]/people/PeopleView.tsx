@@ -569,7 +569,7 @@ export function PeopleView({
         </a>
       )}
 
-      <PaySheet open={sheet === "pay"} onClose={() => setSheet(null)} campId={campId} people={pickedOwing} leader={leader} />
+      <PaySheet open={sheet === "pay"} onClose={() => setSheet(null)} campId={campId} people={pickedOwing} />
       {leader && <RemindSheet open={sheet === "remind"} onClose={() => setSheet(null)} campName={campName} people={owing} />}
       {!leader && (
         <>
@@ -794,21 +794,8 @@ function ViewsMenu({
   );
 }
 
-const EMAIL_KEY = "commune.payEmail";
-
-function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[]; leader: boolean }) {
+function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[] }) {
   const [note, setNote] = useState("");
-  // Leaders have no email on Commune, and expressPay sends its receipt to one. Remembered on this phone.
-  const [email, setEmail] = useState("");
-  useEffect(() => {
-    if (!leader || !open) return;
-    try {
-      const saved = localStorage.getItem(EMAIL_KEY);
-      // Browser storage is only readable here, after the first render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved) setEmail((e) => e || saved);
-    } catch {}
-  }, [leader, open]);
   const [error, setError] = useState("");
   const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
   const [pending, start] = useOneAtATime();
@@ -828,13 +815,7 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
             start(async () => {
               setError("");
               setBlockers(null);
-              if (leader) {
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Enter your email for the receipt.");
-                try {
-                  localStorage.setItem(EMAIL_KEY, email.trim());
-                } catch {}
-              }
-              const r = await payForPeopleAction(campId, people.map((p) => p.id), note, leader ? email : "");
+              const r = await payForPeopleAction(campId, people.map((p) => p.id), note);
               if (!r.ok) {
                 setError(r.error);
                 const open = await openPaymentsForAction(campId, people.map((p) => p.id));
@@ -867,12 +848,6 @@ function PaySheet({ open, onClose, campId, people, leader }: { open: boolean; on
         Note (optional)
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Zion fellowship fund" className={inputClass} />
       </label>
-      {leader && (
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Your email, for the receipt
-          <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-        </label>
-      )}
       <ErrorText>{error}</ErrorText>
       {blockers && blockers.payments.length > 0 && <Blockers campId={campId} me={blockers.me} payments={blockers.payments} />}
     </Sheet>
