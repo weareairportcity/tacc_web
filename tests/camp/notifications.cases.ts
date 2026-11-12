@@ -151,6 +151,18 @@ describe("who paid", () => {
   });
 });
 
+describe("/test in Telegram", () => {
+  it("shows one example of each kind of update", async () => {
+    telegramCalls.length = 0;
+    await command("/test");
+    const sent = sentToGroup();
+    expect(sent[0]).toContain("Examples");
+    for (const title of ["New registration", "Payment received", "A payment needs a look", "New refund request", "New room change request", "Registration cancelled"]) {
+      expect(sent.some((t) => t.includes(`<b>${title}</b>`))).toBe(true);
+    }
+  });
+});
+
 describe("/summary in Telegram", () => {
   it("lays out each open camp in sections, at any time", async () => {
     const { camp } = await registered();

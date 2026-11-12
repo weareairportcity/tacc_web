@@ -96,12 +96,25 @@ function settingsKeyboard(off: string[]) {
   };
 }
 
+/** /test: one of each kind of update, with made-up people, so the group sees what to expect. */
+const EXAMPLES = [
+  "🧪 <b>Examples</b>\n\nHere is what each Commune update looks like. These are made up: nothing here needs action.",
+  card("🙋", "New registration", [["Name", "Ama Mensah"], ["Gender", "Female"], ["Fellowship", "Qadash, PFCC 2"], ["Room type", "Hostel (GHS 600.00)"], ["Camp", "Example Camp"], ["Registered so far", "57"]]),
+  card("💰", "Payment received", [["Attendee", "Ama Mensah"], ["Paid by", "Kwesi Mensah (pay link)"], ["Amount", "GHS 200 + GHS 5 fee"], ["Paid with", "Mobile money"], ["Balance", "GHS 400 left of GHS 600"], ["Room type", "Hostel"], ["Camp", "Example Camp"], ["Receipt no.", "CAMP-0000000000000001"]]),
+  card("💰", "Payment received", [["Paid by", "Qadash leader"], ["For", "3 people"], ["People", "Abena Owusu, Kofi Mensah, Yaw Boateng"], ["Amount", "GHS 1,800 + GHS 45 fee"], ["Note", "Qadash fellowship fund"], ["Camp", "Example Camp"], ["Receipt no.", "CAMP-B000000000000001"]]),
+  card("⚠️", "A payment needs a look", [["Attendee", "Ama Mensah"], ["What happened", "They paid after their balance was already covered, so the extra needs a refund."], ["Amount", "GHS 204"], ["Camp", "Example Camp"], ["What to do", "Open Money in Commune and sort it out."]]),
+  card("📨", "New refund request", [["Attendee", "Ama Mensah"], ["Asking for", "GHS 200.00 back"], ["Paid so far", "GHS 600.00"], ["Reason", "I paid twice by mistake"], ["What to do", "Open Requests in Commune to decide."]]),
+  card("📨", "New room change request", [["Attendee", "Kofi Mensah"], ["Wants to move", "from Hostel to Hotel"], ["Paid so far", "GHS 600.00"], ["Reason", "Travelling with my family"], ["What to do", "Open Requests in Commune to decide."]]),
+  card("❌", "Registration cancelled", [["Attendee", "Efua Asante"], ["Room type", "Dorm"], ["Had paid", "GHS 200.00"], ["Refund", "A refund request is waiting in Requests."], ["Reason", "I can't come any more"]]),
+  "Send /summary for where each camp stands right now.",
+];
+
 const HELP = [
   "I post Commune updates for the coordinators here.",
   "",
   "/summary: where each camp stands right now",
   "/settings: choose which updates come here",
-  "/test: send a test message",
+  "/test: show an example of each update",
   "/unlink: stop posting here",
 ].join("\n");
 
@@ -178,7 +191,8 @@ export async function telegramHook(request: Request, env: AppEnv) {
       }
       break;
     case "/test":
-      await say(chat ? "This is a test. Commune updates will look like this. ✅" : "This group isn't linked yet. Send /link followed by the code.");
+      if (!chat) await say("This group isn't linked yet. Send /link followed by the code.");
+      else for (const text of EXAMPLES) await say(text, { parse_mode: "HTML" });
       break;
     case "/unlink":
       if (chat && from === chat.owner_user_id) {
@@ -207,7 +221,7 @@ export async function telegramSetup(env: AppEnv, origin: string) {
     commands: [
       { command: "summary", description: "Where each camp stands right now" },
       { command: "settings", description: "Choose which updates come here" },
-      { command: "test", description: "Send a test message" },
+      { command: "test", description: "Show an example of each update" },
       { command: "unlink", description: "Stop posting here" },
     ],
   });
