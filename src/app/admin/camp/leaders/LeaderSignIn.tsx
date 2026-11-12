@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Busy } from "@/components/camp/brand";
 import { leaderSignInAction } from "../session";
 
 export function LeaderSignIn({ next }: { next: string }) {
-  const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -24,8 +22,8 @@ export function LeaderSignIn({ next }: { next: string }) {
           setPending(false);
           return setError(r.error);
         }
-        router.replace(next);
-        router.refresh();
+        // A full page load, so it always lands on a page (see the coordinators' SignInForm).
+        window.location.replace(next);
       }}
     >
       <label className="flex flex-col gap-2">

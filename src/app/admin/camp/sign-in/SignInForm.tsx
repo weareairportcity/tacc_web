@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { noteStaffSignInAction } from "../session";
@@ -10,7 +9,6 @@ import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 
 export function SignInForm({ next }: { next: string }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -21,16 +19,21 @@ export function SignInForm({ next }: { next: string }) {
     e.preventDefault();
     setError("");
     setPending(true);
-    const { error: failed } = await createClient().auth.signInWithPassword({ email: email.trim(), password });
+    // No answer within 20 s counts as a failure, so the button never spins for ever.
+    const { error: failed } = await Promise.race([
+      createClient().auth.signInWithPassword({ email: email.trim(), password }),
+      new Promise<{ error: { message: string } }>((resolve) => setTimeout(() => resolve({ error: { message: "Couldn't reach the sign-in service. Check your connection and try again." } }), 20_000)),
+    ]).catch(() => ({ error: { message: "Couldn't reach the sign-in service. Check your connection and try again." } }));
     if (failed) {
       setPending(false);
       if (failed.message === "Invalid login credentials") void noteStaffSignInAction(false, email).catch(() => {});
       return setError(failed.message === "Invalid login credentials" ? "That email and password don't match." : failed.message);
     }
-    // For the sign-in log; the page doesn't wait for it.
+    // For the sign-in log, sent before leaving; the page doesn't wait for it.
     void noteStaffSignInAction(true).catch(() => {});
-    router.replace(next);
-    router.refresh();
+    // A full page load, not an in-app switch: the new session cookie goes with it for certain,
+    // and it always ends on a page (on some iPhones the in-app switch never finished).
+    window.location.replace(next);
   };
 
   return (
