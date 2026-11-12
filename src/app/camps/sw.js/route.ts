@@ -10,7 +10,7 @@
  */
 
 const WORKER = `
-const CACHE = "commune-v2";
+const CACHE = "commune-v3";
 const OFFLINE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline · Commune</title><body style="margin:0;background:#fafaf9;font:16px/1.6 system-ui,sans-serif;color:#0c0a09;display:grid;place-items:center;min-height:100vh;padding:24px;text-align:center"><div><p style="font-size:22px;margin:0 0 8px">No signal</p><p style="margin:0;color:#78716c">Open this page once while online and it will work offline next time.</p></div>';
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -61,7 +61,11 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/commune/")) {
     event.respondWith(
       caches.match(request).then((hit) => hit || fetch(request).then((res) => {
-        if (res.ok) caches.open(CACHE).then((c) => c.put(request, res.clone()));
+        // Copy before handing it to the page: once the page reads it, it can't be copied.
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy));
+        }
         return res;
       })),
     );
