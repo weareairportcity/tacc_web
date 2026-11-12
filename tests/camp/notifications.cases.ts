@@ -156,7 +156,8 @@ describe("/test in Telegram", () => {
     telegramCalls.length = 0;
     await command("/test");
     const sent = sentToGroup();
-    expect(sent[0]).toContain("Examples");
+    // Other test files register people meanwhile, so their messages can arrive in between.
+    expect(sent.some((t) => t.includes("Examples"))).toBe(true);
     for (const title of ["New registration", "Payment received", "A payment needs a look", "New refund request", "New room change request", "Registration cancelled"]) {
       expect(sent.some((t) => t.includes(`<b>${title}</b>`))).toBe(true);
     }
