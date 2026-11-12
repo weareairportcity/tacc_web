@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight, Receipt } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { actorName } from "@/lib/camp/history-words";
 import { formatCedis } from "@/lib/camp/money";
@@ -32,9 +32,14 @@ export default async function MoneyPage({ params }: { params: Promise<{ campId: 
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <h1 className={`${headlineClass} text-[34px]`}>Money</h1>
-        <a href={`${base}/registrations/export`} className="cm-press inline-flex h-10 items-center rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
-          Download payments
-        </a>
+        <span className="flex flex-wrap gap-2">
+          <Link href={`${base}/money/receipts`} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-cyan-edge bg-cyan-signal px-4 text-sm font-medium text-ink-black">
+            <Receipt className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Receipts
+          </Link>
+          <a href={`${base}/registrations/export`} className="cm-press inline-flex h-10 items-center rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
+            Download people
+          </a>
+        </span>
       </header>
 
       <ExpressPayCheck campId={camp.id} />

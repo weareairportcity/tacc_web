@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { post, query } from "@/lib/cf";
 import { checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import { notifyPrefs, savePushSub } from "@/lib/camp/push";
-import { getReceipt } from "@/lib/camp/receipts";
+import { getReceipt, listReceipts, parseReceiptFilters, receiptsCsv } from "@/lib/camp/receipts";
 import { askForRefund } from "@/lib/camp/requests";
 import { getRegistration } from "@/lib/camp/registrations";
 import { TEST_PROVIDER_PORT, TEST_TELEGRAM_LINK_CODE, TEST_TELEGRAM_SECRET, TEST_WORKER_URL } from "../setup/constants";
@@ -244,5 +244,37 @@ describe("app notifications", () => {
     const got = pushes.filter((x) => x.id === `due-${id}`);
     expect(got).toHaveLength(1);
     expect(await read(p, got[0].body)).toMatchObject({ title: "Payment due in 3 days", body: expect.stringContaining("GHS 600 left to pay") });
+  });
+});
+
+describe("Receipts for coordinators", () => {
+  it("lists each payment once, says who paid, filters, and exports the same rows", async () => {
+    const { camp, id } = await registered({ full_name: "Abla Receipts" });
+    const own = await startPayment(id, 10000, CALLBACK, "momo");
+    succeed(own.reference);
+    await checkPayment(id, own.reference);
+    const sponsored = await startPaymentFor(id, 20000, CALLBACK, "Uncle Kofi", "card");
+    succeed(sponsored.reference);
+    await checkPayment(id, sponsored.reference);
+    // Unfinished checkouts aren't receipts.
+    await startPayment(id, 5000, CALLBACK, "momo");
+
+    const all = await listReceipts(camp.id, parseReceiptFilters({}));
+    expect(all.map((r) => [r.reference, r.payer, r.who, r.method, r.amount_pesewas])).toEqual([
+      [sponsored.reference, "Uncle Kofi", "link", "card", 20000],
+      [own.reference, "Abla Receipts", "self", "momo", 10000],
+    ]);
+    expect((await listReceipts(camp.id, parseReceiptFilters({ who: "link" }))).map((r) => r.reference)).toEqual([sponsored.reference]);
+    expect((await listReceipts(camp.id, parseReceiptFilters({ method: "momo" }))).map((r) => r.reference)).toEqual([own.reference]);
+    expect((await listReceipts(camp.id, parseReceiptFilters({ q: "uncle" }))).map((r) => r.reference)).toEqual([sponsored.reference]);
+    expect((await listReceipts(camp.id, parseReceiptFilters({ q: own.reference.slice(5, 12).toLowerCase() }))).map((r) => r.reference)).toEqual([own.reference]);
+    expect(await listReceipts(camp.id, parseReceiptFilters({ from: "2099-01-01" }))).toEqual([]);
+
+    const csv = receiptsCsv(all, "https://commune.test");
+    const lines = csv.trim().split("\r\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain('"Receipt no."');
+    expect(lines[1]).toContain(`"https://commune.test/camps/r/${sponsored.reference}"`);
+    expect(lines[1]).toContain('"Uncle Kofi","Pay link","Card","200.00"');
   });
 });
