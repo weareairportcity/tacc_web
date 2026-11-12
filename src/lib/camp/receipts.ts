@@ -84,6 +84,9 @@ export type ReceiptRow = {
   amount_pesewas: number;
   fee_pesewas: number;
   charged_pesewas: number;
+  /** Their price and what they've paid now, for "left to pay" on the receipt. */
+  price_pesewas: number;
+  paid_pesewas: number;
   transaction_id: string | null;
 };
 
@@ -145,11 +148,13 @@ export async function listReceipts(campId: string, f: ReceiptFilters): Promise<R
     amount_pesewas: number;
     fee_pesewas: number;
     charged_pesewas: number;
+    price_pesewas: number;
+    paid_pesewas: number;
     transaction_id: string | null;
   }>(
     "app",
     `SELECT p.reference, COALESCE(p.paid_at, p.created_at) AS paid_at, p.registration_id, r.full_name, t.name AS room_type_name, r.fellowship,
-            p.payer_name, b.paid_by, p.method, p.amount_pesewas, p.fee_pesewas, p.charged_pesewas,
+            p.payer_name, b.paid_by, p.method, p.amount_pesewas, p.fee_pesewas, p.charged_pesewas, r.price_pesewas, r.paid_pesewas,
             COALESCE(json_extract(p.raw_json, '$."transaction-id"'), json_extract(b.raw_json, '$."transaction-id"')) AS transaction_id
      FROM camp_payments p
      JOIN camp_registrations r ON r.id = p.registration_id
@@ -176,6 +181,8 @@ export async function listReceipts(campId: string, f: ReceiptFilters): Promise<R
       amount_pesewas: x.amount_pesewas,
       fee_pesewas: x.fee_pesewas,
       charged_pesewas: x.charged_pesewas,
+      price_pesewas: x.price_pesewas,
+      paid_pesewas: x.paid_pesewas,
       transaction_id: x.transaction_id ? String(x.transaction_id) : null,
     };
   });
