@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { noteStaffSignInAction } from "../session";
 import { Busy } from "@/components/camp/brand";
-import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
+import { ErrorText, inputClass, primaryButtonClass } from "@/components/camp/ui";
 
 export function SignInForm({ next }: { next: string }) {
   const [email, setEmail] = useState("");
@@ -37,22 +36,32 @@ export function SignInForm({ next }: { next: string }) {
   };
 
   return (
-    <form onSubmit={submit} className="cm-rise flex flex-col gap-4" style={{ animationDelay: "60ms" }}>
-      <Field label="Email">
-        <input type="email" required autoComplete="email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} />
-      </Field>
-      <div className="flex flex-col gap-1.5">
-        <span className="flex items-baseline justify-between text-sm font-medium">
-          <label htmlFor="password">Password</label>
-          <span className="text-[13px] font-normal text-warm-gray">Forgot it? Ask a camp admin.</span>
-        </span>
+    <form onSubmit={submit} className="cm-rise flex flex-col gap-5" style={{ animationDelay: "60ms" }}>
+      <label className="flex flex-col gap-2">
+        <span className="text-[15px] font-medium">Email</span>
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          inputMode="email"
+          placeholder="you@theairportcitychurch.com"
+          className={`${inputClass} h-12 text-base`}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </label>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="password" className="text-[15px] font-medium">
+          Password
+        </label>
         <span className="relative flex">
           <input
             id="password"
             type={show ? "text" : "password"}
             required
             autoComplete="current-password"
-            className={`${inputClass} pr-12`}
+            aria-describedby="password-hint"
+            className={`${inputClass} h-12 pr-12 text-base`}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -61,29 +70,19 @@ export function SignInForm({ next }: { next: string }) {
             onClick={() => setShow(!show)}
             aria-label={show ? "Hide password" : "Show password"}
             aria-pressed={show}
-            className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-warm-gray"
+            className="cm-press absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-warm-gray hover:text-ink-black"
           >
             {show ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.6} /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.6} />}
           </button>
         </span>
+        <span id="password-hint" className="text-[13px] text-warm-gray">
+          Forgotten it? Ask a camp admin to reset it.
+        </span>
       </div>
       <ErrorText>{error}</ErrorText>
-      <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
+      <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} mt-1 h-[52px] w-full text-base`}>
         <Busy pending={pending} text="Signing in…">Sign in</Busy>
       </button>
-      <p className="flex items-center gap-2 text-[13px] text-warm-gray">
-        <Lock className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" />
-        Coming to camp?{" "}
-        <Link href="/camps" className="text-ink-black underline decoration-stone-muted underline-offset-[3px]">
-          Attendees sign in here
-        </Link>
-      </p>
-      <p className="-mt-2 pl-[22px] text-[13px] text-warm-gray">
-        Fellowship or PFCC leader?{" "}
-        <Link href="/leaders" className="text-ink-black underline decoration-stone-muted underline-offset-[3px]">
-          Use your code
-        </Link>
-      </p>
     </form>
   );
 }
