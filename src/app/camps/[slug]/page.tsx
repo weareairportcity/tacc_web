@@ -207,7 +207,7 @@ function RoomList({ roomTypes }: { roomTypes: RoomType[] }) {
             [female, "women"],
             [male, "men"],
           ] as const
-        ).filter((row): row is [number, string] => row[0] !== null && row[0] > 0);
+        ).filter((row): row is [number, "women" | "men"] => row[0] !== null && row[0] > 0);
         const fullFor = ([[female, "women"], [male, "men"]] as const).filter(([n]) => n === 0).map(([, who]) => who);
         const note = full
           ? "Full"
