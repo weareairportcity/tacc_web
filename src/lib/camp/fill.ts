@@ -197,10 +197,19 @@ export function extraRoomsNeeded(board: Board, capacity: number): number {
   return extra;
 }
 
+function autoRoomPrefix(gender: "male" | "female", typeName: string) {
+  return `${gender === "male" ? "Men" : "Women"} · ${typeName} `;
+}
+
+/** A label Place everyone / starting a group would have made, not a venue number. */
+export function isAutoRoomLabel(label: string, gender: "male" | "female", typeName: string) {
+  const prefix = autoRoomPrefix(gender, typeName);
+  return label.startsWith(prefix) && /^\d+$/.test(label.slice(prefix.length));
+}
+
 /** "Women · Hostel 1", skipping labels already in the camp. */
 export function nextRoomLabels(existing: string[], gender: "male" | "female", typeName: string, count: number): string[] {
-  const who = gender === "male" ? "Men" : "Women";
-  const prefix = `${who} · ${typeName} `;
+  const prefix = autoRoomPrefix(gender, typeName);
   let n = 0;
   for (const label of existing) {
     if (!label.startsWith(prefix)) continue;

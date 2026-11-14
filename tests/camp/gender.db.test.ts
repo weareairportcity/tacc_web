@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
-import { assignPerson, getMyRoom } from "@/lib/camp/assignments";
+import { assignPerson, getMyRoom, unassign } from "@/lib/camp/assignments";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { getRegistration, register } from "@/lib/camp/registrations";
@@ -22,6 +22,8 @@ async function setup(rooms: { label: string; gender: Gender; capacity?: number }
   const kofi = await paidUp(camp, roomTypeId, { full_name: "Kofi Boateng", gender: "male" });
   await createGroup(esi);
   await joinByCode(kofi, (await getGroupFor(esi.id))!.code);
+  await unassign(ACTOR, esi.id);
+  await unassign(ACTOR, kofi.id);
   await assignPerson(ACTOR, ids.B1, esi.id);
   return { camp, roomTypeId, rooms: ids, esi, kofi };
 }

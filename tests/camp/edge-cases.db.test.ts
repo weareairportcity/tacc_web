@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { changeRoomType, listRefunds, recordRefund } from "@/lib/camp/adjustments";
-import { assignGroup, assignPerson, getMyRoom } from "@/lib/camp/assignments";
+import { assignGroup, assignPerson, getMyRoom, unassign } from "@/lib/camp/assignments";
 import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { cancelRegistration, getRegistration } from "@/lib/camp/registrations";
 import { getDashboard } from "@/lib/camp/reports";
 import { listRoomSmsPending, sendRoomSms } from "@/lib/camp/room-sms";
-import { createRoom, createRoomType } from "@/lib/camp/rooms";
+import { createRoom, createRoomType, deleteRoom, listRooms } from "@/lib/camp/rooms";
 import type { Registration } from "@/lib/camp/types";
 import { ACTOR, openCamp, paidWithPayment } from "./helpers";
 
@@ -124,6 +124,8 @@ describe("changing someone's room type", () => {
     const ama = await paidWithPayment(camp, hostel);
     const group = await createGroup(owner);
     await joinByCode(ama, (await getGroupFor(owner.id))!.code);
+    await unassign(ACTOR, owner.id);
+    await unassign(ACTOR, ama.id);
     await query("app", "UPDATE camps SET roommate_deadline_on = date('now', '-1 day') WHERE id = ?", [owner.camp_id]);
     await assignGroup(ACTOR, room, group);
 
@@ -153,6 +155,9 @@ describe("the dashboard", () => {
     await createGroup(people[0]);
     const code = (await getGroupFor(people[0].id))!.code;
     for (const p of people.slice(1)) await joinByCode(p, code);
+    for (const p of people) await unassign(ACTOR, p.id);
+    const auto = (await listRooms(camp.id)).find((r) => r.label.startsWith("Women · "));
+    if (auto) await deleteRoom(ACTOR, auto.id);
     expect((await getDashboard(camp.id)).groupsTooBig).toEqual([
       { code, room_type_name: "Hostel", gender: "female", needs: 3, most_free: 2 },
     ]);

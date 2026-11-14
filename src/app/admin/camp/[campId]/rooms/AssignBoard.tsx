@@ -265,7 +265,7 @@ export function AssignBoard({
           <h2 className="text-sm font-semibold">Rooms · {freeBeds} free beds</h2>
           {board.rooms.length === 0 ? (
             <p className="rounded-[10px] border border-stone-border bg-white p-4 text-sm text-warm-gray">
-              No rooms of this type yet. Place everyone at random creates them. At the venue, open All rooms and type each number.
+              No rooms of this type yet. Groups already have rooms under All rooms. Place everyone at random creates the rest. At the venue, open All rooms and type each number.
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">

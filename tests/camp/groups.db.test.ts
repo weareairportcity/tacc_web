@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { formatGroupCode } from "@/lib/camp/codes";
+import { getMyRoom } from "@/lib/camp/assignments";
 import { createGroup, getGroupFor, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
+import { listRooms } from "@/lib/camp/rooms";
 import { cancelRegistration, getRegistration, register } from "@/lib/camp/registrations";
 import { createRoomType } from "@/lib/camp/rooms";
 import type { Camp, Registration } from "@/lib/camp/types";
@@ -37,6 +39,21 @@ describe("creating a group", () => {
     expect(group.members.map((m) => m.registration_id)).toEqual([ama.id]);
     expect(await auditActions(id)).toEqual(["group.create"]);
     await expect(createGroup(ama)).rejects.toThrow("already in a group");
+  });
+
+  it("opens a room coordinators can see, and puts joiners in it", async () => {
+    const { camp, people: [ama, esi] } = await campWith(2);
+    await createGroup(ama);
+    const rooms = await listRooms(camp.id);
+    expect(rooms.map((r) => [r.label, Number(r.occupied), r.gender])).toEqual([["Women · Hostel 1", 1, "female"]]);
+    expect(await getMyRoom(ama.id)).toMatchObject({ label: "Women · Hostel 1" });
+    await joinByCode(esi, await codeOf(ama));
+    expect(Number((await listRooms(camp.id))[0].occupied)).toBe(2);
+    expect(await getMyRoom(esi.id)).toMatchObject({ label: "Women · Hostel 1" });
+    await leaveGroup(esi);
+    expect(Number((await listRooms(camp.id))[0].occupied)).toBe(1);
+    await leaveGroup(ama);
+    expect(await listRooms(camp.id)).toEqual([]);
   });
 
   it("is only for Fully Paid attendees", async () => {

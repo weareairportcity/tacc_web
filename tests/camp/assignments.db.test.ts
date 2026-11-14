@@ -42,6 +42,11 @@ async function groupOf(owner: Registration, members: Registration[]) {
   return id;
 }
 
+/** Groups now open a room; tests that place people in imported rooms start from unassigned. */
+async function unplaced(people: Registration[]) {
+  for (const p of people) await unassign(ACTOR, p.id).catch(() => null);
+}
+
 describe("placing one person", () => {
   it("fills a bed, warns about the free ones, and is audited", async () => {
     const { roomIds: [room], people: [a, b, c, d] } = await setup(4);
@@ -104,6 +109,7 @@ describe("placing a group", () => {
   it("places every member at once and warns while the group is open", async () => {
     const { roomIds: [room], people: [owner, a, b] } = await setup(3);
     const group = await groupOf(owner, [a, b]);
+    await unplaced([owner, a, b]);
     const { warning } = await assignGroup(ACTOR, room, group);
     expect(warning).toBe("A1 has 1 free bed. Top it up from the unmatched list. This group is still open, so its members may change.");
     expect((await occupants(room)).sort()).toEqual([owner.id, a.id, b.id].sort());
@@ -112,6 +118,7 @@ describe("placing a group", () => {
   it("only goes in whole: a group bigger than the free beds is refused", async () => {
     const { roomIds: [room], people: [owner, a, b, solo, solo2] } = await setup(5);
     const group = await groupOf(owner, [a, b]);
+    await unplaced([owner, a, b]);
     await assignPerson(ACTOR, room, solo.id);
     await assignPerson(ACTOR, room, solo2.id);
     await expect(assignGroup(ACTOR, room, group)).rejects.toThrow("A1 has 2 free beds; this group needs 3");
@@ -121,6 +128,7 @@ describe("placing a group", () => {
   it("skips members already in the room, and won't split a group across rooms", async () => {
     const { roomIds: [a1, a2], people: [owner, a, b] } = await setup(3, [{ label: "A1" }, { label: "A2" }]);
     const group = await groupOf(owner, [a, b]);
+    await unplaced([owner, a, b]);
     await query("app", "UPDATE camps SET roommate_deadline_on = date('now', '-1 day') WHERE id = ?", [owner.camp_id]);
     await assignPerson(ACTOR, a1, a.id);
     expect(await assignGroup(ACTOR, a1, group)).toMatchObject({ warning: "A1 has 1 free bed. Top it up from the unmatched list." });
@@ -134,6 +142,7 @@ describe("placing a group", () => {
     const { roomIds: [room], people } = await setup(6);
     const first = await groupOf(people[0], people.slice(1, 3));
     const second = await groupOf(people[3], people.slice(4, 6));
+    await unplaced(people);
     const results = await Promise.allSettled([assignGroup(ACTOR, room, first), assignGroup(ACTOR, room, second)]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(await occupants(room)).toHaveLength(3);
@@ -205,6 +214,7 @@ describe("removing people", () => {
   it("frees the bed and leaves the roommate group alone", async () => {
     const { roomIds: [room], people: [owner, a] } = await setup(2);
     const group = await groupOf(owner, [a]);
+    await unplaced([owner, a]);
     await assignGroup(ACTOR, room, group);
     await unassign(ACTOR, a.id);
     expect(await occupants(room)).toEqual([owner.id]);
@@ -232,20 +242,21 @@ describe("what people see", () => {
   it("gives the coordinator pools, waiting groups and unmatched people", async () => {
     const { camp, roomTypeId, roomIds: [room], people } = await setup(6, [{ label: "A1" }, { label: "A2" }]);
     const [owner, member, placed, ...unmatched] = people;
-    const group = await groupOf(owner, [member]);
+    await groupOf(owner, [member]);
     await assignPerson(ACTOR, room, placed.id);
     await paidUp(camp, roomTypeId, { gender: "male" });
 
     expect(await listPools(camp.id)).toEqual([
-      { room_type_id: roomTypeId, room_type_name: "Hostel", gender: "female", fully_paid: 6, assigned: 1, beds: 8 },
+      { room_type_id: roomTypeId, room_type_name: "Hostel", gender: "female", fully_paid: 6, assigned: 3, beds: 12 },
       { room_type_id: roomTypeId, room_type_name: "Hostel", gender: "male", fully_paid: 1, assigned: 0, beds: 0 },
     ]);
     const board = await getPoolBoard(camp.id, roomTypeId, "female");
-    expect(board.groups.map((g) => [g.id, g.members.length, g.state])).toEqual([[group, 2, "open"]]);
+    expect(board.groups).toEqual([]);
     expect(board.people.map((p) => p.id).sort()).toEqual(unmatched.map((p) => p.id).sort());
-    expect(board.rooms.map((r) => [r.label, r.occupied, r.occupants.map((o) => o.registration_id)])).toEqual([
-      ["A1", 1, [placed.id]],
-      ["A2", 0, []],
+    expect(board.rooms.map((r) => [r.label, Number(r.occupied)])).toEqual([
+      ["A1", 1],
+      ["A2", 0],
+      ["Women · Hostel 1", 2],
     ]);
   });
 });
@@ -255,9 +266,14 @@ describe("creating rooms for Place everyone", () => {
     const { camp, roomTypeId, people } = await setup(5, []);
     const [owner, a] = people;
     await groupOf(owner, [a]);
-    const empty = await getPoolBoard(camp.id, roomTypeId, "female");
-    expect(extraRoomsNeeded(empty, 4)).toBe(2);
-    const labels = nextRoomLabels([], "female", "Hostel", 2);
+    const waiting = await getPoolBoard(camp.id, roomTypeId, "female");
+    expect(extraRoomsNeeded(waiting, 4)).toBe(1);
+    const labels = nextRoomLabels(
+      waiting.rooms.map((r) => r.label),
+      "female",
+      "Hostel",
+      1,
+    );
     await createRooms(
       ACTOR,
       camp.id,

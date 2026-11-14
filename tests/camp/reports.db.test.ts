@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
-import { assignGroup } from "@/lib/camp/assignments";
+import { assignGroup, unassign } from "@/lib/camp/assignments";
 import { toCsv } from "@/lib/camp/csv";
 import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { cancelRegistration, register } from "@/lib/camp/registrations";
@@ -15,7 +15,7 @@ import {
   type PeopleFilters,
 } from "@/lib/camp/reports";
 import { assertRole } from "@/lib/camp/roles";
-import { createRoom, createRoomType, setPlacesLeft } from "@/lib/camp/rooms";
+import { createRoom, createRoomType, deleteRoom, listRooms, setPlacesLeft } from "@/lib/camp/rooms";
 import type { Camp, Registration, Staff } from "@/lib/camp/types";
 import { ACTOR, attendee, openCamp, paidUp } from "./helpers";
 
@@ -46,6 +46,11 @@ beforeAll(async () => {
   p.fafa = await paidUp(camp, hostel, { full_name: "Fafa Qadash", fellowship: "Qadash" });
   const group = await createGroup(p.ama);
   await joinByCode(p.fafa, (await getGroupFor(p.ama.id))!.code);
+  await unassign(ACTOR, p.ama.id);
+  await unassign(ACTOR, p.fafa.id);
+  for (const r of await listRooms(camp.id)) {
+    if (r.label.startsWith("Women · ") || r.label.startsWith("Men · ")) await deleteRoom(ACTOR, r.id);
+  }
   await assignGroup(ACTOR, a1, group);
   // One real payment row for Ama, for the fee total.
   await query(

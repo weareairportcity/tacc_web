@@ -2,14 +2,18 @@ import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { GROUP_CODE_LENGTH, generateGroupCode, normalizeCode } from "./codes";
+import { isAutoRoomLabel, nextRoomLabels } from "./fill";
 import { allow } from "./rate-limit";
 import { todayInGhana } from "./registrations";
+import { createRooms, getRoomType, listRooms } from "./rooms";
 import { CampError, type Group, type GroupMember, type GroupState, type Registration } from "./types";
 
 /**
  * Roommate groups. The one way in is the group's link (its code); there are
  * no invites by name and no locking: a group stays open until it's full or
- * the roommate deadline passes.
+ * the roommate deadline passes. Starting a group opens a real room (All rooms)
+ * of that type's size, and joiners are placed in it so coordinators see it
+ * without waiting for Place everyone.
  *
  * D1 has no row locks, so every change is one guarded statement: the WHERE
  * clause holds the rule (open, room left, eligible) and the database applies
@@ -86,40 +90,135 @@ async function deadlinePassed(campId: string) {
 
 // ─── Creating and joining ────────────────────────────────────────────────────
 
-/** Starts a group with `me` as its owner and only member. Returns the group id. */
+async function roomIdForGroup(groupId: string): Promise<string | null> {
+  const [row] = await query<{ room_id: string }>(
+    "app",
+    `SELECT a.room_id FROM camp_group_members m
+     JOIN camp_room_assignments a ON a.registration_id = m.registration_id
+     WHERE m.group_id = ?
+     LIMIT 1`,
+    [groupId],
+  );
+  return row?.room_id ?? null;
+}
+
+async function roomIdForPerson(registrationId: string): Promise<string | null> {
+  const [row] = await query<{ room_id: string }>(
+    "app",
+    "SELECT room_id FROM camp_room_assignments WHERE registration_id = ?",
+    [registrationId],
+  );
+  return row?.room_id ?? null;
+}
+
+function assignToRoomStatement(actor: string, roomId: string, registrationId: string) {
+  return {
+    sql: `INSERT INTO camp_room_assignments (room_id, registration_id, assigned_by)
+          SELECT x.id, r.id, ? FROM camp_rooms x JOIN camp_registrations r ON r.id = ?
+          WHERE x.id = ?
+            AND r.camp_id = x.camp_id AND r.gender = x.gender AND r.room_type_id = x.room_type_id
+            AND r.status = 'fully_paid'
+            AND NOT EXISTS (SELECT 1 FROM camp_room_assignments a WHERE a.registration_id = r.id)
+            AND (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = x.id) < x.capacity
+          RETURNING registration_id`,
+    params: [actor, registrationId, roomId],
+  };
+}
+
+function unassignStatement(registrationId: string) {
+  return { sql: "DELETE FROM camp_room_assignments WHERE registration_id = ?", params: [registrationId] };
+}
+
+function deleteEmptyRoomStatement(roomId: string) {
+  return {
+    sql: "DELETE FROM camp_rooms WHERE id = ? AND NOT EXISTS (SELECT 1 FROM camp_room_assignments WHERE room_id = ?)",
+    params: [roomId, roomId],
+  };
+}
+
+/** Drop an empty auto-named room (Women · Hostel 1). Never a venue number the coordinators typed. */
+async function emptyAutoRoomStatements(roomId: string | null) {
+  if (!roomId) return [];
+  const [row] = await query<{ label: string; gender: "male" | "female"; name: string }>(
+    "app",
+    `SELECT x.label, x.gender, t.name FROM camp_rooms x JOIN camp_room_types t ON t.id = x.room_type_id WHERE x.id = ?`,
+    [roomId],
+  );
+  if (!row || !isAutoRoomLabel(row.label, row.gender, row.name)) return [];
+  return [deleteEmptyRoomStatement(roomId)];
+}
+
+async function openRoomFor(me: Registration): Promise<{ id: string; label: string; capacity: number }> {
+  const type = await getRoomType(me.room_type_id);
+  if (!type) throw new CampError("Unknown room type.");
+  const labels = (await listRooms(me.camp_id)).map((r) => r.label);
+  const [label] = nextRoomLabels(labels, me.gender, type.name, 1);
+  const [id] = await createRooms(actorOf(me), me.camp_id, [
+    { room_type_id: type.id, label, gender: me.gender, capacity: type.capacity },
+  ]);
+  return { id, label, capacity: type.capacity };
+}
+
+/** Starts a group with `me` as its owner and only member. Returns the group id. Opens their room. */
 export async function createGroup(me: Registration): Promise<string> {
   requireFullyPaid(me);
   if (await getGroupFor(me.id)) throw new CampError("You're already in a group. Leave it first.");
   if (await deadlinePassed(me.camp_id)) throw new CampError("The roommate deadline has passed.");
 
-  const id = crypto.randomUUID();
-  const code = generateGroupCode();
-  const results = await batch("app", [
-    {
-      sql: `INSERT INTO camp_groups (id, camp_id, room_type_id, gender, code, owner_registration_id)
-            SELECT ?, r.camp_id, r.room_type_id, r.gender, ?, r.id
-            FROM camp_registrations r JOIN camps c ON c.id = r.camp_id
-            WHERE r.id = ? AND r.status = 'fully_paid' AND date('now') <= c.roommate_deadline_on
-              AND NOT EXISTS (SELECT 1 FROM camp_group_members m WHERE m.registration_id = r.id)
-            RETURNING id`,
-      params: [id, code, me.id],
-    },
-    auditStatement({
-      actor: actorOf(me),
-      campId: me.camp_id,
-      action: "group.create",
-      entity: "group",
-      entityId: id,
-      after: { code, room_type_id: me.room_type_id, gender: me.gender },
-      ifChanged: true,
-    }),
-    {
-      sql: "INSERT INTO camp_group_members (group_id, registration_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM camp_groups WHERE id = ?)",
-      params: [id, me.id, id],
-    },
-  ]);
-  if (!results[0].results.length) throw new CampError("You're already in a group. Leave it first.");
-  return id;
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const id = crypto.randomUUID();
+    const code = generateGroupCode();
+    let room: { id: string; label: string; capacity: number } | undefined;
+    try {
+      room = await openRoomFor(me);
+      const results = await batch("app", [
+        {
+          sql: `INSERT INTO camp_groups (id, camp_id, room_type_id, gender, code, owner_registration_id)
+                SELECT ?, r.camp_id, r.room_type_id, r.gender, ?, r.id
+                FROM camp_registrations r JOIN camps c ON c.id = r.camp_id
+                WHERE r.id = ? AND r.status = 'fully_paid' AND date('now') <= c.roommate_deadline_on
+                  AND NOT EXISTS (SELECT 1 FROM camp_group_members m WHERE m.registration_id = r.id)
+                RETURNING id`,
+          params: [id, code, me.id],
+        },
+        auditStatement({
+          actor: actorOf(me),
+          campId: me.camp_id,
+          action: "group.create",
+          entity: "group",
+          entityId: id,
+          after: { code, room_type_id: me.room_type_id, gender: me.gender, room_id: room.id },
+          ifChanged: true,
+        }),
+        {
+          sql: "INSERT INTO camp_group_members (group_id, registration_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM camp_groups WHERE id = ?)",
+          params: [id, me.id, id],
+        },
+        assignToRoomStatement(actorOf(me), room.id, me.id),
+        auditStatement({
+          actor: actorOf(me),
+          campId: me.camp_id,
+          action: "room.assign",
+          entity: "room",
+          entityId: room.id,
+          after: { registration_id: me.id, group_id: id },
+          ifChanged: true,
+        }),
+      ]);
+      if (!results[0].results.length) {
+        await batch("app", [deleteEmptyRoomStatement(room.id)]);
+        throw new CampError("You're already in a group. Leave it first.");
+      }
+      return id;
+    } catch (err) {
+      if (room) await batch("app", [deleteEmptyRoomStatement(room.id)]).catch(() => null);
+      last = err;
+      if (err instanceof CampError) throw err;
+      if (!String(err instanceof Error ? err.message : err).includes("UNIQUE")) throw err;
+    }
+  }
+  throw last instanceof Error ? last : new CampError("Couldn't open a room. Please try again.");
 }
 
 /** One guarded insert: open, room left, same camp, room type and gender, Fully Paid, in no other group. */
@@ -157,6 +256,17 @@ async function explainJoin(me: Registration, groupId: string): Promise<CampError
 }
 
 async function join(me: Registration, groupId: string) {
+  let roomId = await roomIdForGroup(groupId);
+  if (!roomId) {
+    try {
+      roomId = (await openRoomFor(me)).id;
+    } catch (err) {
+      if (err instanceof CampError) throw err;
+      if (!String(err instanceof Error ? err.message : err).includes("UNIQUE")) throw err;
+      roomId = await roomIdForGroup(groupId);
+    }
+  }
+  if (!roomId) throw new CampError("That group doesn't have a room yet. Ask them to send the link again.");
   const results = await batch("app", [
     joinStatement(groupId, me.id),
     auditStatement({
@@ -165,7 +275,17 @@ async function join(me: Registration, groupId: string) {
       action: "group.join",
       entity: "group",
       entityId: groupId,
-      after: { registration_id: me.id },
+      after: { registration_id: me.id, room_id: roomId },
+      ifChanged: true,
+    }),
+    assignToRoomStatement(actorOf(me), roomId, me.id),
+    auditStatement({
+      actor: actorOf(me),
+      campId: me.camp_id,
+      action: "room.assign",
+      entity: "room",
+      entityId: roomId,
+      after: { registration_id: me.id, group_id: groupId },
       ifChanged: true,
     }),
   ]);
@@ -243,6 +363,7 @@ function afterLeaving(groupId: string, leaverId: string) {
 export async function leaveGroup(me: Registration) {
   const group = await requireOwnGroup(me);
   requireOpen(group);
+  const roomId = (await roomIdForPerson(me.id)) ?? (await roomIdForGroup(group.id));
   const results = await batch("app", [
     {
       sql: `DELETE FROM camp_group_members WHERE registration_id = ? AND group_id IN (
@@ -259,7 +380,9 @@ export async function leaveGroup(me: Registration) {
       before: { registration_id: me.id },
       ifChanged: true,
     }),
+    unassignStatement(me.id),
     ...afterLeaving(group.id, me.id),
+    ...(await emptyAutoRoomStatements(roomId)),
   ]);
   if (!results[0].results.length) throw new CampError(PASSED);
 }
@@ -270,6 +393,7 @@ export async function removeMember(me: Registration, memberId: string) {
   if (memberId === me.id) throw new CampError("To leave your own group, use Leave group.");
   if (!group.members.some((m) => m.registration_id === memberId)) throw new CampError("That person isn't in your group.");
   requireOpen(group);
+  const roomId = (await roomIdForPerson(memberId)) ?? (await roomIdForGroup(group.id));
   const results = await batch("app", [
     {
       sql: `DELETE FROM camp_group_members WHERE registration_id = ? AND group_id IN (
@@ -287,6 +411,8 @@ export async function removeMember(me: Registration, memberId: string) {
       before: { registration_id: memberId },
       ifChanged: true,
     }),
+    unassignStatement(memberId),
+    ...(await emptyAutoRoomStatements(roomId)),
   ]);
   if (!results[0].results.length) throw new CampError(PASSED);
 }
@@ -304,6 +430,7 @@ export async function groupStatementsForRemoval(actor: string, registration: Reg
   const group = await getGroupFor(registration.id);
   const statements: { sql: string; params: unknown[] }[] = [];
   if (!group) return { statements, warning: null };
+  const roomId = (await roomIdForPerson(registration.id)) ?? (await roomIdForGroup(group.id));
   statements.push(
     { sql: "DELETE FROM camp_group_members WHERE registration_id = ?", params: [registration.id] },
     auditStatement({
@@ -315,7 +442,18 @@ export async function groupStatementsForRemoval(actor: string, registration: Reg
       before: { registration_id: registration.id, reason },
       ifChanged: true,
     }),
+    unassignStatement(registration.id),
+    auditStatement({
+      actor,
+      campId: registration.camp_id,
+      action: "room.unassign",
+      entity: "registration",
+      entityId: registration.id,
+      before: { reason },
+      ifChanged: true,
+    }),
     ...afterLeaving(group.id, registration.id),
+    ...(await emptyAutoRoomStatements(roomId)),
   );
   const left = group.members.length - 1;
   const warning =

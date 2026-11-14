@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extraRoomsNeeded, nextRoomLabels, planFill, planRandomFill } from "@/lib/camp/fill";
+import { extraRoomsNeeded, isAutoRoomLabel, nextRoomLabels, planFill, planRandomFill } from "@/lib/camp/fill";
 import { formatCode, generateSignInCode, normalizeCode, SIGN_IN_DIGITS } from "@/lib/camp/codes";
 import type { RoomWithOccupants, WaitingGroup, WaitingPerson } from "@/lib/camp/types";
 
@@ -90,6 +90,9 @@ describe("Place everyone at random", () => {
     expect(nextRoomLabels([], "female", "Hostel", 2)).toEqual(["Women · Hostel 1", "Women · Hostel 2"]);
     expect(nextRoomLabels(["Women · Hostel 1", "A12"], "female", "Hostel", 1)).toEqual(["Women · Hostel 2"]);
     expect(nextRoomLabels([], "male", "Suite", 1)).toEqual(["Men · Suite 1"]);
+    expect(isAutoRoomLabel("Women · Hostel 1", "female", "Hostel")).toBe(true);
+    expect(isAutoRoomLabel("A12", "female", "Hostel")).toBe(false);
+    expect(isAutoRoomLabel("Men · Suite 1", "male", "Suite")).toBe(true);
   });
 });
 

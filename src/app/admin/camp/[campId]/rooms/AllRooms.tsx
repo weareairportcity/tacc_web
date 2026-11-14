@@ -95,7 +95,7 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
           <div className="flex flex-col items-start gap-3 rounded-[14px] border border-stone-border bg-white p-6">
             <p className="text-[17px] font-medium">No rooms yet</p>
             <p className="max-w-prose text-[15px] leading-relaxed text-warm-gray">
-              Place everyone at random on Assign creates rooms for you. Come back here at the venue to tap a room and type its number. Or import a list if you already have one.
+              Rooms appear here when someone starts a group. Place everyone at random fills the rest. At the venue, tap a room and type its number.
             </p>
             <Link href="?tab=assign" className={`${primaryButtonClass} h-11 px-5`}>
               Go to Assign

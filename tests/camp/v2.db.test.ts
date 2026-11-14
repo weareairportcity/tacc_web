@@ -7,7 +7,7 @@ import { listHistory, listPeople, parsePeopleFilters, peopleFacets } from "@/lib
 import { makeToken, readToken } from "@/lib/camp/tokens";
 import { deleteView, listViews, saveView } from "@/lib/camp/views";
 import { createGroup } from "@/lib/camp/groups";
-import { assignGroup, assignPerson, unassignMany } from "@/lib/camp/assignments";
+import { assignGroup, assignPerson, unassign, unassignMany } from "@/lib/camp/assignments";
 import { createRoom } from "@/lib/camp/rooms";
 import { CampError } from "@/lib/camp/types";
 import { getCamp, setShirtsOn } from "@/lib/camp/camps";
@@ -119,6 +119,7 @@ describe("assign and undo", () => {
     const room = await createRoom(ACTOR, camp.id, { label: "A1", room_type_id: roomTypeId, gender: "female", capacity: 4 });
     const owner = await paidUp(camp, roomTypeId);
     const group = await createGroup(owner);
+    await unassign(ACTOR, owner.id);
     const placed = await assignGroup(ACTOR, room, group);
     expect(placed.placed).toEqual([owner.id]);
     await unassignMany(ACTOR, placed.placed);
