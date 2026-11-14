@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCampBySlug } from "@/lib/camp/camps";
 import { formatCode, hashCode } from "@/lib/camp/codes";
 import { submitFeedback, type FeedbackInput } from "@/lib/camp/feedback";
+import { hasPayExperience, ratePayExperience } from "@/lib/camp/pay-experience";
 import { cedisToPesewas } from "@/lib/camp/money";
 import { cancelPayment, checkPayment, startPayment, startPaymentFor } from "@/lib/camp/payments";
 import type { PayMethod } from "@/lib/camp/money";
@@ -155,7 +156,7 @@ export async function payAction(slug: string, amountCedis: string, method: PayMe
   });
 }
 
-export type PaymentCheck = { status: PaymentStatus; amount: number; fee: number; paid: number; price: number };
+export type PaymentCheck = { status: PaymentStatus; amount: number; fee: number; paid: number; price: number; rated: boolean };
 
 /** The payment's state plus the attendee's totals after it, for the "payment received" screen. */
 export async function checkPaymentAction(slug: string, reference: string) {
@@ -165,7 +166,7 @@ export async function checkPaymentAction(slug: string, reference: string) {
     if (!me) throw new CampError("Please sign in again.");
     const status = await checkPayment(me.id, String(reference));
     if (status !== "pending") revalidatePath(`/camps/${camp.slug}/me`);
-    const [fresh, payments] = await Promise.all([getRegistration(me.id), listPayments(me.id)]);
+    const [fresh, payments, rated] = await Promise.all([getRegistration(me.id), listPayments(me.id), hasPayExperience(me.id)]);
     const payment = payments.find((p) => p.reference === reference);
     return {
       status,
@@ -173,7 +174,20 @@ export async function checkPaymentAction(slug: string, reference: string) {
       fee: payment?.fee_pesewas ?? 0,
       paid: fresh?.paid_pesewas ?? me.paid_pesewas,
       price: fresh?.price_pesewas ?? me.price_pesewas,
+      rated,
     };
+  });
+}
+
+/** After a full payment: 1–5 stars, optional comment when they pick 1 or 2. */
+export async function ratePayExperienceAction(slug: string, rating: number, comment?: string) {
+  return run(async () => {
+    const camp = await campFor(slug);
+    const me = await currentAttendee(camp.id);
+    if (!me) throw new CampError("Please sign in again.");
+    await limit(`pay-xp:${me.id}`, 8, 60 * MINUTE);
+    await ratePayExperience(me.id, Number(rating), String(comment ?? ""));
+    return null;
   });
 }
 

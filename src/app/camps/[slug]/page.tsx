@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Church, Clock, CreditCard, MapPin, Phone, Users } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
+import { placesLeft } from "@/components/camp/places";
 import { daysUntil, registrationPhase } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { campAndAttendee } from "@/lib/camp/session";
@@ -198,18 +199,20 @@ function RoomList({ roomTypes }: { roomTypes: RoomType[] }) {
   return (
     <ul className="flex flex-col gap-2.5">
       {roomTypes.map((t) => {
-        const full = t.places_female === 0 && t.places_male === 0;
+        const female = placesLeft(t.places_female);
+        const male = placesLeft(t.places_male);
+        const full = female === 0 && male === 0;
         const low = (
           [
-            [t.places_female, "women"],
-            [t.places_male, "men"],
+            [female, "women"],
+            [male, "men"],
           ] as const
-        ).filter(([n]) => n !== null && n > 0 && n <= 20);
-        const fullFor = ([[t.places_female, "women"], [t.places_male, "men"]] as const).filter(([n]) => n === 0).map(([, who]) => who);
+        ).filter((row): row is [number, string] => row[0] !== null && row[0] > 0);
+        const fullFor = ([[female, "women"], [male, "men"]] as const).filter(([n]) => n === 0).map(([, who]) => who);
         const note = full
           ? "Full"
-          : [...low.map(([n, who]) => `Only ${n} ${n === 1 ? "place" : "places"} left for ${who}`), ...fullFor.map((who) => `Full for ${who}`)].join(" · ") ||
-            "Places left for men and women";
+          : [...low.map(([n, who]) => `${n} ${n === 1 ? "place" : "places"} left for ${who}`), ...fullFor.map((who) => `Full for ${who}`)].join(" · ") ||
+            "Available for men and women";
         return (
           <li key={t.id} className={cn("flex items-center gap-3.5 rounded-[14px] border border-stone-border p-3.5", full ? "bg-stone-canvas text-warm-gray" : "bg-white")}>
             <span className={cn("flex h-16 w-16 flex-none flex-col items-center justify-center rounded-[14px]", full ? "bg-[#f0efee]" : "bg-stone-rail")}>

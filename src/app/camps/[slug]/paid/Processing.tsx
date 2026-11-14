@@ -8,6 +8,7 @@ import { CommuneLoader } from "@/components/camp/brand";
 import { CampLogo, VenuePhoto } from "@/components/camp/photos";
 import { headlineClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { checkPaymentAction, type PaymentCheck } from "../actions";
+import { PayExperience } from "./PayExperience";
 
 const POLL_MS = 4000;
 const GIVE_UP_MS = 2 * 60 * 1000;
@@ -136,6 +137,8 @@ function Success({ slug, reference, check, camp, daysToCamp }: { slug: string; r
           </Link>
         )}
       </div>
+
+      {full && <PayExperience slug={slug} rated={check.rated} />}
 
       <VenuePhoto camp={camp} className="h-48">
         <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />

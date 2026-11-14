@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useRouter } from "next/navigation";
 import { CircleCheck } from "lucide-react";
-import { HumanCheck } from "@/components/camp/HumanCheck";
+import { HumanCheck, waitForHuman } from "@/components/camp/HumanCheck";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import { forgotCodeAction, signInAction } from "./actions";
@@ -19,6 +19,8 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
   const [error, setError] = useState("");
   const [lostError, setLostError] = useState("");
   const [human, setHuman] = useState("");
+  const humanRef = useRef(human);
+  humanRef.current = human;
   const [round, setRound] = useState(0);
   const [sent, setSent] = useState(false);
   const [pending, start] = useOneAtATime();
@@ -77,7 +79,8 @@ export function SignIn({ slug, next }: { slug: string; next?: string }) {
           e.preventDefault();
           setLostError("");
           startSend(async () => {
-            const r = await forgotCodeAction(slug, phone, human);
+            const token = await waitForHuman(() => humanRef.current, () => setRound((n) => n + 1));
+            const r = await forgotCodeAction(slug, phone, token);
             setRound((n) => n + 1);
             if (!r.ok) return setLostError(r.error);
             setSent(true);

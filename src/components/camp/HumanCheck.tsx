@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
+export const HUMAN_CHECK_ON = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim());
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 type Turnstile = {
@@ -27,6 +28,24 @@ const load = () =>
   }));
 
 /**
+ * Wait for a pass if the widget is still working, instead of failing the
+ * submit because the token expired or hadn't arrived yet.
+ */
+export async function waitForHuman(current: () => string, retry: () => void, ms = 12_000) {
+  if (!HUMAN_CHECK_ON) return "";
+  const have = current();
+  if (have) return have;
+  retry();
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200));
+    const next = current();
+    if (next) return next;
+  }
+  return "";
+}
+
+/**
  * Cloudflare's "are you a person" check. Most people never see it; when Cloudflare isn't
  * sure, a box to tick appears here. Shows nothing until the site key is set.
  * `round` changes after each try, since a pass works once.
@@ -35,6 +54,7 @@ export function HumanCheck({ onToken, round }: { onToken: (token: string) => voi
   const box = useRef<HTMLDivElement>(null);
   const id = useRef<string | null>(null);
   const latest = useRef(onToken);
+  const errors = useRef(0);
   useEffect(() => {
     latest.current = onToken;
   });
@@ -49,9 +69,23 @@ export function HumanCheck({ onToken, round }: { onToken: (token: string) => voi
           sitekey: SITE_KEY,
           appearance: "interaction-only",
           size: "flexible",
-          callback: (t: string) => latest.current(t),
-          "expired-callback": () => latest.current(""),
-          "error-callback": () => latest.current(""),
+          retry: "auto",
+          callback: (t: string) => {
+            errors.current = 0;
+            latest.current(t);
+          },
+          "expired-callback": () => {
+            latest.current("");
+            if (id.current) window.turnstile?.reset(id.current);
+          },
+          "error-callback": () => {
+            latest.current("");
+            errors.current += 1;
+            if (id.current && errors.current < 3) {
+              const widget = id.current;
+              setTimeout(() => window.turnstile?.reset(widget), 1500 * errors.current);
+            }
+          },
         });
       })
       .catch(() => {});
@@ -65,6 +99,7 @@ export function HumanCheck({ onToken, round }: { onToken: (token: string) => voi
   useEffect(() => {
     if (round && id.current) {
       latest.current("");
+      errors.current = 0;
       window.turnstile?.reset(id.current);
     }
   }, [round]);

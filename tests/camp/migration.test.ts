@@ -45,12 +45,15 @@ describe("camp migrations", () => {
     const feedback = [...leaders, "camp_feedback", "camp_feedback_invites"].sort();
     const cheaper = [...feedback, "camp_scan_counts"].sort();
     const logs = [...cheaper, "camp_access_log", "camp_active_days", "camp_presence"].sort();
-    const expected = [...logs, "camp_notify_once", "camp_notify_prefs", "camp_push_subs", "camp_telegram_chats"].sort();
+    const notify = [...logs, "camp_notify_once", "camp_notify_prefs", "camp_push_subs", "camp_telegram_chats"].sort();
+    const expected = [...notify, "camp_pay_experience"].sort();
     await apply();
     expect(await tables()).toEqual(expected);
 
+    await down("0024_camp_pay_experience");
+    expect(await tables()).toEqual(notify);
     await down("0023_camp_shirts_switch");
-    expect(await tables()).toEqual(expected);
+    expect(await tables()).toEqual(notify);
     await down("0022_camp_notifications");
     expect(await tables()).toEqual(logs);
     await down("0021_camp_expresspay");

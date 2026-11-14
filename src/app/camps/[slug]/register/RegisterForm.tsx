@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { BedDouble, Church, CircleSlash, Shirt, User } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/types";
-import { HumanCheck } from "@/components/camp/HumanCheck";
+import { HumanCheck, waitForHuman } from "@/components/camp/HumanCheck";
 import { Busy } from "@/components/camp/brand";
 import { placesState } from "@/components/camp/places";
 import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
@@ -52,6 +52,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   const [code, setCode] = useState("");
   const [pending, startTransition] = useOneAtATime();
   const [human, setHuman] = useState("");
+  const humanRef = useRef(human);
+  humanRef.current = human;
   const [round, setRound] = useState(0);
   // Three short steps: about you, where you'll sleep, then your code.
   const [step, setStep] = useState<1 | 2>(1);
@@ -81,7 +83,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     e.preventDefault();
     setError("");
     startTransition(async () => {
-      const result = await registerAction(slug, values, human);
+      const token = await waitForHuman(() => humanRef.current, () => setRound((n) => n + 1));
+      const result = await registerAction(slug, values, token);
       if (!result.ok) {
         setRound((n) => n + 1);
         // If a room type filled while they were typing, keep everything and send them back to Room.
@@ -303,10 +306,10 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
                     ) : typeof state === "number" ? (
                       <span className="flex items-center gap-1.5 text-[13px]">
                         <span className="cm-pulse h-1.5 w-1.5 flex-none rounded-full bg-cyan-signal" />
-                        Only {state} {state === 1 ? "place" : "places"} left
+                        {state} {state === 1 ? "place" : "places"} left
                       </span>
                     ) : (
-                      <span className="text-[13px] text-warm-gray">Places left</span>
+                      <span className="text-[13px] text-warm-gray">Available</span>
                     )}
                   </span>
                   <span className={cn("font-display text-lg tabular-nums", full && "text-ash-gray")}>{formatCedis(t.price_pesewas)}</span>

@@ -18,6 +18,10 @@ export async function isHuman(token: unknown): Promise<boolean> {
     console.error("turnstile: siteverify unreachable");
     return true;
   }
-  const data = (await response.json().catch(() => null)) as { success?: boolean } | null;
-  return Boolean(data?.success);
+  const data = (await response.json().catch(() => null)) as { success?: boolean; "error-codes"?: string[] } | null;
+  if (!data?.success) {
+    console.error("turnstile: siteverify failed", data?.["error-codes"] ?? response.status);
+    return false;
+  }
+  return true;
 }

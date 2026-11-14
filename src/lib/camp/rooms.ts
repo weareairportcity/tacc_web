@@ -2,6 +2,7 @@ import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { ID, checkId } from "./camps";
 import { parseRoomCsv, type CsvError } from "./csv";
+import { placesLeft } from "@/components/camp/places";
 import { CampError, GENDERS, type Gender, type Room, type RoomInput, type RoomType } from "./types";
 
 /**
@@ -20,7 +21,8 @@ const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.price_pesewas, t.capacity
   FROM camp_room_types t`;
 
 /** Places left for one gender: null means no limit, 0 means full. */
-export const placesFor = (type: RoomType, gender: Gender) => (gender === "male" ? type.places_male : type.places_female);
+export const placesFor = (type: RoomType, gender: Gender) =>
+  placesLeft(gender === "male" ? type.places_male : type.places_female);
 
 function validateRoomType(raw: RoomTypeInput): RoomTypeInput {
   const input = { name: String(raw.name ?? "").trim(), price_pesewas: raw.price_pesewas, capacity: Number(raw.capacity) };
