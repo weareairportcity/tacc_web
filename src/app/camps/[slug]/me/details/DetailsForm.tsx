@@ -29,11 +29,14 @@ export function DetailsForm({
   cancelled,
   gender,
   healthAgreed,
+  shirtsOn = true,
   paid = 0,
 }: {
   /** What they've paid, for the refund line when removing themselves. */
   paid?: number;
   slug: string;
+  /** Off: hide the size question. The pass QR still works for handing shirts out. */
+  shirtsOn?: boolean;
   phone: string;
   initial: ProfileInput;
   cancelled: boolean;
@@ -76,22 +79,24 @@ export function DetailsForm({
           <Field label="Email" hint="For your receipts.">
             <input required type="email" autoComplete="email" className={inputClass} value={v.email} onChange={set("email")} />
           </Field>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium" id="shirt-label">
-              T-shirt size
-            </span>
-            <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
-              {SHIRT_SIZES.map((z) => (
-                <label
-                  key={z}
-                  className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
-                >
-                  <input type="radio" name="shirt" value={z} checked={v.shirt_size === z} onChange={() => { setSaved(false); setV({ ...v, shirt_size: z }); }} className="sr-only" />
-                  {z}
-                </label>
-              ))}
+          {shirtsOn && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium" id="shirt-label">
+                T-shirt size
+              </span>
+              <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
+                {SHIRT_SIZES.map((z) => (
+                  <label
+                    key={z}
+                    className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
+                  >
+                    <input type="radio" name="shirt" value={z} checked={v.shirt_size === z} onChange={() => { setSaved(false); setV({ ...v, shirt_size: z }); }} className="sr-only" />
+                    {z}
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </fieldset>
 
         <fieldset className={cn(fieldset, !initial.emergency_name && "ring-2 ring-cyan-signal")}>

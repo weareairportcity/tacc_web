@@ -6,7 +6,7 @@
  *   npx tsx --env-file=.env.local scripts/setup-test-camp-2.ts --yes
  */
 import { readFileSync } from "node:fs";
-import { createCamp, listCamps, setCampPhoto } from "@/lib/camp/camps";
+import { createCamp, listCamps, setCampPhoto, setShirtsOn } from "@/lib/camp/camps";
 import { createRoomType, setPlacesLeft } from "@/lib/camp/rooms";
 import { batch, putMedia, query } from "@/lib/cf";
 
@@ -88,6 +88,7 @@ async function main() {
 }
 
 async function finish(campId: string, slug: string) {
+  await setShirtsOn(ACTOR, campId, false);
   const logo = await upload("logo", logoPath);
   const banner = await upload("banner", bannerPath);
   await setCampPhoto(ACTOR, campId, "logo", logo, "");

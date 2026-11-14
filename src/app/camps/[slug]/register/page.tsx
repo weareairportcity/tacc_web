@@ -26,6 +26,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ slug:
       <RegisterForm
         slug={camp.slug}
         signedIn={signedIn}
+        shirtsOn={camp.shirts_on !== 0}
         roomTypes={await listRoomTypes(camp.id)}
         fellowshipGroups={PFCC_GROUPS.map((g) => ({ pfcc: g.pfcc, names: g.fellowships.map((f) => f.name) }))}
         churches={[...CHURCHES]}

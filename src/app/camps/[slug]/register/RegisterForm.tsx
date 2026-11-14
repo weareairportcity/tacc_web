@@ -16,6 +16,8 @@ import { registerAction } from "../actions";
 
 type Props = {
   slug: string;
+  /** Off: skip the size question. The pass QR and T-shirt scanner still work. */
+  shirtsOn?: boolean;
   signedIn: boolean;
   roomTypes: RoomType[];
   fellowshipGroups: { pfcc: string; names: string[] }[];
@@ -34,7 +36,7 @@ function Legend({ icon: Icon, children }: { icon: typeof User; children: React.R
   );
 }
 
-export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches }: Props) {
+export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches, shirtsOn = true }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<RegistrationInput>({
     full_name: "",
@@ -316,25 +318,27 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             })}
           </fieldset>
 
-          <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
-            <Legend icon={Shirt}>Camp T-shirt</Legend>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium" id="shirt-label">
-                Your size <span className="font-normal text-warm-gray">(you can skip this)</span>
-              </span>
-              <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
-                {SHIRT_SIZES.map((z) => (
-                  <label
-                    key={z}
-                    className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
-                  >
-                    <input type="radio" name="shirt" value={z} checked={values.shirt_size === z} onChange={() => set("shirt_size", z)} className="sr-only" />
-                    {z}
-                  </label>
-                ))}
+          {shirtsOn && (
+            <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
+              <Legend icon={Shirt}>Camp T-shirt</Legend>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium" id="shirt-label">
+                  Your size <span className="font-normal text-warm-gray">(you can skip this)</span>
+                </span>
+                <div role="radiogroup" aria-labelledby="shirt-label" className="grid grid-cols-4 gap-1.5">
+                  {SHIRT_SIZES.map((z) => (
+                    <label
+                      key={z}
+                      className="cm-press flex h-11 cursor-pointer items-center justify-center rounded-full border border-stone-border bg-white text-sm font-medium has-[:checked]:border-soot has-[:checked]:bg-soot has-[:checked]:text-white has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-cyan-signal"
+                    >
+                      <input type="radio" name="shirt" value={z} checked={values.shirt_size === z} onChange={() => set("shirt_size", z)} className="sr-only" />
+                      {z}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          </fieldset>
+            </fieldset>
+          )}
 
           <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
             <div className="flex items-baseline justify-between">
