@@ -82,7 +82,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
       text: `${s.room_type_name} · ${who(s.gender)}: ${s.places_left === 0 ? "full" : `${s.places_left} left`}`,
       href: `${base}/rooms?tab=types`,
     })),
-    ...short.map((s) => ({ icon: AlertTriangle, text: `${s.room_type_name} · ${who(s.gender)}: ${s.fully_paid - s.beds} short of beds`, href: `${base}/rooms?tab=all` })),
+    ...short.map((s) => ({ icon: AlertTriangle, text: `${s.room_type_name} · ${who(s.gender)}: ${s.fully_paid - s.beds} short of beds`, href: `${base}/rooms` })),
   ];
 
   const dates = [
@@ -216,7 +216,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
           </span>
         </Panel>
 
-        <Panel title="Rooms" note={`${d.allocation.placed} placed · ${Math.max(0, beds - d.allocation.placed)} beds free`} href={`${base}/rooms?tab=all`}>
+        <Panel title="Rooms" note={`${d.allocation.placed} placed · ${Math.max(0, beds - d.allocation.placed)} beds free`} href={`${base}/rooms`}>
           <ul className="flex flex-col text-sm">
             {d.supply.map((s) => (
               <li key={`${s.room_type_id}.${s.gender}`} className="flex items-center gap-3 border-t border-stone-border py-2 first:border-t-0 first:pt-0">

@@ -12,10 +12,10 @@ import { PrintButton } from "./PrintButton";
 type Step = [title: string, text: string];
 
 const COORDINATOR: Step[] = [
-  ["Set the camp up", "Settings: the camp's dates and the help number attendees can call or WhatsApp. Rooms: the room types and prices. When someone starts a group, that room appears under All rooms. Rename it at the venue."],
+  ["Set the camp up", "Settings: the camp's dates and the help number attendees can call or WhatsApp. Rooms: the room types and prices. When someone starts a group, that room appears on Rooms. Rename it at the venue."],
   ["Open registration and share the link", "Copy the camp's link (People shows it while nobody has registered) and share it. Today opens with what needs you: requests waiting, payments to check, people to place."],
   ["Watch the money", "People shows who still has to pay. Tick people and Pay for them when a fellowship fund pays. Requests holds refunds and room changes to say yes or no to."],
-  ["Place everyone in rooms", "After the roommate deadline: Rooms, then Place everyone at random. Groups already have rooms; leftover beds and people who didn't group get filled. At the venue, tap a room and type its number, then text everyone their room."],
+  ["Place everyone in rooms", "Rooms: tap someone, then a highlighted room. Or Place everyone. At the venue, tap the pencil on a room and type its number, then text everyone their room."],
   ["Check people in at camp", "Check-in: the camera stays open, so scan pass after pass. A green tick means they're in. T-shirts work the same way. Arrived and Not here yet show who's still to come."],
 ];
 

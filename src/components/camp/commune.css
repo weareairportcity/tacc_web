@@ -148,6 +148,8 @@ dialog.cm-sheet::backdrop { background: rgba(12, 10, 9, 0.22); transition: backg
 /* A card being dragged lifts and tilts a little; its drop target lights up. */
 .cm-dragging { opacity: 0.55; }
 .cm-drop-target { outline: 2px dashed #3398e1; outline-offset: -2px; background-color: #f0f7fd; }
+.cm-room-hot { outline: 2px solid #3398e1; outline-offset: -2px; background-color: #f0f7fd; }
+.cm-room-cold { opacity: 0.4; pointer-events: none; }
 
 @keyframes cm-scan { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(var(--scan, 200px)); } }
 .cm-scanline { animation: cm-scan 2.6s cubic-bezier(0.77, 0, 0.175, 1) infinite; }
