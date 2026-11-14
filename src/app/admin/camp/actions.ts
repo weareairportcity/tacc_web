@@ -367,7 +367,7 @@ export async function fillAllRoomsAction(campId: string) {
       if (!type) continue;
       const extra = extraRoomsNeeded(board, type.capacity);
       if (extra > 0) {
-        const created = nextRoomLabels(labels, gender, type.name, extra);
+        const created = nextRoomLabels(labels, gender, type.name, type.capacity, extra);
         labels.push(...created);
         await createRooms(
           staff.email,
