@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extraRoomsNeeded, isAutoRoomLabel, nextRoomLabels, planFill, planRandomFill } from "@/lib/camp/fill";
+import { extraRoomsNeeded, isAutoRoomLabel, nextRoomLabels, planFill, planRandomFill, roomTypeCode } from "@/lib/camp/fill";
 import { formatCode, generateSignInCode, normalizeCode, SIGN_IN_DIGITS } from "@/lib/camp/codes";
 import type { RoomWithOccupants, WaitingGroup, WaitingPerson } from "@/lib/camp/types";
 
@@ -87,12 +87,21 @@ describe("Place everyone at random", () => {
   it("counts extra rooms so every group gets its own and leftover people still fit", () => {
     expect(extraRoomsNeeded({ rooms: [], groups: [group("g", ["Ama", "Esi"])], people: [person("p1", "Zion"), person("p2", "Bethel"), person("p3", "Qadash")] }, 4)).toBe(2);
     expect(extraRoomsNeeded({ rooms: [room("A", 4)], groups: [group("g1", ["Ama", "Esi"]), group("g2", ["Akua", "Afia"])], people: [] }, 4)).toBe(1);
-    expect(nextRoomLabels([], "female", "Hostel", 2)).toEqual(["Women · Hostel 1", "Women · Hostel 2"]);
-    expect(nextRoomLabels(["Women · Hostel 1", "A12"], "female", "Hostel", 1)).toEqual(["Women · Hostel 2"]);
-    expect(nextRoomLabels([], "male", "Suite", 1)).toEqual(["Men · Suite 1"]);
+    expect(nextRoomLabels([], "female", "Hostel", 4, 2)).toEqual(["W-HST4-01", "W-HST4-02"]);
+    expect(nextRoomLabels(["W-HST4-01", "A12"], "female", "Hostel", 4, 1)).toEqual(["W-HST4-02"]);
+    expect(nextRoomLabels(["Women · Hostel 1", "A12"], "female", "Hostel", 4, 1)).toEqual(["W-HST4-02"]);
+    expect(nextRoomLabels([], "male", "6 in a room with AC", 6, 1)).toEqual(["M-AC6-01"]);
+    expect(nextRoomLabels([], "male", "Suite", 2, 1)).toEqual(["M-SUI2-01"]);
     expect(isAutoRoomLabel("Women · Hostel 1", "female", "Hostel")).toBe(true);
-    expect(isAutoRoomLabel("A12", "female", "Hostel")).toBe(false);
+    expect(isAutoRoomLabel("W-HST4-01", "female", "Hostel", 4)).toBe(true);
+    expect(isAutoRoomLabel("M-AC6-01", "male", "6 in a room with AC", 6)).toBe(true);
+    expect(isAutoRoomLabel("A12", "female", "Hostel", 4)).toBe(false);
     expect(isAutoRoomLabel("Men · Suite 1", "male", "Suite")).toBe(true);
+    expect(roomTypeCode("6 in a room with AC", 6)).toBe("AC6");
+    expect(roomTypeCode("Two in a room with AC", 2)).toBe("AC2");
+    expect(roomTypeCode("Two in a room with fan", 2)).toBe("FAN2");
+    expect(roomTypeCode("8 in a room with fan", 8)).toBe("FAN8");
+    expect(roomTypeCode("Hostel", 4)).toBe("HST4");
   });
 });
 

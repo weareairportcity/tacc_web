@@ -2,8 +2,10 @@ import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { groupState } from "./groups";
+import { shortenAutoRoomLabels } from "./rooms";
 import {
   CampError,
+  GENDERS,
   type Gender,
   type GroupMember,
   type MyRoom,
@@ -258,10 +260,40 @@ export async function listPools(campId: string): Promise<Pool[]> {
   );
 }
 
+/** One gender × room type, with its board, for the Rooms workspace. */
+export type RoomLane = {
+  key: string;
+  gender: Gender;
+  room_type_id: string;
+  room_type_name: string;
+  waiting: number;
+  board: Awaited<ReturnType<typeof getPoolBoard>>;
+};
+
+const poolKey = (p: Pick<Pool, "room_type_id" | "gender">) => `${p.room_type_id}.${p.gender}`;
+
+/** Every pool's people and rooms, for one workspace instead of a chip per pool. */
+export async function getCampBoard(campId: string): Promise<RoomLane[]> {
+  const pools = await listPools(campId);
+  return Promise.all(
+    pools
+      .filter((p) => GENDERS.includes(p.gender))
+      .map(async (p) => ({
+        key: poolKey(p),
+        gender: p.gender as Gender,
+        room_type_id: p.room_type_id,
+        room_type_name: p.room_type_name,
+        waiting: Math.max(0, p.fully_paid - p.assigned),
+        board: await getPoolBoard(campId, p.room_type_id, p.gender as Gender),
+      })),
+  );
+}
+
 /** Everything the assign page needs for one pool. */
 export async function getPoolBoard(campId: string, roomTypeId: string, gender: Gender) {
   checkId(campId, "camp");
   checkId(roomTypeId, "room type");
+  await shortenAutoRoomLabels(campId);
   const args = [campId, roomTypeId, gender];
   const [rooms, occupants, groupRows, people] = await Promise.all([
     query<RoomWithOccupants>(
@@ -361,6 +393,7 @@ export async function getMyRoom(registrationId: string): Promise<MyRoom | null> 
 /** Every room in the camp with who's in it, for Rooms › All rooms. */
 export async function listRoomsWithOccupants(campId: string): Promise<RoomWithOccupants[]> {
   checkId(campId, "camp");
+  await shortenAutoRoomLabels(campId);
   const [rooms, occupants] = await Promise.all([
     query<RoomWithOccupants>(
       "app",

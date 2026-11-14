@@ -156,7 +156,7 @@ describe("the dashboard", () => {
     const code = (await getGroupFor(people[0].id))!.code;
     for (const p of people.slice(1)) await joinByCode(p, code);
     for (const p of people) await unassign(ACTOR, p.id);
-    const auto = (await listRooms(camp.id)).find((r) => r.label.startsWith("Women · "));
+    const auto = (await listRooms(camp.id)).find((r) => r.label.startsWith("W-"));
     if (auto) await deleteRoom(ACTOR, auto.id);
     expect((await getDashboard(camp.id)).groupsTooBig).toEqual([
       { code, room_type_name: "Hostel", gender: "female", needs: 3, most_free: 2 },

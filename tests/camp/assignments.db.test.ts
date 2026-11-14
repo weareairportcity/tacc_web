@@ -256,8 +256,16 @@ describe("what people see", () => {
     expect(board.rooms.map((r) => [r.label, Number(r.occupied)])).toEqual([
       ["A1", 1],
       ["A2", 0],
-      ["Women · Hostel 1", 2],
+      ["W-HST4-01", 2],
     ]);
+  });
+});
+
+describe("auto room labels", () => {
+  it("renames leftover long names to the short code", async () => {
+    const { camp, roomTypeId } = await setup(0, []);
+    await createRoom(ACTOR, camp.id, { label: "Women · Hostel 1", room_type_id: roomTypeId, gender: "female", capacity: 4 });
+    expect((await listRooms(camp.id)).map((r) => r.label)).toEqual(["W-HST4-01"]);
   });
 });
 
@@ -272,6 +280,7 @@ describe("creating rooms for Place everyone", () => {
       waiting.rooms.map((r) => r.label),
       "female",
       "Hostel",
+      4,
       1,
     );
     await createRooms(
@@ -287,7 +296,7 @@ describe("creating rooms for Place everyone", () => {
       else await assignPerson(ACTOR, step.roomId, step.registrationId);
     }
     const rooms = await listRooms(camp.id);
-    expect(rooms.map((r) => r.label)).toEqual(["Women · Hostel 1", "Women · Hostel 2"]);
+    expect(rooms.map((r) => r.label)).toEqual(["W-HST4-01", "W-HST4-02"]);
     expect(rooms.reduce((n, r) => n + Number(r.occupied), 0)).toBe(5);
   });
 });

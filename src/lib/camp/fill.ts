@@ -197,24 +197,74 @@ export function extraRoomsNeeded(board: Board, capacity: number): number {
   return extra;
 }
 
-function autoRoomPrefix(gender: "male" | "female", typeName: string) {
+const STOP = new Set(["in", "a", "an", "the", "of", "with", "room", "rooms", "and"]);
+
+function genderLetter(gender: "male" | "female") {
+  return gender === "male" ? "M" : "W";
+}
+
+function oldAutoPrefix(gender: "male" | "female", typeName: string) {
   return `${gender === "male" ? "Men" : "Women"} · ${typeName} `;
 }
 
-/** A label Place everyone / starting a group would have made, not a venue number. */
-export function isAutoRoomLabel(label: string, gender: "male" | "female", typeName: string) {
-  const prefix = autoRoomPrefix(gender, typeName);
-  return label.startsWith(prefix) && /^\d+$/.test(label.slice(prefix.length));
+/** "AC6" from "6 in a room with AC"; "HST4" from Hostel. */
+export function roomTypeCode(typeName: string, capacity: number): string {
+  if (/\bAC\b/i.test(typeName)) return `AC${capacity}`;
+  if (/\bfan\b/i.test(typeName)) return `FAN${capacity}`;
+  const words = typeName.split(/[^a-z0-9]+/i).filter((w) => w && !STOP.has(w.toLowerCase()) && !/^\d+$/.test(w));
+  const letters = (words[0] ?? typeName).replace(/[^a-z]/gi, "").toUpperCase();
+  let stem = letters ? letters[0] + letters.slice(1).replace(/[AEIOU]/g, "") : "RM";
+  if (stem.length < 3) stem = letters.slice(0, 3) || "RM";
+  return `${stem.slice(0, 3)}${capacity}`;
 }
 
-/** "Women · Hostel 1", skipping labels already in the camp. */
-export function nextRoomLabels(existing: string[], gender: "male" | "female", typeName: string, count: number): string[] {
-  const prefix = autoRoomPrefix(gender, typeName);
+function autoPrefix(gender: "male" | "female", typeName: string, capacity: number) {
+  return `${genderLetter(gender)}-${roomTypeCode(typeName, capacity)}-`;
+}
+
+function numberAfter(label: string, prefix: string) {
+  if (!label.startsWith(prefix)) return null;
+  const rest = label.slice(prefix.length);
+  if (!/^\d+$/.test(rest)) return null;
+  const n = Number(rest);
+  return n > 0 ? n : null;
+}
+
+function autoNumber(label: string, gender: "male" | "female", typeName: string, capacity?: number) {
+  const old = numberAfter(label, oldAutoPrefix(gender, typeName));
+  if (old != null) return old;
+  if (capacity == null) return null;
+  const n = numberAfter(label, autoPrefix(gender, typeName, capacity));
+  return n;
+}
+
+/** "M-AC6-01". The number is at least two digits so the list lines up. */
+export function formatAutoRoomLabel(gender: "male" | "female", typeName: string, capacity: number, n: number) {
+  return `${autoPrefix(gender, typeName, capacity)}${String(n).padStart(2, "0")}`;
+}
+
+/** A label Place everyone / starting a group would have made, not a venue number. */
+export function isAutoRoomLabel(label: string, gender: "male" | "female", typeName: string, capacity?: number) {
+  return autoNumber(label, gender, typeName, capacity) != null;
+}
+
+/** The sequence number in an auto label, old or short. */
+export function autoRoomNumber(label: string, gender: "male" | "female", typeName: string, capacity: number) {
+  return autoNumber(label, gender, typeName, capacity);
+}
+
+/** "M-AC6-01", skipping labels already in the camp. Continues after old "Men · … 1" names. */
+export function nextRoomLabels(
+  existing: string[],
+  gender: "male" | "female",
+  typeName: string,
+  capacity: number,
+  count: number,
+): string[] {
   let n = 0;
   for (const label of existing) {
-    if (!label.startsWith(prefix)) continue;
-    const num = Number(label.slice(prefix.length));
-    if (Number.isInteger(num) && num > n) n = num;
+    const num = autoNumber(label, gender, typeName, capacity);
+    if (num != null && num > n) n = num;
   }
-  return Array.from({ length: count }, (_, i) => `${prefix}${n + i + 1}`);
+  return Array.from({ length: count }, (_, i) => formatAutoRoomLabel(gender, typeName, capacity, n + i + 1));
 }

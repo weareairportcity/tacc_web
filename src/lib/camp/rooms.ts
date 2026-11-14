@@ -2,6 +2,7 @@ import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { ID, checkId } from "./camps";
 import { parseRoomCsv, type CsvError } from "./csv";
+import { autoRoomNumber, formatAutoRoomLabel } from "./fill";
 import { placesLeft } from "@/components/camp/places";
 import { CampError, GENDERS, type Gender, type Room, type RoomInput, type RoomType } from "./types";
 
@@ -159,7 +160,31 @@ const ROOM_SELECT = `SELECT r.id, r.camp_id, r.room_type_id, t.name AS room_type
     (SELECT COUNT(*) FROM camp_room_assignments a WHERE a.room_id = r.id) AS occupied
   FROM camp_rooms r JOIN camp_room_types t ON t.id = r.room_type_id`;
 
+/** Turn leftover "Men · 6 in a room with AC 1" names into M-AC6-01. Venue numbers stay. */
+export async function shortenAutoRoomLabels(campId: string) {
+  const rooms = await query<{ id: string; label: string; gender: Gender; capacity: number; name: string }>(
+    "app",
+    `SELECT r.id, r.label, r.gender, r.capacity, t.name
+     FROM camp_rooms r JOIN camp_room_types t ON t.id = r.room_type_id
+     WHERE r.camp_id = ?`,
+    [checkId(campId, "camp")],
+  );
+  const used = new Set(rooms.map((r) => r.label.toLowerCase()));
+  const stmts: { sql: string; params: unknown[] }[] = [];
+  for (const r of rooms) {
+    const n = autoRoomNumber(r.label, r.gender, r.name, r.capacity);
+    if (n == null) continue;
+    const next = formatAutoRoomLabel(r.gender, r.name, r.capacity, n);
+    if (next === r.label || used.has(next.toLowerCase())) continue;
+    used.delete(r.label.toLowerCase());
+    used.add(next.toLowerCase());
+    stmts.push({ sql: "UPDATE camp_rooms SET label = ? WHERE id = ?", params: [next, r.id] });
+  }
+  if (stmts.length) await batch("app", stmts);
+}
+
 export async function listRooms(campId: string): Promise<Room[]> {
+  await shortenAutoRoomLabels(campId);
   return query<Room>("app", `${ROOM_SELECT} WHERE r.camp_id = ? ORDER BY r.label`, [checkId(campId, "camp")]);
 }
 

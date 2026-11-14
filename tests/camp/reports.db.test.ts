@@ -49,7 +49,7 @@ beforeAll(async () => {
   await unassign(ACTOR, p.ama.id);
   await unassign(ACTOR, p.fafa.id);
   for (const r of await listRooms(camp.id)) {
-    if (r.label.startsWith("Women · ") || r.label.startsWith("Men · ")) await deleteRoom(ACTOR, r.id);
+    if (/^[MW]-/.test(r.label)) await deleteRoom(ACTOR, r.id);
   }
   await assignGroup(ACTOR, a1, group);
   // One real payment row for Ama, for the fee total.

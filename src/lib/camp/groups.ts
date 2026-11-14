@@ -136,15 +136,15 @@ function deleteEmptyRoomStatement(roomId: string) {
   };
 }
 
-/** Drop an empty auto-named room (Women · Hostel 1). Never a venue number the coordinators typed. */
+/** Drop an empty auto-named room (M-AC6-01). Never a venue number the coordinators typed. */
 async function emptyAutoRoomStatements(roomId: string | null) {
   if (!roomId) return [];
-  const [row] = await query<{ label: string; gender: "male" | "female"; name: string }>(
+  const [row] = await query<{ label: string; gender: "male" | "female"; name: string; capacity: number }>(
     "app",
-    `SELECT x.label, x.gender, t.name FROM camp_rooms x JOIN camp_room_types t ON t.id = x.room_type_id WHERE x.id = ?`,
+    `SELECT x.label, x.gender, x.capacity, t.name FROM camp_rooms x JOIN camp_room_types t ON t.id = x.room_type_id WHERE x.id = ?`,
     [roomId],
   );
-  if (!row || !isAutoRoomLabel(row.label, row.gender, row.name)) return [];
+  if (!row || !isAutoRoomLabel(row.label, row.gender, row.name, row.capacity)) return [];
   return [deleteEmptyRoomStatement(roomId)];
 }
 
@@ -152,7 +152,7 @@ async function openRoomFor(me: Registration): Promise<{ id: string; label: strin
   const type = await getRoomType(me.room_type_id);
   if (!type) throw new CampError("Unknown room type.");
   const labels = (await listRooms(me.camp_id)).map((r) => r.label);
-  const [label] = nextRoomLabels(labels, me.gender, type.name, 1);
+  const [label] = nextRoomLabels(labels, me.gender, type.name, type.capacity, 1);
   const [id] = await createRooms(actorOf(me), me.camp_id, [
     { room_type_id: type.id, label, gender: me.gender, capacity: type.capacity },
   ]);

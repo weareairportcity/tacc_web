@@ -45,11 +45,11 @@ describe("creating a group", () => {
     const { camp, people: [ama, esi] } = await campWith(2);
     await createGroup(ama);
     const rooms = await listRooms(camp.id);
-    expect(rooms.map((r) => [r.label, Number(r.occupied), r.gender])).toEqual([["Women · Hostel 1", 1, "female"]]);
-    expect(await getMyRoom(ama.id)).toMatchObject({ label: "Women · Hostel 1" });
+    expect(rooms.map((r) => [r.label, Number(r.occupied), r.gender])).toEqual([["W-HST4-01", 1, "female"]]);
+    expect(await getMyRoom(ama.id)).toMatchObject({ label: "W-HST4-01" });
     await joinByCode(esi, await codeOf(ama));
     expect(Number((await listRooms(camp.id))[0].occupied)).toBe(2);
-    expect(await getMyRoom(esi.id)).toMatchObject({ label: "Women · Hostel 1" });
+    expect(await getMyRoom(esi.id)).toMatchObject({ label: "W-HST4-01" });
     await leaveGroup(esi);
     expect(Number((await listRooms(camp.id))[0].occupied)).toBe(1);
     await leaveGroup(ama);
