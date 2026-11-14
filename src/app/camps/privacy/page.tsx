@@ -25,7 +25,7 @@ export default function PrivacyPage() {
       <section>
         <h2>What we keep</h2>
         <ul>
-          <li><strong className="font-medium">When you register:</strong> your name, phone, email, gender, fellowship, church, where you&rsquo;ll sleep and T-shirt size.</li>
+          <li><strong className="font-medium">When you register:</strong> your name, phone, email, gender, fellowship, church, room type and T-shirt size.</li>
           <li><strong className="font-medium">If you&rsquo;re under 18:</strong> your parent or guardian&rsquo;s name and phone, and that they agreed to you coming.</li>
           <li><strong className="font-medium">If you add them:</strong> an emergency contact, and health notes (allergies, medicine or a health need). Health notes are &ldquo;special personal data&rdquo;, so we only keep them if you tick that you agree.</li>
           <li><strong className="font-medium">Payments:</strong> how much you paid, when, and expressPay&rsquo;s reference. Card details go to expressPay, never to us. If you pay by MoMo in Commune, we pass your MoMo number to expressPay to send the approval prompt, and don&rsquo;t keep it.</li>

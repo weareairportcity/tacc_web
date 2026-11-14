@@ -251,7 +251,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
                 : me.any_room
                   ? "Any room is fine. We'll place you."
                   : choosing
-                    ? `${sleeps ? `${me.room_type_name} rooms sleep ${sleeps}. ` : ""}Pick your roommates by ${formatDay(camp.roommate_deadline_on)}, or we'll place you.`
+                    ? `${sleeps ? `${me.room_type_name} rooms have ${sleeps} beds. ` : ""}Pick your roommates by ${formatDay(camp.roommate_deadline_on)}, or we'll place you.`
                     : "The deadline has passed. We'll place you.",
               action: (
                 <span className="flex flex-col gap-2">
@@ -319,7 +319,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
             state={details.emergency_name ? "done" : "todo"}
           />
           {!cancelled && (
-            <Tile href={`/camps/${camp.slug}/me/room`} icon={ArrowLeftRight} label="Where you'll sleep" sub={`${me.room_type_name} · ${formatCedis(me.price_pesewas)}`} />
+            <Tile href={`/camps/${camp.slug}/me/room`} icon={ArrowLeftRight} label="Your room type" sub={`${me.room_type_name} · ${formatCedis(me.price_pesewas)}`} />
           )}
           {(!cancelled || me.paid_pesewas > 0) && (
             <Tile href={`/camps/${camp.slug}/me/cancel`} icon={RotateCcw} label={cancelled ? "Ask for a refund" : "Cancel or refund"} sub="Ask for money back" />

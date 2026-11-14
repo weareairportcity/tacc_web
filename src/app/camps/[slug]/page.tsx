@@ -262,7 +262,7 @@ function Upcoming({ opensOn, name, slug }: { opensOn: string; name: string; slug
           {[
             [Phone, "A phone number", "We sign you in with it, and MoMo payments use it."],
             [Church, "Your fellowship", "You'll pick it from a list."],
-            [Users, "Who you want to room with", "Friends who choose the same place to sleep can share a room."],
+            [Users, "Friends to share a room with", "After you pay, send them a link so you can be roommates."],
           ].map(([Icon, title, text], i) => {
             const I = Icon as typeof Users;
             return (

@@ -19,7 +19,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ slug:
   return (
     <div className="flex flex-col gap-6">
       <CampBackLink href={`/camps/${camp.slug}`} camp={camp} />
-      {/* The form shows the steps: about you, where you'll sleep, your code. */}
+      {/* The form shows the steps: about you, your room type, your code. */}
       <h1 className={headlineClass}>
         Save your <span className="text-cyan-edge">place</span>
       </h1>

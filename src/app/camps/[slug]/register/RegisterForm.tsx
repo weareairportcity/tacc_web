@@ -55,7 +55,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   const humanRef = useRef(human);
   humanRef.current = human;
   const [round, setRound] = useState(0);
-  // Three short steps: about you, where you'll sleep, then your code.
+  // Three short steps: about you, your room type, then your code.
   const [step, setStep] = useState<1 | 2>(1);
   const aboutYou = useRef<HTMLDivElement>(null);
 
@@ -224,7 +224,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             </fieldset>
           )}
           <button type="button" onClick={next} className={`${primaryButtonClass} h-[52px] w-full`}>
-            Next: where you&apos;ll sleep
+            Next: your room type
           </button>
         </div>
       )}
@@ -266,7 +266,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           </fieldset>
 
           <fieldset id="room" className={cn(fieldsetClass, "cm-rise scroll-mt-6 gap-2.5")} style={{ animationDelay: "60ms" }}>
-            <Legend icon={BedDouble}>Where you&apos;ll sleep</Legend>
+            <Legend icon={BedDouble}>Your room type</Legend>
             {roomTypes.map((t) => {
               const state = placesState(t, values.gender);
               const full = state === "full";
@@ -369,7 +369,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
 
 /** "Step 1 of 3 · About you", with a bar per step: how far there is to go. */
 function Steps({ step }: { step: 1 | 2 | 3 }) {
-  const names = ["About you", "Where you'll sleep", "Your code"];
+  const names = ["About you", "Your room type", "Your code"];
   return (
     <div className="flex flex-col gap-2" aria-label={`Step ${step} of 3: ${names[step - 1]}`}>
       <span aria-hidden="true" className="flex gap-1.5">

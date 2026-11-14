@@ -52,7 +52,7 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
             "The deadline has passed. A coordinator is placing everyone in rooms now, and we'll text you yours."
           ) : (
             <>
-              {sleeps ? `${me.room_type_name} rooms sleep ${sleeps} ${gender}. ` : ""}Choose who you&apos;ll share with by{" "}
+              {sleeps ? `${me.room_type_name} rooms have ${sleeps} ${gender} in each. ` : ""}Choose your roommates by{" "}
               <strong className="font-medium text-ink-black">{deadline}</strong>. If you don&apos;t, we&apos;ll place you.
             </>
           )}
@@ -81,7 +81,7 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
             )}
             <Choice
               num={me.any_room ? 1 : 3}
-              title="I don't mind who I'm with"
+              title="Any room is fine"
               sub={`We'll put you in a room with others. You can still change your mind until ${deadline}.`}
               delay={240}
             >
