@@ -29,6 +29,7 @@ describe("formatting", () => {
   it("formats pesewas as cedis", () => {
     expect(formatCedis(60000)).toBe("GHS 600.00");
     expect(formatCedis(5)).toBe("GHS 0.05");
+    expect(formatCedis(120000)).toBe("GHS 1,200.00");
     expect(pesewasToCedisInput(120050)).toBe("1200.50");
   });
 });

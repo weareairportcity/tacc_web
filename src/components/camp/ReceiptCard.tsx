@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
+import { formatAccraLong, formatDateLong } from "./ui";
 import type { Camp } from "@/lib/camp/types";
 import { CampLogo } from "./photos";
 
@@ -30,9 +31,8 @@ export type ReceiptView = {
 
 export type ReceiptCamp = Pick<Camp, "name" | "logo_url" | "banner_url" | "banner_credit" | "venue_photo_url" | "venue_photo_credit" | "venue" | "starts_on">;
 
-export const receiptWhen = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" });
-const startDay = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+export const receiptWhen = (iso: string) => formatAccraLong(iso);
+const startDay = (date: string) => formatDateLong(date);
 export const METHOD_NAMES: Record<string, string> = { momo: "Mobile money", card: "Card" };
 
 /** The rows of a receipt, in order. The PDF uses the same ones. */

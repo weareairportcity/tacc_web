@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Camera, Check, ChevronRight, CircleAlert, CloudOff, Flashlight, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
@@ -9,7 +9,7 @@ import { shirtRefusal } from "@/lib/camp/shirts";
 import { formatCedis } from "@/lib/camp/money";
 import { useToast } from "@/components/camp/toast";
 import { PersonCardSheet } from "@/components/camp/PersonCard";
-import { RegistrationStatus, StackedBar, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
+import { RegistrationStatus, StackedBar, formatAccraClock, formatAccraDay, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { arrivalsAction, findArrivalsAction, scanAction, scanCountsAction, undoScanAction } from "../../actions";
 import { idOf, useOfflineScans, type Problem } from "./offline";
@@ -57,18 +57,6 @@ const tokenOf = (text: string) => {
   }
 };
 
-// The camera runs only while this tab is on screen: switching tabs or locking the phone stops it.
-const subscribeVisible = (cb: () => void) => {
-  document.addEventListener("visibilitychange", cb);
-  return () => document.removeEventListener("visibilitychange", cb);
-};
-// Phones and tablets open the camera straight away; a laptop asks first.
-const subscribePointer = (cb: () => void) => {
-  const q = window.matchMedia("(pointer: coarse)");
-  q.addEventListener("change", cb);
-  return () => q.removeEventListener("change", cb);
-};
-
 // The mode stays as it was on this phone, so a pass opened by the camera app does the same job.
 const MODE_KEY = "commune.scanMode";
 const savedMode = (): ScanMode => {
@@ -101,7 +89,7 @@ export function CheckIn({
   leader: boolean;
 }) {
   const toast = useToast();
-  const stored = useSyncExternalStore(() => () => {}, savedMode, () => "checkin" as ScanMode);
+  const [stored, setStored] = useState<ScanMode>("checkin");
   const [chosen, setChosen] = useState<ScanMode | null>(initialMode);
   const mode: ScanMode = chosen ?? stored;
   const [counts, setCounts] = useState(initial);
@@ -115,13 +103,24 @@ export function CheckIn({
     setCounts(initial);
   }
   const [result, setResult] = useState<Result | null>(null);
-  const canScan = useSyncExternalStore(
-    () => () => {},
-    () => !!navigator.mediaDevices?.getUserMedia,
-    () => false,
-  );
-  const phone = useSyncExternalStore(subscribePointer, () => window.matchMedia("(pointer: coarse)").matches, () => false);
-  const visible = useSyncExternalStore(subscribeVisible, () => document.visibilityState === "visible", () => true);
+  const [canScan, setCanScan] = useState(false);
+  const [phone, setPhone] = useState(false);
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    setStored(savedMode());
+    setCanScan(!!navigator.mediaDevices?.getUserMedia);
+    const q = window.matchMedia("(pointer: coarse)");
+    setPhone(q.matches);
+    const onPointer = () => setPhone(q.matches);
+    q.addEventListener("change", onPointer);
+    const onVis = () => setVisible(document.visibilityState === "visible");
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      q.removeEventListener("change", onPointer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
   // On a laptop the camera opens when asked; after that, as on a phone, it stays open until they leave.
   const [askedForCamera, setAskedForCamera] = useState(false);
   const [cameraError, setCameraError] = useState(false);
@@ -572,8 +571,8 @@ export function CheckIn({
   );
 }
 
-const timeOf = (at: string) => new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Accra" });
-const dayOf = (at: string) => new Date(at).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Accra" });
+const timeOf = (at: string) => formatAccraClock(at);
+const dayOf = (at: string) => formatAccraDay(at);
 
 /** Who's arrived, by day with the time (newest first), and who isn't here yet. Every name opens their details. */
 function Arrivals({
@@ -633,7 +632,7 @@ function Arrivals({
             onClick={() => onTab(t)}
             className={cn("cm-press h-10 rounded-full text-sm font-medium", tab === t && "bg-soot text-white")}
           >
-            {t === "here" ? words.here : words.not} ({(t === "here" ? totals.here : totals.notYet).toLocaleString("en-GB")})
+            {t === "here" ? words.here : words.not} ({t === "here" ? totals.here : totals.notYet})
           </button>
         ))}
       </div>

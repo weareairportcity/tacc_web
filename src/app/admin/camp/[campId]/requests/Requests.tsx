@@ -66,7 +66,9 @@ export function Requests({ campId, requests, done, open: initialOpen }: { campId
                   </span>
                   <span className="flex flex-col items-end gap-0.5 tabular-nums">
                     <span className="text-sm font-medium">{amount(r)}</span>
-                    <span className="text-xs text-warm-gray">{since(done ? (r.decided_at ?? r.created_at) : r.created_at)}</span>
+                    <span className="text-xs text-warm-gray" suppressHydrationWarning>
+                      {since(done ? (r.decided_at ?? r.created_at) : r.created_at)}
+                    </span>
                   </span>
                   <ChevronRight className="h-4 w-4 text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
                 </button>

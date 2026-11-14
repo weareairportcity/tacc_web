@@ -11,10 +11,10 @@ export function cedisToPesewas(input: string): number {
   return Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
 }
 
-/** 60000 → "GHS 600.00" */
+/** 60000 → "GHS 600.00". ASCII grouping so the server and the browser never disagree. */
 export function formatCedis(pesewas: number): string {
-  const cedis = Math.floor(pesewas / 100).toLocaleString("en-GH");
-  return `GHS ${cedis}.${String(pesewas % 100).padStart(2, "0")}`;
+  const cedis = String(Math.floor(pesewas / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `GHS ${cedis}.${String(Math.abs(pesewas) % 100).padStart(2, "0")}`;
 }
 
 /** 60000 → "600.00", for an edit field. */

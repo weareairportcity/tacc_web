@@ -7,10 +7,9 @@ import type { PersonCard } from "@/lib/camp/checkin";
 import { formatCedis } from "@/lib/camp/money";
 import { CommuneLoader } from "./brand";
 import { Sheet } from "./sheet";
-import { ErrorText, secondaryButtonClass } from "./ui";
+import { ErrorText, formatAccraStamp, secondaryButtonClass } from "./ui";
 
-const when = (at: string) =>
-  new Date(at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Accra" }).replace(",", "");
+const when = (at: string) => formatAccraStamp(at);
 
 const localPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
 

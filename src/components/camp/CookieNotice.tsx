@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { buttonClass } from "./ui";
 
@@ -12,22 +12,15 @@ const KEY = "cm_cookies_seen";
  * with an OK, not a "do you agree" choice. Hidden until the page has loaded, so it never
  * pushes anything around on the first paint.
  */
-const listeners = new Set<() => void>();
-const subscribe = (on: () => void) => {
-  listeners.add(on);
-  return () => listeners.delete(on);
-};
-const unseen = () => {
-  try {
-    return localStorage.getItem(KEY) !== "1";
-  } catch {
-    return true;
-  }
-};
-
 export function CookieNotice({ raised = false }: { raised?: boolean }) {
-  // Hidden on the server and the first paint, then shown if this phone hasn't said OK.
-  const show = useSyncExternalStore(subscribe, unseen, () => false);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      setShow(localStorage.getItem(KEY) !== "1");
+    } catch {
+      setShow(true);
+    }
+  }, []);
   if (!show) return null;
   const close = () => {
     try {
@@ -35,7 +28,7 @@ export function CookieNotice({ raised = false }: { raised?: boolean }) {
     } catch {
       // Shown again next time; nothing else depends on it.
     }
-    listeners.forEach((l) => l());
+    setShow(false);
   };
   return (
     <div

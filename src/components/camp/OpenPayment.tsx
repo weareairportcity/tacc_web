@@ -7,6 +7,7 @@ import type { OpenPayment } from "@/lib/camp/payments";
 import type { PaymentStatus } from "@/lib/camp/types";
 import { formatCedis } from "@/lib/camp/money";
 import { Busy } from "@/components/camp/brand";
+import { formatAccraTime } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -16,8 +17,6 @@ const AFTER: Record<PaymentStatus, string> = {
   pending: "Mobile money is still waiting for approval on the phone. Approve or decline it there.",
   success: "It went through. Balances are updated.",
 };
-
-const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" });
 
 /**
  * A payment that's still processing, with a way out: Resume goes back to the
@@ -45,7 +44,7 @@ export function OpenPaymentCard({
         <span className="flex flex-col">
           <span className="font-medium">{title}</span>
           <span className="tabular-nums text-warm-gray">
-            {formatCedis(payment.amount_pesewas)} · started {time(payment.created_at)}
+            {formatCedis(payment.amount_pesewas)} · started {formatAccraTime(payment.created_at)}
           </span>
         </span>
       </p>

@@ -6,6 +6,7 @@ import { Check, Copy, KeyRound } from "lucide-react";
 import type { LeaderCode } from "@/lib/camp/leaders";
 import { InlineConfirm } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
+import { formatDay } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { newLeaderCodeAction, turnOffLeaderCodeAction } from "../actions";
 
@@ -23,7 +24,7 @@ export function LeaderCodes({ scopes, codes }: { scopes: Scope[]; codes: LeaderC
   const [pending, start] = useOneAtATime();
   const key = (s: Scope) => `${s.kind}:${s.value}`;
   const codeOf = (s: Scope) => codes.find((c) => c.scope_kind === s.kind && c.scope_value === s.value);
-  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "never");
+  const when = (iso: string | null) => (iso ? formatDay(iso) : "never");
 
   return (
     <ul className="divide-y divide-stone-border overflow-hidden rounded-[10px] border border-stone-border bg-white">

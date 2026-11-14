@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
 const KEY = "commune.text";
 const ATTR = "data-cm-text";
@@ -8,15 +8,16 @@ const ATTR = "data-cm-text";
 // Read before the first paint by the inline script in the camps layout, so pages don't jump.
 export const biggerTextScript = `try{if(localStorage.getItem("${KEY}")==="big")document.documentElement.setAttribute("${ATTR}","big")}catch(e){}`;
 
-const subscribe = (on: () => void) => {
-  const watch = new MutationObserver(on);
-  watch.observe(document.documentElement, { attributes: true, attributeFilter: [ATTR] });
-  return () => watch.disconnect();
-};
-
 /** "Bigger text": everything one step larger, remembered on this phone. */
 export function BiggerText() {
-  const big = useSyncExternalStore(subscribe, () => document.documentElement.getAttribute(ATTR) === "big", () => false);
+  const [big, setBig] = useState(false);
+  useEffect(() => {
+    const read = () => setBig(document.documentElement.getAttribute(ATTR) === "big");
+    read();
+    const watch = new MutationObserver(read);
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: [ATTR] });
+    return () => watch.disconnect();
+  }, []);
   return (
     <button
       type="button"

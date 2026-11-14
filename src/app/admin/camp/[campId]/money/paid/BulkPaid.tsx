@@ -8,14 +8,13 @@ import type { BulkReceipt } from "@/lib/camp/reports";
 import { actorName } from "@/lib/camp/history-words";
 import { formatCedis } from "@/lib/camp/money";
 import { CommuneLoader } from "@/components/camp/brand";
-import { headlineClass, primaryButtonClass } from "@/components/camp/ui";
+import { formatAccraWhen, headlineClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { checkBulkAction } from "../../../actions";
 
 type State = { status: "pending" | "success" | "failed"; people: number; credited: number; receipt: BulkReceipt | null } | { error: string } | null;
 
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" });
+const when = (iso: string) => formatAccraWhen(iso);
 
 /**
  * Where expressPay sends a coordinator back after paying for several people,

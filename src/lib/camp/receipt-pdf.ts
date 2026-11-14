@@ -1,5 +1,6 @@
 import type { jsPDF } from "jspdf";
 import { receiptRows, type ReceiptView } from "@/components/camp/ReceiptCard";
+import { formatDateLong } from "@/components/camp/ui";
 import { formatCedis } from "./money";
 
 /**
@@ -16,7 +17,7 @@ const GREEN: [number, number, number] = [12, 163, 12];
 const W = 419.53; // A5
 const M = 32;
 
-const startDay = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const startDay = (date: string) => formatDateLong(date);
 
 function page(doc: jsPDF, r: ReceiptView, camp: { name: string; starts_on: string }) {
   const { who, refs, left } = receiptRows(r);

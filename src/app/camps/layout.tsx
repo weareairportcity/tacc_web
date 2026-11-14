@@ -12,7 +12,13 @@ export const metadata: Metadata = {
   title: "Commune · The Airport City Church camps",
   robots: { index: false, follow: false },
   manifest: "/camps/manifest.webmanifest",
-  icons: { apple: "/commune/apple-touch-icon.png" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/commune/icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: "/commune/apple-touch-icon.png",
+  },
   appleWebApp: { capable: true, title: "Commune", statusBarStyle: "default" },
 };
 

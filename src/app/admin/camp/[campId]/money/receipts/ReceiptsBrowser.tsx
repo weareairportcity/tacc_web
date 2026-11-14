@@ -5,7 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet } fro
 import { Busy } from "@/components/camp/brand";
 import { ReceiptCard, type ReceiptCamp, type ReceiptView } from "@/components/camp/ReceiptCard";
 import { Sheet } from "@/components/camp/sheet";
-import { primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
+import { formatAccraWhen, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { formatCedis } from "@/lib/camp/money";
 import { downloadReceiptsPdf } from "@/lib/camp/receipt-pdf";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 const METHOD: Record<string, string> = { momo: "Mobile money", card: "Card" };
 const WHO: Record<ReceiptRow["who"], string> = { self: "Themselves", link: "Pay link", staff: "Coordinator or leader" };
-const short = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" });
+const short = (iso: string) => formatAccraWhen(iso);
 
 const view = (r: ReceiptRow): ReceiptView => ({
   reference: r.reference,

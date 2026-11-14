@@ -485,7 +485,17 @@ export function PeopleView({
                           <Status status={r.status} />
                         </span>
                         <span className="max-sm:hidden">
-                          {r.last_paid ? `Paid ${formatCedis(r.last_paid).replace(/\.00$/, "")} · ${since(r.last)}` : r.registered ? `Registered ${since(r.registered)}` : ""}
+                          {r.last_paid ? (
+                            <>
+                              Paid {formatCedis(r.last_paid).replace(/\.00$/, "")} · <span suppressHydrationWarning>{since(r.last)}</span>
+                            </>
+                          ) : r.registered ? (
+                            <>
+                              Registered <span suppressHydrationWarning>{since(r.registered)}</span>
+                            </>
+                          ) : (
+                            ""
+                          )}
                         </span>
                       </span>
                     </td>

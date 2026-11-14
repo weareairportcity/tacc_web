@@ -119,24 +119,95 @@ export function StatusLine({
   );
 }
 
-/** "2027-06-10" → "10 Jun 2027" (dates are stored without a time zone). */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+function ymd(date: string) {
+  const [y, m, d] = date.slice(0, 10).split("-").map(Number);
+  return { y, m, d, utc: Date.UTC(y, m - 1, d) };
+}
+
+/** Accra is GMT all year, so UTC clock parts are Accra clock parts. */
+function accra(iso: string) {
+  const t = new Date(iso);
+  return {
+    weekday: WEEKDAYS[t.getUTCDay()],
+    day: t.getUTCDate(),
+    month: MONTHS[t.getUTCMonth()],
+    monthLong: MONTHS_LONG[t.getUTCMonth()],
+    year: t.getUTCFullYear(),
+    hour: t.getUTCHours(),
+    minute: String(t.getUTCMinutes()).padStart(2, "0"),
+  };
+}
+
+function clock24(iso: string) {
+  const t = accra(iso);
+  return `${String(t.hour).padStart(2, "0")}:${t.minute}`;
+}
+
+function clock12(iso: string) {
+  const t = accra(iso);
+  return `${t.hour % 12 || 12}:${t.minute} ${t.hour >= 12 ? "pm" : "am"}`;
+}
+
 /** "12 Dec": for dates in the camp's own year. */
 export function formatDay(date: string) {
-  return new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  const { m, d } = ymd(date);
+  return `${d} ${MONTHS[m - 1]}`;
 }
 
 /** "Fri 18 Dec": when the day of the week helps people plan. */
 export function formatWeekday(date: string) {
-  return new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const { m, d, utc } = ymd(date);
+  return `${WEEKDAYS[new Date(utc).getUTCDay()]} ${d} ${MONTHS[m - 1]}`;
 }
 
+/** "10 Jun 2027" (dates are stored without a time zone). */
 export function formatDate(date: string) {
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  const { y, m, d } = ymd(date);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+/** "18 December 2026" (dates are stored without a time zone). */
+export function formatDateLong(date: string) {
+  const { y, m, d } = ymd(date);
+  return `${d} ${MONTHS_LONG[m - 1]} ${y}`;
+}
+
+/** "22:43" in Accra. */
+export function formatAccraTime(iso: string) {
+  return clock24(iso);
+}
+
+/** "11 Nov, 22:43" in Accra. */
+export function formatAccraWhen(iso: string) {
+  const t = accra(iso);
+  return `${t.day} ${t.month}, ${clock24(iso)}`;
+}
+
+/** "Fri 14 Nov 9:33 pm" in Accra. */
+export function formatAccraStamp(iso: string) {
+  const t = accra(iso);
+  return `${t.weekday} ${t.day} ${t.month} ${clock12(iso)}`;
+}
+
+/** "11 November 2026, 22:43" in Accra. */
+export function formatAccraLong(iso: string) {
+  const t = accra(iso);
+  return `${t.day} ${t.monthLong} ${t.year}, ${clock24(iso)}`;
+}
+
+/** "Fri 14 Nov" in Accra. */
+export function formatAccraDay(iso: string) {
+  const t = accra(iso);
+  return `${t.weekday} ${t.day} ${t.month}`;
+}
+
+/** "9:33 pm" in Accra. */
+export function formatAccraClock(iso: string) {
+  return clock12(iso);
 }
 
 export const CAMP_STATUS_ICONS: Record<string, LucideIcon> = {
