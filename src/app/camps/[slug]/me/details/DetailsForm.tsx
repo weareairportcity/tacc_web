@@ -29,14 +29,11 @@ export function DetailsForm({
   cancelled,
   gender,
   healthAgreed,
-  shirtsOn = true,
   paid = 0,
 }: {
   /** What they've paid, for the refund line when removing themselves. */
   paid?: number;
   slug: string;
-  /** The camp has a camp T-shirt; off hides the size question. */
-  shirtsOn?: boolean;
   phone: string;
   initial: ProfileInput;
   cancelled: boolean;
@@ -79,7 +76,7 @@ export function DetailsForm({
           <Field label="Email" hint="For your receipts.">
             <input required type="email" autoComplete="email" className={inputClass} value={v.email} onChange={set("email")} />
           </Field>
-          {shirtsOn && <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium" id="shirt-label">
               T-shirt size
             </span>
@@ -94,7 +91,7 @@ export function DetailsForm({
                 </label>
               ))}
             </div>
-          </div>}
+          </div>
         </fieldset>
 
         <fieldset className={cn(fieldset, !initial.emergency_name && "ring-2 ring-cyan-signal")}>

@@ -16,8 +16,6 @@ import { registerAction } from "../actions";
 
 type Props = {
   slug: string;
-  /** The camp has a camp T-shirt; off hides the size question. */
-  shirtsOn?: boolean;
   signedIn: boolean;
   roomTypes: RoomType[];
   fellowshipGroups: { pfcc: string; names: string[] }[];
@@ -36,7 +34,7 @@ function Legend({ icon: Icon, children }: { icon: typeof User; children: React.R
   );
 }
 
-export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches, shirtsOn = true }: Props) {
+export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<RegistrationInput>({
     full_name: "",
@@ -318,7 +316,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
             })}
           </fieldset>
 
-          {shirtsOn && <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
+          <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "120ms" }}>
             <Legend icon={Shirt}>Camp T-shirt</Legend>
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium" id="shirt-label">
@@ -336,7 +334,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
                 ))}
               </div>
             </div>
-          </fieldset>}
+          </fieldset>
 
           <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-seline-hero">
             <div className="flex items-baseline justify-between">

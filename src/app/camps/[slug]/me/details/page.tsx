@@ -40,7 +40,6 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
         }}
         cancelled={me.status === "cancelled"}
         healthAgreed={!!details.health_consent_at}
-        shirtsOn={camp.shirts_on !== 0}
         paid={me.paid_pesewas}
         gender={{
           now: me.gender,

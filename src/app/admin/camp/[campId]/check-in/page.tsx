@@ -34,7 +34,6 @@ export default async function CheckInPage({ params, searchParams }: { params: Pr
       initialMode={mode === "shirt" ? "shirt" : null}
       leader={staff.role === "leader"}
       shirtPaidOnly={!!camp.shirt_paid_only}
-      shirtsOn={camp.shirts_on !== 0}
     />
   );
 }
