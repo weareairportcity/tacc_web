@@ -143,7 +143,7 @@ function joinStatement(groupId: string, registrationId: string) {
 /** Why `me` couldn't join `groupId`, as a message for them. */
 async function explainJoin(me: Registration, groupId: string): Promise<CampError> {
   const group = await loadGroup("g.id = ?", [groupId]);
-  if (!group || group.camp_id !== me.camp_id) return new CampError("That code doesn't match a group for this camp.");
+  if (!group || group.camp_id !== me.camp_id) return new CampError("This link doesn't match a group for this camp.");
   if (me.status !== "fully_paid") return new CampError("Roommate groups open once you're fully paid.");
   if (group.members.some((m) => m.registration_id === me.id)) return new CampError("You're already in this group.");
   if (await getGroupFor(me.id)) return new CampError("You're already in a group. Leave it first.");
@@ -172,8 +172,13 @@ async function join(me: Registration, groupId: string) {
   if (!results[0].results.length) throw await explainJoin(me, groupId);
 }
 
-/** Joins the group with this code. Rate-limited per attendee so codes can't be guessed. */
-export async function joinByCode(me: Registration, rawCode: string): Promise<string> {
+/**
+ * Joins the group in a friend's link. Rate-limited per attendee so links
+ * can't be guessed. `leaveCurrent` is the confirm on the join page: leave
+ * the group they're in, then join this one (and rejoin the old if this one
+ * can't take them).
+ */
+export async function joinByCode(me: Registration, rawCode: string, opts: { leaveCurrent?: boolean } = {}): Promise<string> {
   requireFullyPaid(me);
   if (!(await allow(`group-join:${me.id}`, 10, 15 * MINUTE))) {
     throw new CampError("Too many attempts. Please wait a few minutes and try again.");
@@ -183,7 +188,24 @@ export async function joinByCode(me: Registration, rawCode: string): Promise<str
     code.length === GROUP_CODE_LENGTH
       ? await query<{ id: string }>("app", "SELECT id FROM camp_groups WHERE code = ? AND camp_id = ?", [code, me.camp_id])
       : [];
-  if (!group) throw new CampError("That code doesn't match a group for this camp.");
+  if (!group) throw new CampError("This link doesn't match a group for this camp.");
+  const mine = await getGroupFor(me.id);
+  if (mine?.id === group.id) return group.id;
+  if (mine) {
+    if (!opts.leaveCurrent) throw new CampError("You're already in a group. Leave it first.");
+    await leaveGroup(me);
+    try {
+      await join(me, group.id);
+    } catch (err) {
+      try {
+        await join(me, mine.id);
+      } catch {
+        // Old group was deleted (they were the only member) or filled while they left.
+      }
+      throw err;
+    }
+    return group.id;
+  }
   await join(me, group.id);
   return group.id;
 }

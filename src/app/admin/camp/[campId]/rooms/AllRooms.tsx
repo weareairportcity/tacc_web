@@ -95,11 +95,11 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
           <div className="flex flex-col items-start gap-3 rounded-[14px] border border-stone-border bg-white p-6">
             <p className="text-[17px] font-medium">No rooms yet</p>
             <p className="max-w-prose text-[15px] leading-relaxed text-warm-gray">
-              Import the venue&apos;s list of rooms (a spreadsheet saved as CSV, with each room&apos;s name, type, gender and beds), or add them one at a time.
+              Place everyone at random on Assign creates rooms for you. Come back here at the venue to tap a room and type its number. Or import a list if you already have one.
             </p>
-            <button type="button" onClick={() => setImporting(true)} className={`${primaryButtonClass} h-11 px-5`}>
-              <Upload className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Import the venue&apos;s list
-            </button>
+            <Link href="?tab=assign" className={`${primaryButtonClass} h-11 px-5`}>
+              Go to Assign
+            </Link>
           </div>
         ) : (
           <p className="rounded-[10px] border border-stone-border bg-white p-5 text-[15px] text-warm-gray">No rooms match. Try another type or gender.</p>

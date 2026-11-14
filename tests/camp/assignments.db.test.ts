@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign } from "@/lib/camp/assignments";
+import { extraRoomsNeeded, nextRoomLabels, planRandomFill } from "@/lib/camp/fill";
 import { createGroup, getGroupFor, joinByCode } from "@/lib/camp/groups";
 import { cancelRegistration, getRegistration, register } from "@/lib/camp/registrations";
-import { createRoom, createRoomType, deleteRoom, listRooms, updateRoom } from "@/lib/camp/rooms";
+import { createRoom, createRooms, createRoomType, deleteRoom, listRooms, updateRoom } from "@/lib/camp/rooms";
 import type { Gender, Registration } from "@/lib/camp/types";
 import { ACTOR, attendee, openCamp, paidUp } from "./helpers";
 
@@ -246,5 +247,31 @@ describe("what people see", () => {
       ["A1", 1, [placed.id]],
       ["A2", 0, []],
     ]);
+  });
+});
+
+describe("creating rooms for Place everyone", () => {
+  it("makes enough rooms of the type's size, one group per room", async () => {
+    const { camp, roomTypeId, people } = await setup(5, []);
+    const [owner, a] = people;
+    await groupOf(owner, [a]);
+    const empty = await getPoolBoard(camp.id, roomTypeId, "female");
+    expect(extraRoomsNeeded(empty, 4)).toBe(2);
+    const labels = nextRoomLabels([], "female", "Hostel", 2);
+    await createRooms(
+      ACTOR,
+      camp.id,
+      labels.map((label) => ({ room_type_id: roomTypeId, label, gender: "female" as const, capacity: 4 })),
+    );
+    const board = await getPoolBoard(camp.id, roomTypeId, "female");
+    const plan = planRandomFill(board, () => 0.999);
+    expect(plan.left).toEqual([]);
+    for (const step of plan.steps) {
+      if (step.kind === "group") await assignGroup(ACTOR, step.roomId, step.groupId);
+      else await assignPerson(ACTOR, step.roomId, step.registrationId);
+    }
+    const rooms = await listRooms(camp.id);
+    expect(rooms.map((r) => r.label)).toEqual(["Women · Hostel 1", "Women · Hostel 2"]);
+    expect(rooms.reduce((n, r) => n + Number(r.occupied), 0)).toBe(5);
   });
 });

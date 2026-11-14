@@ -10,7 +10,7 @@ import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { cn } from "@/lib/utils";
 import { planFill } from "@/lib/camp/fill";
-import { assignGroupAction, assignPersonAction, fillRoomsAction, sendRoomSmsAction, unassignAction, unassignManyAction } from "../../actions";
+import { assignGroupAction, assignPersonAction, fillAllRoomsAction, fillRoomsAction, sendRoomSmsAction, unassignAction, unassignManyAction } from "../../actions";
 
 type Board = Awaited<ReturnType<typeof getPoolBoard>>;
 type Card = { kind: "group" | "person"; id: string; title: string; sub: string; names: string; need: number; anyRoom?: boolean; open?: boolean };
@@ -41,6 +41,7 @@ export function AssignBoard({
   const [tapped, setTapped] = useState<Card | null>(null);
   const [pending, start] = useOneAtATime();
   const [confirmSms, setConfirmSms] = useState(false);
+  const [confirmRandom, setConfirmRandom] = useState(false);
   const [filling, setFilling] = useState(false);
 
   if (!pools.length || !board) {
@@ -66,6 +67,7 @@ export function AssignBoard({
   const fits = (card: Card | null) => board.rooms.filter((r) => card && free(r) >= card.need);
   const freeBeds = board.rooms.reduce((n, r) => n + free(r), 0);
   const needed = cards.reduce((n, c) => n + c.need, 0);
+  const waitingAll = pools.reduce((n, p) => n + p.waiting, 0);
 
   const place = (card: Card, roomId: string) =>
     start(async () => {
@@ -120,6 +122,40 @@ export function AssignBoard({
             </Link>
           ))}
         </nav>
+        {waitingAll > 0 &&
+          (confirmRandom ? (
+            <span className="cm-pop flex items-center gap-2 rounded-full border-2 border-soot bg-white py-1 pl-4 pr-1 text-[13px]">
+              Put {waitingAll} in rooms at random? Groups stay together.
+              <button type="button" onClick={() => setConfirmRandom(false)} className="h-8 rounded-full px-3 font-medium">
+                No
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    setConfirmRandom(false);
+                    const r = await fillAllRoomsAction(campId);
+                    if (!r.ok) return toast(r.error, { tone: "error" });
+                    toast(
+                      r.data.placed
+                        ? `Placed ${r.data.placed} ${r.data.placed === 1 ? "person" : "people"}${r.data.problems.length ? `. ${r.data.problems.length} couldn't go where planned; they're still waiting.` : ""}`
+                        : "No one could be placed. Add rooms, or take people out of full ones.",
+                      !r.data.placed || r.data.problems.length ? { tone: "error" } : undefined,
+                    );
+                  })
+                }
+                aria-busy={pending}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-soot px-3 font-medium text-white disabled:opacity-60"
+              >
+                <Busy pending={pending} text="Placing…">Place</Busy>
+              </button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => setConfirmRandom(true)} className="cm-press inline-flex h-9 items-center gap-2 rounded-full bg-soot px-3.5 text-[13px] font-medium text-white">
+              <Shuffle className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Place everyone at random
+            </button>
+          ))}
         {smsPending > 0 &&
           (confirmSms ? (
             <span className="cm-pop flex items-center gap-2 rounded-full border-2 border-soot bg-white py-1 pl-4 pr-1 text-[13px]">
@@ -165,8 +201,8 @@ export function AssignBoard({
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">Waiting · {needed}</h2>
             {cards.length > 0 && freeBeds > 0 && (
-              <button type="button" onClick={() => setFilling(true)} className="cm-press inline-flex h-9 items-center gap-1.5 rounded-full bg-soot px-3.5 text-[13px] font-medium text-white">
-                <Wand2 className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Fill rooms for me
+              <button type="button" onClick={() => setFilling(true)} className="cm-press inline-flex h-9 items-center gap-1.5 rounded-full border border-stone-border bg-white px-3.5 text-[13px] font-medium">
+                <Wand2 className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Fill this type for me
               </button>
             )}
           </div>
@@ -229,10 +265,7 @@ export function AssignBoard({
           <h2 className="text-sm font-semibold">Rooms · {freeBeds} free beds</h2>
           {board.rooms.length === 0 ? (
             <p className="rounded-[10px] border border-stone-border bg-white p-4 text-sm text-warm-gray">
-              No rooms of this type yet.{" "}
-              <Link href="?tab=all" className="underline underline-offset-[3px]">
-                Add rooms
-              </Link>
+              No rooms of this type yet. Place everyone at random creates them. At the venue, open All rooms and type each number.
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -359,7 +392,7 @@ function FillSheet({ open, onClose, campId, board }: { open: boolean; onClose: (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Fill rooms for me"
+      title="Fill this type for me"
       subtitle="Groups together first, then everyone else beside their own fellowship. Check it, then place everyone."
       footer={
         <button

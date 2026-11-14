@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { query } from "@/lib/cf";
 import { CampError } from "@/lib/camp/types";
-import { hasPayExperience, ratePayExperience } from "@/lib/camp/pay-experience";
+import { hasPayExperience, listPayExperience, payExperienceSummary, ratePayExperience } from "@/lib/camp/pay-experience";
 import { openCamp, paidUp, registered } from "./helpers";
 
 describe("pay experience", () => {
@@ -33,5 +33,20 @@ describe("pay experience", () => {
       [me.id],
     );
     expect(row).toEqual({ rating: 5, comment: "" });
+  });
+
+  it("summarises checkout ratings for coordinators, with names on comments", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const ama = await paidUp(camp, roomTypeId, { full_name: "Ama Mensah" });
+    const kofi = await paidUp(camp, roomTypeId, { full_name: "Kofi Boateng" });
+    await ratePayExperience(ama.id, 2, "MoMo was slow");
+    await ratePayExperience(kofi.id, 5);
+    const summary = await payExperienceSummary(camp.id);
+    expect(summary.answers).toBe(2);
+    expect(summary.average).toBe(3.5);
+    expect(summary.ratings).toEqual([0, 1, 0, 0, 1]);
+    const rows = await listPayExperience(camp.id);
+    expect(rows.map((r) => r.full_name)).toEqual(["Kofi Boateng", "Ama Mensah"]);
+    expect(rows[1]).toMatchObject({ full_name: "Ama Mensah", rating: 2, comment: "MoMo was slow" });
   });
 });

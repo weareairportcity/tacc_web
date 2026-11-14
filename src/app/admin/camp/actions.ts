@@ -4,7 +4,7 @@ import { notifyPrefs, removePushSub, savePushSub } from "@/lib/camp/push";
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { allow } from "@/lib/camp/rate-limit";
-import type { FillStep } from "@/lib/camp/fill";
+import { extraRoomsNeeded, nextRoomLabels, planRandomFill, type FillStep } from "@/lib/camp/fill";
 import { findPeople, getBulkReceipt, idsInScope, scopeFor } from "@/lib/camp/reports";
 import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
@@ -16,10 +16,13 @@ import type { CsvError } from "@/lib/camp/csv";
 import { cedisToPesewas } from "@/lib/camp/money";
 import {
   createRoom,
+  createRooms,
   createRoomType,
   deleteRoom,
   deleteRoomType,
+  getRoomType,
   importRooms,
+  listRooms,
   listRoomTypes,
   setPlacesLeft,
   updateRoom,
@@ -27,7 +30,7 @@ import {
 } from "@/lib/camp/rooms";
 import { changeRoomType, recordRefund } from "@/lib/camp/adjustments";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
-import { assignGroup, assignPerson, getMyRoom, unassign, unassignMany } from "@/lib/camp/assignments";
+import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { listRefunds } from "@/lib/camp/adjustments";
 import { arrivalCounts, arrivalPage, findArrivals, getArrival, markScan, personCard, scanRoster, syncScans, undoScan, type ArrivalTab, type ScanMode, type SyncedScan } from "@/lib/camp/checkin";
@@ -47,6 +50,7 @@ import { removeStaff, saveStaff, setStaffPhone } from "@/lib/camp/staff";
 import {
   CAMP_PHOTOS,
   CampError,
+  GENDERS,
   type CampInput,
   type CampPhoto,
   type Gender,
@@ -305,6 +309,25 @@ export async function assignGroupAction(roomId: string, groupId: string) {
   });
 }
 
+async function applyFillSteps(actor: string, steps: FillStep[]) {
+  let placed = 0;
+  const problems: { names: string[]; error: string }[] = [];
+  for (const step of steps) {
+    const names = Array.isArray(step?.names) ? step.names.map(String).slice(0, 20) : [];
+    try {
+      if (step?.kind === "group") placed += (await assignGroup(actor, String(step.roomId), String(step.groupId))).placed.length;
+      else if (step?.kind === "person") {
+        await assignPerson(actor, String(step.roomId), String(step.registrationId));
+        placed++;
+      }
+    } catch (err) {
+      if (!(err instanceof CampError)) throw err;
+      problems.push({ names, error: err.message });
+    }
+  }
+  return { placed, problems };
+}
+
 /**
  * "Fill rooms for me", after the coordinator has checked the draft (src/lib/camp/fill.ts).
  * Each placement goes through the same checks as a drag on the board; one that no longer
@@ -315,20 +338,47 @@ export async function fillRoomsAction(campId: string, steps: FillStep[]) {
     const staff = await requireCampRole("coordinator");
     const list = Array.isArray(steps) ? steps.slice(0, 1000) : [];
     await once(staff.email, "fillRoomsAction", [campId, list.length, list[0] ?? null]);
+    return applyFillSteps(staff.email, list);
+  });
+}
+
+/**
+ * Puts every waiting group and person, across every room type, into a random
+ * room that fits. Creates rooms of the type's size when there aren't enough.
+ * Groups stay together, one group per room; leftover beds take ungrouped
+ * people. Coordinators rename rooms later (All rooms) when the venue has numbers.
+ */
+export async function fillAllRoomsAction(campId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await once(staff.email, "fillAllRoomsAction", [campId]);
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
     let placed = 0;
     const problems: { names: string[]; error: string }[] = [];
-    for (const step of list) {
-      const names = Array.isArray(step?.names) ? step.names.map(String).slice(0, 20) : [];
-      try {
-        if (step?.kind === "group") placed += (await assignGroup(staff.email, String(step.roomId), String(step.groupId))).placed.length;
-        else if (step?.kind === "person") {
-          await assignPerson(staff.email, String(step.roomId), String(step.registrationId));
-          placed++;
-        }
-      } catch (err) {
-        if (!(err instanceof CampError)) throw err;
-        problems.push({ names, error: err.message });
+    const existing = await listRooms(camp.id);
+    const labels = existing.map((r) => r.label);
+    for (const pool of await listPools(camp.id)) {
+      if (!GENDERS.includes(pool.gender)) continue;
+      const gender = pool.gender as Gender;
+      let board = await getPoolBoard(camp.id, pool.room_type_id, gender);
+      if (!board.groups.length && !board.people.length) continue;
+      const type = await getRoomType(pool.room_type_id);
+      if (!type) continue;
+      const extra = extraRoomsNeeded(board, type.capacity);
+      if (extra > 0) {
+        const created = nextRoomLabels(labels, gender, type.name, extra);
+        labels.push(...created);
+        await createRooms(
+          staff.email,
+          camp.id,
+          created.map((label) => ({ room_type_id: type.id, label, gender, capacity: type.capacity })),
+        );
+        board = await getPoolBoard(camp.id, pool.room_type_id, gender);
       }
+      const result = await applyFillSteps(staff.email, planRandomFill(board).steps);
+      placed += result.placed;
+      problems.push(...result.problems);
     }
     return { placed, problems };
   });

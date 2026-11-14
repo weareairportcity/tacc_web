@@ -56,6 +56,31 @@ describe("joining by code", () => {
     expect(await memberIds(owner)).toEqual([owner.id, a.id, b.id]);
   });
 
+  it("leaves the current group when joining another from a confirmed link", async () => {
+    const { people: [ama, kofi, esi] } = await campWith(3);
+    await createGroup(ama);
+    await createGroup(kofi);
+    await joinByCode(esi, await codeOf(ama));
+    await joinByCode(esi, await codeOf(kofi), { leaveCurrent: true });
+    expect(await memberIds(kofi)).toEqual([kofi.id, esi.id]);
+    expect(await memberIds(ama)).toEqual([ama.id]);
+    expect(await getGroupFor(esi.id)).toMatchObject({ owner_registration_id: kofi.id });
+  });
+
+  it("stays in the old group if the new one is full", async () => {
+    const { people } = await campWith(6);
+    const [ama, kofi, a, b, c, esi] = people;
+    await createGroup(ama);
+    await createGroup(kofi);
+    const kofiCode = await codeOf(kofi);
+    await joinByCode(a, kofiCode);
+    await joinByCode(b, kofiCode);
+    await joinByCode(c, kofiCode);
+    await joinByCode(esi, await codeOf(ama));
+    await expect(joinByCode(esi, kofiCode, { leaveCurrent: true })).rejects.toThrow("full");
+    expect(await memberIds(ama)).toContain(esi.id);
+  });
+
   it("enforces gender, room type, camp, payment and one group each", async () => {
     const { camp, roomTypeId, people: [owner, other] } = await campWith(2);
     await createGroup(owner);

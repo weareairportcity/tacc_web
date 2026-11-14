@@ -13,8 +13,9 @@ const LABELS = ["Poor", "Okay", "Good", "Great", "Excellent"] as const;
 const SKIP_KEY = (slug: string) => `camp-pay-xp:${slug}`;
 
 /**
- * After a full payment lands, ask how checkout went. 1–2 stars open an
- * optional comment. Skip is always allowed; we don't ask again this session.
+ * After a full payment lands, ask how registering went (the whole flow, not
+ * only checkout). 1–2 stars open an optional comment. Skip is always allowed;
+ * we don't ask again this session.
  */
 export function PayExperience({ slug, rated }: { slug: string; rated: boolean }) {
   const [open, setOpen] = useState(false);
@@ -61,7 +62,7 @@ export function PayExperience({ slug, rated }: { slug: string; rated: boolean })
       open={open}
       onClose={skip}
       title="Rate your experience"
-      subtitle="How did paying go? It takes a second."
+      subtitle="How was registering with us? It takes a second."
       footer={
         <>
           <button type="button" onClick={skip} className={`${secondaryButtonClass} h-12 flex-1`}>
@@ -112,7 +113,7 @@ export function PayExperience({ slug, rated }: { slug: string; rated: boolean })
             onChange={(e) => setComment(e.target.value)}
             maxLength={1000}
             rows={3}
-            placeholder="The page was slow, MoMo didn't prompt…"
+            placeholder="Signing in, the form, paying…"
             className={`${inputClass} h-auto py-2.5 sm:h-auto`}
           />
         </Field>

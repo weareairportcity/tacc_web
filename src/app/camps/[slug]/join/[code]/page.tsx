@@ -174,20 +174,10 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
       </Problem>
     );
   }
-  if (mine) {
-    return (
-      <Problem
-        camp={camp}
-        back={home}
-        icon={Users}
-        title="You're already in a group"
-        primary={{ href: roommates, label: "Go to my group" }}
-        secondary={{ href: home, label: "Back to home" }}
-      >
-        To join {ownerName} instead, leave your group on the Roommates page first, then tap this link again.
-      </Problem>
-    );
-  }
+
+  const leavingOwner = mine
+    ? first((mine.members.find((m) => m.registration_id === mine.owner_registration_id) ?? mine.members[0])?.full_name ?? "your group")
+    : undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -196,7 +186,11 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
         <h1 className={`cm-rise ${headlineClass}`}>
           Join <span className="text-cyan-edge">{ownerName}&apos;s</span> group?
         </h1>
-        <p className="text-base leading-relaxed text-warm-gray">You&apos;ll share a {group.room_type_name} room with the people in this group.</p>
+        <p className="text-base leading-relaxed text-warm-gray">
+          {leavingOwner
+            ? `You're in ${leavingOwner}'s group. Joining this one leaves that group.`
+            : `You'll share a ${group.room_type_name} room with the people in this group.`}
+        </p>
       </div>
       <section aria-label={`${ownerName}'s group`} className="cm-rise flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero" style={{ animationDelay: "60ms" }}>
         <Faces names={group.members.map((m) => m.full_name)} open={group.capacity - group.members.length} />
@@ -213,7 +207,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
             </div>
           ))}
         </dl>
-        <JoinButton slug={camp.slug} code={code} label={`Join ${ownerName}'s group`} />
+        <JoinButton slug={camp.slug} code={code} label={`Join ${ownerName}'s group`} leavingFrom={leavingOwner} />
         <Link href={roommates} className={`${secondaryButtonClass} h-12 w-full text-[15px]`}>
           Not now
         </Link>

@@ -233,10 +233,10 @@ export async function createGroupAction(slug: string) {
   });
 }
 
-export async function joinGroupAction(slug: string, code: string) {
+export async function joinGroupAction(slug: string, code: string, leaveCurrent = false) {
   return groupAction(slug, async (me) => {
     await limitVisitor("group-join", 20, 300, 15 * MINUTE);
-    await joinByCode(me, String(code));
+    await joinByCode(me, String(code), { leaveCurrent: leaveCurrent === true });
     await forgetJoin(slug);
     return null;
   });

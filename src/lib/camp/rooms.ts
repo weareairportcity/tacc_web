@@ -196,17 +196,32 @@ async function validateRoom(campId: string, raw: RoomInput, exceptId?: string): 
 }
 
 export async function createRoom(actor: string, campId: string, raw: RoomInput): Promise<string> {
-  checkId(campId, "camp");
-  const input = await validateRoom(campId, raw);
-  const id = crypto.randomUUID();
-  await batch("app", [
-    {
-      sql: "INSERT INTO camp_rooms (id, camp_id, room_type_id, label, gender, capacity) VALUES (?, ?, ?, ?, ?, ?)",
-      params: [id, campId, input.room_type_id, input.label, input.gender, input.capacity],
-    },
-    auditStatement({ actor, campId, action: "room.create", entity: "room", entityId: id, after: input }),
-  ]);
+  const [id] = await createRooms(actor, campId, [raw]);
   return id;
+}
+
+/** Several rooms in one write, for Place everyone creating what the pool still needs. */
+export async function createRooms(actor: string, campId: string, raws: RoomInput[]): Promise<string[]> {
+  checkId(campId, "camp");
+  if (!raws.length) return [];
+  const inputs: RoomInput[] = [];
+  const seen = new Set<string>();
+  for (const raw of raws) {
+    const input = await validateRoom(campId, raw);
+    const key = input.label.toLowerCase();
+    if (seen.has(key)) throw new CampError(`Room "${input.label}" already exists in this camp.`);
+    seen.add(key);
+    inputs.push(input);
+  }
+  const ids = inputs.map(() => crypto.randomUUID());
+  await batch("app", [
+    ...inputs.map((input, i) => ({
+      sql: "INSERT INTO camp_rooms (id, camp_id, room_type_id, label, gender, capacity) VALUES (?, ?, ?, ?, ?, ?)",
+      params: [ids[i], campId, input.room_type_id, input.label, input.gender, input.capacity],
+    })),
+    ...inputs.map((input, i) => auditStatement({ actor, campId, action: "room.create", entity: "room", entityId: ids[i], after: input })),
+  ]);
+  return ids;
 }
 
 /**

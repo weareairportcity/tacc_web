@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planFill } from "@/lib/camp/fill";
+import { extraRoomsNeeded, nextRoomLabels, planFill, planRandomFill } from "@/lib/camp/fill";
 import { formatCode, generateSignInCode, normalizeCode, SIGN_IN_DIGITS } from "@/lib/camp/codes";
 import type { RoomWithOccupants, WaitingGroup, WaitingPerson } from "@/lib/camp/types";
 
@@ -38,6 +38,58 @@ describe("Fill rooms for me", () => {
     expect(where.b1).toBe(where.b2);
     expect(plan.rooms.every((r) => r.names.length <= 2)).toBe(true);
     expect(plan.left).toEqual([{ names: ["z2"], reason: "No beds left in this room type." }]);
+  });
+});
+
+describe("Place everyone at random", () => {
+  const rng = (seed: number) => {
+    let s = seed + 1;
+    return () => {
+      s = (s * 16807) % 2147483647;
+      return s / 2147483647;
+    };
+  };
+
+  it("picks a random room that fits, not the tightest one", () => {
+    // Fisher-Yates with rand ≈ 1 keeps order, so the first room that fits (A, 6) wins
+    // instead of the tightest (B, 3) that planFill would choose.
+    const plan = planRandomFill({ rooms: [room("A", 6), room("B", 3)], groups: [group("g", ["Ama", "Esi", "Akua"])], people: [] }, () => 0.999);
+    expect(plan.steps).toEqual([{ kind: "group", groupId: "g", roomId: "A", names: ["Ama", "Esi", "Akua"] }]);
+  });
+
+  it("never splits a group or overfills a room", () => {
+    const rooms = [room("A", 2), room("B", 3), room("C", 4)];
+    const groups = [group("g", ["Ama", "Esi"])];
+    const people = [person("p1", "Zion"), person("p2", "Bethel"), person("p3", "Qadash"), person("p4", "Zion")];
+    for (let seed = 0; seed < 30; seed++) {
+      const plan = planRandomFill({ rooms, groups, people }, rng(seed));
+      const g = plan.steps.find((s) => s.kind === "group");
+      expect(g?.names).toEqual(["Ama", "Esi"]);
+      const used = Object.fromEntries(plan.rooms.map((r) => [r.roomId, r.names.length]));
+      for (const r of rooms) expect((used[r.id] ?? 0) + r.occupied).toBeLessThanOrEqual(r.capacity);
+    }
+  });
+
+  it("puts the rest of a part-placed group with the ones already in a room", () => {
+    const plan = planRandomFill({ rooms: [room("A", 4, 1), room("B", 4)], groups: [group("g", ["Ama", "Esi"], "A")], people: [] }, () => 0.999);
+    expect(plan.steps).toEqual([{ kind: "group", groupId: "g", roomId: "A", names: ["Esi"] }]);
+  });
+
+  it("never puts two groups in the same room; leftover beds are for ungrouped people", () => {
+    const plan = planRandomFill(
+      { rooms: [room("A", 4)], groups: [group("g1", ["Ama", "Esi"]), group("g2", ["Akua", "Afia"])], people: [] },
+      () => 0.999,
+    );
+    expect(plan.steps.filter((s) => s.kind === "group")).toHaveLength(1);
+    expect(plan.left[0].names).toEqual(["Akua", "Afia"]);
+  });
+
+  it("counts extra rooms so every group gets its own and leftover people still fit", () => {
+    expect(extraRoomsNeeded({ rooms: [], groups: [group("g", ["Ama", "Esi"])], people: [person("p1", "Zion"), person("p2", "Bethel"), person("p3", "Qadash")] }, 4)).toBe(2);
+    expect(extraRoomsNeeded({ rooms: [room("A", 4)], groups: [group("g1", ["Ama", "Esi"]), group("g2", ["Akua", "Afia"])], people: [] }, 4)).toBe(1);
+    expect(nextRoomLabels([], "female", "Hostel", 2)).toEqual(["Women · Hostel 1", "Women · Hostel 2"]);
+    expect(nextRoomLabels(["Women · Hostel 1", "A12"], "female", "Hostel", 1)).toEqual(["Women · Hostel 2"]);
+    expect(nextRoomLabels([], "male", "Suite", 1)).toEqual(["Men · Suite 1"]);
   });
 });
 
