@@ -27,6 +27,7 @@ export const FELLOWSHIPS: Fellowship[] = [
   { name: "Increase", pfcc: "PFCC 1" },
   { name: "Campus", pfcc: "PFCC 1" },
   { name: "Pastor's Fellowship", pfcc: "PFCC 1" },
+  { name: "Online Fellowship", pfcc: "PFCC 1" },
   // PFCC 2
   { name: "Radah", pfcc: "PFCC 2" },
   { name: "Chara", pfcc: "PFCC 2" },
