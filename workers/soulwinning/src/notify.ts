@@ -90,6 +90,30 @@ export async function toStaff(env: AppEnv, kind: StaffKind, m: { title: string; 
   }
 }
 
+/**
+ * The leaders whose fellowship or PFCC this person is in (each leader code is
+ * one owner; everyone sharing the code gets it). Kinds: registration,
+ * payment, request. Never throws.
+ */
+export async function toLeaders(env: AppEnv, registrationId: string, kind: "registration" | "payment" | "request", m: { title: string; body: string; url: (campId: string) => string }) {
+  try {
+    const r = await env.APP_DB.prepare("SELECT camp_id FROM camp_registrations WHERE id = ?").bind(registrationId).first<{ camp_id: string }>();
+    if (!r) return 0;
+    return await pushTo(
+      env,
+      `SELECT 'leader:' || l.id FROM camp_leader_codes l, camp_registrations p
+       WHERE p.id = ? AND l.revoked_at IS NULL
+         AND ((l.scope_kind = 'fellowship' AND l.scope_value = p.fellowship) OR (l.scope_kind = 'pfcc' AND l.scope_value = p.pfcc))`,
+      [registrationId],
+      kind,
+      { title: m.title, body: m.body, url: m.url(r.camp_id), tag: `leader-${kind}:${registrationId}` },
+    );
+  } catch (err) {
+    console.error("notify leaders", kind, err);
+    return 0;
+  }
+}
+
 /** One attendee's phones. */
 export async function toAttendee(env: AppEnv, registrationId: string, kind: AttendeeKind, m: { title: string; body: string; url: string }) {
   try {
@@ -234,6 +258,11 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
     }
 
     if (!p.bulk_id) {
+      await toLeaders(env, p.registration_id, "payment", {
+        title: "Payment received",
+        body: `${payer ? `${payer} paid for ${r.full_name}` : `${r.full_name} paid`} ${cedis(p.amount_pesewas)}. ${full ? "Now fully paid." : `${cedis(left)} left.`}`,
+        url: (campId) => `/leaders/${campId}/people?person=${p.registration_id}`,
+      });
       await toStaff(env, "payment", {
         title: "Payment received",
         body: `${payer ? `${payer} paid for ${r.full_name}` : `${r.full_name} paid`}: ${cedis(p.amount_pesewas)}. ${full ? "Now fully paid." : `${cedis(left)} left.`}`,
@@ -370,12 +399,12 @@ export async function sendReminders(env: AppEnv, now = new Date(), force = false
 
 // ─── Endpoints for the Next server ──────────────────────────────────────────
 
-const OWNER = /^(attendee:[0-9a-f-]{36}|staff:[^\s@]+@[^\s@]+\.[^\s@]+)$/i;
+const OWNER = /^(attendee:[0-9a-f-]{36}|leader:[0-9a-f-]{36}|staff:[^\s@]+@[^\s@]+\.[^\s@]+)$/i;
 const ALL_KINDS: string[] = [...ATTENDEE_KINDS, "registration", "payment", "payment_problem", "request", "cancellation"];
 
 /** Events that happen on the Next side: registration, requests, cancellations, rooms. */
 export async function notifyEndpoint(request: Request, env: AppEnv) {
-  const b = await readJson<{ to?: unknown; kind?: unknown; registration_id?: unknown; title?: unknown; body?: unknown; url?: unknown; lines?: unknown }>(request);
+  const b = await readJson<{ to?: unknown; kind?: unknown; registration_id?: unknown; owners?: unknown; title?: unknown; body?: unknown; url?: unknown; lines?: unknown }>(request);
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const lines: Line[] = Array.isArray(b.lines)
     ? b.lines.slice(0, 14).map((l) => (typeof l === "string" ? text(l, 40) : Array.isArray(l) ? ([text(l[0], 40), text(l[1], 300)] as const) : null))
@@ -383,7 +412,18 @@ export async function notifyEndpoint(request: Request, env: AppEnv) {
   const m = { title: text(b.title, 80), body: text(b.body, 300), url: text(b.url, 300) || "/camps", lines };
   if (!m.title || !m.body || !m.url.startsWith("/")) throw new HttpError(400, "title, body and a relative url required");
   if (b.to === "staff" && (b.kind === "registration" || b.kind === "request" || b.kind === "cancellation")) {
-    return json(await toStaff(env, b.kind, m));
+    // Their leaders hear about their own people too (not cancellations).
+    const leaders =
+      (b.kind === "registration" || b.kind === "request") && typeof b.registration_id === "string" && UUID.test(b.registration_id)
+        ? await toLeaders(env, b.registration_id, b.kind, { title: m.title, body: m.body, url: (campId) => `/leaders/${campId}/people?person=${b.registration_id}` })
+        : 0;
+    return json({ ...(await toStaff(env, b.kind, m)), leaders });
+  }
+  if (b.to === "leaders" && b.kind === "messages" && Array.isArray(b.owners)) {
+    // A coordinator's message to the leaders: app notifications only (leaders share a code, so there's no phone to text).
+    const owners = b.owners.filter((o): o is string => typeof o === "string" && /^leader:[0-9a-f-]{36}$/i.test(o)).slice(0, 500);
+    if (!owners.length) return json({ push: 0 });
+    return json({ push: await pushTo(env, owners.map(() => "?").join(","), owners, "messages", { title: m.title, body: m.body, url: m.url, tag: `messages:${Date.now()}` }) });
   }
   if (b.to === "attendee" && typeof b.registration_id === "string" && UUID.test(b.registration_id) && (b.kind === "room_ready" || b.kind === "request_answered")) {
     return json({ push: await toAttendee(env, b.registration_id, b.kind, { title: m.title, body: m.body, url: m.url }) });
@@ -429,22 +469,31 @@ export async function pushSubscribe(request: Request, env: AppEnv) {
   const b = await readJson<{ owner?: unknown; endpoint?: unknown; p256dh?: unknown; auth?: unknown; remove?: unknown }>(request);
   const endpoint = typeof b.endpoint === "string" && /^(https:\/\/|http:\/\/127\.0\.0\.1:\d+\/)/.test(b.endpoint) && b.endpoint.length < 1000 ? b.endpoint : null;
   if (!endpoint) throw new HttpError(400, "endpoint required");
+  const owner = typeof b.owner === "string" && OWNER.test(b.owner) ? b.owner.toLowerCase() : null;
   if (b.remove === true) {
-    await env.APP_DB.prepare("DELETE FROM camp_push_subs WHERE endpoint = ?").bind(endpoint).run();
+    // Turning notifications off in one app leaves the other app on the same phone alone.
+    if (owner) await env.APP_DB.prepare("DELETE FROM camp_push_subs WHERE endpoint = ? AND owner = ?").bind(endpoint, owner).run();
+    else await env.APP_DB.prepare("DELETE FROM camp_push_subs WHERE endpoint = ?").bind(endpoint).run();
     return json({ ok: true });
   }
-  const owner = typeof b.owner === "string" && OWNER.test(b.owner) ? b.owner.toLowerCase() : null;
   const key = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_-]{16,200}$/.test(v) ? v : null);
   const p256dh = key(b.p256dh);
   const auth = key(b.auth);
   if (!owner || !p256dh || !auth) throw new HttpError(400, "owner and keys required");
-  // A phone belongs to whoever turned notifications on last.
-  await env.APP_DB.prepare(
-    `INSERT INTO camp_push_subs (endpoint, p256dh, auth, owner) VALUES (?, ?, ?, ?)
-     ON CONFLICT (endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, owner = excluded.owner, fails = 0`,
-  )
-    .bind(endpoint, p256dh, auth, owner)
-    .run();
+  // One phone can be an attendee's and a team member's (Android shares one address between the two
+  // Home Screen icons). On each side it belongs to whoever turned notifications on there last.
+  const team = !owner.startsWith("attendee:");
+  await env.APP_DB.batch([
+    env.APP_DB.prepare(
+      `DELETE FROM camp_push_subs WHERE endpoint = ? AND owner <> ? AND ${team ? "(owner LIKE 'staff:%' OR owner LIKE 'leader:%')" : "owner LIKE 'attendee:%'"}`,
+    ).bind(endpoint, owner),
+    env.APP_DB.prepare(
+      `INSERT INTO camp_push_subs (endpoint, p256dh, auth, owner) VALUES (?, ?, ?, ?)
+       ON CONFLICT (endpoint, owner) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, fails = 0`,
+    ).bind(endpoint, p256dh, auth, owner),
+    // Keys belong to the phone, so every owner's copy gets the new ones.
+    env.APP_DB.prepare("UPDATE camp_push_subs SET p256dh = ?, auth = ? WHERE endpoint = ?").bind(p256dh, auth, endpoint),
+  ]);
   return json({ ok: true });
 }
 

@@ -78,3 +78,33 @@ export async function subscribe(key: string): Promise<PushSubscriptionJSON | "de
   const sub = existing ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) }));
   return sub.toJSON();
 }
+
+/**
+ * Which Home Screen app this window is: "Commune" (attendees) or "Commune
+ * Team" (coordinators and leaders). Each app starts with ?app=… in its start
+ * address; the window remembers it for as long as it's open. Null in a
+ * browser tab.
+ */
+export type AppKind = "attendee" | "team";
+const KIND = "commune.appKind";
+
+export function rememberAppKind() {
+  if (!isInstalled()) return;
+  const v = new URLSearchParams(location.search).get("app");
+  if (!v) return;
+  try {
+    sessionStorage.setItem(KIND, v === "team" ? "team" : "attendee");
+  } catch {}
+}
+
+export function appKind(): AppKind | null {
+  if (!isInstalled()) return null;
+  const v = new URLSearchParams(location.search).get("app");
+  if (v) return v === "team" ? "team" : "attendee";
+  try {
+    const k = sessionStorage.getItem(KIND);
+    if (k === "team" || k === "attendee") return k;
+  } catch {}
+  // Started without a mark (an older install): go by where it opened.
+  return /^\/(admin|leaders)(\/|$)/.test(location.pathname) ? "team" : "attendee";
+}

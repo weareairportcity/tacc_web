@@ -10,6 +10,7 @@ import { CAMP_STATUS_ICONS, formatDate, headlineClass, secondaryButtonClass } fr
 import { leaderName } from "@/lib/camp/leaders";
 import { NoAccess, pageStaff } from "./access";
 import { NewCamp } from "./NewCamp";
+import { teamGate } from "./TeamGate";
 
 /** What a coordinator reads about a camp's state, in words. */
 function campState(camp: Camp) {
@@ -30,9 +31,19 @@ export default async function CampAdminHome() {
   // A leader with one camp running goes straight to their people.
   const running = camps.filter((c) => c.status === "open" || c.status === "closed");
   if (leader && running.length === 1) redirect(`/leaders/${running[0].id}/people`);
+  // On a phone, Commune Team with notifications on comes first.
+  const { tracker, gate } = await teamGate(staff, running[0]?.name ?? "Commune");
+  if (gate)
+    return (
+      <>
+        {tracker}
+        {gate}
+      </>
+    );
 
   return (
     <>
+      {tracker}
       <AdminTopBar email={leaderName(staff.email) ?? staff.email} leader={leader} />
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-5 pb-16 pt-4">
         <div className="flex flex-wrap items-end justify-between gap-4">

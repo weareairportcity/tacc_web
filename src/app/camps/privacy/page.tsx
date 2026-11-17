@@ -55,7 +55,7 @@ export default function PrivacyPage() {
         <h2>Who sees it</h2>
         <ul>
           <li><strong className="font-medium">Camp coordinators</strong> see everything about the people in their camps, so they can run it.</li>
-          <li><strong className="font-medium">Fellowship and PFCC leaders</strong> see their own people&rsquo;s names, phone numbers, payments, rooms and whether they have the app with notifications on. They don&rsquo;t see health notes, emergency contacts or guardian details.</li>
+          <li><strong className="font-medium">Fellowship and PFCC leaders</strong> see their own people&rsquo;s names, phone numbers, payments, rooms and whether they have the app with notifications on, and get app notifications when their people register, pay or ask for something. They don&rsquo;t see health notes, emergency contacts or guardian details.</li>
           <li><strong className="font-medium">The companies Commune runs on</strong>, only to do their part: expressPay (payments), mNotify (texts), Cloudflare (stores the camp&rsquo;s information), Vercel (runs the website), Supabase (coordinators&rsquo; sign-in), Apple, Google or your browser&rsquo;s maker (deliver app notifications to your phone, sealed so only your phone can read them) and Telegram (the coordinators&rsquo; private group, which gets updates with attendees&rsquo; names, payments and requests). Some of them store information outside Ghana, under their own security and privacy commitments.</li>
         </ul>
       </section>

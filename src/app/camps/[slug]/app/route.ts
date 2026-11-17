@@ -14,5 +14,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   if (!camp) return NextResponse.redirect(new URL("/camps", url));
   const pass = url.searchParams.get("t");
   if (pass) await signInWithAppPass(camp, pass).catch(() => false);
-  return NextResponse.redirect(new URL(`/camps/${camp.slug}/me`, url), { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+  return NextResponse.redirect(new URL(`/camps/${camp.slug}/me?app=attendee`, url), { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
 }

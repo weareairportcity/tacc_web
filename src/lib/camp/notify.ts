@@ -21,7 +21,19 @@ async function send(body: Record<string, unknown>) {
   }
 }
 
-export const notifyStaff = (kind: StaffKind, m: Message) => send({ to: "staff", kind, ...m });
+/** registrationId: their leaders hear about it too (registrations and requests). */
+export const notifyStaff = (kind: StaffKind, m: Message, registrationId?: string) => send({ to: "staff", kind, ...m, ...(registrationId ? { registration_id: registrationId } : {}) });
+
+/** A coordinator's message to leader codes' phones (app only). Answers how many phones got it. */
+export async function notifyLeaders(owners: string[], m: { title: string; body: string; url: string }) {
+  if (!owners.length) return 0;
+  try {
+    return (await post<{ push: number }>("/v1/admin/camp/notify", { to: "leaders", kind: "messages", owners, ...m })).push;
+  } catch (err) {
+    console.error("notify leaders", err);
+    return 0;
+  }
+}
 
 /** App notification kinds that can go to many attendees at once. "messages": coordinators' messages and the thank-you. */
 export type ManyKind = "room_ready" | "request_answered" | "messages" | "due_soon";
@@ -75,10 +87,10 @@ export async function newRegistration(r: {
       ["Camp", r.camp_name],
       ["Registered so far", count ? String(count.n) : ""],
     ],
-  });
+  }, r.id);
 }
 
-export const newRequest = (r: { camp_id: string; full_name: string; paid_pesewas: number; room_type_name: string }, what: { refund: number } | { room: string }, reason: string) =>
+export const newRequest = (r: { id: string; camp_id: string; full_name: string; paid_pesewas: number; room_type_name: string }, what: { refund: number } | { room: string }, reason: string) =>
   notifyStaff("request", {
     title: "refund" in what ? "New refund request" : "New room change request",
     body: "refund" in what ? `${r.full_name} asked for ${formatCedis(what.refund)} back.` : `${r.full_name} asked to move to ${what.room}.`,
@@ -90,7 +102,7 @@ export const newRequest = (r: { camp_id: string; full_name: string; paid_pesewas
       ["Reason", reason.trim().slice(0, 200)],
       ["What to do", "Open Requests in Commune to decide."],
     ],
-  });
+  }, r.id);
 
 export const cancelled = (r: { id: string; camp_id: string; full_name: string; paid_pesewas: number; room_type_name: string }, reason: string, removed: boolean) =>
   notifyStaff("cancellation", {

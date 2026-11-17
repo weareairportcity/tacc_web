@@ -16,8 +16,9 @@ export async function savePushSub(owner: string, raw: unknown) {
   await post("/v1/admin/camp/push-subscribe", { owner, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth });
 }
 
-export async function removePushSub(endpoint: string) {
-  await post("/v1/admin/camp/push-subscribe", { endpoint: String(endpoint), remove: true });
+/** owner: only this person's use of the phone (another app on it may still want notifications). */
+export async function removePushSub(endpoint: string, owner?: string) {
+  await post("/v1/admin/camp/push-subscribe", { endpoint: String(endpoint), remove: true, ...(owner ? { owner } : {}) });
 }
 
 export function notifyPrefs(owner: string, off?: string[]): Promise<NotifyPrefs> {

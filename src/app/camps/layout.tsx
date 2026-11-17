@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CommuneLogo } from "@/components/camp/brand";
 import { BiggerText, biggerTextScript } from "@/components/camp/BiggerText";
 import { ServiceWorker } from "@/components/camp/ServiceWorker";
+import { AppKindMarker } from "@/components/camp/notifications/AppKindMarker";
 import { Collector } from "@/components/camp/Collector";
 import { CookieNotice } from "@/components/camp/CookieNotice";
 import { Seen } from "@/components/camp/Seen";
@@ -35,6 +36,7 @@ export default function CampsLayout({ children }: { children: React.ReactNode })
         </Link>
         <BiggerText />
       </header>
+      <AppKindMarker />
       <main className="mx-auto max-w-xl px-5 pb-16">{children}</main>
       <ServiceWorker />
       <footer className="mx-auto flex max-w-xl flex-col items-center gap-2 px-5 pb-10 text-center text-xs text-warm-gray">

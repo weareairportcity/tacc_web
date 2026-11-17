@@ -400,9 +400,11 @@ export async function pushSubscribeAction(slug: string, subscription: unknown) {
   });
 }
 
+/** Notifications off on this phone, for the attendee only: Commune Team on the same phone keeps its own. */
 export async function pushRemoveAction(endpoint: string) {
   return run(async () => {
-    await removePushSub(endpoint);
+    const me = await signedInRegistration();
+    if (me) await removePushSub(endpoint, `attendee:${me.id}`);
     return true;
   });
 }

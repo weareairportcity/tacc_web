@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Bell, BellOff, ChevronRight, MessageSquare, Search, Smartphone } from "lucide-react";
 import type { AppPerson } from "@/lib/camp/broadcast";
+import type { TeamMember } from "@/lib/camp/team-app";
 import type { AppState } from "@/lib/camp/app-first";
 import { APP_STATE_WORDS } from "@/lib/camp/app-words";
 import { Legend, StackedBar, headlineClass, inputClass, type BarPart } from "@/components/camp/ui";
@@ -27,7 +28,7 @@ function detail(p: AppPerson) {
 }
 
 /** Everyone, by how they get updates. Tap a person to message them or see their details. */
-export function AppList({ campId, required, people }: { campId: string; required: boolean; people: AppPerson[] }) {
+export function AppList({ campId, required, people, team = [] }: { campId: string; required: boolean; people: AppPerson[]; team?: TeamMember[] }) {
   const [show, setShow] = useState<AppState | "">("");
   const [q, setQ] = useState("");
   const count = (s: AppState) => people.filter((p) => p.state === s).length;
@@ -118,6 +119,54 @@ export function AppList({ campId, required, people }: { campId: string; required
           })}
         </ul>
       )}
+      <TeamSection team={team} />
     </div>
+  );
+}
+
+/** Coordinators (by email) and leader codes (by fellowship or PFCC): whether Commune Team is set up. */
+function TeamSection({ team }: { team: TeamMember[] }) {
+  if (!team.length) return null;
+  const ready = team.filter((t) => t.installed_at && t.push).length;
+  return (
+    <section className="flex flex-col gap-3 pt-4">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-[24px] tracking-[-0.015em]">Commune Team</h2>
+        <p className="text-[15px] text-warm-gray">
+          Coordinators and leaders, in their own app. <strong className="font-semibold text-ink-black">{ready} of {team.length}</strong> have it with notifications on. Leaders share
+          one code per fellowship or PFCC, so each code is one line.
+        </p>
+      </div>
+      <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
+        {team.map((t) => {
+          const state = t.push && t.installed_at ? "on" : t.push ? "push" : t.installed_at ? "installed" : "none";
+          const Icon = state === "on" ? Bell : state === "installed" ? BellOff : state === "push" ? Bell : Smartphone;
+          const words =
+            state === "on"
+              ? "App and notifications on"
+              : state === "push"
+                ? "Notifications on, app not added on a phone"
+                : state === "installed"
+                  ? "App added, notifications off"
+                  : "Not set up";
+          return (
+            <li key={t.owner} className="flex min-h-[56px] items-center gap-3.5 border-t border-stone-border px-4 py-2.5 first:border-t-0">
+              <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-full", state === "on" ? "bg-[#e7f4e7] text-[#0b5e0b]" : "bg-stone-canvas text-[#57534e]")}>
+                <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[15px] font-medium">{t.role === "leader" ? `${t.name} leaders` : t.name}</span>
+                <span className="truncate text-[13px] text-warm-gray">
+                  {words}
+                  {t.platform ? ` · ${PLATFORM[t.platform] ?? t.platform}` : ""}
+                  {t.installed_at ? ` · added ${day(t.installed_at)}` : ""}
+                </span>
+              </span>
+              <span className="text-[13px] text-warm-gray">{t.role === "leader" ? "Leader code" : "Coordinator"}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

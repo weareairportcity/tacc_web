@@ -4,21 +4,26 @@ import { Collector } from "@/components/camp/Collector";
 import { CookieNotice } from "@/components/camp/CookieNotice";
 import { Seen } from "@/components/camp/Seen";
 import { onLeadersSide } from "@/lib/camp/auth";
+import { AppKindMarker } from "@/components/camp/notifications/AppKindMarker";
 import "@/components/camp/commune.css";
 
-export const metadata: Metadata = {
-  title: "Commune · Coordinators",
-  robots: { index: false, follow: false },
-  manifest: "/admin/camp/manifest.webmanifest",
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/commune/icon-192.png", type: "image/png", sizes: "192x192" },
-    ],
-    apple: "/commune/apple-touch-icon.png",
-  },
-  appleWebApp: { capable: true, title: "Commune", statusBarStyle: "default" },
-};
+/** Commune Team: its own name and cyan icon, so it isn't mixed up with the attendee app on a Home Screen. */
+export async function generateMetadata(): Promise<Metadata> {
+  const leader = await onLeadersSide();
+  return {
+    title: leader ? "Commune Team · Leaders" : "Commune Team · Coordinators",
+    robots: { index: false, follow: false },
+    manifest: `/admin/camp/manifest.webmanifest${leader ? "?side=leader" : ""}`,
+    icons: {
+      icon: [
+        { url: "/favicon.ico", sizes: "any" },
+        { url: "/commune/team-icon-192.png", type: "image/png", sizes: "192x192" },
+      ],
+      apple: "/commune/team-apple-touch-icon.png",
+    },
+    appleWebApp: { capable: true, title: "Commune Team", statusBarStyle: "default" },
+  };
+}
 
 export const viewport: Viewport = { themeColor: "#fafaf9" };
 
@@ -28,6 +33,7 @@ export default async function CampAdminLayout({ children }: { children: React.Re
   const leader = await onLeadersSide();
   return (
     <div className="min-h-screen bg-stone-canvas font-sans text-ink-black selection:bg-sky-wash">
+      <AppKindMarker />
       {children}
       <ServiceWorker />
       <Collector area={leader ? "leader" : "coordinator"} />

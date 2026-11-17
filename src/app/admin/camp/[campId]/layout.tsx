@@ -14,6 +14,7 @@ import { leaderName } from "@/lib/camp/leaders";
 import { listMyOpenBulkPayments } from "@/lib/camp/payments";
 import { pageStaff } from "../access";
 import { OpenPayments } from "./OpenPayments";
+import { teamGate } from "../TeamGate";
 
 /**
  * One camp's coordinator app: a rail and top bar on wide screens, a header
@@ -25,6 +26,15 @@ export default async function CampShell({ children, params }: { children: React.
   const camp = staff && ID.test(campId) ? await getCamp(campId) : null;
   if (!staff || !camp) return <div className="mx-auto max-w-5xl px-5 py-8">{children}</div>;
   const leader = staff.role === "leader";
+  // On a phone, Commune Team with notifications on comes first.
+  const { tracker, gate } = await teamGate(staff, camp.name);
+  if (gate)
+    return (
+      <ToastProvider>
+        {tracker}
+        {gate}
+      </ToastProvider>
+    );
   const [counts, camps, open] = await Promise.all([
     leader ? { requests: 0 } : navCounts(camp.id),
     listCamps(),
@@ -87,8 +97,9 @@ export default async function CampShell({ children, params }: { children: React.
         </div>
       </div>
       <OpenPayments campId={camp.id} payments={open} />
-      {/* Coordinators: add to Home Screen and turn on notifications, every visit until done. */}
-      {!leader && <NotifyPrompt who="staff" actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />}
+      {tracker}
+      {/* On a computer nobody is made to, but they're asked to turn on notifications each visit. */}
+      <NotifyPrompt who="staff" actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />
       <BottomBar base={base} leader={leader} requests={counts.requests} />
     </ToastProvider>
   );

@@ -12,7 +12,8 @@ import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
 import { createCamp, getCamp, setAppSwitch, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone } from "@/lib/camp/camps";
 import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery } from "@/lib/camp/broadcast";
-import { pushMany } from "@/lib/camp/notify";
+import { notifyLeaders, pushMany } from "@/lib/camp/notify";
+import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
 import { listPeopleForLeader } from "@/lib/camp/reports";
 import { formatCedis } from "@/lib/camp/money";
 import { todayInGhana } from "@/lib/camp/registrations";
@@ -869,11 +870,12 @@ export async function cancelPaymentAction(campId: string, reference: string) {
 
 // ─── App notifications ───────────────────────────────────────────────────────
 
+// Coordinators ('staff:<email>') and leader codes ('leader:<code id>') alike: Commune Team.
 export async function staffPushSubscribeAction(subscription: unknown) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator");
-      await savePushSub(`staff:${staff.email}`, subscription);
+      const staff = await requireCampRole("coordinator", "leader");
+      await savePushSub(teamOwner(staff), subscription);
       return true;
     },
     { quiet: true },
@@ -883,8 +885,8 @@ export async function staffPushSubscribeAction(subscription: unknown) {
 export async function staffPushRemoveAction(endpoint: string) {
   return run(
     async () => {
-      await requireCampRole("coordinator");
-      await removePushSub(endpoint);
+      const staff = await requireCampRole("coordinator", "leader");
+      await removePushSub(endpoint, teamOwner(staff));
       return true;
     },
     { quiet: true },
@@ -894,9 +896,37 @@ export async function staffPushRemoveAction(endpoint: string) {
 export async function staffNotifyPrefsAction(off?: string[]) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator");
-      return notifyPrefs(`staff:${staff.email}`, off);
+      const staff = await requireCampRole("coordinator", "leader");
+      return notifyPrefs(teamOwner(staff), off);
     },
     { quiet: true },
   );
+}
+
+/** Commune Team was opened from a Home Screen (or Android said it installed it). */
+export async function teamInstalledAction(platform: string) {
+  return run(
+    async () => {
+      const staff = await requireCampRole("coordinator", "leader");
+      await markTeamInstalled(teamOwner(staff), String(platform));
+      return true;
+    },
+    { quiet: true },
+  );
+}
+
+/** Texts: a message to every leader's phone, as an app notification (free). Leaders share codes, so there's no number to text. */
+export async function messageLeadersAction(campId: string, message: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await once(staff.email, "messageLeadersAction", [campId, message]);
+    const text = String(message ?? "").trim();
+    if (text.length < 3) throw new CampError("Write the message first.");
+    if (text.length > 400) throw new CampError("Keep it to 400 characters.");
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    const phones = await notifyLeaders(await leaderOwners(), { title: `${camp.name}: from the coordinators`, body: text, url: `/leaders/${camp.id}/people` });
+    await batch("app", [auditStatement({ actor: staff.email, campId: camp.id, action: "leaders.message", entity: "camp", entityId: camp.id, after: { phones } })]);
+    return phones;
+  });
 }

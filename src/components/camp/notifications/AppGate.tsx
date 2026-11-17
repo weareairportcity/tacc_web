@@ -7,7 +7,7 @@ import { Busy } from "@/components/camp/brand";
 import { ErrorText, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { cn } from "@/lib/utils";
-import { currentSubscription, isInstalled, platform } from "./push-client";
+import { appKind, currentSubscription, isInstalled, platform, type AppKind } from "./push-client";
 import { usePush, type PushActions } from "./usePush";
 
 type Result = { ok: true; data: unknown } | { ok: false; error: string };
@@ -24,6 +24,13 @@ const IN_APP: [RegExp, string][] = [
   [/Twitter/i, "X"],
   [/\bLine\//i, "LINE"],
 ];
+
+/** The two Home Screen apps, in the words and icons the steps use. */
+type App = { kind: AppKind; name: string; icon: string };
+const APPS: Record<AppKind, App> = {
+  attendee: { kind: "attendee", name: "Commune", icon: "/commune/icon-192.png" },
+  team: { kind: "team", name: "Commune Team", icon: "/commune/team-icon-192.png" },
+};
 
 function whichBrowser(): { browser: Browser; app: string } {
   const ua = navigator.userAgent;
@@ -43,7 +50,7 @@ function whichBrowser(): { browser: Browser; app: string } {
  * installed it), once a visit. Rendered on every attendee page, gated or not,
  * so Coordinators see who has the app.
  */
-export function AppTracker({ known, installed }: { known: boolean; installed: (platform: string) => Promise<Result> }) {
+export function AppTracker({ known, installed, kind = "attendee" }: { known: boolean; installed: (platform: string) => Promise<Result>; kind?: AppKind }) {
   const router = useRouter();
   useEffect(() => {
     const record = async () => {
@@ -54,11 +61,12 @@ export function AppTracker({ known, installed }: { known: boolean; installed: (p
       const r = await installed(platform());
       if (r.ok) router.refresh();
     };
-    if (!known && isInstalled()) void record();
+    // Only the right app counts: the attendee Commune isn't Commune Team, and the other way round.
+    if (!known && isInstalled() && appKind() === kind) void record();
     const onInstalled = () => void installed(platform()).then((r) => r.ok && router.refresh());
     window.addEventListener("appinstalled", onInstalled);
     return () => window.removeEventListener("appinstalled", onInstalled);
-  }, [known, installed, router]);
+  }, [known, installed, router, kind]);
   return null;
 }
 
@@ -69,6 +77,8 @@ export function AppTracker({ known, installed }: { known: boolean; installed: (p
  * texts instead (and tells the coordinators who they are).
  */
 export function AppGate({
+  variant = "attendee",
+  why,
   startUrl,
   first,
   campName,
@@ -77,6 +87,10 @@ export function AppGate({
   actions,
   textsOnly,
 }: {
+  /** "team": Commune Team, for coordinators and leaders (no texts-instead way out). */
+  variant?: AppKind;
+  /** Why they're asked, after "So you". Defaults to the attendee's camp updates. */
+  why?: string;
   /** Where the Home Screen app should start: signs them in and opens their page. */
   startUrl: string | null;
   first: string;
@@ -86,21 +100,32 @@ export function AppGate({
   /** A phone of theirs has notifications on. */
   serverPush: boolean;
   actions: PushActions;
-  textsOnly: () => Promise<Result>;
+  /** Attendees only: "My phone can't do this". */
+  textsOnly?: () => Promise<Result>;
 }) {
   const router = useRouter();
   const push = usePush(actions);
-  const [where, setWhere] = useState<{ browser: Browser; app: string } | null>(null);
+  const app = APPS[variant];
+  const reason = why ?? "get updates about camp: your receipts, your room and news from the coordinators";
+  const [where, setWhere] = useState<{ browser: Browser; app: string; kind: AppKind | null } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const synced = useRef(false);
 
   useEffect(() => {
     // The browser is only known in the browser.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setWhere(whichBrowser());
-    // iPhones save the address on screen as the app's start: make it the one that signs them in.
-    if (startUrl && !isInstalled()) window.history.replaceState(window.history.state, "", startUrl);
-  }, [startUrl]);
+    setWhere({ ...whichBrowser(), kind: appKind() });
+    // iPhones save the address on screen as the app's start: make it the one that signs them in
+    // (attendees), or that marks the window as Commune Team.
+    if (!isInstalled()) {
+      if (startUrl) window.history.replaceState(window.history.state, "", startUrl);
+      else if (variant === "team") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("app", "team");
+        window.history.replaceState(window.history.state, "", url.pathname + url.search);
+      }
+    }
+  }, [startUrl, variant]);
 
   // Notifications are on in this browser but the server doesn't know yet (or just turned on): save, then open the page.
   useEffect(() => {
@@ -116,7 +141,8 @@ export function AppGate({
     })();
   }, [push.ready, push.on, push.installed, serverPush, serverInstalled, actions, router]);
 
-  const installedHere = push.installed;
+  // In this app, from the Home Screen (not the other Commune app on the same phone).
+  const installedHere = push.installed && where?.kind === app.kind;
   const installDone = serverInstalled || installedHere;
   const step: 1 | 2 = installDone ? 2 : 1;
 
@@ -129,19 +155,35 @@ export function AppGate({
           <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-st-paid text-white">
             <Check className="h-5 w-5" strokeWidth={2.4} aria-hidden="true" />
           </span>
-          Updates about camp will come to your phone now.
+          Notifications will come to your phone now.
         </p>
       </Shell>
     );
   }
 
-  const escape = <TextsInstead textsOnly={textsOnly} />;
+  const escape = textsOnly ? <TextsInstead textsOnly={textsOnly} /> : null;
+
+  // In the other Commune app (attendees' or the team's): this one is added separately, from the browser.
+  if (push.installed && where.kind && where.kind !== app.kind) {
+    const real = push.platform === "ios" ? "Safari" : "Chrome";
+    const page = variant === "team" ? "the coordinators' or leaders' page" : "your camp page";
+    return (
+      <Shell first={first} campName={campName} step={1} title={`Add ${app.name} too`} lead={`You're in ${APPS[where.kind].name}. ${app.name} is a separate app: add it from ${real} so you ${reason}.`}>
+        <Steps>
+          <Step n={1} text={<>Copy the link below, then open <strong className="font-semibold">{real}</strong> and paste it.</>} />
+          <Step n={2} text={<>On {page} in {real}, follow the steps to add <strong className="font-semibold">{app.name}</strong>.</>} art={<HomeScreenArt app={app} />} />
+        </Steps>
+        <CopyLink label={`Copy the link for ${real}`} />
+        {escape}
+      </Shell>
+    );
+  }
 
   // Opened inside WhatsApp, Instagram, Facebook…: those can't add anything to the Home Screen.
   if (where.browser === "inapp" && !installedHere) {
     const real = push.platform === "ios" ? "Safari" : "Chrome";
     return (
-      <Shell first={first} campName={campName} step={1} title={`Open this in ${real}`} lead={`To get updates about camp, add Commune to your phone. You opened this inside ${where.app}, and that only works from ${real}.`}>
+      <Shell first={first} campName={campName} step={1} title={`Open this in ${real}`} lead={`Add ${app.name} to your phone so you ${reason}. You opened this inside ${where.app}, and that only works from ${real}.`}>
         <Steps>
           <Step n={1} text={<>Tap <Key><Ellipsis className="h-4 w-4" aria-label="the three dots" /></Key> at the top or bottom of the screen.</>} art={<InAppArt />} />
           <Step n={2} text={<>Tap <strong className="font-semibold">Open in {real}</strong> (or <strong className="font-semibold">Open in browser</strong>).</>} />
@@ -161,9 +203,9 @@ export function AppGate({
         campName={campName}
         step={2}
         title="Turn on notifications"
-        lead="So you get updates about camp: your receipts, your room and news from the coordinators."
+        lead={`So you ${reason}.`}
       >
-        <NotifyStep push={push} />
+        <NotifyStep push={push} app={app} />
         {/* In the app the phone can do this: the way out is only for phones that truly can't. */}
         {(!push.supported || push.permission === "denied") && escape}
       </Shell>
@@ -173,9 +215,9 @@ export function AppGate({
   // Added before, but this is the browser: open the app instead.
   if (serverInstalled && where.browser !== "android") {
     return (
-      <Shell first={first} campName={campName} step={2} title="Open Commune from your Home Screen" lead="Commune is already on your phone. Open it there and turn on notifications, so you get updates about camp.">
+      <Shell first={first} campName={campName} step={2} title={`Open ${app.name} from your Home Screen`} lead={`${app.name} is already on your phone. Open it there and turn on notifications, so you ${reason}.`}>
         <Steps>
-          <Step n={1} text={<>Go to your Home Screen and tap <strong className="font-semibold">Commune</strong>.</>} art={<HomeScreenArt />} />
+          <Step n={1} text={<>Go to your Home Screen and tap <strong className="font-semibold">{app.name}</strong>.</>} art={<HomeScreenArt app={app} />} />
           <Step n={2} text={<>Tap <strong className="font-semibold">Turn on notifications</strong>, then <strong className="font-semibold">Allow</strong>.</>} />
         </Steps>
         <details className="group text-[15px]">
@@ -183,7 +225,7 @@ export function AppGate({
             Can&apos;t find it? Add it again
           </summary>
           <div className="mt-3">
-            <InstallSteps browser={where.browser} push={push} />
+            <InstallSteps browser={where.browser} push={push} app={app} />
           </div>
         </details>
         {escape}
@@ -193,20 +235,14 @@ export function AppGate({
 
   // Step 1: add to the Home Screen.
   return (
-    <Shell
-      first={first}
-      campName={campName}
-      step={1}
-      title="Add Commune to your phone"
-      lead="So you get updates about camp: your receipts, your room and news from the coordinators. It's free and takes a minute."
-    >
-      <InstallSteps browser={where.browser} push={push} />
+    <Shell first={first} campName={campName} step={1} title={`Add ${app.name} to your phone`} lead={`So you ${reason}. It's free and takes a minute.`}>
+      <InstallSteps browser={where.browser} push={push} app={app} />
       {escape}
     </Shell>
   );
 }
 
-function InstallSteps({ browser, push }: { browser: Browser; push: ReturnType<typeof usePush> }) {
+function InstallSteps({ browser, push, app }: { browser: Browser; push: ReturnType<typeof usePush>; app: App }) {
   const [pending, start] = useOneAtATime();
   if (browser === "safari")
     return (
@@ -226,8 +262,8 @@ function InstallSteps({ browser, push }: { browser: Browser; push: ReturnType<ty
           art={<SafariBarArt />}
         />
         <Step n={2} text={<>Scroll down and tap <strong className="font-semibold">Add to Home Screen</strong>.</>} art={<ShareSheetArt />} />
-        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt />} />
-        <Step n={4} text={<>Open <strong className="font-semibold">Commune</strong> from your Home Screen.</>} art={<HomeScreenArt />} />
+        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt app={app} />} />
+        <Step n={4} text={<>Open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>} art={<HomeScreenArt app={app} />} />
       </Steps>
     );
   if (browser === "chrome-ios")
@@ -235,8 +271,8 @@ function InstallSteps({ browser, push }: { browser: Browser; push: ReturnType<ty
       <Steps>
         <Step n={1} text={<>Tap the Share button <Key><Share className="h-4 w-4" aria-label="Share" /></Key> at the top right, next to the address.</>} art={<ChromeIosArt />} />
         <Step n={2} text={<>Scroll down and tap <strong className="font-semibold">Add to Home Screen</strong>.</>} art={<ShareSheetArt />} />
-        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt />} />
-        <Step n={4} text={<>Open <strong className="font-semibold">Commune</strong> from your Home Screen.</>} art={<HomeScreenArt />} />
+        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt app={app} />} />
+        <Step n={4} text={<>Open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>} art={<HomeScreenArt app={app} />} />
       </Steps>
     );
   if (browser === "other-ios")
@@ -253,7 +289,7 @@ function InstallSteps({ browser, push }: { browser: Browser; push: ReturnType<ty
     return (
       <div className="flex flex-col gap-3">
         <button type="button" disabled={pending} onClick={() => start(push.install)} className={`${primaryButtonClass} cm-tap h-14 w-full text-[17px]`}>
-          <Smartphone className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Add Commune to my phone
+          <Smartphone className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Add {app.name} to my phone
         </button>
         <p className="text-center text-[15px] text-warm-gray">Then tap <strong className="font-semibold text-ink-black">Install</strong> when your phone asks.</p>
       </div>
@@ -262,17 +298,17 @@ function InstallSteps({ browser, push }: { browser: Browser; push: ReturnType<ty
     <Steps>
       <Step n={1} text={<>Tap the menu <Key><EllipsisVertical className="h-4 w-4" aria-label="the three dots" /></Key> at the top right.</>} art={<AndroidMenuArt />} />
       <Step n={2} text={<>Tap <strong className="font-semibold">Add to Home screen</strong> or <strong className="font-semibold">Install app</strong>, then <strong className="font-semibold">Install</strong>.</>} />
-      <Step n={3} text={<>Open <strong className="font-semibold">Commune</strong> from your Home Screen.</>} art={<HomeScreenArt />} />
+      <Step n={3} text={<>Open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>} art={<HomeScreenArt app={app} />} />
     </Steps>
   );
 }
 
-function NotifyStep({ push }: { push: ReturnType<typeof usePush> }) {
+function NotifyStep({ push, app }: { push: ReturnType<typeof usePush>; app: App }) {
   const [pending, start] = useOneAtATime();
   if (!push.supported)
     return (
       <p className="rounded-2xl bg-white p-5 text-[17px] leading-relaxed shadow-seline-hero">
-        This phone can&apos;t get notifications from Commune.
+        This phone can&apos;t get notifications from {app.name}.
         {push.platform === "ios" ? " iPhones need iOS 16.4 or newer: update in Settings, General, Software Update." : ""} Or tap{" "}
         <strong className="font-semibold">My phone can&apos;t do this</strong> below to get texts instead.
       </p>
@@ -285,12 +321,12 @@ function NotifyStep({ push }: { push: ReturnType<typeof usePush> }) {
           {push.platform === "ios" ? (
             <>
               <Step n={1} text={<>Open <Key><Settings className="h-4 w-4" aria-hidden="true" /></Key> <strong className="font-semibold">Settings</strong>, then <strong className="font-semibold">Notifications</strong>.</>} />
-              <Step n={2} text={<>Tap <strong className="font-semibold">Commune</strong> and switch on <strong className="font-semibold">Allow Notifications</strong>.</>} />
+              <Step n={2} text={<>Tap <strong className="font-semibold">{app.name}</strong> and switch on <strong className="font-semibold">Allow Notifications</strong>.</>} />
               <Step n={3} text={<>Come back to Commune.</>} />
             </>
           ) : (
             <>
-              <Step n={1} text={<>Press and hold the <strong className="font-semibold">Commune</strong> icon, then tap <strong className="font-semibold">App info</strong>.</>} />
+              <Step n={1} text={<>Press and hold the <strong className="font-semibold">{app.name}</strong> icon, then tap <strong className="font-semibold">App info</strong>.</>} />
               <Step n={2} text={<>Tap <strong className="font-semibold">Notifications</strong> and switch them on.</>} />
               <Step n={3} text={<>Come back to Commune.</>} />
             </>
@@ -501,7 +537,7 @@ function ShareSheetArt() {
   );
 }
 
-function AddArt() {
+function AddArt({ app }: { app: App }) {
   return (
     <div className="px-4 py-3">
       <div className="mx-auto w-full max-w-[300px] rounded-[14px] bg-white p-3 shadow-sm">
@@ -512,15 +548,15 @@ function AddArt() {
         </div>
         <div className="mt-3 flex items-center gap-3 border-t border-stone-border pt-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/commune/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 rounded-[10px]" />
-          <span className="text-[15px]">Commune</span>
+          <img src={app.icon} alt="" width={40} height={40} className="h-10 w-10 rounded-[10px]" />
+          <span className="text-[15px]">{app.name}</span>
         </div>
       </div>
     </div>
   );
 }
 
-function HomeScreenArt() {
+function HomeScreenArt({ app }: { app: App }) {
   return (
     <div className="flex justify-center px-4 py-4">
       <div className="grid grid-cols-4 gap-x-4 gap-y-2">
@@ -532,8 +568,8 @@ function HomeScreenArt() {
         ))}
         <span className="flex flex-col items-center gap-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/commune/icon-192.png" alt="" width={44} height={44} className="cm-tap h-11 w-11 rounded-[12px] ring-2 ring-cyan-edge" />
-          <span className="text-[11px] font-medium">Commune</span>
+          <img src={app.icon} alt="" width={44} height={44} className="cm-tap h-11 w-11 rounded-[12px] ring-2 ring-cyan-edge" />
+          <span className="text-[11px] font-medium">{app.name}</span>
         </span>
       </div>
     </div>

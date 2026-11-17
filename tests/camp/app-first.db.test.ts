@@ -107,3 +107,42 @@ describe("a message's cost", () => {
     expect(messageCost(people, "x".repeat(200), "app").credits).toBe(4);
   });
 });
+
+describe("one phone with both apps", () => {
+  it("gets notifications as the attendee and the leader, and each side changes hands on its own", async () => {
+    const { removePushSub } = await import("@/lib/camp/push");
+    const { markTeamInstalled, teamInfo } = await import("@/lib/camp/team-app");
+    const a = await registered({ full_name: "Abena Both" });
+    const b = await registered({ full_name: "Kojo Borrowed" });
+    const leader = `leader:${crypto.randomUUID()}`;
+    const endpoint = `https://push.example/shared-${a.id}`;
+    const keys = { p256dh: "BHxyzBHxyzBHxyzBHxyzBHxyz", auth: "authauthauthauth" };
+    const owners = async () =>
+      (await query<{ owner: string }>("app", "SELECT owner FROM camp_push_subs WHERE endpoint = ? ORDER BY owner", [endpoint])).map((r) => r.owner);
+
+    await savePushSub(`attendee:${a.id}`, { endpoint, keys });
+    await savePushSub(leader, { endpoint, keys });
+    expect(await owners()).toEqual([`attendee:${a.id}`, leader].sort());
+
+    // Someone else signs in to the attendee app on this phone: the leader side stays.
+    await savePushSub(`attendee:${b.id}`, { endpoint, keys });
+    expect(await owners()).toEqual([`attendee:${b.id}`, leader].sort());
+
+    // Notifications off in the leader app only.
+    await removePushSub(endpoint, leader);
+    expect(await owners()).toEqual([`attendee:${b.id}`]);
+
+    expect(await teamInfo(leader)).toEqual({ installed: false, push: false });
+    await markTeamInstalled(leader, "android");
+    await savePushSub(leader, { endpoint, keys });
+    expect(await teamInfo(leader)).toEqual({ installed: true, push: true });
+  });
+
+  it("locks the team's pages on phones only", async () => {
+    const { mustSetUpTeamApp } = await import("@/lib/camp/team-app");
+    expect(mustSetUpTeamApp({ installed: false, push: false }, IPHONE)).toBe(true);
+    expect(mustSetUpTeamApp({ installed: true, push: false }, IPHONE)).toBe(true);
+    expect(mustSetUpTeamApp({ installed: true, push: true }, IPHONE)).toBe(false);
+    expect(mustSetUpTeamApp({ installed: false, push: false }, MAC)).toBe(false);
+  });
+});

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { listAppPeople } from "@/lib/camp/broadcast";
+import { listTeamApp } from "@/lib/camp/team-app";
 import { NoAccess, pageStaff } from "../../access";
 import { AppList } from "./AppList";
 
@@ -10,7 +11,7 @@ export default async function AppPage({ params }: { params: Promise<{ campId: st
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
-  const [camp, people] = await Promise.all([getCamp(campId), listAppPeople(campId)]);
+  const [camp, people, team] = await Promise.all([getCamp(campId), listAppPeople(campId), listTeamApp()]);
   if (!camp) notFound();
-  return <AppList campId={camp.id} required={camp.app_required !== 0} people={people} />;
+  return <AppList campId={camp.id} required={camp.app_required !== 0} people={people} team={team} />;
 }

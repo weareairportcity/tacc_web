@@ -45,6 +45,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "people.text": "messaged people",
   "people.broadcast": "sent a message to everyone",
   "people.remind": "sent payment reminders",
+  "leaders.message": "sent a message to the leaders",
   "feedback.text": "sent the thank-you messages",
   "group.create": "started a roommate group",
   "group.invite": "invited someone to a group",
