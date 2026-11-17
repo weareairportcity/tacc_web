@@ -1,8 +1,10 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { leaderName } from "@/lib/camp/leaders";
 import { mustSetUpTeamApp, teamInfo, teamOwner } from "@/lib/camp/team-app";
 import type { Staff } from "@/lib/camp/types";
 import { AppGate, AppTracker } from "@/components/camp/notifications/AppGate";
+import { IPadMark } from "@/components/camp/notifications/IPadMark";
+import { IPAD_COOKIE, agentFor } from "@/lib/camp/ipad";
 import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction, teamInstalledAction } from "./actions";
 
 const WHY = {
@@ -19,8 +21,15 @@ const WHY = {
 export async function teamGate(staff: Staff, campName: string) {
   const owner = teamOwner(staff);
   const [info, h] = await Promise.all([teamInfo(owner), headers()]);
-  const tracker = <AppTracker known={info.installed} installed={teamInstalledAction} kind="team" />;
-  if (!mustSetUpTeamApp(info, h.get("user-agent") ?? "")) return { tracker, gate: null };
+  const tracker = (
+    <>
+      <AppTracker known={info.installed} installed={teamInstalledAction} kind="team" />
+      <IPadMark />
+    </>
+  );
+  // iPads say they're Macs: IPadMark's cookie tells us, so they're asked to install too.
+  const agent = agentFor(h.get("user-agent") ?? "", (await cookies()).get(IPAD_COOKIE)?.value);
+  if (!mustSetUpTeamApp(info, agent)) return { tracker, gate: null };
   const leader = staff.role === "leader";
   // A Group Leader's code carries their name: greet them by it.
   const holder = staff.scope_kind === "group" ? staff.email.split(":").slice(3).join(":").split(" ")[0] : "";

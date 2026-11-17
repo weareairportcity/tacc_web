@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { isFullName } from "@/lib/camp/names";
 import { FullNameStep } from "./FullNameStep";
 import { notFound, redirect } from "next/navigation";
@@ -6,6 +6,8 @@ import { appInfo, mustSetUpApp } from "@/lib/camp/app-first";
 import type { Metadata } from "next";
 import { appPass, campAndAttendee } from "@/lib/camp/session";
 import { AppGate, AppTracker } from "@/components/camp/notifications/AppGate";
+import { IPadMark } from "@/components/camp/notifications/IPadMark";
+import { IPAD_COOKIE, agentFor } from "@/lib/camp/ipad";
 import { appInstalledAction, notifyPrefsAction, pushRemoveAction, pushSubscribeAction, textsOnlyAction } from "../actions";
 
 /**
@@ -29,11 +31,18 @@ export default async function MeLayout({ children, params }: { children: React.R
   if (!me) redirect(`/camps/${camp.slug}/sign-in?next=${encodeURIComponent(`/camps/${camp.slug}/me`)}`);
   const [info, h] = await Promise.all([appInfo(me.id), headers()]);
   const installed = appInstalledAction.bind(null, camp.slug);
-  const tracker = <AppTracker known={info.installed} installed={installed} />;
+  const tracker = (
+    <>
+      <AppTracker known={info.installed} installed={installed} />
+      <IPadMark />
+    </>
+  );
+  // iPads say they're Macs: IPadMark's cookie tells us, so they're asked to install too.
+  const agent = agentFor(h.get("user-agent") ?? "", (await cookies()).get(IPAD_COOKIE)?.value);
 
   // Registered with one name, before full names were required: ask for the rest first.
   const askName = me.status !== "cancelled" && !isFullName(me.full_name) ? <FullNameStep slug={camp.slug} name={me.full_name} /> : null;
-  if (!mustSetUpApp(camp, me, info, h.get("user-agent") ?? "")) {
+  if (!mustSetUpApp(camp, me, info, agent)) {
     return (
       <>
         {tracker}

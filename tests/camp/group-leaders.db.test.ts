@@ -156,3 +156,20 @@ describe("full names", () => {
     await expect(register(camp, attendee(roomTypeId, { full_name: "Ama" }))).rejects.toThrow("first name and surname");
   });
 });
+
+describe("iPads install the app too", () => {
+  it("a marked Mac counts as an iPad; a real Mac and a phone are unchanged", async () => {
+    const { agentFor } = await import("@/lib/camp/ipad");
+    const { isPhone, mustSetUpApp } = await import("@/lib/camp/app-first");
+    const { mustSetUpTeamApp } = await import("@/lib/camp/team-app");
+    const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+    const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15";
+    expect(isPhone(agentFor(mac, undefined))).toBe(false);
+    expect(isPhone(agentFor(mac, "1"))).toBe(true);
+    expect(agentFor(iphone, "1")).toBe(iphone);
+    const notSetUp = { installed: false, push: false, textsOnly: false };
+    expect(mustSetUpApp({ app_required: 1 }, { status: "registered" }, notSetUp as never, agentFor(mac, "1"))).toBe(true);
+    expect(mustSetUpApp({ app_required: 1 }, { status: "registered" }, notSetUp as never, agentFor(mac, undefined))).toBe(false);
+    expect(mustSetUpTeamApp({ installed: false, push: false }, agentFor(mac, "1"))).toBe(true);
+  });
+});
