@@ -13,13 +13,14 @@ export const maxDuration = 300;
  * Texts: send one message to everyone registered (or part of them), see what
  * it will cost before it goes, and where this camp's credits have gone.
  */
-export default async function TextsPage({ params }: { params: Promise<{ campId: string }> }) {
+export default async function TextsPage({ params, searchParams }: { params: Promise<{ campId: string }>; searchParams: Promise<{ to?: string }> }) {
   const staff = await pageStaff("coordinator");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
   const [camp, recipients, use, broadcasts, balance] = await Promise.all([getCamp(campId), listRecipients(campId), smsUse(campId), listBroadcasts(campId), smsBalance()]);
   if (!camp) notFound();
+  const { to } = await searchParams;
   // No phone numbers go to the browser: first names, payment and app status only.
-  return <TextsView camp={camp} recipients={recipients.map(({ full_name, status, app }) => ({ full_name, status, app }))} use={use} broadcasts={broadcasts} balance={balance} />;
+  return <TextsView camp={camp} recipients={recipients.map(({ full_name, status, app }) => ({ full_name, status, app }))} use={use} broadcasts={broadcasts} balance={balance} audience={to === "noapp" || to === "owing" || to === "paid" ? to : "all"} />;
 }

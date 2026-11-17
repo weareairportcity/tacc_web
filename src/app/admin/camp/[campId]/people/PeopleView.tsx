@@ -13,8 +13,10 @@ import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Legend, RegistrationStatus as Status, StackedBar, headlineClass, inputClass, primaryButtonClass, statusParts } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
+import { messageCost, type Delivery } from "@/lib/camp/message-cost";
+import { ImportantBox } from "@/components/camp/ImportantBox";
 import { coordinatorText, firstName, MAX_COORDINATOR_MESSAGE, smsParts } from "@/lib/camp/sms";
-import { deleteViewAction, leaderRemindAction, openPaymentsForAction, payForPeopleAction, saveViewAction, textPeopleAction } from "../../actions";
+import { deleteViewAction, leaderRemindAction, messagePeopleAction, openPaymentsForAction, payForPeopleAction, saveViewAction } from "../../actions";
 import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 import { PersonPanel } from "./PersonPanel";
@@ -562,7 +564,7 @@ export function PeopleView({
           )}
           {!leader && (
             <button type="button" onClick={() => setSheet("text")} className="cm-press inline-flex h-10 items-center gap-2 rounded-full border border-[#44403c] px-4 font-medium">
-              <MessageSquare className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Text them
+              <MessageSquare className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Message them
             </button>
           )}
           <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="flex h-10 w-10 items-center justify-center rounded-full text-stone-muted">
@@ -611,7 +613,7 @@ export function PeopleView({
             people={picked}
             onSent={(n) => {
               setSheet(null);
-              toast(`Texted ${n} ${n === 1 ? "person" : "people"}`);
+              toast(`Sent to ${n} ${n === 1 ? "person" : "people"}`);
             }}
           />
           <PersonPanel key={person ?? "none"} campId={campId} id={person} onClose={() => setPerson(null)} onChanged={() => undefined} />
@@ -895,12 +897,13 @@ const TEMPLATES: [string, string][] = [
 
 function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[]; onSent: (n: number) => void }) {
   const [message, setMessage] = useState("");
+  const [important, setImportant] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [pending, start] = useOneAtATime();
-  // Each person gets their own "Hi <first name>, …" text; count parts for the longest name.
-  const longest = people.reduce((a, p) => (firstName(p.full_name).length > firstName(a).length ? p.full_name : a), people[0]?.full_name ?? "");
-  const texts = smsParts(coordinatorText(longest, message));
+  const how: Delivery = important ? "both" : "app";
+  const cost = messageCost(people.map((p) => ({ first: firstName(p.full_name), app: p.app })), message, how);
+  const perText = smsParts(coordinatorText(people[0]?.full_name ?? "", message));
   return (
     <Sheet
       open={open}
@@ -908,7 +911,8 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
         setConfirming(false);
         onClose();
       }}
-      title={`Text ${people.length} ${people.length === 1 ? "person" : "people"}`}
+      title={`Message ${people.length} ${people.length === 1 ? "person" : "people"}`}
+      subtitle={`${cost.byApp} in the app (free) · ${cost.byText} by text (${cost.credits} ${cost.credits === 1 ? "credit" : "credits"})`}
       footer={
         confirming ? (
           <>
@@ -921,19 +925,19 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
               onClick={() =>
                 start(async () => {
                   setError("");
-                  const r = await textPeopleAction(campId, people.map((p) => p.id), message);
+                  const r = await messagePeopleAction(campId, people.map((p) => p.id), message, how);
                   if (!r.ok) {
                     setConfirming(false);
                     return setError(r.error);
                   }
                   setMessage("");
                   setConfirming(false);
-                  onSent(r.data);
+                  onSent(r.data.texts + r.data.app);
                 })
               }
               className="cm-press h-12 flex-1 rounded-full bg-soot px-5 text-sm font-medium text-white disabled:opacity-60"
             >
-              <Busy pending={pending} text="Sending…">{`Yes, send ${people.length * texts} text${people.length * texts === 1 ? "" : "s"}`}</Busy>
+              <Busy pending={pending} text="Sending…">{`Yes, send (${cost.credits} ${cost.credits === 1 ? "credit" : "credits"})`}</Busy>
             </button>
           </>
         ) : (
@@ -957,15 +961,16 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
         Message
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} maxLength={MAX_COORDINATOR_MESSAGE} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
         <span className="text-right text-xs font-normal text-warm-gray">
-          {message.length}/{MAX_COORDINATOR_MESSAGE} · {texts} text{texts === 1 ? "" : "s"} each
+          {message.length}/{MAX_COORDINATOR_MESSAGE} · {perText} {perText === 1 ? "credit" : "credits"} a text
         </span>
       </label>
+      <ImportantBox checked={important} onChange={setImportant} />
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">What {firstName(people[0]?.full_name ?? "") || "they"} will get</span>
         <p className="rounded-[16px] rounded-bl-[4px] bg-[#e9f4fd] px-3.5 py-3 text-sm leading-relaxed break-words">
           {coordinatorText(people[0]?.full_name ?? "", message || "…")}
         </p>
-        <span className="text-xs text-warm-gray">Each person gets their own text with their first name. Use plain letters; emoji and curly quotes cost more.</span>
+        <span className="text-xs text-warm-gray">People with notifications on get it in Commune, free; the rest by text.{important ? " Important: everyone gets a text too." : ""}</span>
       </div>
       <ErrorText>{error}</ErrorText>
     </Sheet>

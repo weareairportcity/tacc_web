@@ -4,6 +4,7 @@ import { firstName } from "@/lib/camp/sms";
 import { SMS_KIND_WORDS, type Broadcast, type SmsUse } from "@/lib/camp/sms-log";
 import { formatDate, headlineClass } from "@/components/camp/ui";
 import { Composer } from "./Composer";
+import type { Audience } from "@/lib/camp/broadcast-audience";
 
 const n = (x: number) => x.toLocaleString("en-GB");
 
@@ -14,12 +15,15 @@ export function TextsView({
   use,
   broadcasts,
   balance,
+  audience = "all",
 }: {
   camp: { id: string; name: string };
   recipients: Pick<Recipient, "full_name" | "status" | "app">[];
   use: SmsUse[];
   broadcasts: Broadcast[];
   balance: number | null;
+  /** Who the message starts out for (?to= from another page). */
+  audience?: Audience;
 }) {
   const used = use.reduce((s, u) => s + u.credits, 0);
   const texts = use.reduce((s, u) => s + u.texts, 0);
@@ -44,6 +48,7 @@ export function TextsView({
         campId={camp.id}
         campName={camp.name}
         balance={balance}
+        initialAudience={audience}
         people={recipients.map((r) => ({ first: firstName(r.full_name), status: r.status, app: r.app }))}
       />
 

@@ -16,12 +16,7 @@ export const HAS_PUSH_SQL = "EXISTS (SELECT 1 FROM camp_push_subs s WHERE s.owne
 export type AppState = "on" | "installed" | "texts" | "none";
 export const APP_STATE_SQL = `CASE WHEN ${HAS_PUSH_SQL} THEN 'on' WHEN r.texts_only_at IS NOT NULL THEN 'texts' WHEN r.app_installed_at IS NOT NULL THEN 'installed' ELSE 'none' END`;
 
-export const APP_STATE_WORDS: Record<AppState, string> = {
-  on: "Notifications on",
-  installed: "App, notifications off",
-  texts: "Texts only",
-  none: "Not set up",
-};
+export { APP_STATE_WORDS } from "./app-words";
 
 export type AppInfo = { installed: boolean; push: boolean; textsOnly: boolean };
 

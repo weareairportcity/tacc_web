@@ -9,6 +9,7 @@ import { coordinatorText, firstName, MAX_COORDINATOR_MESSAGE } from "./sms";
 import { logCampSms } from "./sms-log";
 import { CampError, type Camp, type RegistrationStatus } from "./types";
 import { AUDIENCES, inAudience, type Audience } from "./broadcast-audience";
+import type { Delivery } from "./message-cost";
 
 export { AUDIENCES, type Audience };
 
@@ -34,29 +35,42 @@ export function listRecipients(campId: string) {
 
 const PARALLEL = 10;
 
-export async function sendBroadcast(actor: string, camp: Camp, audience: Audience, message: string, appFirst: boolean) {
+/**
+ * How a message goes. app: a notification to people with the app, a text to
+ * the rest (and to anyone the notification didn't reach). both: important,
+ * so everyone is texted and people with the app get the notification too.
+ * text: everyone by text.
+ */
+export const DELIVERIES: readonly Delivery[] = ["app", "both", "text"];
+export type { Delivery };
+
+function checkMessage(message: string) {
   const text = String(message ?? "").trim();
   if (text.length < 3) throw new CampError("Write the message first.");
   if (text.length > MAX_COORDINATOR_MESSAGE) throw new CampError(`Keep it to ${MAX_COORDINATOR_MESSAGE} characters.`);
-  if (!AUDIENCES.includes(audience)) throw new CampError("Pick who it's for.");
-  const people = (await listRecipients(camp.id)).filter((r) => inAudience(r, audience));
+  return text;
+}
+
+/** Sends one coordinator message to these people, each greeted by first name, and counts what it cost. */
+async function deliver(actor: string, camp: Camp, people: Recipient[], text: string, how: Delivery, kind: "broadcast" | "message", audit: Record<string, unknown>) {
+  if (!DELIVERIES.includes(how)) throw new CampError("Pick how to send it.");
   if (!people.length) throw new CampError("Nobody to send it to.");
+  const { delivered } =
+    how === "text"
+      ? { delivered: new Set<string>() }
+      : await pushMany(
+          people
+            .filter((p) => p.app === "on")
+            .map((p) => ({
+              registration_id: p.id,
+              kind: "messages" as const,
+              title: camp.name,
+              body: `Hi ${firstName(p.full_name)}, ${text}`,
+              url: `/camps/${camp.slug}/me`,
+            })),
+        );
 
-  const { delivered } = appFirst
-    ? await pushMany(
-        people
-          .filter((p) => p.app === "on")
-          .map((p) => ({
-            registration_id: p.id,
-            kind: "messages" as const,
-            title: camp.name,
-            body: `Hi ${firstName(p.full_name)}, ${text}`,
-            url: `/camps/${camp.slug}/me`,
-          })),
-      )
-    : { delivered: new Set<string>() };
-
-  const toText = people.filter((p) => !delivered.has(p.id));
+  const toText = how === "app" ? people.filter((p) => !delivered.has(p.id)) : people;
   let texts = 0;
   let credits = 0;
   for (let i = 0; i < toText.length; i += PARALLEL) {
@@ -72,9 +86,54 @@ export async function sendBroadcast(actor: string, camp: Camp, audience: Audienc
   }
   const failed = toText.length - texts;
   if (!texts && !delivered.size) throw new CampError("Nothing went. Please try again.");
-  await logCampSms({ campId: camp.id, kind: "broadcast", texts, credits, pushed: delivered.size, actor, note: text });
+  await logCampSms({ campId: camp.id, kind, texts, credits, pushed: delivered.size, actor, note: text });
   await batch("app", [
-    auditStatement({ actor, campId: camp.id, action: "people.broadcast", entity: "camp", entityId: camp.id, after: { audience, texts, credits, app: delivered.size, failed } }),
+    auditStatement({ actor, campId: camp.id, action: kind === "broadcast" ? "people.broadcast" : "people.text", entity: "camp", entityId: camp.id, after: { ...audit, how, texts, credits, app: delivered.size, failed } }),
   ]);
   return { texts, credits, app: delivered.size, failed };
+}
+
+/** Texts tab: everyone registered, or part of them. */
+export async function sendBroadcast(actor: string, camp: Camp, audience: Audience, message: string, how: Delivery) {
+  const text = checkMessage(message);
+  if (!AUDIENCES.includes(audience)) throw new CampError("Pick who it's for.");
+  const people = (await listRecipients(camp.id)).filter((r) => inAudience(r, audience));
+  return deliver(actor, camp, people, text, how, "broadcast", { audience });
+}
+
+/** People and the person panel: the people picked, by id. */
+export async function sendToPeople(actor: string, camp: Camp, registrationIds: string[], message: string, how: Delivery) {
+  const text = checkMessage(message);
+  const wanted = new Set((Array.isArray(registrationIds) ? registrationIds : []).map(String).slice(0, 500));
+  const people = (await listRecipients(camp.id)).filter((r) => wanted.has(r.id));
+  if (!people.length) throw new CampError("None of them can be messaged.");
+  return deliver(actor, camp, people, text, how, "message", { count: people.length });
+}
+
+export type AppDetails = { state: AppState; platform: string; installed_at: string | null; texts_only_at: string | null; push_since: string | null };
+
+/** One person's app status, for their panel. */
+export async function appDetails(registrationId: string): Promise<AppDetails> {
+  const [row] = await query<AppDetails>(
+    "app",
+    `SELECT ${APP_STATE_SQL} AS state, COALESCE(r.app_platform, '') AS platform, r.app_installed_at AS installed_at, r.texts_only_at,
+       (SELECT MIN(s.created_at) FROM camp_push_subs s WHERE s.owner = 'attendee:' || r.id) AS push_since
+     FROM camp_registrations r WHERE r.id = ?`,
+    [checkId(registrationId, "registration")],
+  );
+  return row ?? { state: "none", platform: "", installed_at: null, texts_only_at: null, push_since: null };
+}
+
+export type AppPerson = AppDetails & { id: string; full_name: string; fellowship: string; status: RegistrationStatus };
+
+/** The App page: everyone not cancelled, with how they get updates. */
+export function listAppPeople(campId: string) {
+  return query<AppPerson>(
+    "app",
+    `SELECT r.id, r.full_name, r.fellowship, r.status, ${APP_STATE_SQL} AS state, COALESCE(r.app_platform, '') AS platform,
+       r.app_installed_at AS installed_at, r.texts_only_at,
+       (SELECT MIN(s.created_at) FROM camp_push_subs s WHERE s.owner = 'attendee:' || r.id) AS push_since
+     FROM camp_registrations r WHERE r.camp_id = ? AND r.status <> 'cancelled' ORDER BY r.full_name COLLATE NOCASE`,
+    [checkId(campId, "camp")],
+  );
 }

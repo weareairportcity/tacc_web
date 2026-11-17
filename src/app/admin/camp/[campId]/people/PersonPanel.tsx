@@ -3,7 +3,11 @@ import { leaveTo } from "@/components/camp/leave";
 
 import { useEffect, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
-import { Check, CreditCard, Link2, Lock, Phone, RotateCcw, Trash2 } from "lucide-react";
+import { Bell, Check, CreditCard, Link2, Lock, MessageSquare, Phone, RotateCcw, Trash2 } from "lucide-react";
+import { APP_STATE_WORDS } from "@/lib/camp/app-words";
+import { messageCost, type Delivery } from "@/lib/camp/message-cost";
+import { coordinatorText, MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
+import { ImportantBox } from "@/components/camp/ImportantBox";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import type { GenderRoom } from "@/lib/camp/gender";
@@ -18,6 +22,7 @@ import {
   checkInAction,
   genderRoomsAction,
   getPersonAction,
+  messagePeopleAction,
   openPaymentsForAction,
   payForPeopleAction,
   payLinkAction,
@@ -29,7 +34,7 @@ import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 
 type Data = Extract<Awaited<ReturnType<typeof getPersonAction>>, { ok: true }>["data"];
-type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel";
+type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel" | "message";
 
 const PAYMENT_WORDS = { pending: "Processing", success: "", failed: "Not completed" } as const;
 const ghanaPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
@@ -114,6 +119,20 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
             act(() => changeGenderAction(campId, data.person.id, gender, roomId), (w: string | null) => w ?? `${data.person.full_name} is now down as ${gender}`)
           }
         />
+      ) : mode === "message" ? (
+        <MessageOne
+          data={data}
+          pending={pending}
+          error={error}
+          onCancel={() => setMode("view")}
+          onSend={(message, how) =>
+            act(
+              () => messagePeopleAction(campId, [data.person.id], message, how),
+              (r: { texts: number; app: number }) =>
+                r.app && r.texts ? `Sent to ${data.person.full_name} by app and text` : r.app ? `Sent to ${data.person.full_name} in the app` : `Texted ${data.person.full_name}`,
+            )
+          }
+        />
       ) : mode === "refund" ? (
         <Refund
           paid={data.person.paid_pesewas}
@@ -146,7 +165,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
             />
           </section>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <QuickButton
               icon={CreditCard}
               label="Pay"
@@ -181,6 +200,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
                 })
               }
             />
+            <QuickButton icon={MessageSquare} label="Message" disabled={data.person.status === "cancelled" || !/^233\d{9}$/.test(data.person.phone)} onClick={() => setMode("message")} />
             <QuickButton icon={Phone} label="Call" href={/^233\d{9}$/.test(data.person.phone) ? `tel:+${data.person.phone}` : undefined} />
           </div>
           <ErrorText>{error}</ErrorText>
@@ -188,6 +208,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
 
           <Section title="Camp" action={data.roomTypes.length > 1 && data.person.status !== "cancelled" ? <EditLink onClick={() => setMode("room")} label="Change" /> : null}>
             <Row term="Room type" value={data.person.room_type_name} />
+            <Row term="App" value={APP_STATE_WORDS[data.app.state]} />
             <Row term="Roommates" value={data.group ? (data.group.members.join(", ") || "Alone in a group") : data.person.any_room ? "Any room" : "None yet"} />
             <Row term="Room" value={data.room?.label ?? "Not placed"} />
             <Row
@@ -609,5 +630,59 @@ function Refund({
         </div>
       )}
     </div>
+  );
+}
+
+/** A message to this one person: the app if they have notifications on, otherwise a text. Important: both. */
+function MessageOne({ data, pending, error, onCancel, onSend }: { data: Data; pending: boolean; error: string; onCancel: () => void; onSend: (message: string, how: Delivery) => void }) {
+  const [message, setMessage] = useState("");
+  const [important, setImportant] = useState(false);
+  const onApp = data.app.state === "on";
+  const how: Delivery = important ? "both" : "app";
+  const first = data.person.full_name.trim().split(/\s+/)[0];
+  const cost = messageCost([{ first, app: data.app.state }], message, how);
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSend(message, how);
+      }}
+    >
+      <p className={`flex items-start gap-2.5 rounded-[12px] p-3.5 text-[15px] leading-snug ${onApp ? "bg-[#e7f4e7]" : "bg-stone-canvas"}`}>
+        {onApp ? (
+          <Bell className="mt-0.5 h-[18px] w-[18px] flex-none text-[#0b5e0b]" strokeWidth={1.7} aria-hidden="true" />
+        ) : (
+          <MessageSquare className="mt-0.5 h-[18px] w-[18px] flex-none" strokeWidth={1.7} aria-hidden="true" />
+        )}
+        <span>
+          {onApp ? (
+            <>
+              {first} has notifications on, so this goes to the app. <strong className="font-semibold">Free.</strong>
+            </>
+          ) : (
+            <>
+              {first} isn&apos;t on the app ({APP_STATE_WORDS[data.app.state].toLowerCase()}), so this goes by text.
+            </>
+          )}
+        </span>
+      </p>
+      <Field label="Message">
+        <textarea rows={4} autoFocus maxLength={MAX_COORDINATOR_MESSAGE} value={message} onChange={(e) => setMessage(e.target.value)} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
+      </Field>
+      {onApp && <ImportantBox checked={important} onChange={setImportant} />}
+      <p className="rounded-[16px] rounded-bl-[4px] bg-[#e9f4fd] px-3.5 py-3 text-sm leading-relaxed break-words">{coordinatorText(first, message || "…")}</p>
+      <ErrorText>{error}</ErrorText>
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
+          Back
+        </button>
+        <button type="submit" disabled={pending || message.trim().length < 3} className={`${primaryButtonClass} flex-1`}>
+          <Busy pending={pending} text="Sending…">
+            {cost.credits ? `Send (${cost.credits} ${cost.credits === 1 ? "credit" : "credits"})` : "Send in the app"}
+          </Busy>
+        </button>
+      </div>
+    </form>
   );
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BedDouble, BookOpen, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquare, MessageSquareHeart, ScanLine, Search, Settings, Users, X } from "lucide-react";
+import { BedDouble, BookOpen, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquare, MessageSquareHeart, ScanLine, Search, Settings, Smartphone, Users, X } from "lucide-react";
 import type { FoundPerson } from "@/lib/camp/reports";
 import { cn } from "@/lib/utils";
 import { STATUS_COLOR, STATUS_WORD } from "../ui";
@@ -24,6 +24,7 @@ export const NAV: Item[] = [
   { path: "/check-in", label: "Check-in", icon: ScanLine },
   { path: "/money", label: "Money", icon: CreditCard },
   { path: "/requests", label: "Requests", icon: Inbox },
+  { path: "/app", label: "The app", icon: Smartphone },
   { path: "/texts", label: "Texts", icon: MessageSquare },
   { path: "/history", label: "History", icon: Clock },
   { path: "/feedback", label: "Feedback", icon: MessageSquareHeart },

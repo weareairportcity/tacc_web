@@ -11,9 +11,7 @@ import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
 import { createCamp, getCamp, setAppSwitch, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone } from "@/lib/camp/camps";
-import { sendBroadcast, type Audience } from "@/lib/camp/broadcast";
-import { logCampSms } from "@/lib/camp/sms-log";
-import { smsPartsOf } from "@/lib/sms-plain";
+import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery } from "@/lib/camp/broadcast";
 import { pushMany } from "@/lib/camp/notify";
 import { listPeopleForLeader } from "@/lib/camp/reports";
 import { formatCedis } from "@/lib/camp/money";
@@ -48,8 +46,6 @@ import { getPrivateDetails, updateProfile } from "@/lib/camp/profile";
 import { approveRefund, approveRoomChange, declineRequest, listMyRequests } from "@/lib/camp/requests";
 import { deleteView, saveView } from "@/lib/camp/views";
 import { makeToken, readToken } from "@/lib/camp/tokens";
-import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
-import { coordinatorText, MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
 import { campOrigin } from "@/lib/camp/origin";
 import { sendRoomSms } from "@/lib/camp/room-sms";
 import { sendThanks } from "@/lib/camp/feedback";
@@ -472,7 +468,7 @@ export async function getPersonAction(campId: string, registrationId: string) {
   return look(async () => {
     await requireCampRole("coordinator");
     const person = await personIn(campId, registrationId);
-    const [payments, refunds, group, room, details, requests, arrival, roomTypes] = await Promise.all([
+    const [payments, refunds, group, room, details, requests, arrival, roomTypes, app] = await Promise.all([
       listPayments(person.id),
       listRefunds(person.id),
       getGroupFor(person.id),
@@ -481,9 +477,11 @@ export async function getPersonAction(campId: string, registrationId: string) {
       listMyRequests(person),
       getArrival(person.id),
       listRoomTypes(person.camp_id),
+      appDetails(person.id),
     ]);
     return {
       person,
+      app,
       payments,
       refunds,
       group: group && { members: group.members.filter((m) => m.registration_id !== person.id).map((m) => m.full_name), state: group.state, capacity: group.capacity },
@@ -578,48 +576,28 @@ export async function checkWithExpressPayAction(campId: string, references: stri
 }
 
 /**
- * A text to the people picked on People, one per person so each is greeted by
- * name. Each text costs, so the page confirms first.
+ * A message to the people picked on People (or one person, from their
+ * panel), each greeted by name: the app for people with it, a text for the
+ * rest; "both" when it's important. The page shows the cost first.
  */
-export async function textPeopleAction(campId: string, registrationIds: string[], message: string) {
+export async function messagePeopleAction(campId: string, registrationIds: string[], message: string, how: Delivery) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    await once(staff.email, "textPeopleAction", [campId, registrationIds, message]);
-    const text = String(message ?? "").trim();
-    if (text.length < 3) throw new CampError("Write the message first.");
-    if (text.length > MAX_COORDINATOR_MESSAGE) throw new CampError(`Keep it to ${MAX_COORDINATOR_MESSAGE} characters.`);
-    const ids = Array.isArray(registrationIds) ? registrationIds.map(String).slice(0, 500) : [];
-    const people = await Promise.all(ids.map((id) => personIn(campId, id).catch(() => null)));
-    const to = people.filter((p) => p && p.status !== "cancelled" && /^233\d{9}$/.test(p.phone)).map((p) => p!);
-    if (!to.length) throw new CampError("None of them can be texted.");
-    let sent = 0;
-    let credits = 0;
-    for (let i = 0; i < to.length; i += 10) {
-      await Promise.all(
-        to.slice(i, i + 10).map(async (p) => {
-          const sms = coordinatorText(p.full_name, text);
-          if (await sendSMS(p.phone, sms, COMMUNE_SENDER).catch(() => false)) {
-            sent++;
-            credits += smsPartsOf(sms);
-          }
-        }),
-      );
-    }
-    if (!sent) throw new CampError("The texts didn't go. Please try again.");
-    await logCampSms({ campId: String(campId), kind: "message", texts: sent, credits, actor: staff.email, note: text });
-    await batch("app", [auditStatement({ actor: staff.email, campId: String(campId), action: "people.text", entity: "camp", entityId: String(campId), after: { count: sent, failed: to.length - sent } })]);
-    return sent;
+    await once(staff.email, "messagePeopleAction", [campId, registrationIds, message, how]);
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    return sendToPeople(staff.email, camp, registrationIds, message, how);
   });
 }
 
 /** Texts: one message to everyone registered, or part of them. appFirst: app notifications for people with the app. */
-export async function broadcastAction(campId: string, audience: Audience, message: string, appFirst: boolean) {
+export async function broadcastAction(campId: string, audience: Audience, message: string, how: Delivery) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     await once(staff.email, "broadcastAction", [campId, audience, message]);
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
-    const r = await sendBroadcast(staff.email, camp, audience, message, appFirst !== false);
+    const r = await sendBroadcast(staff.email, camp, audience, message, how);
     revalidatePath(`/admin/camp/${camp.id}/texts`);
     return r;
   });

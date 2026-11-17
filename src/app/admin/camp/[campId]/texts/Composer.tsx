@@ -12,6 +12,8 @@ import { coordinatorText, MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
 import type { RegistrationStatus } from "@/lib/camp/types";
 import { smsPartsOf } from "@/lib/sms-plain";
 import { cn } from "@/lib/utils";
+import { messageCost, type Delivery } from "@/lib/camp/message-cost";
+import { ImportantBox } from "@/components/camp/ImportantBox";
 import { broadcastAction } from "../../actions";
 
 type Person = { first: string; status: RegistrationStatus; app: AppState };
@@ -30,29 +32,30 @@ const n = (x: number) => x.toLocaleString("en-GB");
  * before anything is sent. Each person is greeted by first name. With "app
  * first" on, people with the app get it free as a notification.
  */
-export function Composer({ campId, campName, balance, people }: { campId: string; campName: string; balance: number | null; people: Person[] }) {
+export function Composer({ campId, campName, balance, people, initialAudience = "all" }: { campId: string; campName: string; balance: number | null; people: Person[]; initialAudience?: Audience }) {
   const toast = useToast();
-  const [audience, setAudience] = useState<Audience>("all");
+  const [audience, setAudience] = useState<Audience>(initialAudience);
   const [message, setMessage] = useState("");
   const [appFirst, setAppFirst] = useState(true);
+  const [important, setImportant] = useState(false);
+  const how: Delivery = important ? "both" : appFirst ? "app" : "text";
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [pending, start] = useOneAtATime();
 
   const counts = useMemo(() => Object.fromEntries(AUDIENCES.map((a) => [a, people.filter((p) => inAudience(p, a)).length])) as Record<Audience, number>, [people]);
   const picked = useMemo(() => people.filter((p) => inAudience(p, audience)), [people, audience]);
-  const byApp = appFirst ? picked.filter((p) => p.app === "on") : [];
-  const byText = appFirst ? picked.filter((p) => p.app !== "on") : picked;
   // Exact: each person's own text, with their own first name.
-  const credits = useMemo(() => byText.reduce((s, p) => s + smsPartsOf(coordinatorText(p.first, message || "…")), 0), [byText, message]);
-  const perText = smsPartsOf(coordinatorText(byText[0]?.first ?? "Ama", message || "…"));
+  const cost = useMemo(() => messageCost(picked, message, how), [picked, message, how]);
+  const credits = cost.credits;
+  const perText = smsPartsOf(coordinatorText(picked[0]?.first ?? "Ama", message || "…"));
   const tooMany = balance !== null && credits > balance;
   const ready = message.trim().length >= 3 && picked.length > 0;
 
   const send = () =>
     start(async () => {
       setError("");
-      const r = await broadcastAction(campId, audience, message, appFirst);
+      const r = await broadcastAction(campId, audience, message, how);
       setConfirming(false);
       if (!r.ok) return setError(r.error);
       setMessage("");
@@ -117,13 +120,16 @@ export function Composer({ campId, campName, balance, people }: { campId: string
           </span>
         </label>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-stone-border p-3.5">
-          <input type="checkbox" checked={appFirst} onChange={(e) => setAppFirst(e.target.checked)} className="mt-0.5 h-5 w-5 flex-none accent-soot" />
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[15px] font-medium">Use the app when they have it</span>
-            <span className="text-[13px] leading-snug text-warm-gray">People with notifications on get it in Commune, free. Only the rest are texted.</span>
-          </span>
-        </label>
+        <div className="flex flex-col gap-2">
+          <label className={cn("flex cursor-pointer items-start gap-3 rounded-[14px] border border-stone-border p-3.5", important && "opacity-50")}>
+            <input type="checkbox" checked={appFirst || important} disabled={important} onChange={(e) => setAppFirst(e.target.checked)} className="mt-0.5 h-5 w-5 flex-none accent-soot" />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-[15px] font-medium">Use the app when they have it</span>
+              <span className="text-[13px] leading-snug text-warm-gray">People with notifications on get it in Commune, free. Only the rest are texted.</span>
+            </span>
+          </label>
+          <ImportantBox checked={important} onChange={setImportant} />
+        </div>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">What {picked[0]?.first || "they"} will get</span>
@@ -140,13 +146,13 @@ export function Composer({ campId, campName, balance, people }: { campId: string
             <dt>People</dt>
             <dd className="font-semibold tabular-nums">{n(picked.length)}</dd>
           </div>
-          {appFirst && (
+          {how !== "text" && (
             <div className="flex items-baseline justify-between gap-3">
               <dt className="flex items-center gap-1.5">
                 <Bell className="h-4 w-4 text-[#0b5e0b]" strokeWidth={1.7} aria-hidden="true" /> In the app
               </dt>
               <dd className="tabular-nums">
-                {n(byApp.length)} <span className="text-warm-gray">· free</span>
+                {n(cost.byApp)} <span className="text-warm-gray">· free</span>
               </dd>
             </div>
           )}
@@ -154,7 +160,7 @@ export function Composer({ campId, campName, balance, people }: { campId: string
             <dt className="flex items-center gap-1.5">
               <MessageSquare className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> By text
             </dt>
-            <dd className="tabular-nums">{n(byText.length)}</dd>
+            <dd className="tabular-nums">{n(cost.byText)}</dd>
           </div>
         </dl>
         <div className="flex flex-col gap-1 border-t border-stone-border pt-4">

@@ -92,3 +92,18 @@ describe("the Home Screen app's pass", () => {
     expect(await signInWithAppPass(camp, pass)).toBe(false);
   });
 });
+
+describe("a message's cost", () => {
+  it("is free for people with notifications on, and texts everyone when it's important", async () => {
+    const { messageCost } = await import("@/lib/camp/message-cost");
+    const people = [
+      { first: "Ama", app: "on" as const },
+      { first: "Kofi", app: "none" as const },
+      { first: "Esi", app: "texts" as const },
+    ];
+    expect(messageCost(people, "Bring your Bible.", "app")).toEqual({ byApp: 1, byText: 2, credits: 2 });
+    expect(messageCost(people, "Bring your Bible.", "both")).toEqual({ byApp: 1, byText: 3, credits: 3 });
+    expect(messageCost(people, "Bring your Bible.", "text")).toEqual({ byApp: 0, byText: 3, credits: 3 });
+    expect(messageCost(people, "x".repeat(200), "app").credits).toBe(4);
+  });
+});
