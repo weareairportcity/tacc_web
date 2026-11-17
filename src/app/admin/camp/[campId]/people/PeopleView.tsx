@@ -339,7 +339,7 @@ export function PeopleView({
           )}
           {owing.length > 0 && (
             <p className="flex items-center gap-2 text-[13px] text-warm-gray">
-              <CreditCard className="h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> Paying from a fellowship fund? Tick people below, then Pay for them.
+              <CreditCard className="h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> Paying for several people? Tick them below, then Pay for them.
             </p>
           )}
         </section>
@@ -884,7 +884,7 @@ function PaySheet({ open, onClose, campId, people }: { open: boolean; onClose: (
       <p className="-mt-3 text-[13px] text-warm-gray">The fee is added on top. You&apos;ll see the total on expressPay&apos;s page, MoMo or card.</p>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Note (optional)
-        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Zion fellowship fund" className={inputClass} />
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. Paid by Zion fellowship" className={inputClass} />
       </label>
       <ErrorText>{error}</ErrorText>
       {blockers && blockers.payments.length > 0 && <Blockers campId={campId} me={blockers.me} payments={blockers.payments} />}

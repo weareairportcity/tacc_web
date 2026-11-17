@@ -145,7 +145,7 @@ describe("who paid", () => {
     succeed(checkout.reference);
     await checkPayment(id, checkout.reference);
     expect(smsSent.find((s) => s.message.includes(checkout.reference))?.message).toMatch(
-      /^Hi Efua, Kwesi Mensah has paid GHS 200 towards your place at .+\. You have GHS 400 left to pay\. Receipt: /,
+      /^Hi Efua, Kwesi Mensah has paid GHS 200 towards your room at .+\. You have GHS 400 left to pay\. Receipt: /,
     );
     expect(about("Efua Paidfor").at(-1)).toContain("Paid by: <b>Kwesi Mensah (pay link)</b>");
   });

@@ -14,7 +14,7 @@ type Step = [title: string, text: string];
 const COORDINATOR: Step[] = [
   ["Set the camp up", "Settings: the camp's dates and the help number attendees can call or WhatsApp. Rooms: the room types and prices. When someone starts a group, that room appears on Rooms. Rename it at the venue."],
   ["Open registration and share the link", "Copy the camp's link (People shows it while nobody has registered) and share it. Today opens with what needs you: requests waiting, payments to check, people to place."],
-  ["Watch the money", "People shows who still has to pay. Tick people and Pay for them when a fellowship fund pays. Requests holds refunds and room changes to say yes or no to."],
+  ["Watch the money", "People shows who still has to pay. Tick people and Pay for them to pay for several at once. Requests holds refunds and room changes to say yes or no to."],
   ["Place everyone in rooms", "Rooms: tap someone, then a highlighted room. Or Place everyone. At the venue, tap the pencil on a room and type its number, then text everyone their room."],
   ["Check people in at camp", "Check-in: the camera stays open, so scan pass after pass. A green tick means they're in. T-shirts work the same way. Arrived and Not here yet show who's still to come."],
 ];
@@ -23,7 +23,7 @@ const LEADER: Step[] = [
   ["Sign in with your leader code", "The camp admin gives you a code for your fellowship, PFCC or group. Open the leaders' page, type it once, and this phone stays signed in."],
   ["See where your people are", "People opens on how many of your people are paid in full. Tap Not paid, Part paid or Paid in full to see just them. Tap a name for their phone and details."],
   ["Remind the ones still to pay", "Remind the people still to pay: each message opens in WhatsApp with that person's own pay link, written for you. Nothing sends until you press send there."],
-  ["Pay from a fellowship fund", "Tick the people the fund is paying for, then Pay for them. One payment clears every balance you picked."],
+  ["Pay for several people", "Tick the people you're paying for, then Pay for them. One payment clears every balance you picked."],
   ["Scan at camp", "From the day before camp your page opens with Scan a pass. A green tick means they're checked in; if not, a sentence says why."],
 ];
 

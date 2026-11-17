@@ -62,7 +62,7 @@ export function getGroupFor(registrationId: string) {
 }
 
 function requireFullyPaid(me: Registration) {
-  if (me.status !== "fully_paid") throw new CampError("Roommate groups open once your place is fully paid for.");
+  if (me.status !== "fully_paid") throw new CampError("Roommate groups open once your room is fully paid for.");
 }
 
 function requireOpen(group: Group) {
@@ -243,7 +243,7 @@ function joinStatement(groupId: string, registrationId: string) {
 async function explainJoin(me: Registration, groupId: string): Promise<CampError> {
   const group = await loadGroup("g.id = ?", [groupId]);
   if (!group || group.camp_id !== me.camp_id) return new CampError("This link doesn't match a group for this camp.");
-  if (me.status !== "fully_paid") return new CampError("Roommate groups open once your place is fully paid for.");
+  if (me.status !== "fully_paid") return new CampError("Roommate groups open once your room is fully paid for.");
   if (group.members.some((m) => m.registration_id === me.id)) return new CampError("You're already in this group.");
   if (await getGroupFor(me.id)) return new CampError("You're already in a group. Leave it first.");
   if (group.gender !== me.gender) return new CampError("That group is for the other gender: rooms are single-gender.");

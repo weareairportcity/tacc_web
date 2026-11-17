@@ -93,7 +93,7 @@ function Success({ slug, reference, check, camp, daysToCamp }: { slug: string; r
         </h1>
         <p className="cm-rise max-w-[300px] text-[15px] leading-relaxed text-warm-gray" style={{ animationDelay: "800ms" }}>
           We received <span className="font-medium text-ink-black">{formatCedis(check.amount)}</span>.{" "}
-          {full ? "Your place is secure." : `${formatCedis(check.price - check.paid)} left to pay.`}
+          {full ? "Your room is fully paid for." : `${formatCedis(check.price - check.paid)} left to pay.`}
         </p>
       </section>
 
