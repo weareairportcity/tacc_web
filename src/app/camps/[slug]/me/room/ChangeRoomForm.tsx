@@ -41,7 +41,7 @@ export function ChangeRoomForm({
         <p className="flex items-center gap-2.5 text-[17px] font-semibold">
           <Clock className="h-5 w-5 flex-none" strokeWidth={1.7} aria-hidden="true" /> Waiting for a coordinator
         </p>
-        <p className="text-[15px] leading-relaxed text-warm-gray">You asked to move to {waiting.to}. We&apos;ll text you the answer. Changed your mind? Take your request back.</p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">You asked to change to {waiting.to}. A coordinator will answer in Commune. Changed your mind? Take your request back.</p>
         <span className="self-start">
           <WithdrawRequest slug={slug} requestId={waiting.id} />
         </span>
@@ -122,23 +122,22 @@ export function ChangeRoomForm({
           <p className="flex items-start gap-2 text-sm text-warm-gray">
             <Info className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.6} aria-hidden="true" /> You&apos;ll leave your roommate group, and choose roommates again for {target.name}.
           </p>
-          <Field label="Why do you want to move? (you can skip this)">
+          <Field label="Why change? (you can skip this)">
             <textarea rows={2} className={`${inputClass} h-auto py-2.5`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
           </Field>
           <ErrorText>{error}</ErrorText>
           <button type="submit" disabled={pending} className={`${primaryButtonClass} h-[52px] w-full`}>
-            <Busy pending={pending} text="Sending…">{`Ask to move to ${target.name}`}</Busy>
+            <Busy pending={pending} text="Sending…">{`Ask to change to ${target.name}`}</Busy>
           </button>
         </section>
       )}
 
       <Note icon={RotateCcw}>
-        <strong className="font-semibold">Moving to a cheaper room?</strong>{" "}
-        The difference isn&apos;t refunded automatically. After the move, ask for a refund on Cancel or
-        refund. It goes back to the number that paid.
+        <strong className="font-semibold">Changing to a cheaper room?</strong>{" "}
+        Ask for the difference back on Cancel or refund after the change.
       </Note>
       <p className="text-sm leading-relaxed text-warm-gray">
-        After you ask, this page shows &ldquo;Waiting for a coordinator&rdquo; and we text you the answer. You can take your request back while you wait.
+        A coordinator answers in Commune. You can take your request back while you wait.
       </p>
     </form>
   );

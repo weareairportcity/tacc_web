@@ -2,14 +2,19 @@ import { randomUUID } from "node:crypto";
 import { batch, query } from "@/lib/cf";
 import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
 import { auditStatement } from "./audit";
+import { HAS_PUSH_SQL } from "./app-first";
+import { pushMany } from "./notify";
+import { logCampSms } from "./sms-log";
+import { smsPartsOf } from "@/lib/sms-plain";
 import { checkId } from "./camps";
 import { todayInGhana } from "./registrations";
 import { makeToken, readToken } from "./tokens";
 import { CampError, type Camp } from "./types";
 
 /**
- * After camp: a coordinator texts everyone who arrived a thank-you with their
- * own feedback link, and reads the answers. Answers are anonymous:
+ * After camp: a coordinator thanks everyone who arrived, with their own
+ * feedback link (an app notification if they have the app, else a text), and
+ * reads the answers. Answers are anonymous:
  * camp_feedback has no registration id. camp_feedback_invites only says who
  * was texted and who has answered, so nobody gets two texts or answers twice.
  */
@@ -25,15 +30,15 @@ export const feedbackLink = (origin: string, camp: Pick<Camp, "slug">, registrat
   `${origin}/camps/${camp.slug}/feedback/${makeToken("feedback", registrationId)}`;
 
 export const thanksText = (camp: Pick<Camp, "name">, firstName: string, link: string) =>
-  `Hi ${firstName}, thank you for coming to ${camp.name}! Please tell us how it went. It takes 2 minutes, and you don't need to give your name: ${link} - The Airport City Church`;
+  `Hi ${firstName}, thank you for coming to ${camp.name}! Tell us how it went (2 minutes, no name needed): ${link} - The Airport City Church`;
 
-type Pending = { id: string; full_name: string; phone: string };
+type Pending = { id: string; full_name: string; phone: string; has_push: number };
 
 /** Arrived, not cancelled, can be texted, and not yet texted or answered. */
 export function listThanksPending(campId: string): Promise<Pending[]> {
   return query<Pending>(
     "app",
-    `SELECT r.id, r.full_name, r.phone FROM camp_registrations r
+    `SELECT r.id, r.full_name, r.phone, ${HAS_PUSH_SQL} AS has_push FROM camp_registrations r
      WHERE r.camp_id = ? AND r.checked_in_at IS NOT NULL AND r.status <> 'cancelled' AND r.phone GLOB '233[0-9]*' AND length(r.phone) = 12
        AND NOT EXISTS (SELECT 1 FROM camp_feedback_invites i WHERE i.registration_id = r.id AND (i.texted_at IS NOT NULL OR i.answered = 1))
      ORDER BY r.full_name`,
@@ -62,22 +67,40 @@ export async function sendThanks(actor: string, camp: Camp, origin: string, send
   );
   const mine = pending.filter((_, i) => (claims[i]?.results?.length ?? 0) > 0);
 
+  // The app first (free); a text for anyone it didn't reach.
+  const { delivered } = await pushMany(
+    mine
+      .filter((p) => p.has_push)
+      .map((p) => ({
+        registration_id: p.id,
+        kind: "messages" as const,
+        title: `Thank you for coming to ${camp.name}!`,
+        body: "Tell us how it went. It takes 2 minutes, and no name is needed.",
+        url: `/camps/${camp.slug}/feedback/${makeToken("feedback", p.id)}`,
+      })),
+  );
   let sent = 0;
+  let credits = 0;
   const failed: string[] = [];
-  for (let i = 0; i < mine.length; i += PARALLEL) {
+  const toText = mine.filter((p) => !delivered.has(p.id));
+  for (let i = 0; i < toText.length; i += PARALLEL) {
     await Promise.all(
-      mine.slice(i, i + PARALLEL).map(async (p) => {
-        const ok = await send(p.phone, thanksText(camp, p.full_name.split(" ")[0], feedbackLink(origin, camp, p.id))).catch(() => false);
-        if (ok) sent++;
-        else failed.push(p.id);
+      toText.slice(i, i + PARALLEL).map(async (p) => {
+        const text = thanksText(camp, p.full_name.split(" ")[0], feedbackLink(origin, camp, p.id));
+        const ok = await send(p.phone, text).catch(() => false);
+        if (ok) {
+          sent++;
+          credits += smsPartsOf(text);
+        } else failed.push(p.id);
       }),
     );
   }
+  await logCampSms({ campId: camp.id, kind: "thanks", texts: sent, credits, pushed: delivered.size, actor });
   await batch("app", [
     ...failed.map((id) => ({ sql: "UPDATE camp_feedback_invites SET texted_at = NULL, texted_by = NULL WHERE camp_id = ? AND registration_id = ?", params: [camp.id, id] })),
-    auditStatement({ actor, campId: camp.id, action: "feedback.text", entity: "camp", entityId: camp.id, after: { sent, failed: failed.length } }),
+    auditStatement({ actor, campId: camp.id, action: "feedback.text", entity: "camp", entityId: camp.id, after: { sent, app: delivered.size, failed: failed.length } }),
   ]);
-  return { sent, failed: failed.length, remaining: (await listThanksPending(camp.id)).length };
+  return { sent, app: delivered.size, failed: failed.length, remaining: (await listThanksPending(camp.id)).length };
 }
 
 /** Who a feedback link is for, if it may still be used. */

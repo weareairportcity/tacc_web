@@ -34,18 +34,18 @@ export default async function CampLanding({ params, searchParams }: { params: Pr
 
   return (
     <div className={cn("flex flex-col gap-8", phase === "open" && "pb-24")}>
-      <div className="pointer-events-none relative -mt-16 -mb-8 flex h-16 items-center justify-end">
-        {phase !== "upcoming" && (
-          <Link href={signIn} className={`${secondaryButtonClass} pointer-events-auto h-10 px-4`}>
-            Sign in
-          </Link>
-        )}
-      </div>
-
       <section className="flex flex-col gap-4">
-        <Link href="/camps" className="cm-press -ml-1 inline-flex min-h-11 items-center gap-1 self-start text-sm">
-          <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" /> All camps
-        </Link>
+        {/* Sign in sits here, not in the header, so it never runs into Bigger text. */}
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/camps" className="cm-press -ml-1 inline-flex min-h-11 items-center gap-1 text-sm">
+            <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden="true" /> All camps
+          </Link>
+          {phase !== "upcoming" && (
+            <Link href={signIn} className={`${secondaryButtonClass} h-10 px-4`}>
+              Sign in
+            </Link>
+          )}
+        </div>
         {camp.banner_url ? (
           <div className="relative -mx-5 mb-7 sm:mx-0">
             <CampBanner camp={camp} className="h-[240px] sm:rounded-2xl" />

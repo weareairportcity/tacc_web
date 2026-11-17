@@ -5,6 +5,7 @@ import { registrationOpen } from "@/lib/camp/registrations";
 import { campAndAttendee } from "@/lib/camp/session";
 import { CampBackLink } from "@/components/camp/photos";
 import { SignIn } from "../SignIn";
+import { AppSignInHint } from "@/components/camp/notifications/AppSignInHint";
 
 /** Signing in, on its own screen: the code, a reminder to keep it, and a new code by text. */
 export default async function SignInPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ next?: string; registered?: string }> }) {
@@ -23,6 +24,7 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
         </h1>
         <p className="text-base leading-relaxed text-warm-gray">Type the sign-in code we texted you when you registered.</p>
       </div>
+      <AppSignInHint />
       {query.registered && (
         <p role="status" className="rounded-[12px] bg-cyan-tint px-4 py-3 text-[15px] leading-relaxed">
           That phone number is already registered. Sign in with your code.

@@ -9,6 +9,7 @@ import { CampForm } from "../../CampForm";
 import { CampPhotos } from "./CampPhotos";
 import { HelpPhone } from "./HelpPhone";
 import { ShirtRule } from "./ShirtRule";
+import { AppRules } from "./AppRules";
 import { SummaryPhone } from "./SummaryPhone";
 
 function Section({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
@@ -54,6 +55,9 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
       </Section>
       <Section title="T-shirts" text="Whether they pick a size at registration, and who can collect one when their pass is scanned.">
         <ShirtRule campId={camp.id} askSize={camp.shirts_on !== 0} on={!!camp.shirt_paid_only} />
+      </Section>
+      <Section title="The Commune app" text="App notifications are free; every text costs credits. See what texts have cost on Texts.">
+        <AppRules campId={camp.id} required={camp.app_required !== 0} reminders={camp.leader_reminders === 1} />
       </Section>
       <Section
         title="Notifications"

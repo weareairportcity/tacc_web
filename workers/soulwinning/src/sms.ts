@@ -1,6 +1,9 @@
 import type { Campaign, CountsRow } from "./db";
 import { computeLeaderboard } from "./leaderboard";
 import type { AppEnv } from "./util";
+import { GSM_EXT, plainSms } from "./sms-plain";
+
+export { plainSms };
 
 /**
  * Hourly outreach-day SMS, run by the Worker's cron trigger. Ported from the
@@ -23,6 +26,21 @@ const toGhana = (phone: string) => {
   return `233${digits}`;
 };
 
+/** Credits one text costs once made plain: 160 in one part, 153 per part after that. */
+export function smsParts(text: string) {
+  const n = [...plainSms(text)].reduce((sum, ch) => sum + (GSM_EXT.includes(ch) ? 2 : 1), 0);
+  return n <= 160 ? 1 : Math.ceil(n / 153);
+}
+
+/** Counts Commune texts in camp_sms_log (see src/lib/camp/sms-log.ts). Never throws. */
+export async function logCampSms(env: AppEnv, campId: string, kind: string, texts: number, credits: number) {
+  if (texts <= 0) return;
+  await env.APP_DB.prepare("INSERT INTO camp_sms_log (camp_id, kind, texts, credits) VALUES (?, ?, ?, ?)")
+    .bind(campId, kind, texts, credits)
+    .run()
+    .catch((err: unknown) => console.error("sms log", err));
+}
+
 /** `sender`: an approved mNotify sender ID; camp texts use "Commune". */
 export async function sendSms(env: AppEnv, to: string, message: string, sender?: string) {
   if (!env.MNOTIFY_API_KEY) return false;
@@ -35,7 +53,7 @@ export async function sendSms(env: AppEnv, to: string, message: string, sender?:
         body: JSON.stringify({
           recipient: [toGhana(to)],
           sender: sender || env.MNOTIFY_SENDER_ID || "TACCBooking",
-          message,
+          message: plainSms(message),
           is_schedule: "false",
           schedule_date: "",
         }),

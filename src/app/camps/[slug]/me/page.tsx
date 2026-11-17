@@ -35,7 +35,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
   const { slug } = await params;
   const { camp, me } = await campAndAttendee(slug);
   if (!camp) notFound();
-  if (!me) redirect(`/camps/${camp.slug}`);
+  if (!me) redirect(`/camps/${camp.slug}/sign-in?next=${encodeURIComponent(`/camps/${camp.slug}/me`)}`);
 
   const fullyPaid = me.status === "fully_paid";
   const cancelled = me.status === "cancelled";

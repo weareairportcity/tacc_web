@@ -11,7 +11,7 @@ import { CAMP_PHOTOS, CAMP_STATUSES, CampError, type Camp, type CampInput, type 
 
 const COLUMNS = `id, created_at, name, slug, venue, starts_on, ends_on, registration_opens_on,
   registration_closes_on, payment_due_on, roommate_deadline_on, fee_bps, momo_fee_bps, status,
-  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only, shirts_on, help_phone`;
+  logo_url, logo_credit, banner_url, banner_credit, venue_photo_url, venue_photo_credit, shirt_paid_only, shirts_on, help_phone, app_required, leader_reminders`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ID = /^[0-9a-f-]{36}$/i;
@@ -191,6 +191,17 @@ export async function setShirtsOn(actor: string, id: string, on: boolean) {
   await batch("app", [
     { sql: "UPDATE camps SET shirts_on = ? WHERE id = ?", params: [on ? 1 : 0, id] },
     auditStatement({ actor, campId: id, action: "camp.shirts", entity: "camp", entityId: id, before: { shirts_on: before.shirts_on }, after: { shirts_on: on ? 1 : 0 } }),
+  ]);
+}
+
+/** Settings: the app switches. app_required: attendees set up the app first. leader_reminders: leaders may send payment reminders. */
+export async function setAppSwitch(actor: string, id: string, which: "app_required" | "leader_reminders", on: boolean) {
+  const before = await getCamp(id);
+  if (!before) throw new CampError("Unknown camp.");
+  const column = which === "app_required" ? "app_required" : "leader_reminders";
+  await batch("app", [
+    { sql: `UPDATE camps SET ${column} = ? WHERE id = ?`, params: [on ? 1 : 0, id] },
+    auditStatement({ actor, campId: id, action: `camp.${column}`, entity: "camp", entityId: id, before: { [column]: before[column] }, after: { [column]: on ? 1 : 0 } }),
   ]);
 }
 

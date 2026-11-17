@@ -19,8 +19,8 @@ export function SendThanks({ campId, pending: waiting, perPress }: { campId: str
   const now = Math.min(waiting, perPress);
   return confirming ? (
     <InlineConfirm
-      question={`Send ${now} thank-you ${now === 1 ? "text" : "texts"}?`}
-      detail={`Each person gets their own feedback link. Texts cost money, and nobody gets two.${waiting > now ? ` The other ${waiting - now} go on the next press.` : ""}`}
+      question={`Send ${now} thank-you ${now === 1 ? "message" : "messages"}?`}
+      detail={`Each person gets their own feedback link: in the app if they have it (free), otherwise by text (2 credits). Nobody gets two.${waiting > now ? ` The other ${waiting - now} go on the next press.` : ""}`}
       confirmLabel="Send"
       primary
       pending={pending}
@@ -30,15 +30,15 @@ export function SendThanks({ campId, pending: waiting, perPress }: { campId: str
           const r = await sendThanksAction(campId);
           setConfirming(false);
           if (!r.ok) return toast(r.error, { tone: "error" });
-          const { sent, failed, remaining } = r.data;
-          if (!sent) return toast("The texts didn't go. Press again to try again.", { tone: "error" });
-          toast(`Texted ${people(sent)}${failed ? `. ${failed} didn't go; press again to retry.` : remaining ? `. ${remaining} still to text.` : ""}`, failed ? { tone: "error" } : undefined);
+          const { sent, app, failed, remaining } = r.data;
+          if (!sent && !app) return toast("The messages didn't go. Press again to try again.", { tone: "error" });
+          toast(`Thanked ${people(sent + app)}${app ? ` (${app} in the app)` : ""}${failed ? `. ${failed} didn't go; press again to retry.` : remaining ? `. ${remaining} still to text.` : ""}`, failed ? { tone: "error" } : undefined);
         })
       }
     />
   ) : (
     <button type="button" onClick={() => setConfirming(true)} className={`${primaryButtonClass} self-start`}>
-      <MessageSquare className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" /> Text {people(waiting)}
+      <MessageSquare className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" /> Thank {people(waiting)}
     </button>
   );
 }

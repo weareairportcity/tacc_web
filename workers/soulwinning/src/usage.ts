@@ -100,9 +100,9 @@ export async function checkUsage(env: UsageEnv, opts: { notify?: boolean } = {})
         .run();
       if (!inserted.meta.changes) continue;
       const message =
-        `TACC website alert: Cloudflare ${LIMITS[r.metric].label} are at ${r.percent}% of today's free limit ` +
+        `TACC alert: Cloudflare ${LIMITS[r.metric].label} at ${r.percent}% of today's free limit ` +
         `(${r.value.toLocaleString("en-GB")} of ${r.limit.toLocaleString("en-GB")}). ` +
-        `Check for screens or pages left refreshing. It resets at midnight UTC.`;
+        `Check for pages left refreshing. Resets at midnight UTC.`;
       if (await sendSms(env, env.ALERT_PHONE, message)) alerted.push(r.metric);
     }
   }

@@ -1,4 +1,4 @@
-import { sendSms } from "./sms";
+import { logCampSms, sendSms, smsParts } from "./sms";
 import { card, tellGroups, type TgKind } from "./telegram";
 import { HttpError, json, nowIso, readJson, UUID, type AppEnv } from "./util";
 import { pushConfigured, sendPush, type PushMessage } from "./webpush";
@@ -7,7 +7,8 @@ import { pushConfigured, sendPush, type PushMessage } from "./webpush";
  * Commune's notifications, in plain words.
  *
  *   Coordinators (admins and coordinators): app notifications on their phones
- *   and the Telegram group. Attendees: app notifications only.
+ *   and the Telegram group. Attendees: app notifications, and a text only
+ *   when no phone of theirs got the notification (texts cost credits).
  *
  * Each person turns kinds off on their own (camp_notify_prefs); the Telegram
  * group has its own switches (/settings). Nothing here ever throws into the
@@ -15,7 +16,7 @@ import { pushConfigured, sendPush, type PushMessage } from "./webpush";
  */
 
 export const STAFF_PUSH_KINDS = ["registration", "payment", "payment_problem", "request"] as const;
-export const ATTENDEE_KINDS = ["payment_received", "payment_failed", "room_ready", "request_answered", "due_soon", "camp_tomorrow"] as const;
+export const ATTENDEE_KINDS = ["payment_received", "payment_failed", "room_ready", "request_answered", "due_soon", "camp_tomorrow", "messages"] as const;
 export type StaffKind = TgKind;
 export type AttendeeKind = (typeof ATTENDEE_KINDS)[number];
 
@@ -206,7 +207,17 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
             .run()
         ).meta.changes === 1;
       const today = nowIso().slice(0, 10);
-      if (/^233\d{9}$/.test(r.phone) && today <= r.ends_on) {
+      const roommatesBy = full && fullClaim && today <= r.roommate_deadline_on ? shortDay(r.roommate_deadline_on) : null;
+      // App first: the notification is free. The text (2 credits) only goes when no phone of theirs got it.
+      const from = p.bulk_id ? "Your camp balance was paid for you" : payer ? `${payer} paid ${cedis(p.amount_pesewas)} for you` : `We received ${cedis(p.amount_pesewas)}`;
+      const pushed = await toAttendee(env, p.registration_id, "payment_received", {
+        title: full ? "You're fully paid 🎉" : "Payment received",
+        body: full
+          ? `${from}. You're all set for ${r.camp_name}.${roommatesBy ? ` Next, choose your roommates by ${roommatesBy}.` : ""} Tap to see your receipt.`
+          : `${from}. You have ${cedis(left)} left to pay by ${shortDay(r.payment_due_on)}. Tap to see your receipt.`,
+        url: `/camps/r/${encodeURIComponent(p.reference)}`,
+      });
+      if (!pushed && /^233\d{9}$/.test(r.phone) && today <= r.ends_on) {
         const text = receiptText({
           first: firstName(r.full_name),
           camp: r.camp_name,
@@ -218,16 +229,8 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
           fullyPaidFirstTime: fullClaim,
           roommatesBy: today <= r.roommate_deadline_on ? shortDay(r.roommate_deadline_on) : null,
         });
-        await sendSms(env, r.phone, text, "Commune");
+        if (await sendSms(env, r.phone, text, "Commune")) await logCampSms(env, r.camp_id, "receipt", 1, smsParts(text));
       }
-      const from = p.bulk_id ? "Your camp balance was paid for you" : payer ? `${payer} paid ${cedis(p.amount_pesewas)} for you` : `We received ${cedis(p.amount_pesewas)}`;
-      await toAttendee(env, p.registration_id, "payment_received", {
-        title: full ? "You're fully paid 🎉" : "Payment received",
-        body: full
-          ? `${from}. You're all set for ${r.camp_name}. Tap to see your receipt.`
-          : `${from}. You have ${cedis(left)} left to pay by ${shortDay(r.payment_due_on)}. Tap to see your receipt.`,
-        url: `/camps/r/${encodeURIComponent(p.reference)}`,
-      });
     }
 
     if (!p.bulk_id) {
@@ -386,6 +389,39 @@ export async function notifyEndpoint(request: Request, env: AppEnv) {
     return json({ push: await toAttendee(env, b.registration_id, b.kind, { title: m.title, body: m.body, url: m.url }) });
   }
   throw new HttpError(400, "unknown notification");
+}
+
+const MANY_KINDS = new Set<string>(["room_ready", "request_answered", "messages", "due_soon"]);
+
+/**
+ * App notifications to many attendees at once, each with its own words
+ * (rooms, the thank-you, a coordinator's message, a leader's reminder).
+ * Answers which registrations got it on at least one phone, so the Next side
+ * texts only the rest. `once`: a key that makes a repeat (the same day's
+ * reminder) a no-op.
+ */
+export async function notifyManyEndpoint(request: Request, env: AppEnv) {
+  const b = await readJson<{ items?: unknown }>(request, 2 * 1024 * 1024);
+  if (!Array.isArray(b.items) || b.items.length > 1000) throw new HttpError(400, "items required (at most 1000)");
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const items = b.items.map((raw) => {
+    const i = (raw ?? {}) as Record<string, unknown>;
+    const it = { id: text(i.registration_id, 36), kind: text(i.kind, 40), title: text(i.title, 80), body: text(i.body, 300), url: text(i.url, 300), once: text(i.once, 120) };
+    if (!UUID.test(it.id) || !MANY_KINDS.has(it.kind) || !it.title || !it.body || !it.url.startsWith("/")) throw new HttpError(400, "each item needs a registration, a kind, words and a relative url");
+    return it;
+  });
+  const delivered: string[] = [];
+  const skipped: string[] = [];
+  for (let i = 0; i < items.length; i += 25) {
+    await Promise.all(
+      items.slice(i, i + 25).map(async (it) => {
+        if (it.once && !(await once(env, it.once))) return void skipped.push(it.id);
+        const n = await toAttendee(env, it.id, it.kind as AttendeeKind, { title: it.title, body: it.body, url: it.url });
+        if (n > 0) delivered.push(it.id);
+      }),
+    );
+  }
+  return json({ delivered, skipped });
 }
 
 /** A phone turning notifications on (or off: endpoint with remove). Push services are https; 127.0.0.1 is the tests' fake. */

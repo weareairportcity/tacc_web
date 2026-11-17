@@ -44,6 +44,10 @@ export type Camp = {
   shirts_on: number;
   /** 233XXXXXXXXX, or empty: attendees' "Need help?" number. */
   help_phone: string;
+  /** 1: attendees set up the app (Home Screen + notifications) before using their page (Settings). */
+  app_required: number;
+  /** 1: leaders can send payment reminders, as app notifications only (Settings). */
+  leader_reminders: number;
 };
 
 /** logo: beside the back button and in the sidebar · banner: the wide image up top · venue_photo: "Where we'll be". */
@@ -51,7 +55,7 @@ export const CAMP_PHOTOS = ["logo", "banner", "venue_photo"] as const;
 export type CampPhoto = (typeof CAMP_PHOTOS)[number];
 
 /** What a coordinator fills in; id, slug and created_at are set on save. */
-export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "shirts_on" | "help_phone" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
+export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "shirts_on" | "help_phone" | "app_required" | "leader_reminders" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
   /** Defaults to fee_bps. */
   momo_fee_bps?: number;
 };

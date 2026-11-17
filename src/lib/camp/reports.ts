@@ -1,4 +1,5 @@
 import { query, querySoon } from "@/lib/cf";
+import { APP_STATE_SQL, type AppState } from "./app-first";
 import { CHURCHES, FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
 import type { AuditEntry } from "./audit";
 import { ID, checkId } from "./camps";
@@ -210,6 +211,8 @@ export type PersonRow = {
   /** The latest successful payment, if any. */
   last_paid_at: string | null;
   last_paid_pesewas: number | null;
+  /** Whether they get app notifications or texts (app-first.ts). */
+  app: AppState;
 };
 
 // Kept on the registration by triggers (migration 0018), so the list doesn't look it up per person.
@@ -231,7 +234,7 @@ export async function listPeople(campId: string, filters: PeopleFilters): Promis
        t.name AS room_type_name, r.status, r.price_pesewas, r.paid_pesewas,
        g.code AS group_code, c.roommate_deadline_on AS deadline, x.label AS room_label,
        r.flagged_payments AS flagged, r.shirt_size, r.any_room, r.checked_in_at, ${LAST_PAID} AS last_paid_at,
-       r.last_paid_pesewas
+       r.last_paid_pesewas, ${APP_STATE_SQL} AS app
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${where.sql}
      ORDER BY ${orderSql(filters.sort)}`,
@@ -255,6 +258,8 @@ export type LeaderRow = {
   paid_pesewas: number;
   roommate: RoommateStatus | null;
   has_room: boolean;
+  /** So leaders can follow up with people who haven't set up the app. */
+  app: AppState;
 };
 
 /**
@@ -267,10 +272,10 @@ export type LeaderRow = {
 export async function listPeopleForLeader(staff: Staff, campId: string, filters: PeopleFilters): Promise<LeaderRow[]> {
   const scope = scopeSql(scopeFor(staff));
   const where = filterSql(filters, { phoneSearch: false });
-  const rows = await query<{ id: string; full_name: string; phone: string; fellowship: string; pfcc: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; has_room: number; last_paid_at: string | null } & GroupColumns>(
+  const rows = await query<{ id: string; full_name: string; phone: string; fellowship: string; pfcc: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; has_room: number; last_paid_at: string | null; app: AppState } & GroupColumns>(
     "app",
     `SELECT r.id, r.full_name, r.phone, r.fellowship, r.pfcc, r.status, r.price_pesewas, r.paid_pesewas, a.room_id IS NOT NULL AS has_room,
-       g.code AS group_code, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at
+       g.code AS group_code, c.roommate_deadline_on AS deadline, ${LAST_PAID} AS last_paid_at, ${APP_STATE_SQL} AS app
      ${PEOPLE_FROM}
      WHERE r.camp_id = ?${scope.sql}${where.sql}
      ORDER BY ${orderSql(filters.sort === "outstanding" ? "name" : filters.sort)}`,
@@ -287,6 +292,7 @@ export async function listPeopleForLeader(staff: Staff, campId: string, filters:
     paid_pesewas: r.paid_pesewas,
     roommate: roommateStatus(r.status, r),
     has_room: Boolean(r.has_room),
+    app: r.app,
   }));
 }
 

@@ -1,5 +1,12 @@
 import { MessageCircle, Phone } from "lucide-react";
+import type { Metadata } from "next";
 import { getCampBySlug } from "@/lib/camp/camps";
+
+/** Added to the Home Screen from a camp's pages, Commune opens on that camp (see manifest.webmanifest). */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  return { manifest: `/camps/${slug}/manifest.webmanifest` };
+}
 
 /**
  * Every page of one camp ends with a way to ask a person: Call or WhatsApp the camp's help

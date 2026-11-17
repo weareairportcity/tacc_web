@@ -5,15 +5,16 @@ import { Busy } from "@/components/camp/brand";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { useSearchParams } from "next/navigation";
-import { Check, ChevronDown, ChevronRight, Copy, CreditCard, Download, MessageCircle, MessageSquare, ScanLine, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
+import { Bell, BellOff, Check, ChevronDown, ChevronRight, Copy, CreditCard, Download, MessageSquare, ScanLine, Search, SlidersHorizontal, Smartphone, Star, Trash2, X } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import type { RegistrationStatus } from "@/lib/camp/types";
+import type { AppState } from "@/lib/camp/app-first";
 import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Legend, RegistrationStatus as Status, StackedBar, headlineClass, inputClass, primaryButtonClass, statusParts } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { coordinatorText, firstName, MAX_COORDINATOR_MESSAGE, smsParts } from "@/lib/camp/sms";
-import { deleteViewAction, openPaymentsForAction, payForPeopleAction, saveViewAction, textPeopleAction } from "../../actions";
+import { deleteViewAction, leaderRemindAction, openPaymentsForAction, payForPeopleAction, saveViewAction, textPeopleAction } from "../../actions";
 import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 import { PersonPanel } from "./PersonPanel";
@@ -41,6 +42,8 @@ export type PersonListRow = {
   checked_in?: boolean;
   last_paid?: number | null;
   registered?: string;
+  /** Notifications on, the app without notifications, texts only, or not set up. */
+  app?: AppState;
 };
 
 type Filters = {
@@ -52,9 +55,17 @@ type Filters = {
   gender: string;
   room: string;
   checkin: string;
+  app: string;
   sort: string;
 };
-const EMPTY: Filters = { q: "", status: "", pfcc: "", fellowship: "", room_type: "", gender: "", room: "", checkin: "", sort: "" };
+const EMPTY: Filters = { q: "", status: "", pfcc: "", fellowship: "", room_type: "", gender: "", room: "", checkin: "", app: "", sort: "" };
+
+const APP_OPTIONS: [string, string][] = [
+  ["on", "Notifications on"],
+  ["installed", "App, notifications off"],
+  ["none", "Not set up"],
+  ["texts", "Texts only"],
+];
 const KEYS = Object.keys(EMPTY) as (keyof Filters)[];
 
 const PAYMENT: [string, string][] = [
@@ -98,6 +109,7 @@ function matches(r: PersonListRow, f: Filters) {
   if (on("gender") && r.gender !== f.gender) return false;
   if (on("room") && (f.room === "placed" ? !r.placed : r.placed || r.status !== "fully_paid")) return false;
   if (on("checkin") && (f.checkin === "in" ? !r.checked_in : r.checked_in || r.status === "cancelled")) return false;
+  if (on("app") && r.app !== f.app) return false;
   return true;
 }
 
@@ -122,7 +134,7 @@ function since(iso: string | null | undefined) {
 
 export function PeopleView({
   campId,
-  campName,
+  leaderReminders,
   campLink,
   scanNow,
   leader,
@@ -134,7 +146,8 @@ export function PeopleView({
   initialQuery,
 }: {
   campId: string;
-  campName: string;
+  /** Settings: leaders may send payment reminders (app notifications only). */
+  leaderReminders: boolean;
   /** The public camp page, to share when nobody has registered yet. */
   campLink: string;
   /** Camp is on (or tomorrow): a leader's page leads with Scan. */
@@ -246,6 +259,7 @@ export function PeopleView({
         .map((g) => ({ title: g.pfcc, pfcc: g.pfcc, options: g.fellowships.filter((n) => !leader || rows.some((r) => r.fellowship === n)).map((n) => [n, n] as [string, string]) }))
         .filter((g) => !leader || g.options.length > 0),
     },
+    { key: "app", label: "App", options: APP_OPTIONS },
     ...(leader
       ? []
       : [
@@ -310,9 +324,9 @@ export function PeopleView({
           <p className="border-t border-stone-border pt-3 text-[13px] text-warm-gray">
             {rows.length} {rows.length === 1 ? "person" : "people"} · tap a name to see their details
           </p>
-          {owing.length > 0 && (
+          {leaderReminders && owing.length > 0 && (
             <button type="button" onClick={() => setSheet("remind")} className={`${primaryButtonClass} h-12 w-full text-[15px]`}>
-              <MessageCircle className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" />
+              <Bell className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" />
               Remind the {owing.length} still to pay
             </button>
           )}
@@ -454,6 +468,7 @@ export function PeopleView({
                 <th className="px-3 py-3 font-medium">Name</th>
                 <th className="px-3 py-3 font-medium max-md:hidden">{leader ? "Fellowship" : "Fellowship · room type"}</th>
                 <th className="px-3 py-3 font-medium max-sm:hidden">Payment</th>
+                <th className="px-3 py-3 font-medium max-md:hidden">App</th>
                 {leader ? <th className="px-3 py-3 text-right font-medium max-sm:hidden">Paid</th> : <th className="px-3 py-3 font-medium max-lg:hidden">Room</th>}
                 <th className="py-3 pl-3 pr-4 text-right font-medium">Still to pay</th>
               </tr>
@@ -484,6 +499,9 @@ export function PeopleView({
                         <span className="sm:hidden">
                           <Status status={r.status} />
                         </span>
+                        <span className="md:hidden">
+                          <AppBadge app={r.app} short />
+                        </span>
                         <span className="max-sm:hidden">
                           {r.last_paid ? (
                             <>
@@ -502,6 +520,9 @@ export function PeopleView({
                     <td className="px-3 py-3 text-[#57534e] max-md:hidden">{leader ? r.fellowship : `${r.fellowship} · ${r.room_type}`}</td>
                     <td className="px-3 py-3 max-sm:hidden">
                       <Status status={r.status} />
+                    </td>
+                    <td className="px-3 py-3 max-md:hidden">
+                      <AppBadge app={r.app} />
                     </td>
                     {leader ? (
                       <td className="px-3 py-3 text-right tabular-nums max-sm:hidden">{formatCedis(r.paid ?? 0)}</td>
@@ -580,7 +601,7 @@ export function PeopleView({
       )}
 
       <PaySheet open={sheet === "pay"} onClose={() => setSheet(null)} campId={campId} people={pickedOwing} />
-      {leader && <RemindSheet open={sheet === "remind"} onClose={() => setSheet(null)} campName={campName} people={owing} />}
+      {leader && leaderReminders && <RemindSheet open={sheet === "remind"} onClose={() => setSheet(null)} campId={campId} people={owing} />}
       {!leader && (
         <>
           <TextSheet
@@ -987,51 +1008,104 @@ function QuickFilters({
   );
 }
 
-/**
- * "Remind the 8 still to pay": one WhatsApp message per person, written for the leader with
- * that person's own pay link, sent from the leader's phone (free). A copy button for anyone
- * without WhatsApp.
- */
-function RemindSheet({ open, onClose, campName, people }: { open: boolean; onClose: () => void; campName: string; people: PersonListRow[] }) {
-  const toast = useToast();
-  const [sent, setSent] = useState<Set<string>>(new Set());
-  const message = (r: PersonListRow) =>
-    `Hi ${firstName(r.full_name)}, a quick reminder about ${campName}: you still have ${formatCedis(outstandingOf(r))} to pay. You, or someone for you, can pay here: ${r.pay_link ?? ""}`;
-  const wa = (r: PersonListRow) => `https://wa.me/${(r.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(message(r))}`;
+/** Where someone stands with the app, as a word and an icon (never colour alone). */
+function AppBadge({ app, short }: { app?: AppState; short?: boolean }) {
+  if (!app) return null;
+  const words = APP_OPTIONS.find(([v]) => v === app)?.[1] ?? "";
+  const Icon = app === "on" ? Bell : app === "installed" ? BellOff : app === "texts" ? MessageSquare : Smartphone;
   return (
-    <Sheet open={open} onClose={onClose} title={`Remind ${people.length} ${people.length === 1 ? "person" : "people"}`} subtitle="Each message opens in WhatsApp with their own pay link. Nothing is sent until you press send there.">
-      <ul className="flex flex-col">
-        {people.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 border-t border-stone-border py-3 first:border-t-0">
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="flex items-center gap-1.5 truncate text-[15px] font-medium">
-                {sent.has(r.id) && <Check className="h-4 w-4 flex-none text-st-paid" strokeWidth={2.4} aria-label="Opened" />}
-                {r.full_name}
-              </span>
-              <span className="text-[13px] text-warm-gray">{formatCedis(outstandingOf(r))} still to pay</span>
-            </span>
-            {r.phone && (
-              <a
-                href={wa(r)}
-                target="_blank"
-                rel="noopener"
-                onClick={() => setSent((s) => new Set(s).add(r.id))}
-                className="cm-press inline-flex h-11 items-center gap-1.5 rounded-full border border-stone-border bg-white px-4 text-sm font-medium"
-              >
-                <MessageCircle className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> WhatsApp
-              </a>
-            )}
-            <button
-              type="button"
-              aria-label={`Copy the message for ${r.full_name}`}
-              onClick={() => navigator.clipboard?.writeText(message(r)).then(() => toast("Message copied"))}
-              className="cm-press flex h-11 w-11 items-center justify-center rounded-full border border-stone-border bg-white"
-            >
-              <Copy className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
-            </button>
-          </li>
-        ))}
-      </ul>
+    <span className={cn("inline-flex items-center gap-1.5", app === "on" ? "text-[#0b5e0b]" : app === "none" ? "text-ash-gray" : "text-[#57534e]")}>
+      <Icon className="h-3.5 w-3.5 flex-none" strokeWidth={1.8} aria-hidden="true" />
+      <span className={cn(short && "sr-only")}>{words}</span>
+    </span>
+  );
+}
+
+/**
+ * "Remind the 8 still to pay": an app notification to each one with the app,
+ * with their own amount and a tap through to pay. No texts, so no credits;
+ * at most one a day each. The rest are listed to follow up in person.
+ */
+function RemindSheet({ open, onClose, campId, people }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[] }) {
+  const toast = useToast();
+  const [pending, start] = useOneAtATime();
+  const [error, setError] = useState("");
+  const withApp = people.filter((r) => r.app === "on");
+  const without = people.filter((r) => r.app !== "on");
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={`Remind ${people.length} ${people.length === 1 ? "person" : "people"}`}
+      subtitle="As an app notification, with what they owe and a button to pay. Free: no texts are sent."
+      footer={
+        withApp.length > 0 ? (
+          <button
+            type="button"
+            disabled={pending}
+            aria-busy={pending}
+            onClick={() =>
+              start(async () => {
+                setError("");
+                const r = await leaderRemindAction(campId);
+                if (!r.ok) return setError(r.error);
+                onClose();
+                toast(
+                  r.data.sent
+                    ? `Reminded ${r.data.sent} ${r.data.sent === 1 ? "person" : "people"}${r.data.already ? `. ${r.data.already} already had one today.` : ""}`
+                    : r.data.already
+                      ? "They've all had a reminder today already."
+                      : "Nobody could be reached. Their phones may have notifications off.",
+                  r.data.sent ? undefined : { tone: "error" },
+                );
+              })
+            }
+            className={`${primaryButtonClass} h-[52px] w-full`}
+          >
+            <Busy pending={pending} text="Sending…">
+              <Bell className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Send {withApp.length} {withApp.length === 1 ? "reminder" : "reminders"}
+            </Busy>
+          </button>
+        ) : undefined
+      }
+    >
+      {withApp.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-[13px] font-semibold">Get a notification ({withApp.length})</h3>
+          <ul className="flex flex-col">
+            {withApp.map((r) => (
+              <li key={r.id} className="flex min-h-11 items-center justify-between gap-3 border-t border-stone-border text-[15px] first:border-t-0">
+                <span className="flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-[#0b5e0b]" strokeWidth={1.7} aria-hidden="true" />
+                  {r.full_name}
+                </span>
+                <span className="tabular-nums text-warm-gray">{formatCedis(outstandingOf(r))}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {without.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-[13px] font-semibold">Not on the app: remind them in person ({without.length})</h3>
+          <ul className="flex flex-col">
+            {without.map((r) => (
+              <li key={r.id} className="flex min-h-11 items-center justify-between gap-3 border-t border-stone-border text-[15px] first:border-t-0">
+                <span className="flex flex-col">
+                  <span>{r.full_name}</span>
+                  <span className="text-[13px] text-warm-gray">{formatCedis(outstandingOf(r))} still to pay</span>
+                </span>
+                {r.phone && (
+                  <a href={`tel:+${r.phone}`} className="cm-press inline-flex h-10 items-center rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
+                    Call
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <ErrorText>{error}</ErrorText>
     </Sheet>
   );
 }

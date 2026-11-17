@@ -28,7 +28,7 @@ export function CancelForm({ slug, paid, cancelled, waiting }: { slug: string; p
         <p className="flex items-center gap-2.5 text-[17px] font-semibold">
           <Clock className="h-5 w-5 flex-none" strokeWidth={1.7} aria-hidden="true" /> Waiting for a coordinator
         </p>
-        <p className="text-[15px] leading-relaxed text-warm-gray">You asked for {formatCedis(waiting.amount)} back. We&apos;ll text you the answer.</p>
+        <p className="text-[15px] leading-relaxed text-warm-gray">You asked for {formatCedis(waiting.amount)} back. A coordinator will answer in Commune.</p>
         <span className="self-start">
           <WithdrawRequest slug={slug} requestId={waiting.id} />
         </span>

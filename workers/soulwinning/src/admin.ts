@@ -1,4 +1,4 @@
-import { notifyEndpoint, notifyPrefs, pushSubscribe, sendReminders } from "./notify";
+import { notifyEndpoint, notifyManyEndpoint, notifyPrefs, pushSubscribe, sendReminders } from "./notify";
 import { telegramSetup } from "./telegram";
 import { sendDailySummaries } from "./camp-summary";
 import { leaderCodeCheck, leaderCodeNew, leaderCodeOff } from "./camp-leaders";
@@ -197,6 +197,8 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return providerCheck(request, env);
     case "/v1/admin/camp/notify":
       return notifyEndpoint(request, env);
+    case "/v1/admin/camp/notify-many":
+      return notifyManyEndpoint(request, env);
     case "/v1/admin/camp/push-subscribe":
       return pushSubscribe(request, env);
     case "/v1/admin/camp/notify-prefs":

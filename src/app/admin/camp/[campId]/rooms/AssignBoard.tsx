@@ -64,6 +64,7 @@ export function AssignBoard({
   lanes,
   roomTypes,
   smsPending,
+  smsByApp = 0,
   startPool,
   startWho,
   startType,
@@ -72,6 +73,8 @@ export function AssignBoard({
   lanes: RoomLane[];
   roomTypes: RoomType[];
   smsPending: number;
+  /** Of the next press (up to 250), how many have the app and get a notification instead of a text. */
+  smsByApp?: number;
   startPool: string | null;
   startWho: "" | Gender;
   startType: string;
@@ -235,7 +238,7 @@ export function AssignBoard({
       const r = await sendRoomSmsAction(campId);
       if (!r.ok) return toast(r.error, { tone: "error" });
       toast(
-        `Texted ${people(r.data.sent)} their room${r.data.failed ? `. ${r.data.failed} didn't go; press again to retry.` : r.data.remaining ? `. ${r.data.remaining} still to text.` : ""}`,
+        `Told ${people(r.data.sent + r.data.app)} their room${r.data.app ? ` (${r.data.app} in the app, ${r.data.sent} by text)` : ""}${r.data.failed ? `. ${r.data.failed} didn't go; press again to retry.` : r.data.remaining ? `. ${r.data.remaining} still to text.` : ""}`,
       );
     });
 
@@ -275,7 +278,11 @@ export function AssignBoard({
                   </>
                 ) : (
                   <>
-                    Text <strong className="font-semibold">{people(Math.min(smsPending, 250))}</strong> their room?
+                    Tell <strong className="font-semibold">{people(Math.min(smsPending, 250))}</strong> their room?{" "}
+                    <span className="text-warm-gray">
+                      {smsByApp > 0 ? `${smsByApp} in the app (free), ` : ""}
+                      {Math.min(smsPending, 250) - smsByApp} by text ({Math.min(smsPending, 250) - smsByApp} credits).
+                    </span>
                   </>
                 )}
               </span>
@@ -298,7 +305,7 @@ export function AssignBoard({
             <>
               {smsPending > 0 && (
                 <button type="button" onClick={() => setConfirm("sms")} className={ghost}>
-                  <MessageSquare className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Text {people(smsPending)} their room
+                  <MessageSquare className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" /> Tell {people(smsPending)} their room
                 </button>
               )}
               {waitingAll > 0 && (

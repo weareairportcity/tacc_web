@@ -212,7 +212,7 @@ describe("leaders", () => {
   it("get paid and outstanding and a phone to remind them, but no email, group codes or room labels", async () => {
     const rows = await listPeopleForLeader(leader("fellowship", "Qadash"), camp.id, {});
     for (const row of rows)
-      expect(Object.keys(row).sort()).toEqual(["fellowship", "full_name", "has_room", "id", "paid_pesewas", "pfcc", "phone", "price_pesewas", "roommate", "status"]);
+      expect(Object.keys(row).sort()).toEqual(["app", "fellowship", "full_name", "has_room", "id", "paid_pesewas", "pfcc", "phone", "price_pesewas", "roommate", "status"]);
     expect(rows.find((r) => r.full_name === "Ama Qadash")).toMatchObject({ status: "fully_paid", roommate: "in_group", has_room: true });
 
     const csv = leaderCsv(rows);

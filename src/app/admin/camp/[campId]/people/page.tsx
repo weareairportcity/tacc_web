@@ -44,6 +44,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
           room: null,
           placed: r.has_room,
           last: null,
+          app: r.app,
         }))
       : (await listPeople(camp.id, {})).map((r) => ({
           id: r.id,
@@ -62,6 +63,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
           last: r.last_paid_at ?? r.created_at,
           last_paid: r.last_paid_at ? r.last_paid_pesewas : null,
           registered: r.created_at,
+          app: r.app,
         }));
   } catch (err) {
     if (err instanceof CampError) return <p className="text-sm">{err.message}</p>;
@@ -78,7 +80,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
       key={new URLSearchParams(query).get("q") ?? ""}
       campId={camp.id}
       leader={leader}
-      campName={camp.name}
+      leaderReminders={camp.leader_reminders === 1}
       campLink={`${origin}/camps/${camp.slug}`}
       // From the day before camp, a leader's page leads with Scan.
       scanNow={leader && todayInGhana() >= new Date(Date.parse(`${camp.starts_on}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10) && todayInGhana() <= camp.ends_on}

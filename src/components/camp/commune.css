@@ -27,6 +27,12 @@
   60% { box-shadow: 0 0 0 5px rgba(59, 166, 241, 0); }
 }
 .cm-pulse { animation: cm-pulse 2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+/* "Tap here": the button to press in a drawn step of the app set-up. */
+@keyframes cm-tap {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 166, 241, 0.6); }
+  70% { box-shadow: 0 0 0 9px rgba(59, 166, 241, 0); }
+}
+.cm-tap { animation: cm-tap 1.8s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
 
 @keyframes cm-breathe {
   0%, 100% { opacity: 0.45; transform: scale(0.94); }
@@ -91,7 +97,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cm-rise, .cm-grow, .cm-pulse, .cm-breathe, .cm-drop, .cm-digit { animation: none; }
+  .cm-rise, .cm-grow, .cm-pulse, .cm-tap, .cm-breathe, .cm-drop, .cm-digit { animation: none; }
   .cm-breathe { opacity: 1; }
   .cm-ring, .cm-tick { animation: none; stroke-dashoffset: 0; }
   .cm-spark { display: none; }

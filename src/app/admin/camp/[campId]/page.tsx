@@ -9,6 +9,7 @@ import { getDashboard, getTodayNumbers } from "@/lib/camp/reports";
 import { Legend, StackedBar, formatDate, headlineClass, statusParts, type BarPart } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../access";
+import { APP_STATE_SQL, type AppState } from "@/lib/camp/app-first";
 
 /** "ama.mensah@…" → "Ama". */
 const firstName = (email: string) => {
@@ -41,7 +42,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
   if (!ID.test(campId)) notFound();
   if (staff.role === "leader") redirect(`/leaders/${campId}/people`);
 
-  const [camp, d, t, requests] = await Promise.all([
+  const [camp, d, t, requests, apps, credits] = await Promise.all([
     getCamp(campId),
     getDashboard(campId),
     getTodayNumbers(campId),
@@ -50,8 +51,18 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
       "SELECT kind, COUNT(*) AS n, MIN(created_at) AS oldest FROM camp_requests WHERE camp_id = ? AND status = 'pending' GROUP BY kind",
       [campId],
     ),
+    query<{ app: AppState; n: number }>("app", `SELECT ${APP_STATE_SQL} AS app, COUNT(*) AS n FROM camp_registrations r WHERE r.camp_id = ? AND r.status <> 'cancelled' GROUP BY app`, [campId]),
+    query<{ credits: number | null }>("app", "SELECT SUM(credits) AS credits FROM camp_sms_log WHERE camp_id = ?", [campId]),
   ]);
   if (!camp) notFound();
+  const app = (k: AppState) => apps.find((a) => a.app === k)?.n ?? 0;
+  const appTotal = apps.reduce((n, a) => n + a.n, 0);
+  const appParts: BarPart[] = [
+    { key: "on", value: app("on"), color: "bg-st-paid", label: "Notifications on" },
+    { key: "installed", value: app("installed"), color: "bg-sky-wash", label: "App, notifications off" },
+    { key: "none", value: app("none"), color: "bg-stone-border", label: "Not set up" },
+    { key: "texts", value: app("texts"), color: "bg-[#a8a29e]", label: "Texts only" },
+  ];
 
   const base = `/admin/camp/${camp.id}`;
   const people = `${base}/people`;
@@ -197,6 +208,20 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
               <dd className="text-[15px] font-medium">{cedis(d.money.refunded)}</dd>
             </div>
           </dl>
+        </Panel>
+
+        <Panel title="The Commune app" note={`${(credits[0]?.credits ?? 0).toLocaleString("en-GB")} text credits used`} href={`${base}/texts`}>
+          <p className="text-[15px] leading-snug">
+            <strong className="font-display text-[28px] font-normal tabular-nums">{app("on")}</strong>
+            <span className="text-warm-gray"> of {appTotal}</span> get app notifications, so they don&apos;t cost a text
+          </p>
+          <StackedBar parts={appParts} />
+          <Legend columns={2} parts={appParts} />
+          {app("none") + app("installed") > 0 && (
+            <Link href={`${people}?app=none`} className="mt-auto flex items-center gap-1 border-t border-stone-border pt-3 text-[13px] font-medium">
+              See the {app("none")} not set up <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+            </Link>
+          )}
         </Panel>
 
         <Panel title="Registrations" note={`${week} this week`} href={people}>

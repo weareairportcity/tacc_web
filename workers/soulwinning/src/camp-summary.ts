@@ -1,4 +1,4 @@
-import { sendSms } from "./sms";
+import { logCampSms, sendSms, smsParts } from "./sms";
 import { card, tellGroups, telegramConfigured } from "./telegram";
 import type { AppEnv } from "./util";
 
@@ -150,8 +150,10 @@ export async function sendDailySummaries(env: AppEnv, now = new Date(), force = 
       .run();
     if (claim.meta.changes !== 1) continue;
     const n = await numbers(env, camp.id, day);
-    const ok = await Promise.all(phones.map((p) => sendSms(env, p, summaryText(camp.name, n), "Commune")));
+    const text = summaryText(camp.name, n);
+    const ok = await Promise.all(phones.map((p) => sendSms(env, p, text, "Commune")));
     sent[camp.name] = ok.filter(Boolean).length;
+    await logCampSms(env, camp.id, "summary", sent[camp.name], sent[camp.name] * smsParts(text));
     if (groups) await tellGroups(env, "daily", summaryCard(camp.name, n, now, true));
   }
   return { day, sent };

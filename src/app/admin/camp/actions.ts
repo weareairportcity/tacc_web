@@ -10,7 +10,14 @@ import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
-import { createCamp, getCamp, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone } from "@/lib/camp/camps";
+import { createCamp, getCamp, setAppSwitch, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone } from "@/lib/camp/camps";
+import { sendBroadcast, type Audience } from "@/lib/camp/broadcast";
+import { logCampSms } from "@/lib/camp/sms-log";
+import { smsPartsOf } from "@/lib/sms-plain";
+import { pushMany } from "@/lib/camp/notify";
+import { listPeopleForLeader } from "@/lib/camp/reports";
+import { formatCedis } from "@/lib/camp/money";
+import { todayInGhana } from "@/lib/camp/registrations";
 import { putMedia } from "@/lib/cf";
 import type { CsvError } from "@/lib/camp/csv";
 import { cedisToPesewas } from "@/lib/camp/money";
@@ -133,6 +140,16 @@ export async function setShirtRuleAction(campId: string, on: boolean) {
 }
 
 /** Settings: whether registration asks for a T-shirt size. The scanner stays either way. */
+/** Settings: "attendees set up the app first" and "leaders can send payment reminders". */
+export async function setAppSwitchAction(campId: string, which: "app_required" | "leader_reminders", on: boolean) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    if (which !== "app_required" && which !== "leader_reminders") throw new CampError("Unknown setting.");
+    await setAppSwitch(staff.email, String(campId), which, on === true);
+    return null;
+  });
+}
+
 export async function setShirtsOnAction(campId: string, on: boolean) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
@@ -576,13 +593,67 @@ export async function textPeopleAction(campId: string, registrationIds: string[]
     const to = people.filter((p) => p && p.status !== "cancelled" && /^233\d{9}$/.test(p.phone)).map((p) => p!);
     if (!to.length) throw new CampError("None of them can be texted.");
     let sent = 0;
+    let credits = 0;
     for (let i = 0; i < to.length; i += 10) {
-      const oks = await Promise.all(to.slice(i, i + 10).map((p) => sendSMS(p.phone, coordinatorText(p.full_name, text), COMMUNE_SENDER).catch(() => false)));
-      sent += oks.filter(Boolean).length;
+      await Promise.all(
+        to.slice(i, i + 10).map(async (p) => {
+          const sms = coordinatorText(p.full_name, text);
+          if (await sendSMS(p.phone, sms, COMMUNE_SENDER).catch(() => false)) {
+            sent++;
+            credits += smsPartsOf(sms);
+          }
+        }),
+      );
     }
     if (!sent) throw new CampError("The texts didn't go. Please try again.");
+    await logCampSms({ campId: String(campId), kind: "message", texts: sent, credits, actor: staff.email, note: text });
     await batch("app", [auditStatement({ actor: staff.email, campId: String(campId), action: "people.text", entity: "camp", entityId: String(campId), after: { count: sent, failed: to.length - sent } })]);
     return sent;
+  });
+}
+
+/** Texts: one message to everyone registered, or part of them. appFirst: app notifications for people with the app. */
+export async function broadcastAction(campId: string, audience: Audience, message: string, appFirst: boolean) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await once(staff.email, "broadcastAction", [campId, audience, message]);
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    const r = await sendBroadcast(staff.email, camp, audience, message, appFirst !== false);
+    revalidatePath(`/admin/camp/${camp.id}/texts`);
+    return r;
+  });
+}
+
+/**
+ * Leaders: "Remind the 8 still to pay", as an app notification to the ones
+ * with the app. Only when a coordinator has switched it on in Settings; never
+ * a text (no credits), and at most once a day per person.
+ */
+export async function leaderRemindAction(campId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("leader", "coordinator");
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    if (!camp.leader_reminders) throw new CampError("Payment reminders are switched off for this camp. A coordinator can switch them on in Settings.");
+    const rows = staff.role === "leader" ? await listPeopleForLeader(staff, camp.id, {}) : [];
+    const owing = rows.filter((r) => (r.status === "registered" || r.status === "partially_paid") && r.price_pesewas > r.paid_pesewas);
+    const reachable = owing.filter((r) => r.app === "on");
+    const day = todayInGhana();
+    const { delivered, skipped } = await pushMany(
+      reachable.map((r) => ({
+        registration_id: r.id,
+        kind: "due_soon" as const,
+        title: "A reminder to pay",
+        body: `Hi ${r.full_name.trim().split(/\s+/)[0]}, you still have ${formatCedis(r.price_pesewas - r.paid_pesewas)} to pay for ${camp.name}, due ${new Date(`${camp.payment_due_on}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}. Tap to pay in Commune.`,
+        url: `/camps/${camp.slug}/me#pay`,
+        once: `leader-remind:${r.id}:${day}`,
+      })),
+    );
+    await batch("app", [
+      auditStatement({ actor: staff.email, campId: camp.id, action: "people.remind", entity: "camp", entityId: camp.id, after: { sent: delivered.size, already: skipped.size, no_app: owing.length - reachable.length } }),
+    ]);
+    return { sent: delivered.size, already: skipped.size, noApp: owing.length - reachable.length };
   });
 }
 

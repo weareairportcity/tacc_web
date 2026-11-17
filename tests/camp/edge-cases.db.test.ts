@@ -179,7 +179,7 @@ describe("texting everyone their room", () => {
       sent.push({ to: [to].flat(), text });
       return !text.includes("A2"); // A2's text fails the first time
     };
-    expect(await sendRoomSms(ACTOR, camp, fakeSms)).toEqual({ sent: 2, failed: 1, remaining: 1 });
+    expect(await sendRoomSms(ACTOR, camp, fakeSms)).toEqual({ sent: 2, app: 0, failed: 1, remaining: 1 });
     expect(sent.filter((s) => s.text.includes("A1")).map((s) => s.to)).toEqual(expect.arrayContaining([[ama.phone], [efua.phone]]));
     expect(sent.find((s) => s.to[0] === ama.phone)!.text).toBe(
       `Hi ${ama.full_name.split(" ")[0]}, your room at ${camp.name} is A1 (Hostel). See you at camp! - The Airport City Church`,

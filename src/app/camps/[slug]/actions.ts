@@ -19,7 +19,8 @@ import { campOrigin as origin } from "@/lib/camp/origin";
 import { campAndAttendee, currentAttendee, endAttendeeSession, signedInRegistration, startAttendeeSession } from "@/lib/camp/session";
 import { noteAccess, noteActive } from "@/lib/camp/logs";
 import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
-import { COMMUNE_SENDER, sendSMS } from "@/lib/mnotify";
+import { sendCampText } from "@/lib/camp/sms-log";
+import { markInstalled, setTextsOnly } from "@/lib/camp/app-first";
 import { firstName, SIGN_OFF } from "@/lib/camp/sms";
 import { forgetJoin, rememberJoin } from "@/lib/camp/join-memory";
 import { isHuman } from "@/lib/camp/turnstile";
@@ -63,9 +64,9 @@ async function limitVisitor(name: string, perPhone: number, perAddress: number, 
 }
 
 
-// No link, so each fits one SMS part; the code is what matters, so keep the text.
+// No link, so each fits one SMS part (147 characters for a 5-letter name and a 26-letter camp name).
 const registeredText = (campName: string, name: string, code: string) =>
-  `Hi ${firstName(name)}, you're registered for ${campName}! Your sign-in code is ${formatCode(code)}. Please keep this message, as you'll need the code to sign in. ${SIGN_OFF}`;
+  `Hi ${firstName(name)}, you're registered for ${campName}! Your sign-in code is ${formatCode(code)}. Keep this text to sign in. ${SIGN_OFF}`;
 const newCodeText = (campName: string, name: string, code: string) =>
   `Hi ${firstName(name)}, here is your new sign-in code for ${campName}: ${formatCode(code)}. Your old code will no longer work. ${SIGN_OFF}`;
 
@@ -88,7 +89,7 @@ export async function registerAction(slug: string, input: RegistrationInput, hum
     const { id, code } = created;
     await startAttendeeSession(id, hashCode(code), camp.ends_on);
     // The code is also on screen, so a failed text doesn't block anyone.
-    await sendSMS(input.phone, registeredText(camp.name, input.full_name, code), COMMUNE_SENDER).catch(() => false);
+    await sendCampText(camp.id, "registration", input.phone, registeredText(camp.name, input.full_name, code));
     return { code: formatCode(code) };
   });
 }
@@ -117,7 +118,7 @@ export async function forgotCodeAction(slug: string, phone: string, human?: stri
     await limit(`forgot-phone:${camp.id}:${String(phone).replace(/\D/g, "").slice(-9)}`, 3, 24 * 60 * MINUTE);
     await noteAccess({ actor: "visitor", role: "visitor", event: "lost_code", campId: camp.id });
     const reset = await resetCode(camp.id, phone);
-    if (reset) await sendSMS(reset.phone, newCodeText(camp.name, reset.name, reset.code), COMMUNE_SENDER);
+    if (reset) await sendCampText(camp.id, "code", reset.phone, newCodeText(camp.name, reset.name, reset.code));
     return null;
   });
 }
@@ -402,6 +403,25 @@ export async function pushSubscribeAction(slug: string, subscription: unknown) {
 export async function pushRemoveAction(endpoint: string) {
   return run(async () => {
     await removePushSub(endpoint);
+    return true;
+  });
+}
+
+/** Commune was opened from the Home Screen (or Android said it installed it). */
+export async function appInstalledAction(slug: string, platform: string) {
+  return run(async () => {
+    const { me } = await signedIn(slug);
+    await markInstalled(me.id, String(platform));
+    return true;
+  });
+}
+
+/** "My phone can't do this" (on), or setting the app up after all (off). */
+export async function textsOnlyAction(slug: string, on: boolean) {
+  return run(async () => {
+    const { camp, me } = await signedIn(slug);
+    await setTextsOnly(me.id, on === true);
+    revalidatePath(`/camps/${camp.slug}/me`);
     return true;
   });
 }

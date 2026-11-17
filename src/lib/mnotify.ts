@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { plainSms } from './sms-plain';
 
 // Ensure you have MNOTIFY_API_KEY in your .env file
 const MNOTIFY_API_KEY = process.env.MNOTIFY_API_KEY || '';
@@ -35,7 +36,7 @@ export async function sendSMS(recipient: string | string[], message: string, sen
   const payload = {
     recipient: recipients, // mNotify expects an array
     sender,
-    message: message,
+    message: plainSms(message), // GSM-7 only, so a stray curly quote doesn't double the cost
     is_schedule: 'false',
     schedule_date: ''
   };
@@ -50,6 +51,18 @@ export async function sendSMS(recipient: string | string[], message: string, sen
     const detail = axios.isAxiosError(error) ? (error.response?.data ?? error.message) : String(error);
     console.error(`Error sending SMS to ${formattedPhone}:`, detail);
     return false;
+  }
+}
+
+/** Credits left on the mNotify account, or null if it can't be read right now. */
+export async function smsBalance(): Promise<number | null> {
+  if (!MNOTIFY_API_KEY) return null;
+  try {
+    const r = await fetch(`https://api.mnotify.com/api/balance/sms?key=${encodeURIComponent(MNOTIFY_API_KEY)}`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const data = (await r.json()) as { balance?: unknown };
+    return typeof data.balance === "number" ? data.balance : null;
+  } catch {
+    return null;
   }
 }
 

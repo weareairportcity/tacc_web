@@ -201,13 +201,19 @@ describe("app notifications", () => {
     // Encrypted for this phone only.
     await expect(read(await phone("someone-else"), mine[0].body)).rejects.toThrow();
 
-    // The receipt text has the same link, and the receipt page has the payment.
+    // The app got it, so no text (texts cost credits). The receipt page has the payment.
+    expect(smsSent.find((s) => s.message.includes(checkout.reference))).toBeUndefined();
+    expect(await getReceipt(checkout.reference)).toMatchObject({ full_name: "Yaw Boateng", amount_pesewas: 20000, paid_pesewas: 20000 });
+    expect(await getReceipt("CAMP-0000000000000000")).toBeNull();
+  });
+
+  it("text the receipt to people without the app, with the same link", async () => {
+    const { id } = await registered({ full_name: "Yaw Noapp" });
+    const checkout = await payInFull(id, 20000);
     const text = smsSent.find((s) => s.message.includes(checkout.reference));
     expect(text?.message).toMatch(
       /^Hi Yaw, we've received your payment of GHS 200 for .+\. You have GHS 400 left to pay\. Receipt: https:\/\/commune\.theairportcitychurch\.com\/camps\/r\/CAMP-[0-9A-F]{16} - The Airport City Church$/,
     );
-    expect(await getReceipt(checkout.reference)).toMatchObject({ full_name: "Yaw Boateng", amount_pesewas: 20000, paid_pesewas: 20000 });
-    expect(await getReceipt("CAMP-0000000000000000")).toBeNull();
   });
 
   it("tell coordinators about registrations, and respect what each person turned off", async () => {

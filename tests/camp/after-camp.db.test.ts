@@ -94,7 +94,7 @@ describe("after camp", () => {
       texts.push({ to, text });
       return true;
     });
-    expect(first).toEqual({ sent: 1, failed: 1, remaining: 1 });
+    expect(first).toEqual({ sent: 1, app: 0, failed: 1, remaining: 1 });
     expect(texts[0].to).toBe(came.phone);
     expect(texts[0].text).toContain(`Hi Ama, thank you for coming to ${camp.name}!`);
     expect(texts[0].text).toContain(`https://commune.test/camps/${camp.slug}/feedback/${makeToken("feedback", came.id)}`);
@@ -103,7 +103,7 @@ describe("after camp", () => {
       texts.push({ to, text: "" });
       return true;
     });
-    expect(second).toEqual({ sent: 1, failed: 0, remaining: 0 });
+    expect(second).toEqual({ sent: 1, app: 0, failed: 0, remaining: 0 });
     expect(texts.map((t) => t.to)).toEqual([came.phone, alsoCame.phone]);
     await expect(sendThanks(ACTOR, camp, "https://commune.test", async () => true)).rejects.toThrow("Everyone who arrived");
     expect((await feedbackSummary(camp.id)).texted).toBe(2);

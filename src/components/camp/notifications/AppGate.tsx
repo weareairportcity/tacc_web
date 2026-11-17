@@ -1,0 +1,577 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Bell, BookOpen, Check, ChevronLeft, ChevronRight, Copy, EllipsisVertical, Ellipsis, Lock, Plus, Settings, Share, Smartphone, SquarePlus } from "lucide-react";
+import { Busy } from "@/components/camp/brand";
+import { ErrorText, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
+import { useOneAtATime } from "@/components/camp/useOneAtATime";
+import { cn } from "@/lib/utils";
+import { currentSubscription, isInstalled, platform } from "./push-client";
+import { usePush, type PushActions } from "./usePush";
+
+type Result = { ok: true; data: unknown } | { ok: false; error: string };
+
+/** Which browser the page is open in, as far as setting up Commune goes. */
+type Browser = "safari" | "chrome-ios" | "other-ios" | "android" | "inapp" | "desktop";
+
+const IN_APP: [RegExp, string][] = [
+  [/Instagram/i, "Instagram"],
+  [/FBAN|FBAV|FB_IAB|FBIOS/i, "Facebook"],
+  [/WhatsApp/i, "WhatsApp"],
+  [/Snapchat/i, "Snapchat"],
+  [/musical_ly|TikTok|BytedanceWebview/i, "TikTok"],
+  [/Twitter/i, "X"],
+  [/\bLine\//i, "LINE"],
+];
+
+function whichBrowser(): { browser: Browser; app: string } {
+  const ua = navigator.userAgent;
+  const inApp = IN_APP.find(([re]) => re.test(ua));
+  if (inApp) return { browser: "inapp", app: inApp[1] };
+  const p = platform();
+  if (p === "ios") {
+    if (/CriOS/.test(ua)) return { browser: "chrome-ios", app: "" };
+    if (/FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|YaBrowser/.test(ua)) return { browser: "other-ios", app: "" };
+    return { browser: "safari", app: "" };
+  }
+  return { browser: p === "android" ? "android" : "desktop", app: "" };
+}
+
+/**
+ * Records that Commune was opened from the Home Screen (or that Android just
+ * installed it), once a visit. Rendered on every attendee page, gated or not,
+ * so Coordinators see who has the app.
+ */
+export function AppTracker({ known, installed }: { known: boolean; installed: (platform: string) => Promise<Result> }) {
+  const router = useRouter();
+  useEffect(() => {
+    const record = async () => {
+      try {
+        if (sessionStorage.getItem("commune.app.seen") === "1") return;
+        sessionStorage.setItem("commune.app.seen", "1");
+      } catch {}
+      const r = await installed(platform());
+      if (r.ok) router.refresh();
+    };
+    if (!known && isInstalled()) void record();
+    const onInstalled = () => void installed(platform()).then((r) => r.ok && router.refresh());
+    window.addEventListener("appinstalled", onInstalled);
+    return () => window.removeEventListener("appinstalled", onInstalled);
+  }, [known, installed, router]);
+  return null;
+}
+
+/**
+ * Before their page: put Commune on the Home Screen, then turn on
+ * notifications. One job per screen, drawn the way the phone shows it, so
+ * nobody has to guess. "My phone can't do this" always lets them through to
+ * texts instead (and tells the coordinators who they are).
+ */
+export function AppGate({
+  startUrl,
+  first,
+  campName,
+  serverInstalled,
+  serverPush,
+  actions,
+  textsOnly,
+}: {
+  /** Where the Home Screen app should start: signs them in and opens their page. */
+  startUrl: string | null;
+  first: string;
+  campName: string;
+  /** Commune has been opened from a Home Screen before (on any phone). */
+  serverInstalled: boolean;
+  /** A phone of theirs has notifications on. */
+  serverPush: boolean;
+  actions: PushActions;
+  textsOnly: () => Promise<Result>;
+}) {
+  const router = useRouter();
+  const push = usePush(actions);
+  const [where, setWhere] = useState<{ browser: Browser; app: string } | null>(null);
+  const [finishing, setFinishing] = useState(false);
+  const synced = useRef(false);
+
+  useEffect(() => {
+    // The browser is only known in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWhere(whichBrowser());
+    // iPhones save the address on screen as the app's start: make it the one that signs them in.
+    if (startUrl && !isInstalled()) window.history.replaceState(window.history.state, "", startUrl);
+  }, [startUrl]);
+
+  // Notifications are on in this browser but the server doesn't know yet (or just turned on): save, then open the page.
+  useEffect(() => {
+    if (!push.ready || !push.on || synced.current) return;
+    if (serverPush && (serverInstalled || push.installed)) return;
+    synced.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFinishing(true);
+    void (async () => {
+      const sub = await currentSubscription().catch(() => null);
+      if (sub) await actions.save(sub.toJSON());
+      router.refresh();
+    })();
+  }, [push.ready, push.on, push.installed, serverPush, serverInstalled, actions, router]);
+
+  const installedHere = push.installed;
+  const installDone = serverInstalled || installedHere;
+  const step: 1 | 2 = installDone ? 2 : 1;
+
+  if (!push.ready || !where) return <Shell first={first} campName={campName} step={step} title="Setting up Commune" lead="One moment…" />;
+
+  if (finishing || (push.on && installDone)) {
+    return (
+      <Shell first={first} campName={campName} step={3} title="You're all set" lead="Opening your page…">
+        <p role="status" className="flex items-center gap-3 rounded-2xl bg-white p-5 text-[17px] shadow-seline-hero">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-st-paid text-white">
+            <Check className="h-5 w-5" strokeWidth={2.4} aria-hidden="true" />
+          </span>
+          Updates about camp will come to your phone now.
+        </p>
+      </Shell>
+    );
+  }
+
+  const escape = <TextsInstead textsOnly={textsOnly} />;
+
+  // Opened inside WhatsApp, Instagram, Facebook…: those can't add anything to the Home Screen.
+  if (where.browser === "inapp" && !installedHere) {
+    const real = push.platform === "ios" ? "Safari" : "Chrome";
+    return (
+      <Shell first={first} campName={campName} step={1} title={`Open this in ${real}`} lead={`To get updates about camp, add Commune to your phone. You opened this inside ${where.app}, and that only works from ${real}.`}>
+        <Steps>
+          <Step n={1} text={<>Tap <Key><Ellipsis className="h-4 w-4" aria-label="the three dots" /></Key> at the top or bottom of the screen.</>} art={<InAppArt />} />
+          <Step n={2} text={<>Tap <strong className="font-semibold">Open in {real}</strong> (or <strong className="font-semibold">Open in browser</strong>).</>} />
+        </Steps>
+        <CopyLink label={`Or copy the link and paste it into ${real}`} />
+        {escape}
+      </Shell>
+    );
+  }
+
+  // Step 2: on the Home Screen (or Android, where the browser can do notifications too).
+  const canNotifyHere = push.supported && !push.needsInstallFirst;
+  if (installedHere || (installDone && canNotifyHere && where.browser === "android")) {
+    return (
+      <Shell
+        first={first}
+        campName={campName}
+        step={2}
+        title="Turn on notifications"
+        lead="So you get updates about camp: your receipts, your room and news from the coordinators."
+      >
+        <NotifyStep push={push} />
+        {/* In the app the phone can do this: the way out is only for phones that truly can't. */}
+        {(!push.supported || push.permission === "denied") && escape}
+      </Shell>
+    );
+  }
+
+  // Added before, but this is the browser: open the app instead.
+  if (serverInstalled && where.browser !== "android") {
+    return (
+      <Shell first={first} campName={campName} step={2} title="Open Commune from your Home Screen" lead="Commune is already on your phone. Open it there and turn on notifications, so you get updates about camp.">
+        <Steps>
+          <Step n={1} text={<>Go to your Home Screen and tap <strong className="font-semibold">Commune</strong>.</>} art={<HomeScreenArt />} />
+          <Step n={2} text={<>Tap <strong className="font-semibold">Turn on notifications</strong>, then <strong className="font-semibold">Allow</strong>.</>} />
+        </Steps>
+        <details className="group text-[15px]">
+          <summary className="cm-press flex min-h-11 cursor-pointer list-none items-center gap-1.5 font-medium underline decoration-stone-muted underline-offset-[3px] [&::-webkit-details-marker]:hidden">
+            Can&apos;t find it? Add it again
+          </summary>
+          <div className="mt-3">
+            <InstallSteps browser={where.browser} push={push} />
+          </div>
+        </details>
+        {escape}
+      </Shell>
+    );
+  }
+
+  // Step 1: add to the Home Screen.
+  return (
+    <Shell
+      first={first}
+      campName={campName}
+      step={1}
+      title="Add Commune to your phone"
+      lead="So you get updates about camp: your receipts, your room and news from the coordinators. It's free and takes a minute."
+    >
+      <InstallSteps browser={where.browser} push={push} />
+      {escape}
+    </Shell>
+  );
+}
+
+function InstallSteps({ browser, push }: { browser: Browser; push: ReturnType<typeof usePush> }) {
+  const [pending, start] = useOneAtATime();
+  if (browser === "safari")
+    return (
+      <Steps>
+        <Step
+          n={1}
+          text={
+            <>
+              Tap the Share button <Key><Share className="h-4 w-4" aria-label="Share" /></Key> at the bottom of the screen.
+            </>
+          }
+          note={
+            <>
+              Don&apos;t see it? Tap <Key><Ellipsis className="h-4 w-4" aria-label="the three dots" /></Key> first, then Share.
+            </>
+          }
+          art={<SafariBarArt />}
+        />
+        <Step n={2} text={<>Scroll down and tap <strong className="font-semibold">Add to Home Screen</strong>.</>} art={<ShareSheetArt />} />
+        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt />} />
+        <Step n={4} text={<>Open <strong className="font-semibold">Commune</strong> from your Home Screen.</>} art={<HomeScreenArt />} />
+      </Steps>
+    );
+  if (browser === "chrome-ios")
+    return (
+      <Steps>
+        <Step n={1} text={<>Tap the Share button <Key><Share className="h-4 w-4" aria-label="Share" /></Key> at the top right, next to the address.</>} art={<ChromeIosArt />} />
+        <Step n={2} text={<>Scroll down and tap <strong className="font-semibold">Add to Home Screen</strong>.</>} art={<ShareSheetArt />} />
+        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt />} />
+        <Step n={4} text={<>Open <strong className="font-semibold">Commune</strong> from your Home Screen.</>} art={<HomeScreenArt />} />
+      </Steps>
+    );
+  if (browser === "other-ios")
+    return (
+      <>
+        <Steps>
+          <Step n={1} text={<>Open this page in <strong className="font-semibold">Safari</strong>. Commune is added to the Home Screen from there.</>} />
+        </Steps>
+        <CopyLink label="Copy the link, then paste it into Safari" />
+      </>
+    );
+  // Android: one tap when Chrome offers it; otherwise its menu.
+  if (push.installable)
+    return (
+      <div className="flex flex-col gap-3">
+        <button type="button" disabled={pending} onClick={() => start(push.install)} className={`${primaryButtonClass} cm-tap h-14 w-full text-[17px]`}>
+          <Smartphone className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Add Commune to my phone
+        </button>
+        <p className="text-center text-[15px] text-warm-gray">Then tap <strong className="font-semibold text-ink-black">Install</strong> when your phone asks.</p>
+      </div>
+    );
+  return (
+    <Steps>
+      <Step n={1} text={<>Tap the menu <Key><EllipsisVertical className="h-4 w-4" aria-label="the three dots" /></Key> at the top right.</>} art={<AndroidMenuArt />} />
+      <Step n={2} text={<>Tap <strong className="font-semibold">Add to Home screen</strong> or <strong className="font-semibold">Install app</strong>, then <strong className="font-semibold">Install</strong>.</>} />
+      <Step n={3} text={<>Open <strong className="font-semibold">Commune</strong> from your Home Screen.</>} art={<HomeScreenArt />} />
+    </Steps>
+  );
+}
+
+function NotifyStep({ push }: { push: ReturnType<typeof usePush> }) {
+  const [pending, start] = useOneAtATime();
+  if (!push.supported)
+    return (
+      <p className="rounded-2xl bg-white p-5 text-[17px] leading-relaxed shadow-seline-hero">
+        This phone can&apos;t get notifications from Commune.
+        {push.platform === "ios" ? " iPhones need iOS 16.4 or newer: update in Settings, General, Software Update." : ""} Or tap{" "}
+        <strong className="font-semibold">My phone can&apos;t do this</strong> below to get texts instead.
+      </p>
+    );
+  if (push.permission === "denied")
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-[17px] leading-relaxed">Notifications are switched off for Commune. Switch them on in your phone&apos;s settings:</p>
+        <Steps>
+          {push.platform === "ios" ? (
+            <>
+              <Step n={1} text={<>Open <Key><Settings className="h-4 w-4" aria-hidden="true" /></Key> <strong className="font-semibold">Settings</strong>, then <strong className="font-semibold">Notifications</strong>.</>} />
+              <Step n={2} text={<>Tap <strong className="font-semibold">Commune</strong> and switch on <strong className="font-semibold">Allow Notifications</strong>.</>} />
+              <Step n={3} text={<>Come back to Commune.</>} />
+            </>
+          ) : (
+            <>
+              <Step n={1} text={<>Press and hold the <strong className="font-semibold">Commune</strong> icon, then tap <strong className="font-semibold">App info</strong>.</>} />
+              <Step n={2} text={<>Tap <strong className="font-semibold">Notifications</strong> and switch them on.</>} />
+              <Step n={3} text={<>Come back to Commune.</>} />
+            </>
+          )}
+        </Steps>
+        <button type="button" onClick={() => window.location.reload()} className={`${secondaryButtonClass} h-12 w-full text-[15px]`}>
+          I&apos;ve switched them on
+        </button>
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-3">
+      <button type="button" disabled={pending} aria-busy={pending} onClick={() => start(push.enable)} className={`${primaryButtonClass} cm-tap h-14 w-full text-[17px]`}>
+        <Busy pending={pending} text="Turning on…">
+          <Bell className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" /> Turn on notifications
+        </Busy>
+      </button>
+      <p className="text-center text-[15px] text-warm-gray">
+        Then tap <strong className="font-semibold text-ink-black">Allow</strong> when your phone asks.
+      </p>
+      <ErrorText>{push.error}</ErrorText>
+    </div>
+  );
+}
+
+function TextsInstead({ textsOnly }: { textsOnly: () => Promise<Result> }) {
+  const router = useRouter();
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState("");
+  const [pending, start] = useOneAtATime();
+  const go = useCallback(
+    () =>
+      start(async () => {
+        const r = await textsOnly();
+        if (!r.ok) return setError(r.error);
+        router.refresh();
+      }),
+    [start, textsOnly, router],
+  );
+  if (!asking)
+    return (
+      <button type="button" onClick={() => setAsking(true)} className="cm-press mx-auto h-11 px-3 text-[15px] text-warm-gray underline decoration-stone-muted underline-offset-[3px]">
+        My phone can&apos;t do this
+      </button>
+    );
+  return (
+    <div className="cm-pop flex flex-col gap-3 rounded-2xl border border-stone-border bg-white p-5">
+      <p className="text-[17px] font-medium">Get texts instead?</p>
+      <p className="text-[15px] leading-relaxed text-warm-gray">We&apos;ll text you your receipts and your room. You can still set up the app later from your page.</p>
+      <ErrorText>{error}</ErrorText>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setAsking(false)} className={`${secondaryButtonClass} h-12 flex-1 text-[15px]`}>
+          Keep trying
+        </button>
+        <button type="button" disabled={pending} onClick={go} className="cm-press h-12 flex-1 rounded-full bg-soot px-4 text-[15px] font-medium text-white disabled:opacity-60">
+          <Busy pending={pending} text="One moment…">Use texts</Busy>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CopyLink({ label }: { label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        navigator.clipboard
+          ?.writeText(window.location.href.replace(/\?.*$/, ""))
+          .then(() => setCopied(true))
+          .catch(() => undefined)
+      }
+      className={`${secondaryButtonClass} h-12 w-full text-[15px]`}
+    >
+      {copied ? <Check className="h-4 w-4 text-st-paid" strokeWidth={2.4} aria-hidden="true" /> : <Copy className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />}
+      {copied ? "Link copied" : label}
+    </button>
+  );
+}
+
+// ─── Layout ──────────────────────────────────────────────────────────────────
+
+function Shell({ first, campName, step, title, lead, children }: { first: string; campName: string; step: 1 | 2 | 3; title: string; lead: string; children?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-6 pt-2">
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-warm-gray">
+          Hi {first} · {campName}
+        </p>
+        <Progress step={step} />
+        <h1 className="cm-rise font-display text-[34px] font-normal leading-[1.1] tracking-[-0.022em]">{title}</h1>
+        <p className="text-[17px] leading-relaxed text-[#57534e]">{lead}</p>
+      </div>
+      {children}
+      <p className="flex items-center justify-center gap-1.5 text-[13px] text-warm-gray">
+        <Lock className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" /> Your page opens when this is done.
+      </p>
+    </div>
+  );
+}
+
+function Progress({ step }: { step: 1 | 2 | 3 }) {
+  const items = ["Add to Home Screen", "Turn on notifications"];
+  return (
+    <ol aria-label="Setting up Commune" className="grid grid-cols-2 gap-2">
+      {items.map((label, i) => {
+        const n = i + 1;
+        const done = step > n;
+        const now = step === n;
+        return (
+          <li key={label} className="flex flex-col gap-1.5">
+            <span className={cn("h-1.5 rounded-full", done ? "bg-st-paid" : now ? "bg-cyan-edge" : "bg-stone-border")} />
+            <span className={cn("flex items-center gap-1 text-[13px]", now ? "font-medium text-ink-black" : "text-warm-gray")}>
+              {done && <Check className="h-3.5 w-3.5 text-st-paid" strokeWidth={2.6} aria-hidden="true" />}
+              {n}. {label}
+              <span className="sr-only">{done ? ", done" : now ? ", now" : ""}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function Steps({ children }: { children: React.ReactNode }) {
+  return <ol className="flex flex-col gap-3">{children}</ol>;
+}
+
+function Step({ n, text, note, art }: { n: number; text: React.ReactNode; note?: React.ReactNode; art?: React.ReactNode }) {
+  return (
+    <li className="cm-rise flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-seline-hero" style={{ animationDelay: `${n * 60}ms` }}>
+      <div className="flex items-start gap-3">
+        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-soot font-display text-[16px] text-white" aria-hidden="true">
+          {n}
+        </span>
+        <span className="flex flex-col gap-1 pt-1">
+          <span className="text-[17px] leading-snug">{text}</span>
+          {note && <span className="text-[14px] leading-snug text-warm-gray">{note}</span>}
+        </span>
+      </div>
+      {art && (
+        <div aria-hidden="true" className="overflow-hidden rounded-[14px] bg-stone-canvas">
+          {art}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** A button drawn inside a sentence, the way it looks on the phone. */
+function Key({ children }: { children: React.ReactNode }) {
+  return <span className="mx-0.5 inline-flex h-7 min-w-7 items-center justify-center rounded-[8px] border border-stone-border bg-white px-1 align-[-7px] text-cyan-deep">{children}</span>;
+}
+
+// ─── Drawings: what the phone shows, with the thing to tap glowing ────────────
+
+const Glow = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <span className={cn("cm-tap flex items-center justify-center rounded-full border-2 border-cyan-edge bg-cyan-tint text-cyan-deep", className)}>{children}</span>
+);
+
+function SafariBarArt() {
+  return (
+    <div className="flex flex-col gap-2 px-4 pb-4 pt-3">
+      <div className="mx-auto h-8 w-full max-w-[300px] rounded-[10px] bg-white text-center text-[12px] leading-8 text-warm-gray shadow-sm">commune.theairportcitychurch.com</div>
+      <div className="mx-auto flex w-full max-w-[300px] items-center justify-between rounded-[14px] bg-white px-4 py-2 text-[#8a8580] shadow-sm">
+        <ChevronLeft className="h-5 w-5" strokeWidth={1.8} />
+        <ChevronRight className="h-5 w-5" strokeWidth={1.8} />
+        <Glow className="h-10 w-10">
+          <Share className="h-5 w-5" strokeWidth={2} />
+        </Glow>
+        <BookOpen className="h-5 w-5" strokeWidth={1.8} />
+        <span className="h-5 w-5 rounded-[5px] border-2 border-current" />
+      </div>
+    </div>
+  );
+}
+
+function ChromeIosArt() {
+  return (
+    <div className="px-4 py-3">
+      <div className="mx-auto flex w-full max-w-[300px] items-center gap-2 rounded-[12px] bg-white px-3 py-2 shadow-sm">
+        <span className="h-7 flex-1 truncate rounded-full bg-stone-canvas px-3 text-[12px] leading-7 text-warm-gray">commune.theairportcitychurch.com</span>
+        <Glow className="h-9 w-9">
+          <Share className="h-[18px] w-[18px]" strokeWidth={2} />
+        </Glow>
+      </div>
+    </div>
+  );
+}
+
+function ShareSheetArt() {
+  const row = "flex h-10 items-center justify-between px-3.5 text-[14px]";
+  return (
+    <div className="px-4 py-3">
+      <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[14px] bg-white shadow-sm">
+        <div className={cn(row, "text-warm-gray")}>
+          Copy <Copy className="h-4 w-4" strokeWidth={1.8} />
+        </div>
+        <div className={cn(row, "border-t border-stone-border text-warm-gray")}>
+          Add to Reading List <BookOpen className="h-4 w-4" strokeWidth={1.8} />
+        </div>
+        <div className={cn(row, "cm-tap m-1 rounded-[10px] border-2 border-cyan-edge bg-cyan-tint font-medium text-ink-black")}>
+          Add to Home Screen <SquarePlus className="h-[18px] w-[18px] text-cyan-deep" strokeWidth={2} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddArt() {
+  return (
+    <div className="px-4 py-3">
+      <div className="mx-auto w-full max-w-[300px] rounded-[14px] bg-white p-3 shadow-sm">
+        <div className="flex items-center justify-between text-[14px]">
+          <span className="text-cyan-deep">Cancel</span>
+          <span className="font-medium">Add to Home Screen</span>
+          <Glow className="h-8 px-3 text-[14px] font-semibold">Add</Glow>
+        </div>
+        <div className="mt-3 flex items-center gap-3 border-t border-stone-border pt-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/commune/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 rounded-[10px]" />
+          <span className="text-[15px]">Commune</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeScreenArt() {
+  return (
+    <div className="flex justify-center px-4 py-4">
+      <div className="grid grid-cols-4 gap-x-4 gap-y-2">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="flex flex-col items-center gap-1">
+            <span className="h-11 w-11 rounded-[12px] bg-stone-border" />
+            <span className="h-1.5 w-8 rounded-full bg-stone-border" />
+          </span>
+        ))}
+        <span className="flex flex-col items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/commune/icon-192.png" alt="" width={44} height={44} className="cm-tap h-11 w-11 rounded-[12px] ring-2 ring-cyan-edge" />
+          <span className="text-[11px] font-medium">Commune</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AndroidMenuArt() {
+  return (
+    <div className="px-4 py-3">
+      <div className="mx-auto w-full max-w-[300px]">
+        <div className="flex items-center gap-2 rounded-[12px] bg-white px-3 py-2 shadow-sm">
+          <span className="h-7 flex-1 truncate rounded-full bg-stone-canvas px-3 text-[12px] leading-7 text-warm-gray">commune.theairportcitychurch.com</span>
+          <Glow className="h-9 w-9">
+            <EllipsisVertical className="h-[18px] w-[18px]" strokeWidth={2} />
+          </Glow>
+        </div>
+        <div className="ml-auto mt-2 w-[190px] overflow-hidden rounded-[12px] bg-white text-[14px] shadow-sm">
+          <div className="px-3.5 py-2.5 text-warm-gray">New tab</div>
+          <div className="cm-tap m-1 flex items-center gap-2 rounded-[8px] border-2 border-cyan-edge bg-cyan-tint px-2.5 py-2 font-medium">
+            <Plus className="h-4 w-4 text-cyan-deep" strokeWidth={2.2} /> Add to Home screen
+          </div>
+          <div className="px-3.5 py-2.5 text-warm-gray">Settings</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InAppArt() {
+  return (
+    <div className="px-4 py-3">
+      <div className="mx-auto flex w-full max-w-[300px] items-center justify-between rounded-[12px] bg-white px-3 py-2 text-[13px] text-warm-gray shadow-sm">
+        <span>Done</span>
+        <span className="truncate px-2">commune.theairportcitychurch.com</span>
+        <Glow className="h-9 w-9">
+          <Ellipsis className="h-[18px] w-[18px]" strokeWidth={2} />
+        </Glow>
+      </div>
+    </div>
+  );
+}

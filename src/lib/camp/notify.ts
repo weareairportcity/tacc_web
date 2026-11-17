@@ -22,6 +22,30 @@ async function send(body: Record<string, unknown>) {
 }
 
 export const notifyStaff = (kind: StaffKind, m: Message) => send({ to: "staff", kind, ...m });
+
+/** App notification kinds that can go to many attendees at once. "messages": coordinators' messages and the thank-you. */
+export type ManyKind = "room_ready" | "request_answered" | "messages" | "due_soon";
+export type PushItem = { registration_id: string; kind: ManyKind; title: string; body: string; url: string; once?: string };
+
+/**
+ * App notifications to many attendees, each with its own words. Answers who
+ * got it on at least one phone, so only the rest are texted. If the Worker
+ * can't be reached, nobody counts as reached and everyone is texted as before.
+ */
+export async function pushMany(items: PushItem[]): Promise<{ delivered: Set<string>; skipped: Set<string> }> {
+  const delivered = new Set<string>();
+  const skipped = new Set<string>();
+  for (let i = 0; i < items.length; i += 1000) {
+    try {
+      const r = await post<{ delivered: string[]; skipped: string[] }>("/v1/admin/camp/notify-many", { items: items.slice(i, i + 1000) });
+      r.delivered.forEach((id) => delivered.add(id));
+      r.skipped.forEach((id) => skipped.add(id));
+    } catch (err) {
+      console.error("notify many", err);
+    }
+  }
+  return { delivered, skipped };
+}
 export const notifyAttendee = (registrationId: string, kind: AttendeeKind, m: Message) => send({ to: "attendee", kind, registration_id: registrationId, ...m });
 
 const people = (campId: string, registrationId: string) => `/admin/camp/${campId}/people?person=${registrationId}`;
@@ -85,9 +109,3 @@ export const cancelled = (r: { id: string; camp_id: string; full_name: string; p
 export const requestAnswered = (registrationId: string, slug: string, text: string) =>
   notifyAttendee(registrationId, "request_answered", { title: "Your request was answered", body: text, url: `/camps/${slug}/me` });
 
-export const roomReady = (registrationId: string, slug: string, campName: string, label: string, type: string) =>
-  notifyAttendee(registrationId, "room_ready", {
-    title: "Your room is ready",
-    body: `You're in ${label} (${type}) at ${campName}.`,
-    url: `/camps/${slug}/me/room`,
-  });

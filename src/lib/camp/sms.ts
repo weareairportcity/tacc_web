@@ -1,8 +1,11 @@
 /**
  * Every Commune text greets the person by first name and signs off with the
  * church. Plain characters only: a "·" or curly quote makes each SMS part
- * hold 70 characters instead of 160, so it costs more.
+ * hold 70 characters instead of 160, so it costs more. sendSMS swaps them
+ * out (plainSms), so a coordinator typing on an iPhone stays cheap too.
  */
+
+import { smsPartsOf } from "@/lib/sms-plain";
 
 export const SIGN_OFF = "- The Airport City Church";
 
@@ -14,5 +17,5 @@ export const coordinatorText = (fullName: string, message: string) => `Hi ${firs
 /** What a coordinator can write so the whole text stays within three parts. */
 export const MAX_COORDINATOR_MESSAGE = 400;
 
-/** SMS parts for plain text (GSM-7): 160 in one part, 153 per part after that. */
-export const smsParts = (text: string) => (text.length <= 160 ? 1 : Math.ceil(text.length / 153));
+/** SMS parts as sent: the text is made plain first (see plainSms), then 160 in one part, 153 per part after that. */
+export const smsParts = smsPartsOf;

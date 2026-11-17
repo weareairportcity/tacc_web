@@ -54,6 +54,7 @@ export default async function RoomsPage({
         lanes={lanes}
         roomTypes={roomTypes}
         smsPending={smsPending.length}
+        smsByApp={smsPending.slice(0, 250).filter((p) => p.has_push).length}
         startPool={query.pool ?? null}
         startWho={query.who === "male" || query.who === "female" ? query.who : ""}
         startType={query.type ?? ""}

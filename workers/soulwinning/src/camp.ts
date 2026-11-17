@@ -1,6 +1,6 @@
 import * as ep from "./expresspay";
 import { bulkPaymentReceived, paymentFailed, paymentProblem, paymentReceived } from "./notify";
-import { sendSms } from "./sms";
+import { logCampSms, sendSms, smsParts } from "./sms";
 import { HttpError, UUID, json, nowIso, readJson, timingSafeEqual, type AppEnv } from "./util";
 
 /**
@@ -157,7 +157,8 @@ async function flagPayment(env: AppEnv, p: Payment, flag: string, raw: string, d
   ]);
   if (env.ALERT_PHONE) {
     const why = flag === "amount_mismatch" ? "the amount paid doesn't match what was asked" : flag === "over_balance" ? "it was paid after the balance was already covered" : "it needs checking";
-    await sendSms(env, env.ALERT_PHONE, `Commune: a payment needs a look because ${why}. Reference: ${p.reference}. Please check Money in Commune. - The Airport City Church`, "Commune");
+    const text = `Commune: a payment needs a look because ${why}. Reference: ${p.reference}. Please check Money in Commune. - The Airport City Church`;
+    if ((await sendSms(env, env.ALERT_PHONE, text, "Commune")) && campId) await logCampSms(env, campId, "alert", 1, smsParts(text));
   }
   await paymentProblem(env, p.registration_id, flag, p);
 }
