@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { formatInTimeZone } from "date-fns-tz";
 import { currentRole } from "@/lib/grace/auth";
-import { listNotes, listOriginals, type Original, type WallNote } from "@/lib/grace/drive";
+import { listNotes, type WallNote } from "@/lib/grace/drive";
 import { lock } from "./actions";
 import { CodeGate } from "./CodeGate";
 import { ExportPdfButton } from "./ExportPdfButton";
-import { ExportZipButton } from "./ExportZipButton";
 import { NoteCard } from "./NoteCard";
 
 export const metadata: Metadata = {
@@ -14,7 +13,6 @@ export const metadata: Metadata = {
 };
 
 const photoUrl = (id: string) => `/api/grace/photo?id=${encodeURIComponent(id)}`;
-const originalUrl = (id: string) => `/api/grace/original?id=${encodeURIComponent(id)}`;
 
 /**
  * The private wall. Without a valid code cookie this renders only the code
@@ -25,11 +23,8 @@ export default async function WallPage() {
   if (!role) return <CodeGate />;
 
   let notes: WallNote[];
-  // Only the admin can export, so only the admin's page lists the originals.
-  let originals = new Map<string, Original[]>();
   try {
     notes = await listNotes();
-    if (role === "admin" && notes.length) originals = await listOriginals(notes.map((n) => n.id));
   } catch (err) {
     console.error("[grace/wall]", err);
     return (
@@ -62,23 +57,6 @@ export default async function WallPage() {
                 sentAt,
                 photoUrls: previewIds.map(photoUrl),
               }))}
-            />
-          )}
-          {role === "admin" && notes.length > 0 && (
-            <ExportZipButton
-              notes={notes.map(({ id, name, letter, sentAt, previewIds }) => {
-                const files = originals.get(id) ?? [];
-                return {
-                  name,
-                  letter,
-                  sentAt,
-                  photos: Array.from({ length: Math.max(files.length, previewIds.length) }, (_, i) => ({
-                    originalUrl: files[i] ? originalUrl(files[i].id) : null,
-                    originalName: files[i]?.name ?? null,
-                    previewUrl: previewIds[i] ? photoUrl(previewIds[i]) : null,
-                  })),
-                };
-              })}
             />
           )}
           <form action={lock}>

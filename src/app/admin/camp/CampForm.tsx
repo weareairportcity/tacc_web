@@ -36,7 +36,7 @@ const STATUS_HINTS: Record<string, string> = {
   draft: "Draft: only coordinators can see it.",
   open: "Open: shown on /camps. Takes registrations between the dates above.",
   closed: "Closed: no new registrations. People can still pay and sign in.",
-  archived: "Archived: off the all-camps list. Direct links still work.",
+  archived: "Archived: hidden from attendees.",
 };
 
 /** Create a camp (no `camp`) or edit one. */
