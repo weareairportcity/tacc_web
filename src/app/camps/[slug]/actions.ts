@@ -400,7 +400,7 @@ export async function pushSubscribeAction(slug: string, subscription: unknown) {
   });
 }
 
-/** Notifications off on this phone, for the attendee only: Commune Team on the same phone keeps its own. */
+/** Notifications off on this phone, for the attendee only: the team's app on the same phone keeps its own. */
 export async function pushRemoveAction(endpoint: string) {
   return run(async () => {
     const me = await signedInRegistration();

@@ -28,7 +28,7 @@ export async function teamGate(staff: Staff, campName: string) {
     gate: (
       <div className="mx-auto max-w-xl px-5 py-6">
         <AppGate
-          variant="team"
+          app={{ kind: "team", name: "Commune Team", icon: "/commune/team-icon-192.png" }}
           why={WHY[leader ? "leader" : "coordinator"]}
           startUrl={null}
           first={name}

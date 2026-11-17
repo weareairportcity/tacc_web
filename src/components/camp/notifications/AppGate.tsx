@@ -25,12 +25,13 @@ const IN_APP: [RegExp, string][] = [
   [/\bLine\//i, "LINE"],
 ];
 
-/** The two Home Screen apps, in the words and icons the steps use. */
-type App = { kind: AppKind; name: string; icon: string };
-const APPS: Record<AppKind, App> = {
-  attendee: { kind: "attendee", name: "Commune", icon: "/commune/icon-192.png" },
-  team: { kind: "team", name: "Commune Team", icon: "/commune/team-icon-192.png" },
-};
+/**
+ * The Home Screen app this screen is for, in the words and icon the steps use.
+ * Passed in from the server so attendees' pages never carry the team app's
+ * name or icon.
+ */
+export type App = { kind: AppKind; name: string; icon: string };
+const ATTENDEE_APP: App = { kind: "attendee", name: "Commune", icon: "/commune/icon-192.png" };
 
 function whichBrowser(): { browser: Browser; app: string } {
   const ua = navigator.userAgent;
@@ -77,7 +78,7 @@ export function AppTracker({ known, installed, kind = "attendee" }: { known: boo
  * texts instead (and tells the coordinators who they are).
  */
 export function AppGate({
-  variant = "attendee",
+  app = ATTENDEE_APP,
   why,
   startUrl,
   first,
@@ -87,8 +88,8 @@ export function AppGate({
   actions,
   textsOnly,
 }: {
-  /** "team": Commune Team, for coordinators and leaders (no texts-instead way out). */
-  variant?: AppKind;
+  /** Which app: attendees' Commune by default; the team's is passed in from its own pages. */
+  app?: App;
   /** Why they're asked, after "So you". Defaults to the attendee's camp updates. */
   why?: string;
   /** Where the Home Screen app should start: signs them in and opens their page. */
@@ -105,7 +106,7 @@ export function AppGate({
 }) {
   const router = useRouter();
   const push = usePush(actions);
-  const app = APPS[variant];
+  const variant = app.kind;
   const reason = why ?? "get updates about camp: your receipts, your room and news from the coordinators";
   const [where, setWhere] = useState<{ browser: Browser; app: string; kind: AppKind | null } | null>(null);
   const [finishing, setFinishing] = useState(false);
@@ -166,9 +167,10 @@ export function AppGate({
   // In the other Commune app (attendees' or the team's): this one is added separately, from the browser.
   if (push.installed && where.kind && where.kind !== app.kind) {
     const real = push.platform === "ios" ? "Safari" : "Chrome";
+    // Never names the other app: an attendee page may be opened by someone who only knows Commune.
     const page = variant === "team" ? "the coordinators' or leaders' page" : "your camp page";
     return (
-      <Shell first={first} campName={campName} step={1} title={`Add ${app.name} too`} lead={`You're in ${APPS[where.kind].name}. ${app.name} is a separate app: add it from ${real} so you ${reason}.`}>
+      <Shell first={first} campName={campName} step={1} title={`Add ${app.name} too`} lead={`You're in a different Commune app. ${app.name} is added separately: add it from ${real} so you ${reason}.`}>
         <Steps>
           <Step n={1} text={<>Copy the link below, then open <strong className="font-semibold">{real}</strong> and paste it.</>} />
           <Step n={2} text={<>On {page} in {real}, follow the steps to add <strong className="font-semibold">{app.name}</strong>.</>} art={<HomeScreenArt app={app} />} />
