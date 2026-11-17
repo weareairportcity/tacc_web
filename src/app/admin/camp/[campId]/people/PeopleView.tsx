@@ -11,6 +11,7 @@ import type { RegistrationStatus } from "@/lib/camp/types";
 import type { AppState } from "@/lib/camp/app-first";
 import { Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
+import { PeopleTabs } from "@/components/camp/PeopleTabs";
 import { ErrorText, Legend, RegistrationStatus as Status, StackedBar, headlineClass, inputClass, primaryButtonClass, statusParts } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { messageCost, type Delivery } from "@/lib/camp/message-cost";
@@ -306,6 +307,7 @@ export function PeopleView({
           </a>
         </div>
       </header>
+      {!leader && <PeopleTabs campId={campId} current="everyone" />}
 
       {leader && scanNow && (
         <a href={`/leaders/${campId}/check-in`} className={`${primaryButtonClass} cm-rise h-16 w-full text-[18px]`}>

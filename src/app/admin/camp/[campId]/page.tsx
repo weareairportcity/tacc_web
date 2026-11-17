@@ -295,7 +295,7 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
           )}
         </Panel>
 
-        <Panel title="Fellowships" note="most registered" href={people}>
+        <Panel title="Fellowships" note="most registered" href={`${people}/fellowships`}>
           <ul className="flex flex-col text-sm">
             {d.byFellowship.slice(0, 5).map((f) => (
               <li key={f.name} className="border-t border-stone-border first:border-t-0">
@@ -308,6 +308,11 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
             ))}
             {d.byFellowship.length === 0 && <li className="text-warm-gray">No registrations yet.</li>}
           </ul>
+          {d.byFellowship.length > 5 && (
+            <Link href={`${people}/fellowships`} className="flex items-center gap-1 border-t border-stone-border pt-3 text-[14px] font-medium">
+              See all {d.byFellowship.length} ranked <ChevronRight className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+            </Link>
+          )}
         </Panel>
       </div>
     </div>

@@ -15,6 +15,10 @@ const ICON: Record<AppState, typeof Bell> = { on: Bell, installed: BellOff, none
 const COLOR: Record<AppState, string> = { on: "bg-st-paid", installed: "bg-sky-wash", none: "bg-stone-border", texts: "bg-[#a8a29e]" };
 const PLATFORM: Record<string, string> = { ios: "iPhone", android: "Android", desktop: "Computer" };
 
+const when = (iso: string | null) => (iso ? Date.parse(iso.endsWith("Z") ? iso : `${iso.replace(" ", "T")}Z`) || 0 : 0);
+/** The last time anything changed for this person: notifications on, app added, or texts-only tapped. */
+const lastUpdate = (p: AppPerson) => Math.max(when(p.push_since), when(p.installed_at), when(p.texts_only_at));
+
 const day = (iso: string | null) =>
   iso ? new Date(iso.endsWith("Z") ? iso : `${iso}Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Accra" }) : "";
 
@@ -34,7 +38,12 @@ export function AppList({ campId, required, people, team = [] }: { campId: strin
   const count = (s: AppState) => people.filter((p) => p.state === s).length;
   const parts: BarPart[] = ORDER.map((s) => ({ key: s, value: count(s), color: COLOR[s], label: APP_STATE_WORDS[s] }));
   const shown = useMemo(
-    () => people.filter((p) => (!show || p.state === show) && (!q || p.full_name.toLowerCase().includes(q.toLowerCase()))),
+    () =>
+      people
+        .filter((p) => (!show || p.state === show) && (!q || p.full_name.toLowerCase().includes(q.toLowerCase())))
+        .map((p) => ({ p, t: lastUpdate(p) }))
+        .sort((a, b) => b.t - a.t) // stable: people with no update keep their A–Z order at the end
+        .map(({ p }) => p),
     [people, show, q],
   );
   const base = `/admin/camp/${campId}`;
@@ -91,6 +100,7 @@ export function AppList({ campId, required, people, team = [] }: { campId: strin
 
       <p role="status" className="text-sm font-semibold">
         {shown.length} {shown.length === 1 ? "person" : "people"}
+        <span className="font-normal text-warm-gray"> · latest update first</span>
       </p>
 
       {shown.length === 0 ? (
