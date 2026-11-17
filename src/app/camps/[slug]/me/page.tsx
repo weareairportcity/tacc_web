@@ -21,6 +21,8 @@ import { notifyPrefsAction, pushRemoveAction, pushSubscribeAction } from "../act
 import { PayForm } from "./PayForm";
 import { ResumePayment } from "./ResumePayment";
 import { SignOut } from "./SignOut";
+import { InboxBell } from "@/components/camp/inbox/InboxBell";
+import { unreadCount } from "@/lib/camp/inbox";
 import { PendingJoin } from "./PendingJoin";
 
 const PAYMENT_LABELS = { pending: "Processing", success: "Paid", failed: "Not completed" } as const;
@@ -41,7 +43,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
   const cancelled = me.status === "cancelled";
   // After camp, people who arrived are asked how it went.
   const askFeedback = !cancelled && !!me.checked_in_at && feedbackOpen(camp);
-  const [payments, group, room, details, requests, qr, answered, roomTypes] = await Promise.all([
+  const [payments, group, room, details, requests, qr, answered, roomTypes, unread] = await Promise.all([
     listPayments(me.id),
     fullyPaid ? getGroupFor(me.id) : null,
     fullyPaid ? getMyRoom(me.id) : null,
@@ -50,6 +52,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
     fullyPaid ? passQrSvg(camp.id, me.id) : null,
     askFeedback ? hasAnswered(camp.id, me.id) : true,
     fullyPaid ? listRoomTypes(camp.id) : [],
+    unreadCount(`attendee:${me.id}`),
   ]);
   const sleeps = roomTypes.find((t) => t.id === me.room_type_id)?.capacity;
   const balance = me.price_pesewas - me.paid_pesewas;
@@ -118,7 +121,10 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
           </p>
           <h1 className={`cm-rise ${headlineClass}`}>{headline}</h1>
         </div>
-        <SignOut />
+        <span className="flex items-center gap-2">
+          <InboxBell href={`/camps/${camp.slug}/me/notifications`} unread={unread} />
+          <SignOut />
+        </span>
       </div>
 
       {!answered && (

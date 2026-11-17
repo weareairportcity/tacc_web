@@ -144,7 +144,7 @@ function TeamSection({ team }: { team: TeamMember[] }) {
         <h2 className="font-display text-[24px] tracking-[-0.015em]">Commune Team</h2>
         <p className="text-[15px] text-warm-gray">
           Coordinators and leaders, in their own app. <strong className="font-semibold text-ink-black">{ready} of {team.length}</strong> have it with notifications on. Leaders share
-          one code per fellowship or PFCC, so each code is one line.
+          one code per fellowship or PFCC, so each code is one line. Group Leaders each have their own.
         </p>
       </div>
       <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
@@ -165,14 +165,14 @@ function TeamSection({ team }: { team: TeamMember[] }) {
                 <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] font-medium">{t.role === "leader" ? `${t.name} leaders` : t.name}</span>
+                <span className="truncate text-[15px] font-medium">{t.role === "leader" ? (t.name.includes(" · ") ? t.name : `${t.name} leaders`) : t.name}</span>
                 <span className="truncate text-[13px] text-warm-gray">
                   {words}
                   {t.platform ? ` · ${PLATFORM[t.platform] ?? t.platform}` : ""}
                   {t.installed_at ? ` · added ${day(t.installed_at)}` : ""}
                 </span>
               </span>
-              <span className="text-[13px] text-warm-gray">{t.role === "leader" ? "Leader code" : "Coordinator"}</span>
+              <span className="text-[13px] text-warm-gray">{t.role === "leader" ? (t.name.includes(" · ") ? "Group Leader" : "Leader code") : "Coordinator"}</span>
             </li>
           );
         })}

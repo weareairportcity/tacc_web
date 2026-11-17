@@ -14,6 +14,7 @@ import { createCamp, getCamp, setAppSwitch, setCampPhoto, setShirtPaidOnly, setS
 import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery } from "@/lib/camp/broadcast";
 import { notifyLeaders, pushMany } from "@/lib/camp/notify";
 import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
+import { markAllRead } from "@/lib/camp/inbox";
 import { listPeopleForLeader } from "@/lib/camp/reports";
 import { formatCedis } from "@/lib/camp/money";
 import { todayInGhana } from "@/lib/camp/registrations";
@@ -818,12 +819,12 @@ export async function findPeopleAction(campId: string, term: string) {
 
 // ─── Leader codes (admins only) ──────────────────────────────────────────────
 
-/** A new sign-in code for a fellowship or PFCC leader, shown once. The old one stops working. */
-export async function newLeaderCodeAction(kind: "fellowship" | "pfcc", value: string) {
+/** A new sign-in code for a fellowship, PFCC or Group Leader (by name), shown once. The old one stops working. */
+export async function newLeaderCodeAction(kind: "fellowship" | "pfcc" | "group", value: string, holder?: string) {
   return run(async () => {
     const staff = await requireCampRole("admin");
-    await once(staff.email, "newLeaderCodeAction", [kind, value]);
-    return newLeaderCode(staff.email, kind === "pfcc" ? "pfcc" : "fellowship", String(value));
+    await once(staff.email, "newLeaderCodeAction", [kind, value, holder ?? ""]);
+    return newLeaderCode(staff.email, kind === "pfcc" ? "pfcc" : kind === "group" ? "group" : "fellowship", String(value), holder === undefined ? undefined : String(holder));
   });
 }
 
@@ -929,4 +930,16 @@ export async function messageLeadersAction(campId: string, message: string) {
     await batch("app", [auditStatement({ actor: staff.email, campId: camp.id, action: "leaders.message", entity: "camp", entityId: camp.id, after: { phones } })]);
     return phones;
   });
+}
+
+/** The Notifications page was opened: everything in it counts as read (a leader code's holders share theirs). */
+export async function markInboxReadAction() {
+  return run(
+    async () => {
+      const staff = await requireCampRole("coordinator", "leader");
+      await markAllRead(teamOwner(staff));
+      return null;
+    },
+    { quiet: true },
+  );
 }

@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Cookies · Commune" };
 
 const COOKIES: [string, string, string][] = [
   ["commune_attendee", "Keeps you signed in to your camp.", "Until 3 days after camp ends (at least 30 days)"],
-  ["camp_leader", "Keeps a fellowship or PFCC leader signed in.", "Up to 30 days, or until signed out"],
+  ["camp_leader", "Keeps a fellowship, PFCC or Group Leader signed in.", "Up to 30 days, or until signed out"],
   ["sb-…", "Keeps a coordinator signed in (Supabase).", "Until signed out"],
   ["commune_rl_…", "Counts tries, so no one can guess codes or flood texts.", "Up to an hour"],
   ["commune_join_…", "Remembers a friend's group link while you register.", "60 days"],

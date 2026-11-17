@@ -1,7 +1,7 @@
 import { batch, query, querySoon } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
-import type { Scope } from "./reports";
+import { inScope as personInScope, scopeSql, type Scope } from "./scope";
 import { shirtRefusal } from "./shirts";
 import { CampError, type RegistrationStatus } from "./types";
 
@@ -45,12 +45,7 @@ const SELECT = `SELECT r.id, r.camp_id, r.full_name, r.fellowship, r.pfcc, r.sta
 
 const ALL: Scope = { kind: "all" };
 
-function scopeSql(scope: Scope) {
-  if (scope.kind === "all") return { sql: "", params: [] as unknown[] };
-  return { sql: ` AND r.${scope.kind} = ?`, params: [scope.value] as unknown[] };
-}
-
-const inScope = (p: Arrival, scope: Scope) => scope.kind === "all" || (scope.kind === "fellowship" ? p.fellowship === scope.value : p.pfcc === scope.value);
+const inScope = (p: Arrival, scope: Scope) => personInScope(p, scope);
 
 /** Leaders see who someone is and what they owe, never health notes or who they share with. */
 export function forViewer(p: Arrival, scope: Scope): Arrival {

@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** People's two views for coordinators: everyone in a list, or fellowships ranked. */
-export function PeopleTabs({ campId, current }: { campId: string; current: "everyone" | "fellowships" }) {
-  const base = `/admin/camp/${campId}/people`;
+/** People's two views: everyone in a list, or fellowships ranked. `base`: this side's People address. */
+export function PeopleTabs({ base, current }: { base: string; current: "everyone" | "fellowships" }) {
   const tabs = [
     { key: "everyone", href: base, label: "Everyone" },
     { key: "fellowships", href: `${base}/fellowships`, label: "Fellowships" },

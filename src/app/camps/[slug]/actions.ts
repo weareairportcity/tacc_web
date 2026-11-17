@@ -17,6 +17,7 @@ import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requ
 import { makeToken, readToken } from "@/lib/camp/tokens";
 import { campOrigin as origin } from "@/lib/camp/origin";
 import { campAndAttendee, currentAttendee, endAttendeeSession, signedInRegistration, startAttendeeSession } from "@/lib/camp/session";
+import { markAllRead } from "@/lib/camp/inbox";
 import { noteAccess, noteActive } from "@/lib/camp/logs";
 import { CampError, type PaymentStatus, type Gender, type ProfileInput, type Registration, type RegistrationInput } from "@/lib/camp/types";
 import { sendCampText } from "@/lib/camp/sms-log";
@@ -433,5 +434,14 @@ export async function notifyPrefsAction(slug: string, off?: string[]) {
   return run(async () => {
     const { me } = await signedIn(slug);
     return notifyPrefs(`attendee:${me.id}`, off);
+  });
+}
+
+/** The attendee opened Notifications: everything in it counts as read. */
+export async function markInboxReadAction(slug: string) {
+  return run(async () => {
+    const { me } = await signedIn(slug);
+    await markAllRead(`attendee:${me.id}`);
+    return null;
   });
 }

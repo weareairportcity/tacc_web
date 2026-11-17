@@ -11,6 +11,9 @@ import { SignOutButton } from "@/components/camp/SignOutButton";
 import { AccountMenu } from "@/components/camp/AccountMenu";
 import { ToastProvider } from "@/components/camp/toast";
 import { leaderName } from "@/lib/camp/leaders";
+import { unreadCount } from "@/lib/camp/inbox";
+import { teamOwner } from "@/lib/camp/team-app";
+import { InboxBell } from "@/components/camp/inbox/InboxBell";
 import { listMyOpenBulkPayments } from "@/lib/camp/payments";
 import { pageStaff } from "../access";
 import { OpenPayments } from "./OpenPayments";
@@ -35,10 +38,11 @@ export default async function CampShell({ children, params }: { children: React.
         {gate}
       </ToastProvider>
     );
-  const [counts, camps, open] = await Promise.all([
+  const [counts, camps, open, unread] = await Promise.all([
     leader ? { requests: 0 } : navCounts(camp.id),
     listCamps(),
     listMyOpenBulkPayments(camp.id, staff.email).catch(() => []),
+    (async () => unreadCount(teamOwner(staff)))().catch(() => 0),
   ]);
   // The leaders' side has its own address (see proxy.ts).
   const home = leader ? "/leaders" : "/admin/camp";
@@ -91,7 +95,8 @@ export default async function CampShell({ children, params }: { children: React.
             {switcher}
             <FindPerson base={base} campId={camp.id} leader={leader} className="ml-auto w-full max-w-[420px] max-sm:hidden lg:ml-0" />
             <PhoneSearch base={base} campId={camp.id} leader={leader} />
-            <AccountMenu name={leaderName(staff.email) ?? staff.email} leader={leader} className="lg:ml-auto" />
+            <InboxBell href={`${base}/notifications`} unread={unread} className="lg:ml-auto" />
+            <AccountMenu name={leaderName(staff.email) ?? staff.email} leader={leader} />
           </header>
           <main className="w-full max-w-[1080px] flex-1 px-4 pb-32 pt-6 lg:px-7 lg:pb-16">{children}</main>
         </div>

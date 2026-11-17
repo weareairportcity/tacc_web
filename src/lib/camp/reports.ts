@@ -1,6 +1,7 @@
 import { query, querySoon } from "@/lib/cf";
 import { APP_STATE_SQL, type AppState } from "./app-first";
-import { CHURCHES, FELLOWSHIPS, PFCCS } from "@/lib/fellowships";
+import { CHURCHES, FELLOWSHIPS, PFCCS, groupForFellowship } from "@/lib/fellowships";
+import { scopeSql, type Scope } from "./scope";
 import type { AuditEntry } from "./audit";
 import { ID, checkId } from "./camps";
 import { formatGroupCode } from "./codes";
@@ -31,20 +32,15 @@ import {
 
 // ─── Scope ───────────────────────────────────────────────────────────────────
 
-export type Scope = { kind: "all" } | { kind: "fellowship" | "pfcc"; value: string };
+export type { Scope } from "./scope";
 
-/** Coordinators and admins see everyone; a leader sees their own fellowship or PFCC. */
+/** Coordinators and admins see everyone; a leader sees their own fellowship, PFCC or group. */
 export function scopeFor(staff: Staff): Scope {
   if (staff.role === "admin" || staff.role === "coordinator") return { kind: "all" };
   if (staff.role === "leader" && staff.scope_kind && staff.scope_value) {
     return { kind: staff.scope_kind, value: staff.scope_value };
   }
-  throw new CampError("Your leader account isn't linked to a fellowship or PFCC yet. Ask a camp admin.");
-}
-
-function scopeSql(scope: Scope): { sql: string; params: unknown[] } {
-  if (scope.kind === "all") return { sql: "", params: [] };
-  return { sql: ` AND r.${scope.kind === "fellowship" ? "fellowship" : "pfcc"} = ?`, params: [scope.value] };
+  throw new CampError("Your leader account isn't linked to a fellowship, PFCC or group yet. Ask a camp admin.");
 }
 
 /** The ids, of these, that are in this camp and in scope: what a leader sends can't reach anyone else. */
@@ -793,4 +789,40 @@ export async function getTodayNumbers(campId: string, today = todayInGhana()): P
     perDay,
     latestPayments: latest,
   };
+}
+
+// ─── Fellowships ranked (People › Fellowships) ───────────────────────────────
+
+export type FellowshipRow = Omit<Breakdown, "cancelled"> & {
+  pfcc: string;
+  group: string | null;
+  /** Pesewas, cancelled registrations left out. */
+  expected: number;
+  paid: number;
+};
+
+/**
+ * Each fellowship in scope with registrations (cancelled left out), ranked
+ * by how many, then by how many have paid in full. Coordinators: every
+ * fellowship; a group or PFCC leader: their own.
+ */
+export async function getFellowshipBreakdown(campId: string, scope: Scope): Promise<FellowshipRow[]> {
+  const s = scopeSql(scope);
+  const rows = await query<{ name: string; pfcc: string; status: RegistrationStatus; n: number; expected: number; paid: number }>(
+    "app",
+    `SELECT r.fellowship AS name, r.pfcc, r.status, COUNT(*) AS n, SUM(r.price_pesewas) AS expected, SUM(r.paid_pesewas) AS paid
+     FROM camp_registrations r WHERE r.camp_id = ? AND r.status <> 'cancelled'${s.sql}
+     GROUP BY r.fellowship, r.pfcc, r.status`,
+    [checkId(campId, "camp"), ...s.params],
+  );
+  const by = new Map<string, FellowshipRow>();
+  for (const r of rows) {
+    const f = by.get(r.name) ?? { name: r.name, pfcc: r.pfcc, group: groupForFellowship(r.name), registered: 0, partially_paid: 0, fully_paid: 0, expected: 0, paid: 0 };
+    if (r.status !== "cancelled") f[r.status] += r.n;
+    f.expected += r.expected;
+    f.paid += r.paid;
+    by.set(r.name, f);
+  }
+  const n = (f: FellowshipRow) => f.registered + f.partially_paid + f.fully_paid;
+  return [...by.values()].sort((a, b) => n(b) - n(a) || b.fully_paid - a.fully_paid || a.name.localeCompare(b.name));
 }

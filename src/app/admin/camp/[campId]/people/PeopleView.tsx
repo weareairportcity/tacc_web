@@ -142,6 +142,7 @@ export function PeopleView({
   scanNow,
   leader,
   scopeName,
+  rankable = false,
   rows,
   roomTypes,
   pfccs,
@@ -157,6 +158,8 @@ export function PeopleView({
   scanNow: boolean;
   leader: boolean;
   scopeName: string | null;
+  /** People › Fellowships: coordinators, and leaders of a group or PFCC (more than one fellowship). */
+  rankable?: boolean;
   rows: PersonListRow[];
   roomTypes: string[];
   pfccs: { pfcc: string; fellowships: string[] }[];
@@ -307,7 +310,7 @@ export function PeopleView({
           </a>
         </div>
       </header>
-      {!leader && <PeopleTabs campId={campId} current="everyone" />}
+      {rankable && <PeopleTabs base={leader ? `/leaders/${campId}/people` : `/admin/camp/${campId}/people`} current="everyone" />}
 
       {leader && scanNow && (
         <a href={`/leaders/${campId}/check-in`} className={`${primaryButtonClass} cm-rise h-16 w-full text-[18px]`}>

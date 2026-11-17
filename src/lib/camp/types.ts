@@ -9,7 +9,7 @@ export type Gender = (typeof GENDERS)[number];
 export const STAFF_ROLES = ["admin", "coordinator", "leader"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-export type ScopeKind = "fellowship" | "pfcc";
+export type ScopeKind = "fellowship" | "pfcc" | "group";
 
 export type Camp = {
   id: string;

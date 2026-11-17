@@ -85,6 +85,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
       // From the day before camp, a leader's page leads with Scan.
       scanNow={leader && todayInGhana() >= new Date(Date.parse(`${camp.starts_on}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10) && todayInGhana() <= camp.ends_on}
       scopeName={scope && scope.kind !== "all" ? scope.value : null}
+      rankable={!scope || scope.kind === "group" || scope.kind === "pfcc"}
       rows={rows}
       roomTypes={roomTypes.map((t) => t.name)}
       pfccs={PFCC_GROUPS.map((g) => ({ pfcc: g.pfcc, fellowships: g.fellowships.map((f) => f.name) }))}

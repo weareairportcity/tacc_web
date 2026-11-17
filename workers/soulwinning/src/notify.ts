@@ -2,6 +2,7 @@ import { logCampSms, sendSms, smsParts } from "./sms";
 import { card, tellGroups, type TgKind } from "./telegram";
 import { HttpError, json, nowIso, readJson, UUID, type AppEnv } from "./util";
 import { pushConfigured, sendPush, type PushMessage } from "./webpush";
+import { groupForFellowship } from "../../../src/lib/fellowships";
 
 /**
  * Commune's notifications, in plain words.
@@ -38,7 +39,31 @@ const ICON: Record<StaffKind, string> = {
 
 type Sub = { endpoint: string; p256dh: string; auth: string };
 
+/**
+ * The Notifications page: one row per owner for every app notification,
+ * written even when no phone of theirs gets it (no phone, or that kind
+ * turned off), so the page is the whole history. Never throws.
+ */
+async function keepInInbox(env: AppEnv, ownerSql: string, binds: unknown[], kind: string, message: PushMessage) {
+  try {
+    const owners = /^\s*SELECT\b/i.test(ownerSql)
+      ? ((await env.APP_DB.prepare(ownerSql).bind(...binds).raw()) as unknown[][]).map((r) => r[0])
+      : binds;
+    const unique = [...new Set(owners.filter((o): o is string => typeof o === "string" && o.length > 0))];
+    for (let i = 0; i < unique.length; i += 100) {
+      await env.APP_DB.batch(
+        unique.slice(i, i + 100).map((owner) =>
+          env.APP_DB.prepare("INSERT INTO camp_inbox (owner, kind, title, body, url) VALUES (?, ?, ?, ?, ?)").bind(owner, kind, message.title, message.body, message.url),
+        ),
+      );
+    }
+  } catch (err) {
+    console.error("inbox", kind, err);
+  }
+}
+
 async function pushTo(env: AppEnv, ownerSql: string, binds: unknown[], kind: string, message: PushMessage) {
+  await keepInInbox(env, ownerSql, binds, kind, message);
   if (!pushConfigured(env)) return 0;
   const { results } = await env.APP_DB.prepare(
     `SELECT s.endpoint, s.p256dh, s.auth FROM camp_push_subs s
@@ -91,20 +116,22 @@ export async function toStaff(env: AppEnv, kind: StaffKind, m: { title: string; 
 }
 
 /**
- * The leaders whose fellowship or PFCC this person is in (each leader code is
- * one owner; everyone sharing the code gets it). Kinds: registration,
- * payment, request. Never throws.
+ * The leaders whose fellowship, PFCC or group this person is in (each leader
+ * code is one owner; everyone sharing the code gets it; each Group Leader has
+ * their own). The group comes from the fellowship (src/lib/fellowships.ts).
+ * Kinds: registration, payment, request. Never throws.
  */
 export async function toLeaders(env: AppEnv, registrationId: string, kind: "registration" | "payment" | "request", m: { title: string; body: string; url: (campId: string) => string }) {
   try {
-    const r = await env.APP_DB.prepare("SELECT camp_id FROM camp_registrations WHERE id = ?").bind(registrationId).first<{ camp_id: string }>();
+    const r = await env.APP_DB.prepare("SELECT camp_id, fellowship FROM camp_registrations WHERE id = ?").bind(registrationId).first<{ camp_id: string; fellowship: string }>();
     if (!r) return 0;
     return await pushTo(
       env,
       `SELECT 'leader:' || l.id FROM camp_leader_codes l, camp_registrations p
        WHERE p.id = ? AND l.revoked_at IS NULL
-         AND ((l.scope_kind = 'fellowship' AND l.scope_value = p.fellowship) OR (l.scope_kind = 'pfcc' AND l.scope_value = p.pfcc))`,
-      [registrationId],
+         AND ((l.scope_kind = 'fellowship' AND l.scope_value = p.fellowship) OR (l.scope_kind = 'pfcc' AND l.scope_value = p.pfcc)
+           OR (l.scope_kind = 'group' AND l.scope_value = ?))`,
+      [registrationId, groupForFellowship(r.fellowship) ?? ""],
       kind,
       { title: m.title, body: m.body, url: m.url(r.camp_id), tag: `leader-${kind}:${registrationId}` },
     );
@@ -163,7 +190,9 @@ const shortDay = (date: string) =>
 
 /** Who a coordinator's or leader's payment is from, in words: "Zion leader", "kwame", or the note. */
 export const payerWords = (paidBy: string) => {
-  const leader = paidBy.match(/^leader:(?:fellowship|pfcc):(.+)$/);
+  const group = paidBy.match(/^leader:group:([^:]+):(.+)$/);
+  if (group) return `${group[2]} (${group[1]} leader)`;
+  const leader = paidBy.match(/^leader:(?:fellowship|pfcc|group):(.+)$/);
   if (leader) return `${leader[1]} leader`;
   return paidBy.includes("@") ? paidBy.split("@")[0] : paidBy;
 };

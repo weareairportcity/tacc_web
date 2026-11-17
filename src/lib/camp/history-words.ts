@@ -1,3 +1,4 @@
+import { leaderName } from "./leader-name";
 /** Plain words for the audit log's action codes, for History. */
 export const ACTION_WORDS: Record<string, string> = {
   "camp.create": "created the camp",
@@ -74,7 +75,7 @@ export const actorName = (actor: string, person: string | null) =>
   actor.startsWith("attendee:")
     ? (person ?? "An attendee")
     : actor.startsWith("leader:")
-      ? `${actor.split(":").slice(2).join(":")} leader`
+      ? (leaderName(actor) ?? "A leader")
       : actor === "paystack" || actor === "expresspay"
         ? actor === "paystack" ? "Paystack" : "expressPay"
         : actor.startsWith("system")

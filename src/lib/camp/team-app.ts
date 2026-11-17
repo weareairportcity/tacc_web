@@ -5,7 +5,8 @@ import { CampError, type Staff } from "./types";
 /**
  * Commune Team: coordinators and leaders put their own app on the Home
  * Screen with notifications on. A coordinator is 'staff:<email>'; a leader
- * code (shared by a fellowship's or PFCC's leaders) is 'leader:<code id>'.
+ * code (shared by a fellowship's or PFCC's leaders, or one Group Leader's
+ * own) is 'leader:<code id>'.
  */
 
 export function teamOwner(staff: Staff) {
@@ -49,7 +50,7 @@ export function listTeamApp() {
      FROM (
        SELECT 'staff:' || email AS owner, email AS name, 'coordinator' AS role FROM camp_staff WHERE role IN ('admin', 'coordinator')
        UNION ALL
-       SELECT 'leader:' || id, scope_value, 'leader' FROM camp_leader_codes WHERE revoked_at IS NULL
+       SELECT 'leader:' || id, CASE WHEN holder_name IS NOT NULL THEN holder_name || ' · ' || scope_value ELSE scope_value END, 'leader' FROM camp_leader_codes WHERE revoked_at IS NULL
      ) o LEFT JOIN camp_team_app t ON t.owner = o.owner
      ORDER BY o.role, o.name COLLATE NOCASE`,
   );

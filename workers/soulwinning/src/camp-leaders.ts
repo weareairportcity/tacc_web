@@ -1,12 +1,13 @@
 import { HttpError, json, nowIso, readJson, type AppEnv } from "./util";
 
 /**
- * Sign-in codes for fellowship and PFCC leaders. The code is the only
+ * Sign-in codes for fellowship, PFCC and group leaders (a Group Leader's
+ * code is their own: holder_name). The code is the only
  * credential, so it's long (10 characters from 32, about 10^15) and only an
  * HMAC keyed with LEADER_CODE_SECRET is stored: a copy of the database can't
  * be used to guess codes offline. The Next server rate-limits attempts.
  *
- *   /v1/admin/camp/leader-code/new    make a code for a fellowship or PFCC (turns off the old one)
+ *   /v1/admin/camp/leader-code/new    make a code for a fellowship, PFCC or group leader (turns off the old one)
  *   /v1/admin/camp/leader-code/check  which leader a typed code belongs to
  *   /v1/admin/camp/leader-code/off    turn a code off
  */
@@ -14,7 +15,7 @@ import { HttpError, json, nowIso, readJson, type AppEnv } from "./util";
 // No 0/O or 1/I, as for attendee codes. 32 symbols, so byte % 32 is unbiased.
 const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const LENGTH = 10;
-const SCOPES = ["fellowship", "pfcc"] as const;
+const SCOPES = ["fellowship", "pfcc", "group"] as const;
 
 const normalize = (raw: unknown) =>
   String(raw ?? "")
@@ -36,29 +37,31 @@ const audit = (env: AppEnv, actor: string, action: string, entityId: string, aft
   ).bind(actor, action, entityId, JSON.stringify(after));
 
 export async function leaderCodeNew(request: Request, env: AppEnv) {
-  const { scope_kind, scope_value, actor } = await readJson<{ scope_kind?: unknown; scope_value?: unknown; actor?: unknown }>(request);
-  if (!SCOPES.includes(scope_kind as (typeof SCOPES)[number])) throw new HttpError(400, "scope_kind must be fellowship or pfcc");
+  const { scope_kind, scope_value, holder_name, actor } = await readJson<{ scope_kind?: unknown; scope_value?: unknown; holder_name?: unknown; actor?: unknown }>(request);
+  if (!SCOPES.includes(scope_kind as (typeof SCOPES)[number])) throw new HttpError(400, "scope_kind must be fellowship, pfcc or group");
   const value = typeof scope_value === "string" ? scope_value.trim().slice(0, 80) : "";
   const by = typeof actor === "string" ? actor.slice(0, 254) : "";
   if (!value || !by) throw new HttpError(400, "scope_value and actor required");
+  // A Group Leader's code is theirs alone; fellowship and PFCC codes are shared and unnamed.
+  const holder = scope_kind === "group" && typeof holder_name === "string" ? holder_name.trim().replace(/\s+/g, " ").slice(0, 80) : null;
+  if (scope_kind === "group" && !holder) throw new HttpError(400, "a group leader's name is required");
 
   const bytes = crypto.getRandomValues(new Uint8Array(LENGTH));
   const code = Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
   const id = crypto.randomUUID();
   await env.APP_DB.batch([
-    env.APP_DB.prepare("UPDATE camp_leader_codes SET revoked_at = ? WHERE scope_kind = ? AND scope_value = ? AND revoked_at IS NULL").bind(
-      nowIso(),
-      scope_kind,
-      value,
-    ),
-    env.APP_DB.prepare("INSERT INTO camp_leader_codes (id, scope_kind, scope_value, code_hash, created_by) VALUES (?, ?, ?, ?, ?)").bind(
+    env.APP_DB.prepare(
+      "UPDATE camp_leader_codes SET revoked_at = ? WHERE scope_kind = ? AND scope_value = ? AND COALESCE(holder_name, '') = COALESCE(?, '') AND revoked_at IS NULL",
+    ).bind(nowIso(), scope_kind, value, holder),
+    env.APP_DB.prepare("INSERT INTO camp_leader_codes (id, scope_kind, scope_value, holder_name, code_hash, created_by) VALUES (?, ?, ?, ?, ?, ?)").bind(
       id,
       scope_kind,
       value,
+      holder,
       await hash(env, code),
       by,
     ),
-    audit(env, by, "leader_code.create", id, { scope_kind, scope_value: value }),
+    audit(env, by, "leader_code.create", id, { scope_kind, scope_value: value, ...(holder ? { holder_name: holder } : {}) }),
   ]);
   return json({ id, code: `${code.slice(0, 5)}-${code.slice(5)}` });
 }
@@ -68,10 +71,10 @@ export async function leaderCodeCheck(request: Request, env: AppEnv) {
   const typed = normalize(code);
   if (typed.length !== LENGTH) throw new HttpError(404, "no such code");
   const row = await env.APP_DB.prepare(
-    "SELECT id, scope_kind, scope_value, code_hash FROM camp_leader_codes WHERE code_hash = ? AND revoked_at IS NULL",
+    "SELECT id, scope_kind, scope_value, holder_name, code_hash FROM camp_leader_codes WHERE code_hash = ? AND revoked_at IS NULL",
   )
     .bind(await hash(env, typed))
-    .first<{ id: string; scope_kind: string; scope_value: string; code_hash: string }>();
+    .first<{ id: string; scope_kind: string; scope_value: string; holder_name: string | null; code_hash: string }>();
   if (!row) throw new HttpError(404, "no such code");
   await env.APP_DB.prepare("UPDATE camp_leader_codes SET last_used_at = ? WHERE id = ?").bind(nowIso(), row.id).run();
   return json(row);
