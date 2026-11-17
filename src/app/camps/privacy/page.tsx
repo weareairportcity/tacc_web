@@ -32,6 +32,9 @@ export default function PrivacyPage() {
           <li><strong className="font-medium">At camp:</strong> when you checked in, your room and your roommate group.</li>
           <li><strong className="font-medium">Signing in:</strong> when you signed in or out, the town and country your internet connection is in, and the kind of phone (&ldquo;Android 15 · Chrome&rdquo;). We keep this for 90 days, to keep accounts safe.</li>
           <li><strong className="font-medium">Visits:</strong> which screens were opened, which buttons were used, how long things took to load, and errors, counted without your name or sign-in. See &ldquo;Counting visits&rdquo; below.</li>
+          <li><strong className="font-medium">The Commune app:</strong> when you first opened Commune from your Home Screen, and the kind of phone (iPhone or Android). If you turn on notifications, an address for your phone from its notification service (Apple&rsquo;s, Google&rsquo;s or your browser&rsquo;s), and which kinds of notification you switched off. If you tap &ldquo;My phone can&rsquo;t do this&rdquo;, that you chose texts instead, and when.</li>
+          <li><strong className="font-medium">Rating Commune</strong> after you&rsquo;ve paid in full, if you choose to: the stars and any comment, with your name, so we can help if something went wrong.</li>
+          <li><strong className="font-medium">Messages from coordinators:</strong> the words of a message sent to many people, and how many got it in the app or by text. Who got each text isn&rsquo;t kept.</li>
           <li><strong className="font-medium">Feedback after camp</strong> is saved without your name.</li>
         </ul>
       </section>
@@ -39,7 +42,8 @@ export default function PrivacyPage() {
       <section>
         <h2>Why</h2>
         <ul>
-          <li>To run the camp: your place, payments, rooms, check-in and the texts about it.</li>
+          <li>To run the camp: your place, payments, rooms, check-in and the messages about it.</li>
+          <li>To send you updates about camp in the app, which is free, and only text people who can&rsquo;t get them there, since every text costs the church.</li>
           <li>To keep you safe at camp: emergency contacts, health notes and guardian details.</li>
           <li>To keep Commune secure and working: the sign-in log, and noticing errors and slow screens.</li>
           <li>To make Commune better: visit counts, as totals.</li>
@@ -51,8 +55,8 @@ export default function PrivacyPage() {
         <h2>Who sees it</h2>
         <ul>
           <li><strong className="font-medium">Camp coordinators</strong> see everything about the people in their camps, so they can run it.</li>
-          <li><strong className="font-medium">Fellowship and PFCC leaders</strong> see their own people&rsquo;s names, phone numbers, payments and rooms. They don&rsquo;t see health notes, emergency contacts or guardian details.</li>
-          <li><strong className="font-medium">The companies Commune runs on</strong>, only to do their part: expressPay (payments), mNotify (texts), Cloudflare (stores the camp&rsquo;s information), Vercel (runs the website) and Supabase (coordinators&rsquo; sign-in). Some of them store information outside Ghana, under their own security and privacy commitments.</li>
+          <li><strong className="font-medium">Fellowship and PFCC leaders</strong> see their own people&rsquo;s names, phone numbers, payments, rooms and whether they have the app with notifications on. They don&rsquo;t see health notes, emergency contacts or guardian details.</li>
+          <li><strong className="font-medium">The companies Commune runs on</strong>, only to do their part: expressPay (payments), mNotify (texts), Cloudflare (stores the camp&rsquo;s information), Vercel (runs the website), Supabase (coordinators&rsquo; sign-in), Apple, Google or your browser&rsquo;s maker (deliver app notifications to your phone, sealed so only your phone can read them) and Telegram (the coordinators&rsquo; private group, which gets updates with attendees&rsquo; names, payments and requests). Some of them store information outside Ghana, under their own security and privacy commitments.</li>
         </ul>
       </section>
 
@@ -60,7 +64,8 @@ export default function PrivacyPage() {
         <h2>How long we keep it</h2>
         <ul>
           <li>The sign-in log and each visit&rsquo;s counts: 90 days. After that only daily totals are kept, which name no one.</li>
-          <li>Your registration: until you or a coordinator deletes your details. You can do it any time from Your details on your camp page.</li>
+          <li>Your registration: until you or a coordinator deletes your details. You can do it any time from Your details on your camp page. That also removes your app details, your phones&rsquo; notification addresses and any comment you wrote when rating Commune.</li>
+          <li>A phone&rsquo;s notification address: until you turn notifications off, or it stops working.</li>
           <li>Payment records stay after your details are deleted, without your contact details, because the church must keep its accounts.</li>
         </ul>
       </section>

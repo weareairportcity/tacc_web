@@ -17,6 +17,7 @@ const STORED: [string, string][] = [
   ["cm_count_off", "“Don't count my visits”, if you chose it."],
   ["cm_seen_day", "The day this phone last told Commune you came, so it only tells it once a day."],
   ["commune.install", "That you closed the “Add to home screen” tip."],
+  ["commune.app.seen, commune.push.synced, commune.prompt.dismissed", "For this visit only: that Commune already noted this phone has the app or notifications on, or that you closed the set-up tip."],
   ["commune.people…, commune.scanMode", "Coordinators only: their filters and scan mode."],
 ];
 

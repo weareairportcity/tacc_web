@@ -117,10 +117,15 @@ function wipeStatements(me: Registration, reason = "") {
   return [
     {
       sql: `UPDATE camp_registrations SET full_name = 'Deleted', phone = ?, email = '', emergency_name = '', emergency_phone = '',
-              health_notes = '', health_consent_at = NULL, guardian_name = '', guardian_phone = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              health_notes = '', health_consent_at = NULL, guardian_name = '', guardian_phone = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              app_installed_at = NULL, app_platform = NULL, texts_only_at = NULL
             WHERE id = ?`,
       params: [`deleted:${me.id}`, hashCode(generateCode(16)), me.id],
     },
+    // Their phones' notification addresses and choices, and what they wrote when rating Commune (the stars stay, as a count).
+    { sql: "DELETE FROM camp_push_subs WHERE owner = ?", params: [`attendee:${me.id}`] },
+    { sql: "DELETE FROM camp_notify_prefs WHERE owner = ?", params: [`attendee:${me.id}`] },
+    { sql: "UPDATE camp_pay_experience SET comment = '' WHERE registration_id = ?", params: [me.id] },
     auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "registration.delete_details", entity: "registration", entityId: me.id, after: reason ? { reason: reason.slice(0, 300) } : undefined }),
   ];
 }

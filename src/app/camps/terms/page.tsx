@@ -51,7 +51,11 @@ export default function TermsPage() {
 
       <section>
         <h2>Texts</h2>
-        <p>We text you about your camp: your code, payments, your room and reminders. We don&rsquo;t send advertising.</p>
+        <p>
+          We send you updates about your camp: your code, payments, your room and reminders. On a phone, your camp page opens once Commune is on your Home Screen
+          with notifications on, and updates then come to the app. If your phone can&rsquo;t do that, tap &ldquo;My phone can&rsquo;t do this&rdquo; and we&rsquo;ll
+          text you instead. Your sign-in code always comes by text. We don&rsquo;t send advertising.
+        </p>
       </section>
 
       <section>
@@ -62,7 +66,7 @@ export default function TermsPage() {
       <section>
         <h2>Changes and questions</h2>
         <p>
-          The church may change a camp&rsquo;s details; we&rsquo;ll tell registered people by text. Questions: {legalContact()}. How we look after your information
+          The church may change a camp&rsquo;s details; we&rsquo;ll tell registered people in the app or by text. Questions: {legalContact()}. How we look after your information
           is on the <Link href="/camps/privacy" className="underline decoration-stone-muted underline-offset-[3px]">Privacy</Link> page.
         </p>
       </section>

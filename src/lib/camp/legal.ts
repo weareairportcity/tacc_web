@@ -10,7 +10,7 @@ export const LEGAL = {
   email: "",
   phone: "",
   dpcNumber: "",
-  updated: "3 November 2026",
+  updated: "17 November 2026",
 };
 
 export const legalContact = () =>
