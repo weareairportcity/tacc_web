@@ -1,4 +1,4 @@
--- Group Leaders and the Notifications page (Nov 2026). Undo with
+-- Group Leaders, the Pastor and the Notifications page (Nov 2026). Undo with
 -- migrations-tacc/down/0027_camp_groups_inbox.down.sql.
 
 -- Groups sit between PFCC and fellowship (src/lib/fellowships.ts). A group is
@@ -38,3 +38,22 @@ CREATE TABLE camp_inbox (
   read_at TEXT
 );
 CREATE INDEX camp_inbox_owner_idx ON camp_inbox (owner, created_at DESC);
+
+-- The Pastor oversees the whole camp: a report, paying for people, and a 7pm
+-- summary. A camp_staff role of its own; rows are copied as they are.
+CREATE TABLE camp_staff_new (
+  email TEXT PRIMARY KEY CHECK (email = lower(email)),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'coordinator', 'leader', 'pastor')),
+  scope_kind TEXT CHECK (scope_kind IN ('fellowship', 'pfcc')),
+  scope_value TEXT,
+  phone TEXT NOT NULL DEFAULT '',
+  CHECK (
+    (role = 'leader' AND scope_kind IS NOT NULL AND scope_value IS NOT NULL)
+    OR (role <> 'leader' AND scope_kind IS NULL AND scope_value IS NULL)
+  )
+);
+INSERT INTO camp_staff_new (email, created_at, role, scope_kind, scope_value, phone)
+  SELECT email, created_at, role, scope_kind, scope_value, phone FROM camp_staff;
+DROP TABLE camp_staff;
+ALTER TABLE camp_staff_new RENAME TO camp_staff;

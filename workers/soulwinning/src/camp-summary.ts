@@ -1,6 +1,8 @@
 import { logCampSms, sendSms, smsParts } from "./sms";
 import { card, tellGroups, telegramConfigured } from "./telegram";
 import type { AppEnv } from "./util";
+import { once, pushToOwners } from "./notify";
+import { fellowshipsInGroup } from "../../../src/lib/fellowships";
 
 /**
  * Where a camp stands.
@@ -140,6 +142,8 @@ export async function sendDailySummaries(env: AppEnv, now = new Date(), force = 
   const sent: Record<string, number> = {};
   // The Telegram group gets it too (when its "Evening summary" switch is on).
   const groups = telegramConfigured(env) ? ((await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM camp_telegram_chats").first<{ n: number }>())?.n ?? 0) : 0;
+  // The Pastor (everyone) and each Group Leader (their group): app notifications only.
+  const pushed = await appSummaries(env, camps ?? [], day);
   for (const camp of camps ?? []) {
     if (!phones.length && !groups) break;
     // Claim the day first: a second run the same day inserts nothing and stops.
@@ -156,5 +160,73 @@ export async function sendDailySummaries(env: AppEnv, now = new Date(), force = 
     await logCampSms(env, camp.id, "summary", sent[camp.name], sent[camp.name] * smsParts(text));
     if (groups) await tellGroups(env, "daily", summaryCard(camp.name, n, now, true));
   }
-  return { day, sent };
+  return { day, sent, pushed };
+}
+
+type Short = { today: number; moneyToday: number; total: number; full: number; owed: number };
+
+/** Today's few numbers for a camp, or for some fellowships in it (a group). */
+async function shortNumbers(env: AppEnv, campId: string, day: string, fellowships: string[] | null): Promise<Short> {
+  const only = fellowships ? ` AND r.fellowship IN (${fellowships.map(() => "?").join(",")})` : "";
+  const extra = fellowships ?? [];
+  const [people, money] = await Promise.all([
+    env.APP_DB.prepare(
+      `SELECT COALESCE(SUM(r.status <> 'cancelled'), 0) AS total, COALESCE(SUM(r.status = 'fully_paid'), 0) AS full,
+              COALESCE(SUM(r.status <> 'cancelled' AND substr(r.created_at, 1, 10) = ?), 0) AS today,
+              COALESCE(SUM(CASE WHEN r.status <> 'cancelled' THEN MAX(r.price_pesewas - r.paid_pesewas, 0) ELSE 0 END), 0) AS owed
+       FROM camp_registrations r WHERE r.camp_id = ?${only}`,
+    ).bind(day, campId, ...extra).first<{ total: number; full: number; today: number; owed: number }>(),
+    env.APP_DB.prepare(
+      `SELECT COALESCE(SUM(p.amount_pesewas), 0) AS n FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id
+       WHERE r.camp_id = ? AND p.status = 'success' AND substr(p.paid_at, 1, 10) = ?${only}`,
+    ).bind(campId, day, ...extra).first<{ n: number }>(),
+  ]);
+  return { today: people?.today ?? 0, moneyToday: money?.n ?? 0, total: people?.total ?? 0, full: people?.full ?? 0, owed: people?.owed ?? 0 };
+}
+
+/** "12 registered today, GHS 7,200 in. 186 in all · 120 fully paid · GHS 31,400 still owed." */
+export function shortSummary(n: Short) {
+  return `${n.today} registered today, ${cedis(n.moneyToday)} in. ${n.total} in all · ${n.full} fully paid · ${cedis(n.owed)} still owed.`;
+}
+
+/**
+ * 7pm, by app notification only: the Pastor gets the whole camp, each Group
+ * Leader their group. Kept on their Notifications page too. Once per owner,
+ * camp and day.
+ */
+async function appSummaries(env: AppEnv, camps: { id: string; name: string }[], day: string) {
+  let pushed = 0;
+  try {
+    const [{ results: pastors }, { results: codes }] = await Promise.all([
+      env.APP_DB.prepare("SELECT email FROM camp_staff WHERE role = 'pastor'").all<{ email: string }>(),
+      env.APP_DB.prepare("SELECT id, scope_value FROM camp_leader_codes WHERE scope_kind = 'group' AND revoked_at IS NULL").all<{ id: string; scope_value: string }>(),
+    ]);
+    for (const camp of camps) {
+      if (pastors?.length) {
+        const n = await shortNumbers(env, camp.id, day, null);
+        for (const p of pastors) {
+          const owner = `staff:${p.email}`;
+          if (!(await once(env, `summary:${owner}:${camp.id}:${day}`))) continue;
+          pushed += await pushToOwners(env, [owner], "daily", { title: `${camp.name}: today`, body: shortSummary(n), url: `/admin/camp/${camp.id}/report`, tag: `daily:${camp.id}` });
+        }
+      }
+      const byGroup = new Map<string, Short>();
+      for (const c of codes ?? []) {
+        const names = fellowshipsInGroup(c.scope_value);
+        if (!names.length) continue;
+        const owner = `leader:${c.id}`;
+        if (!(await once(env, `summary:${owner}:${camp.id}:${day}`))) continue;
+        if (!byGroup.has(c.scope_value)) byGroup.set(c.scope_value, await shortNumbers(env, camp.id, day, names));
+        pushed += await pushToOwners(env, [owner], "daily", {
+          title: `${camp.name}: ${c.scope_value} today`,
+          body: shortSummary(byGroup.get(c.scope_value)!),
+          url: `/leaders/${camp.id}/people/fellowships`,
+          tag: `daily:${camp.id}`,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("app summaries", err);
+  }
+  return pushed;
 }

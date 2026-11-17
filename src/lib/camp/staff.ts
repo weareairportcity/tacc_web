@@ -72,7 +72,7 @@ export async function setStaffPhone(staff: Staff, rawPhone: string) {
     {
       sql: `INSERT INTO camp_staff (email, role, phone) VALUES (?, ?, ?)
             ON CONFLICT (email) DO UPDATE SET phone = excluded.phone`,
-      params: [staff.email, staff.role === "leader" ? "coordinator" : staff.role, phone],
+      params: [staff.email, staff.role === "leader" ? "coordinator" : staff.role, phone], // a Pastor keeps their role
     },
   ]);
   return phone;

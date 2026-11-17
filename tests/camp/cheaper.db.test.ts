@@ -73,10 +73,10 @@ describe("one request for many queries", () => {
 
   it("loads the check-in lists a page at a time", async () => {
     const { camp, roomTypeId } = await openCamp();
-    for (let i = 0; i < 5; i++) await paidUp(camp, roomTypeId, { full_name: `Person ${i}` });
+    for (let i = 0; i < 5; i++) await paidUp(camp, roomTypeId, { full_name: `Person No${i}` });
     const first = await arrivalPage(camp.id, "checkin", "notYet", { kind: "all" }, 0, 2);
     const next = await arrivalPage(camp.id, "checkin", "notYet", { kind: "all" }, 2, 2);
-    expect(first.map((p) => p.full_name)).toEqual(["Person 0", "Person 1"]);
-    expect(next.map((p) => p.full_name)).toEqual(["Person 2", "Person 3"]);
+    expect(first.map((p) => p.full_name)).toEqual(["Person No0", "Person No1"]);
+    expect(next.map((p) => p.full_name)).toEqual(["Person No2", "Person No3"]);
   });
 });

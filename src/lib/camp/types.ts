@@ -6,7 +6,8 @@ export type CampStatus = (typeof CAMP_STATUSES)[number];
 export const GENDERS = ["male", "female"] as const;
 export type Gender = (typeof GENDERS)[number];
 
-export const STAFF_ROLES = ["admin", "coordinator", "leader"] as const;
+/** pastor: oversees the whole camp (a report, paying for people), nothing else. */
+export const STAFF_ROLES = ["admin", "coordinator", "leader", "pastor"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export type ScopeKind = "fellowship" | "pfcc" | "group";

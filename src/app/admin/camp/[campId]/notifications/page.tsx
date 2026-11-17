@@ -10,7 +10,7 @@ import { NoAccess, pageStaff } from "../../access";
 
 /** Notifications, for coordinators and leaders: every app notification sent to them, to open again later. */
 export default async function NotificationsPage({ params }: { params: Promise<{ campId: string }> }) {
-  const staff = await pageStaff("coordinator", "leader");
+  const staff = await pageStaff("coordinator", "leader", "pastor");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();

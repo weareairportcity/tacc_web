@@ -23,14 +23,17 @@ function campState(camp: Camp) {
 }
 
 export default async function CampAdminHome() {
-  const staff = await pageStaff("coordinator", "leader");
+  const staff = await pageStaff("coordinator", "leader", "pastor");
   if (!staff) return <NoAccess />;
   const leader = staff.role === "leader";
-  // Leaders see published camps only, and open each one's read-only people list.
-  const camps = (await listCamps()).filter((c) => !leader || c.status !== "draft");
+  const pastor = staff.role === "pastor";
+  // Leaders and the Pastor see published camps only.
+  const camps = (await listCamps()).filter((c) => (!leader && !pastor) || c.status !== "draft");
   // A leader with one camp running goes straight to their people.
   const running = camps.filter((c) => c.status === "open" || c.status === "closed");
   if (leader && running.length === 1) redirect(`/leaders/${running[0].id}/people`);
+  // The Pastor goes straight to the running camp's report.
+  if (pastor && running.length >= 1) redirect(`/admin/camp/${running[0].id}/report`);
   // On a phone, Commune Team with notifications on comes first.
   const { tracker, gate } = await teamGate(staff, running[0]?.name ?? "Commune");
   if (gate)
@@ -60,7 +63,7 @@ export default async function CampAdminHome() {
           )}
         </div>
 
-        {!leader && <NewCamp />}
+        {!leader && !pastor && <NewCamp />}
 
         {camps.length === 0 ? (
           <p className="rounded-[10px] border border-dashed border-stone-muted bg-white p-8 text-center text-sm text-warm-gray">

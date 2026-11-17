@@ -1,4 +1,22 @@
--- Undoes 0027_camp_groups_inbox.sql. Group codes are dropped (their leaders are signed out).
+-- Undoes 0027_camp_groups_inbox.sql. Group codes are dropped (their leaders
+-- are signed out), and so is the Pastor's staff row.
+CREATE TABLE camp_staff_old (
+  email TEXT PRIMARY KEY CHECK (email = lower(email)),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'coordinator', 'leader')),
+  scope_kind TEXT CHECK (scope_kind IN ('fellowship', 'pfcc')),
+  scope_value TEXT,
+  phone TEXT NOT NULL DEFAULT '',
+  CHECK (
+    (role = 'leader' AND scope_kind IS NOT NULL AND scope_value IS NOT NULL)
+    OR (role <> 'leader' AND scope_kind IS NULL AND scope_value IS NULL)
+  )
+);
+INSERT INTO camp_staff_old (email, created_at, role, scope_kind, scope_value, phone)
+  SELECT email, created_at, role, scope_kind, scope_value, phone FROM camp_staff WHERE role <> 'pastor';
+DROP TABLE camp_staff;
+ALTER TABLE camp_staff_old RENAME TO camp_staff;
+
 DROP INDEX IF EXISTS camp_inbox_owner_idx;
 DROP TABLE IF EXISTS camp_inbox;
 CREATE TABLE camp_leader_codes_old (

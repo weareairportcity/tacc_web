@@ -23,6 +23,7 @@ import { ResumePayment } from "./ResumePayment";
 import { SignOut } from "./SignOut";
 import { InboxBell } from "@/components/camp/inbox/InboxBell";
 import { unreadCount } from "@/lib/camp/inbox";
+import { isFullName } from "@/lib/camp/names";
 import { PendingJoin } from "./PendingJoin";
 
 const PAYMENT_LABELS = { pending: "Processing", success: "Paid", failed: "Not completed" } as const;
@@ -303,8 +304,8 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         </p>
       ))}
 
-      {/* Add to Home Screen and turn on notifications: every visit until both are done. */}
-      {!cancelled && (
+      {/* Add to Home Screen and turn on notifications: every visit until both are done. Their full name comes first (layout). */}
+      {!cancelled && isFullName(me.full_name) && (
         <NotifyPrompt who="attendee" actions={{ save: pushSubscribeAction.bind(null, camp.slug), remove: pushRemoveAction, prefs: notifyPrefsAction.bind(null, camp.slug) }} />
       )}
 

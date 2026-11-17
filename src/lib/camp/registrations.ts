@@ -1,4 +1,5 @@
 import { newRegistration } from "./notify";
+import { FULL_NAME_PROBLEM, isFullName, tidyName } from "./names";
 import { batch, query } from "@/lib/cf";
 import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
 import { roomStatementsForRemoval } from "./assignments";
@@ -74,8 +75,8 @@ export function daysUntil(date: string, today = todayInGhana()) {
 /** Trims and checks the form. Throws CampError with every problem at once. */
 export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType[]) {
   const problems: string[] = [];
-  const full_name = String(raw.full_name ?? "").replace(/\s+/g, " ").trim();
-  if (full_name.length < 2) problems.push("Enter your full name.");
+  const full_name = tidyName(raw.full_name);
+  if (!isFullName(full_name)) problems.push(FULL_NAME_PROBLEM);
   if (full_name.length > 120) problems.push("Your name is too long.");
   const phone = normalizePhone(raw.phone);
   if (!phone) problems.push("Enter a Ghana phone number, e.g. 055 111 2222.");

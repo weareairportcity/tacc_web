@@ -13,6 +13,7 @@ const ROLE_LABELS: Record<StaffRole, string> = {
   admin: "Admin",
   coordinator: "Coordinator",
   leader: "Leader (read-only)",
+  pastor: "Pastor (report and paying)",
 };
 
 const scopeLabel = (s: Staff) => (s.role === "leader" ? `${s.scope_value}` : "All camps");

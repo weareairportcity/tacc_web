@@ -91,6 +91,12 @@ async function pushTo(env: AppEnv, ownerSql: string, binds: unknown[], kind: str
   return ok;
 }
 
+/** App notifications to these owners (each also kept for their Notifications page). Answers how many phones got it. */
+export async function pushToOwners(env: AppEnv, owners: string[], kind: string, message: PushMessage) {
+  if (!owners.length) return 0;
+  return pushTo(env, owners.map(() => "?").join(","), owners, kind, message);
+}
+
 /** A Telegram line: label and value. Empty values are left out. */
 export type Line = readonly [string, string] | string | null | false | 0;
 
@@ -215,10 +221,14 @@ export function receiptText(o: {
   payer: string | null;
   /** Paid with others by a coordinator or leader; the note they wrote, if any. */
   bulk: { note: string | null } | null;
+  /** That payment was the Pastor's. */
+  byPastor?: boolean;
   fullyPaidFirstTime: boolean;
   roommatesBy: string | null;
 }) {
-  const what = o.bulk
+  const what = o.byPastor
+    ? `Pastor has paid ${cedis(o.amount)} for you for ${o.camp}.`
+    : o.bulk
     ? `your balance of ${cedis(o.amount)} for ${o.camp} has been paid for you${o.bulk.note ? ` (${o.bulk.note})` : ""}.`
     : o.payer
       ? `${o.payer} has paid ${cedis(o.amount)} towards your place at ${o.camp}.`
@@ -229,6 +239,13 @@ export function receiptText(o: {
       ? ` You're now fully paid. Thank you!${o.roommatesBy ? ` Next, choose your roommates in Commune by ${o.roommatesBy}.` : ""}`
       : " You're fully paid.";
   return `Hi ${o.first}, ${what}${then} Receipt: ${o.receipt} - The Airport City Church`;
+}
+
+/** Whether a staff email is the Pastor's (camp_staff role 'pastor'). */
+async function isPastor(env: AppEnv, email: string | null | undefined) {
+  if (!email) return false;
+  const row = await env.APP_DB.prepare("SELECT 1 AS yes FROM camp_staff WHERE email = ? AND role = 'pastor'").bind(email).first<{ yes: number }>();
+  return !!row;
 }
 
 /**
@@ -261,8 +278,12 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
         ).meta.changes === 1;
       const today = nowIso().slice(0, 10);
       const roommatesBy = full && fullClaim && today <= r.roommate_deadline_on ? shortDay(r.roommate_deadline_on) : null;
-      // App first: the notification is free. The text (2 credits) only goes when no phone of theirs got it.
-      const from = p.bulk_id ? "Your camp balance was paid for you" : payer ? `${payer} paid ${cedis(p.amount_pesewas)} for you` : `We received ${cedis(p.amount_pesewas)}`;
+      // Paid by the Pastor: they're told so by name, in the app and by text.
+      const byPastor = p.bulk_id
+        ? await isPastor(env, (await env.APP_DB.prepare("SELECT paid_by FROM camp_bulk_payments WHERE id = ?").bind(p.bulk_id).first<{ paid_by: string }>())?.paid_by)
+        : false;
+      // App first: the notification is free. The text (2 credits) only goes when no phone of theirs got it (or the Pastor paid).
+      const from = byPastor ? `Pastor has paid ${cedis(p.amount_pesewas)} for you` : p.bulk_id ? "Your camp balance was paid for you" : payer ? `${payer} paid ${cedis(p.amount_pesewas)} for you` : `We received ${cedis(p.amount_pesewas)}`;
       const pushed = await toAttendee(env, p.registration_id, "payment_received", {
         title: full ? "You're fully paid 🎉" : "Payment received",
         body: full
@@ -270,7 +291,7 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
           : `${from}. You have ${cedis(left)} left to pay by ${shortDay(r.payment_due_on)}. Tap to see your receipt.`,
         url: `/camps/r/${encodeURIComponent(p.reference)}`,
       });
-      if (!pushed && /^233\d{9}$/.test(r.phone) && today <= r.ends_on) {
+      if ((!pushed || byPastor) && /^233\d{9}$/.test(r.phone) && today <= r.ends_on) {
         const text = receiptText({
           first: firstName(r.full_name),
           camp: r.camp_name,
@@ -279,6 +300,7 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
           receipt,
           payer,
           bulk: p.bulk_id ? (bulk ?? { note: null }) : null,
+          byPastor,
           fullyPaidFirstTime: fullClaim,
           roommatesBy: today <= r.roommate_deadline_on ? shortDay(r.roommate_deadline_on) : null,
         });
@@ -322,7 +344,7 @@ export async function bulkPaymentReceived(env: AppEnv, b: { id: string; referenc
     .bind(b.id)
     .all<{ full_name: string }>();
   const list = (names ?? []).map((n) => n.full_name);
-  const who = payerWords(b.paid_by);
+  const who = (await isPastor(env, b.paid_by)) ? "Pastor" : payerWords(b.paid_by);
   await toStaff(env, "payment", {
     title: "Payment received",
     body: `${who} paid ${cedis(b.amount_pesewas)} for ${people} ${people === 1 ? "person" : "people"}${b.note ? ` (${b.note})` : ""}.`,

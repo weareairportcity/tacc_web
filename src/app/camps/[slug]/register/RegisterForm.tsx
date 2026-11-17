@@ -13,6 +13,7 @@ import { placesState } from "@/components/camp/places";
 import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass, titleClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { registerAction } from "../actions";
+import { FULL_NAME_PROBLEM, isFullName } from "@/lib/camp/names";
 
 type Props = {
   slug: string;
@@ -142,8 +143,18 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
         <div ref={aboutYou} className="flex flex-col gap-5">
           <fieldset className={cn(fieldsetClass, "cm-rise")}>
             <Legend icon={User}>About you</Legend>
-            <Field label="Full name">
-              <input required autoComplete="name" className={inputClass} value={values.full_name} onChange={(e) => set("full_name", e.target.value)} />
+            <Field label="Full name" hint="Your first name and surname, e.g. Ama Mensah.">
+              <input
+                required
+                autoComplete="name"
+                className={inputClass}
+                value={values.full_name}
+                onChange={(e) => {
+                  // The browser's own check stops "Next" until it's a first name and surname.
+                  e.target.setCustomValidity(isFullName(e.target.value) ? "" : FULL_NAME_PROBLEM);
+                  set("full_name", e.target.value);
+                }}
+              />
             </Field>
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium" id="gender-label">

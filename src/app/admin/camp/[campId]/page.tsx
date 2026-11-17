@@ -36,11 +36,12 @@ const since = (iso: string) => {
  * then how they're moving. Each block links to the page that owns it.
  */
 export default async function Today({ params }: { params: Promise<{ campId: string }> }) {
-  const staff = await pageStaff("coordinator", "leader");
+  const staff = await pageStaff("coordinator", "leader", "pastor");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
   if (staff.role === "leader") redirect(`/leaders/${campId}/people`);
+  if (staff.role === "pastor") redirect(`/admin/camp/${campId}/report`);
 
   const [camp, d, t, requests, apps, credits] = await Promise.all([
     getCamp(campId),

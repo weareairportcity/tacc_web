@@ -24,7 +24,7 @@ export async function teamGate(staff: Staff, campName: string) {
   const leader = staff.role === "leader";
   // A Group Leader's code carries their name: greet them by it.
   const holder = staff.scope_kind === "group" ? staff.email.split(":").slice(3).join(":").split(" ")[0] : "";
-  const name = leader ? holder || (staff.scope_value ?? "Leader") : (leaderName(staff.email) ?? staff.email.split("@")[0]);
+  const name = staff.role === "pastor" ? "Pastor" : leader ? holder || (staff.scope_value ?? "Leader") : (leaderName(staff.email) ?? staff.email.split("@")[0]);
   return {
     tracker,
     gate: (

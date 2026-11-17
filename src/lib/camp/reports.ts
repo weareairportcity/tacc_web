@@ -34,9 +34,9 @@ import {
 
 export type { Scope } from "./scope";
 
-/** Coordinators and admins see everyone; a leader sees their own fellowship, PFCC or group. */
+/** Coordinators, admins and the Pastor see everyone; a leader sees their own fellowship, PFCC or group. */
 export function scopeFor(staff: Staff): Scope {
-  if (staff.role === "admin" || staff.role === "coordinator") return { kind: "all" };
+  if (staff.role === "admin" || staff.role === "coordinator" || staff.role === "pastor") return { kind: "all" };
   if (staff.role === "leader" && staff.scope_kind && staff.scope_value) {
     return { kind: staff.scope_kind, value: staff.scope_value };
   }
@@ -825,4 +825,14 @@ export async function getFellowshipBreakdown(campId: string, scope: Scope): Prom
   }
   const n = (f: FellowshipRow) => f.registered + f.partially_paid + f.fully_paid;
   return [...by.values()].sort((a, b) => n(b) - n(a) || b.fully_paid - a.fully_paid || a.name.localeCompare(b.name));
+}
+
+/** The Pastor's report: the newest registrations, without contact details. */
+export function latestRegistrations(campId: string, limit = 15) {
+  return query<{ id: string; full_name: string; fellowship: string; status: RegistrationStatus; price_pesewas: number; paid_pesewas: number; created_at: string }>(
+    "app",
+    `SELECT r.id, r.full_name, r.fellowship, r.status, r.price_pesewas, r.paid_pesewas, r.created_at
+     FROM camp_registrations r WHERE r.camp_id = ? ORDER BY r.created_at DESC LIMIT ?`,
+    [checkId(campId, "camp"), Math.min(50, Math.max(1, limit))],
+  );
 }

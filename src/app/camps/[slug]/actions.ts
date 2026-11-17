@@ -11,7 +11,7 @@ import type { PayMethod } from "@/lib/camp/money";
 import { allow, allowVisitor } from "@/lib/camp/rate-limit";
 import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
-import { cancelMine, deleteMyDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
+import { cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateProfile } from "@/lib/camp/profile";
 import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
 import { makeToken, readToken } from "@/lib/camp/tokens";
@@ -442,6 +442,14 @@ export async function markInboxReadAction(slug: string) {
   return run(async () => {
     const { me } = await signedIn(slug);
     await markAllRead(`attendee:${me.id}`);
+    return null;
+  });
+}
+
+/** The attendee adds their full name (they registered with one name). */
+export async function saveFullNameAction(slug: string, name: string) {
+  return mine(slug, async (me) => {
+    await setFullName(me, String(name ?? ""));
     return null;
   });
 }

@@ -16,7 +16,7 @@ import { ACTOR, attendee, openCamp, paidUp } from "./helpers";
 async function campWith(n: number) {
   const { camp, roomTypeId } = await openCamp();
   const people: Registration[] = [];
-  for (let i = 0; i < n; i++) people.push(await paidUp(camp, roomTypeId, { full_name: `Person ${i + 1}` }));
+  for (let i = 0; i < n; i++) people.push(await paidUp(camp, roomTypeId, { full_name: `Person No${i + 1}` }));
   return { camp, roomTypeId, people };
 }
 

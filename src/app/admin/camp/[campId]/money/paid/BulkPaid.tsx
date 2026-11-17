@@ -21,7 +21,7 @@ const when = (iso: string) => formatAccraWhen(iso);
  * and the receipt for one of those payments (from Money). Waits for expressPay
  * to confirm; the webhook is what really credits it.
  */
-export function BulkPaid({ campId, reference, leader }: { campId: string; reference: string; leader: boolean }) {
+export function BulkPaid({ campId, reference, leader, pastor = false }: { campId: string; reference: string; leader: boolean; pastor?: boolean }) {
   const router = useRouter();
   const [state, setState] = useState<State>(null);
   useEffect(() => {
@@ -115,10 +115,13 @@ export function BulkPaid({ campId, reference, leader }: { campId: string; refere
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Link href={`${leader ? "/leaders" : "/admin/camp"}/${campId}/people`} className={`${primaryButtonClass} h-12`}>
-          Back to People
+        <Link
+          href={pastor ? `/admin/camp/${campId}/report` : `${leader ? "/leaders" : "/admin/camp"}/${campId}/people`}
+          className={`${primaryButtonClass} h-12`}
+        >
+          {pastor ? "Back to the report" : "Back to People"}
         </Link>
-        {!leader && (
+        {!leader && !pastor && (
           <Link href={`/admin/camp/${campId}/money`} className="cm-press inline-flex h-12 items-center rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
             Money
           </Link>

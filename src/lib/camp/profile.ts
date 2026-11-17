@@ -1,4 +1,5 @@
 import { cancelled } from "./notify";
+import { FULL_NAME_PROBLEM, isFullName, tidyName } from "./names";
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
@@ -28,8 +29,8 @@ export async function getPrivateDetails(registrationId: string): Promise<Private
 
 export function validateProfile(raw: ProfileInput): ProfileInput {
   const problems: string[] = [];
-  const full_name = String(raw.full_name ?? "").replace(/\s+/g, " ").trim();
-  if (full_name.length < 2) problems.push("Enter your full name.");
+  const full_name = tidyName(raw.full_name);
+  if (!isFullName(full_name)) problems.push(FULL_NAME_PROBLEM);
   if (full_name.length > 120) problems.push("Your name is too long.");
   const email = String(raw.email ?? "").trim().toLowerCase();
   if (!EMAIL.test(email) || email.length > 254) problems.push("Enter a valid email address.");
@@ -128,4 +129,15 @@ function wipeStatements(me: Registration, reason = "") {
     { sql: "UPDATE camp_pay_experience SET comment = '' WHERE registration_id = ?", params: [me.id] },
     auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "registration.delete_details", entity: "registration", entityId: me.id, after: reason ? { reason: reason.slice(0, 300) } : undefined }),
   ];
+}
+
+/** "What's your full name?": for people who registered with one name, before full names were required. */
+export async function setFullName(me: Registration, raw: string) {
+  const full_name = tidyName(raw);
+  if (!isFullName(full_name)) throw new CampError(FULL_NAME_PROBLEM);
+  if (full_name.length > 120) throw new CampError("Your name is too long.");
+  await batch("app", [
+    { sql: "UPDATE camp_registrations SET full_name = ? WHERE id = ? AND deleted_at IS NULL", params: [full_name, me.id] },
+    auditStatement({ actor: actorOf(me), campId: me.camp_id, action: "registration.profile", entity: "registration", entityId: me.id }),
+  ]);
 }

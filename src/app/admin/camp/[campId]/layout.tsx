@@ -25,10 +25,11 @@ import { teamGate } from "../TeamGate";
  */
 export default async function CampShell({ children, params }: { children: React.ReactNode; params: Promise<{ campId: string }> }) {
   const { campId } = await params;
-  const staff = await pageStaff("coordinator", "leader");
+  const staff = await pageStaff("coordinator", "leader", "pastor");
   const camp = staff && ID.test(campId) ? await getCamp(campId) : null;
   if (!staff || !camp) return <div className="mx-auto max-w-5xl px-5 py-8">{children}</div>;
   const leader = staff.role === "leader";
+  const pastor = staff.role === "pastor";
   // On a phone, Commune Team with notifications on comes first.
   const { tracker, gate } = await teamGate(staff, camp.name);
   if (gate)
@@ -39,7 +40,7 @@ export default async function CampShell({ children, params }: { children: React.
       </ToastProvider>
     );
   const [counts, camps, open, unread] = await Promise.all([
-    leader ? { requests: 0 } : navCounts(camp.id),
+    leader || pastor ? { requests: 0 } : navCounts(camp.id),
     listCamps(),
     listMyOpenBulkPayments(camp.id, staff.email).catch(() => []),
     (async () => unreadCount(teamOwner(staff)))().catch(() => 0),
@@ -84,7 +85,7 @@ export default async function CampShell({ children, params }: { children: React.
             <CommuneLogo size={26} label={null} />
             <span className="text-[15px] font-medium">commune</span>
           </Link>
-          <Rail base={base} leader={leader} requests={counts.requests} />
+          <Rail base={base} leader={leader} pastor={pastor} requests={counts.requests} />
           <span className="mt-auto flex flex-col gap-0.5 px-2 text-xs text-[#6f6863]">
             <span className="truncate">{leaderName(staff.email) ?? staff.email}</span>
             <SignOutButton leader={leader} className="self-start text-[#6f6863]" />
@@ -93,9 +94,13 @@ export default async function CampShell({ children, params }: { children: React.
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-stone-border bg-stone-canvas/95 px-4 backdrop-blur-sm lg:px-7">
             {switcher}
-            <FindPerson base={base} campId={camp.id} leader={leader} className="ml-auto w-full max-w-[420px] max-sm:hidden lg:ml-0" />
-            <PhoneSearch base={base} campId={camp.id} leader={leader} />
-            <InboxBell href={`${base}/notifications`} unread={unread} className="lg:ml-auto" />
+            {!pastor && (
+              <>
+                <FindPerson base={base} campId={camp.id} leader={leader} className="ml-auto w-full max-w-[420px] max-sm:hidden lg:ml-0" />
+                <PhoneSearch base={base} campId={camp.id} leader={leader} />
+              </>
+            )}
+            <InboxBell href={`${base}/notifications`} unread={unread} className={pastor ? "ml-auto" : "lg:ml-auto"} />
             <AccountMenu name={leaderName(staff.email) ?? staff.email} leader={leader} />
           </header>
           <main className="w-full max-w-[1080px] flex-1 px-4 pb-32 pt-6 lg:px-7 lg:pb-16">{children}</main>
@@ -105,7 +110,7 @@ export default async function CampShell({ children, params }: { children: React.
       {tracker}
       {/* On a computer nobody is made to, but they're asked to turn on notifications each visit. */}
       <NotifyPrompt who="staff" actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />
-      <BottomBar base={base} leader={leader} requests={counts.requests} />
+      <BottomBar base={base} leader={leader} pastor={pastor} requests={counts.requests} />
     </ToastProvider>
   );
 }

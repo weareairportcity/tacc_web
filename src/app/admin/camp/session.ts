@@ -8,7 +8,8 @@ import { noteAccess, notePresence, type AccessRole } from "@/lib/camp/logs";
 import { allowVisitor } from "@/lib/camp/rate-limit";
 import type { Staff } from "@/lib/camp/types";
 
-const roleOf = (staff: Staff): AccessRole => staff.role;
+// The access log keeps its four staff roles: a Pastor is logged as a coordinator (their email says who).
+const roleOf = (staff: Staff): AccessRole => (staff.role === "pastor" ? "coordinator" : staff.role);
 
 /** Signs a coordinator out. A leader code on the same device stays signed in on the leaders' side. */
 export async function signOutAction() {

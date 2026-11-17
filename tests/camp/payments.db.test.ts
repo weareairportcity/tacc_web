@@ -529,6 +529,25 @@ describe("paying for several people", () => {
   });
 });
 
+describe("the Pastor paying for people", () => {
+  it("each person is told \"Pastor has paid … for you\" by app notification and by text", async () => {
+    const PASTOR = "pastor@test.local";
+    await query("app", "INSERT INTO camp_staff (email, role) VALUES (?, 'pastor') ON CONFLICT DO NOTHING", [PASTOR]);
+    const { camp, roomTypeId } = await openCamp();
+    const a = await newPerson(camp, roomTypeId);
+    const before = smsSent.length;
+    const checkout = await startBulkPayment({ campId: camp.id, registrationIds: [a.id], paidBy: PASTOR, note: "", callbackUrl: CALLBACK });
+    succeed(checkout.reference);
+    await checkBulkPayment(camp.id, checkout.reference);
+    const texts = smsSent.slice(before).map((t) => t.message);
+    expect(texts.some((t) => t.includes("Pastor has paid GHS 600 for you"))).toBe(true);
+    const [inbox] = await query<{ body: string }>("app", "SELECT body FROM camp_inbox WHERE owner = ? AND kind = 'payment_received'", [`attendee:${a.id}`]);
+    expect(inbox.body).toContain("Pastor has paid GHS 600 for you");
+    const staff = await query<{ body: string }>("app", "SELECT body FROM camp_inbox WHERE owner = ? AND kind = 'payment' ORDER BY id DESC LIMIT 5", [`staff:${ACTOR}`]);
+    expect(staff.some((m) => m.body.startsWith("Pastor paid GHS 600 for 1 person"))).toBe(true);
+  });
+});
+
 describe("pay links", () => {
   it("lets someone else pay, with their name on the payment", async () => {
     const { id } = await registered();

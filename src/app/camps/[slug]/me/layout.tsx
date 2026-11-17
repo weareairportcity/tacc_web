@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { isFullName } from "@/lib/camp/names";
+import { FullNameStep } from "./FullNameStep";
 import { notFound, redirect } from "next/navigation";
 import { appInfo, mustSetUpApp } from "@/lib/camp/app-first";
 import type { Metadata } from "next";
@@ -29,11 +31,14 @@ export default async function MeLayout({ children, params }: { children: React.R
   const installed = appInstalledAction.bind(null, camp.slug);
   const tracker = <AppTracker known={info.installed} installed={installed} />;
 
+  // Registered with one name, before full names were required: ask for the rest first.
+  const askName = me.status !== "cancelled" && !isFullName(me.full_name) ? <FullNameStep slug={camp.slug} name={me.full_name} /> : null;
   if (!mustSetUpApp(camp, me, info, h.get("user-agent") ?? "")) {
     return (
       <>
         {tracker}
         {children}
+        {askName}
       </>
     );
   }

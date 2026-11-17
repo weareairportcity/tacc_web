@@ -539,7 +539,7 @@ export async function payLinkAction(campId: string, registrationId: string) {
  */
 export async function payForPeopleAction(campId: string, registrationIds: string[], note: string) {
   return run(async () => {
-    const staff = await requireCampRole("coordinator", "leader");
+    const staff = await requireCampRole("coordinator", "leader", "pastor");
     await once(staff.email, "payForPeopleAction", [campId, registrationIds, note]);
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
@@ -800,10 +800,10 @@ export async function setHelpPhoneAction(campId: string, phone: string) {
 /** The return page after paying for several people. */
 export async function checkBulkAction(campId: string, reference: string) {
   return look(async () => {
-    const staff = await requireCampRole("coordinator", "leader");
-    // A leader sees only the payments they made themselves.
+    const staff = await requireCampRole("coordinator", "leader", "pastor");
+    // A leader or the Pastor sees only the payments they made themselves.
     const mine = await getBulkReceipt(String(campId), String(reference));
-    if (staff.role === "leader" && mine?.paid_by !== staff.email) throw new CampError("That payment isn't one of yours.");
+    if ((staff.role === "leader" || staff.role === "pastor") && mine?.paid_by !== staff.email) throw new CampError("That payment isn't one of yours.");
     const check = await checkBulkPayment(String(campId), String(reference));
     return { ...check, receipt: await getBulkReceipt(String(campId), String(reference)) };
   });
@@ -849,7 +849,7 @@ async function leaderMayCancel(staff: Staff, campId: string, reference: string) 
 /** What's holding up "Pay for them": checkouts still processing for these people. */
 export async function openPaymentsForAction(campId: string, registrationIds: string[]) {
   return look(async () => {
-    const staff = await requireCampRole("coordinator", "leader");
+    const staff = await requireCampRole("coordinator", "leader", "pastor");
     const ids = Array.isArray(registrationIds) ? registrationIds.map(String) : [];
     const payments = await listOpenPaymentsFor(String(campId), await idsInScope(String(campId), ids, scopeFor(staff)));
     return { me: staff.email, payments };
@@ -859,8 +859,8 @@ export async function openPaymentsForAction(campId: string, registrationIds: str
 /** "Cancel it": gives up on an unfinished checkout once expressPay confirms nobody paid. Logged. */
 export async function cancelPaymentAction(campId: string, reference: string) {
   return run(async () => {
-    const staff = await requireCampRole("coordinator", "leader");
-    if (staff.role === "leader" && !(await leaderMayCancel(staff, String(campId), String(reference)))) throw new CampError("That payment isn't for your people.");
+    const staff = await requireCampRole("coordinator", "leader", "pastor");
+    if ((staff.role === "leader" || staff.role === "pastor") && !(await leaderMayCancel(staff, String(campId), String(reference)))) throw new CampError("That payment isn't for your people.");
     const { status } = await cancelPayment(String(campId), String(reference));
     await batch("app", [
       auditStatement({ actor: staff.email, campId: String(campId), action: "payment.cancel", entity: "payment", entityId: String(reference), after: { status } }),
@@ -875,7 +875,7 @@ export async function cancelPaymentAction(campId: string, reference: string) {
 export async function staffPushSubscribeAction(subscription: unknown) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader");
+      const staff = await requireCampRole("coordinator", "leader", "pastor");
       await savePushSub(teamOwner(staff), subscription);
       return true;
     },
@@ -886,7 +886,7 @@ export async function staffPushSubscribeAction(subscription: unknown) {
 export async function staffPushRemoveAction(endpoint: string) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader");
+      const staff = await requireCampRole("coordinator", "leader", "pastor");
       await removePushSub(endpoint, teamOwner(staff));
       return true;
     },
@@ -897,7 +897,7 @@ export async function staffPushRemoveAction(endpoint: string) {
 export async function staffNotifyPrefsAction(off?: string[]) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader");
+      const staff = await requireCampRole("coordinator", "leader", "pastor");
       return notifyPrefs(teamOwner(staff), off);
     },
     { quiet: true },
@@ -908,7 +908,7 @@ export async function staffNotifyPrefsAction(off?: string[]) {
 export async function teamInstalledAction(platform: string) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader");
+      const staff = await requireCampRole("coordinator", "leader", "pastor");
       await markTeamInstalled(teamOwner(staff), String(platform));
       return true;
     },
@@ -936,7 +936,7 @@ export async function messageLeadersAction(campId: string, message: string) {
 export async function markInboxReadAction() {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader");
+      const staff = await requireCampRole("coordinator", "leader", "pastor");
       await markAllRead(teamOwner(staff));
       return null;
     },

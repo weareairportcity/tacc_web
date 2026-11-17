@@ -107,3 +107,52 @@ describe("Notifications page (inbox)", () => {
     await query("app", "DELETE FROM camp_staff WHERE email = ?", [coordinator]);
   });
 });
+
+describe("the Pastor and the 7pm summaries", () => {
+  it("a Pastor reaches only what lists them, and sees the whole camp", async () => {
+    const { assertRole } = await import("@/lib/camp/roles");
+    const pastor = { email: "pastor@test.local", role: "pastor" as const, scope_kind: null, scope_value: null };
+    expect(() => assertRole(pastor, ["coordinator"])).toThrow(CampError);
+    expect(() => assertRole(pastor, ["coordinator", "leader"])).toThrow(CampError);
+    expect(assertRole(pastor, ["coordinator", "pastor"])).toBe(pastor);
+    expect(scopeFor(pastor)).toEqual({ kind: "all" });
+  });
+
+  it("the Pastor gets the whole camp, each Group Leader their group, on their Notifications page", async () => {
+    const PASTOR = `pastor-${Date.now()}@test.local`;
+    await query("app", "INSERT INTO camp_staff (email, role) VALUES (?, 'pastor')", [PASTOR]);
+    const { camp, roomTypeId } = await openCamp();
+    await paidUp(camp, roomTypeId, { full_name: "Ama Summary", fellowship: "Rabah" });
+    await paidUp(camp, roomTypeId, { full_name: "Kofi Summary", fellowship: "Chosen" });
+    const g2 = await newLeaderCode(ACTOR, "group", "Group 2", `Summary Leader ${Date.now()}`);
+
+    await post("/v1/admin/camp/summary", {});
+    const [pastor] = (await listInbox(`staff:${PASTOR}`)).filter((i) => i.url === `/admin/camp/${camp.id}/report`);
+    expect(pastor).toMatchObject({ kind: "daily", title: `${camp.name}: today` });
+    // paidUp marks them paid without a payment row, so nothing came in today.
+    expect(pastor.body).toBe("2 registered today, GHS 0 in. 2 in all · 2 fully paid · GHS 0 still owed.");
+    const [group] = (await listInbox(`leader:${g2.id}`)).filter((i) => i.url === `/leaders/${camp.id}/people/fellowships`);
+    expect(group).toMatchObject({ kind: "daily", title: `${camp.name}: Group 2 today` });
+    expect(group.body).toBe("1 registered today, GHS 0 in. 1 in all · 1 fully paid · GHS 0 still owed.");
+
+    // Once a day: a second run sends nothing new.
+    await post("/v1/admin/camp/summary", {});
+    expect((await listInbox(`staff:${PASTOR}`)).filter((i) => i.url === `/admin/camp/${camp.id}/report`)).toHaveLength(1);
+    await query("app", "DELETE FROM camp_staff WHERE email = ?", [PASTOR]);
+  });
+});
+
+describe("full names", () => {
+  it("need a first name and surname", async () => {
+    const { isFullName } = await import("@/lib/camp/names");
+    expect(isFullName("Ama")).toBe(false);
+    expect(isFullName("Ama .")).toBe(false);
+    expect(isFullName("  Ama   Mensah ")).toBe(true);
+    expect(isFullName("Ama K. Mensah")).toBe(true);
+    expect(isFullName("Adwoa Nyarko-Boateng")).toBe(true);
+    const { register } = await import("@/lib/camp/registrations");
+    const { attendee } = await import("./helpers");
+    const { camp, roomTypeId } = await openCamp();
+    await expect(register(camp, attendee(roomTypeId, { full_name: "Ama" }))).rejects.toThrow("first name and surname");
+  });
+});
