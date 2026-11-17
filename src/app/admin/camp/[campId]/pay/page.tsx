@@ -24,7 +24,7 @@ export default async function PayPage({ params }: { params: Promise<{ campId: st
       <header className="flex flex-col gap-1.5">
         <h1 className={`${headlineClass} text-[34px]`}>Pay</h1>
         <p className="text-[15px] text-warm-gray">
-          Tick the people you&apos;d like to pay for, then pay what they still owe in one go. Each one gets a notification and a text saying Pastor has paid for them.
+          Tick the people you&apos;d like to pay for, then pay their balance in one go. Each person gets a notification and a text to say Pastor has paid for them.
         </p>
       </header>
       <PastorPay campId={camp.id} rows={rows} />

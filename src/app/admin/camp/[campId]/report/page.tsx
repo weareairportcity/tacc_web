@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import { query } from "@/lib/cf";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { arrivalCounts } from "@/lib/camp/checkin";
-import { APP_STATE_SQL, type AppState } from "@/lib/camp/app-first";
 import { daysUntil, todayInGhana } from "@/lib/camp/registrations";
 import { getDashboard, getFellowshipBreakdown, getTodayNumbers, latestRegistrations } from "@/lib/camp/reports";
 import { FellowshipRanking, GroupRanking, MoneyCard, active, cedis, rankGroups, sum } from "@/components/camp/FellowshipRanking";
-import { Legend, RegistrationStatus, StackedBar, formatDate, headlineClass, type BarPart } from "@/components/camp/ui";
+import { RegistrationStatus, formatDate, headlineClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
 
@@ -38,7 +36,7 @@ function Stat({ big, label }: { big: string | number; label: string }) {
 /**
  * The Pastor's report: the whole camp on one page, read-only. Everything a
  * report needs (today, money, payment status, the last two weeks, groups and
- * fellowships ranked, rooms, the app, check-in, who registered last), and
+ * fellowships ranked, rooms, check-in, who registered last), and
  * nothing to do but read it. Paying for people is on Pay.
  */
 export default async function ReportPage({ params }: { params: Promise<{ campId: string }> }) {
@@ -50,25 +48,17 @@ export default async function ReportPage({ params }: { params: Promise<{ campId:
   if (!camp) notFound();
   const today = todayInGhana();
   const during = today >= camp.starts_on && today <= camp.ends_on;
-  const [d, t, ranked, latest, apps, arrivals] = await Promise.all([
+  const [d, t, ranked, latest, arrivals] = await Promise.all([
     getDashboard(camp.id),
     getTodayNumbers(camp.id),
     getFellowshipBreakdown(camp.id, { kind: "all" }),
     latestRegistrations(camp.id, 15),
-    query<{ app: AppState; n: number }>("app", `SELECT ${APP_STATE_SQL} AS app, COUNT(*) AS n FROM camp_registrations r WHERE r.camp_id = ? AND r.status <> 'cancelled' GROUP BY app`, [camp.id]),
     during ? arrivalCounts(camp.id) : null,
   ]);
 
   const all = sum(ranked);
   const live = active(all);
   const groups = rankGroups(ranked);
-  const app = (k: AppState) => apps.find((a) => a.app === k)?.n ?? 0;
-  const appParts: BarPart[] = [
-    { key: "on", value: app("on"), color: "bg-st-paid", label: "Notifications on" },
-    { key: "installed", value: app("installed"), color: "bg-sky-wash", label: "App, notifications off" },
-    { key: "none", value: app("none"), color: "bg-stone-border", label: "Not set up" },
-    { key: "texts", value: app("texts"), color: "bg-[#a8a29e]", label: "Texts only" },
-  ];
   const maxDay = Math.max(1, ...t.perDay.map((x) => x.n));
   const week = t.perDay.slice(7).reduce((n, x) => n + x.n, 0);
   const beds = d.supply.reduce((n, s) => n + s.beds, 0);
@@ -81,18 +71,18 @@ export default async function ReportPage({ params }: { params: Promise<{ campId:
         <h1 className={`${headlineClass} text-[34px]`}>Report</h1>
         <p className="text-[15px] text-warm-gray">
           {camp.name} · {formatDate(camp.starts_on)}
-          {toCamp > 0 ? ` · ${toCamp} ${toCamp === 1 ? "day" : "days"} to go` : during ? " · camp is on" : ""}. Up to date as you open it.
+          {toCamp > 0 ? ` · ${toCamp} ${toCamp === 1 ? "day" : "days"} to go` : during ? " · camp is on" : ""}. Updated each time you open it.
         </p>
       </header>
 
-      <MoneyCard all={all} label={`paid by ${live} ${live === 1 ? "person" : "people"}`} />
+      <MoneyCard all={all} label="paid so far" />
 
       <Card title="Today" note={formatDate(today)}>
         <div className="grid grid-cols-2 gap-4">
           <Stat big={t.newToday} label="registered today" />
           <Stat big={cedis(t.moneyToday)} label="paid today" />
           <Stat big={d.status.fully_paid} label="fully paid" />
-          <Stat big={t.outstandingPeople} label="still owe something" />
+          <Stat big={t.outstandingPeople} label="not fully paid yet" />
         </div>
       </Card>
 
@@ -144,11 +134,6 @@ export default async function ReportPage({ params }: { params: Promise<{ campId:
           {d.supply.length === 0 && <li className="text-warm-gray">No room types yet.</li>}
         </ul>
         {d.allocation.waiting > 0 && <p className="text-[13px] text-warm-gray">{d.allocation.waiting} fully paid and waiting for a room.</p>}
-      </Card>
-
-      <Card title="The app" note={`${app("on")} of ${live} get notifications`}>
-        <StackedBar parts={appParts} className="h-2" />
-        <Legend parts={appParts} />
       </Card>
 
       {arrivals && (

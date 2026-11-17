@@ -24,7 +24,7 @@ export default async function MyNotificationsPage({ params }: { params: Promise<
           </>
         }
       >
-        Everything Commune has sent to your phone, newest first. Tap one to go where it points.
+        Everything Commune has sent to your phone, newest first. Tap one to open it.
       </Intro>
       <InboxList items={items} />
       <MarkRead action={markInboxReadAction.bind(null, camp.slug)} unread={unread} />

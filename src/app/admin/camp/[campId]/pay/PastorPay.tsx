@@ -16,7 +16,7 @@ const owes = (r: PayRow) => Math.max(0, r.price - r.paid);
 /** expressPay checkouts are made for up to 100 people at a time. */
 const MAX = 100;
 
-/** Search, tick, pay. Only people who still owe can be ticked. */
+/** Search, tick, pay. Only people with something left to pay can be ticked. */
 export function PastorPay({ campId, rows }: { campId: string; rows: PayRow[] }) {
   const [q, setQ] = useState("");
   const [everyone, setEveryone] = useState(false);
@@ -50,7 +50,7 @@ export function PastorPay({ campId, rows }: { campId: string; rows: PayRow[] }) 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="group" aria-label="Show" className="grid grid-cols-2 gap-1 rounded-full border border-stone-border bg-white p-[3px]">
           {[
-            [false, "Still owe"],
+            [false, "Not fully paid"],
             [true, "Everyone"],
           ].map(([value, label]) => (
             <button
@@ -113,7 +113,7 @@ export function PastorPay({ campId, rows }: { campId: string; rows: PayRow[] }) 
                   </span>
                   <span className="flex flex-none flex-col items-end gap-1">
                     {left > 0 ? <span className="text-[15px] tabular-nums">{cedis(left)}</span> : <RegistrationStatus status={r.status} />}
-                    {left > 0 && <span className="text-[12px] text-warm-gray">still owed</span>}
+                    {left > 0 && <span className="text-[12px] text-warm-gray">left to pay</span>}
                   </span>
                 </label>
               </li>

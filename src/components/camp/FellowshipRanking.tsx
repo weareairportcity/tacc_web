@@ -37,12 +37,12 @@ export function rankGroups(ranked: FellowshipRow[]) {
     .sort((a, b) => active(b.t) - active(a.t) || b.t.fully_paid - a.t.fully_paid);
 }
 
-/** Paid against still owed, in cedis, with how many are fully, part and not paid. */
+/** Paid against what is left to pay, in cedis, with how many are fully, part and not paid. */
 export function MoneyCard({ all, label = "paid" }: { all: Totals; label?: string }) {
   const owed = Math.max(0, all.expected - all.paid);
   const parts: BarPart[] = [
     { key: "paid", value: all.paid, color: "bg-st-paid", label: "Paid" },
-    { key: "owed", value: owed, color: "bg-stone-border", label: "Still owed" },
+    { key: "left", value: owed, color: "bg-stone-border", label: "Left to pay" },
   ];
   return (
     <section aria-label="Money" className="flex flex-col gap-3.5 rounded-2xl bg-white p-5 shadow-seline-hero">
@@ -70,7 +70,7 @@ export function GroupRanking({ groups }: { groups: ReturnType<typeof rankGroups>
           <span className="flex items-center gap-3.5 pl-[38px]">
             <StackedBar className="h-1.5 flex-1" parts={bar(g.t)} />
             <span className="flex-none text-[13px] tabular-nums text-warm-gray">
-              {cedis(g.t.paid)} paid · {cedis(Math.max(0, g.t.expected - g.t.paid))} owed
+              {cedis(g.t.paid)} paid · {cedis(Math.max(0, g.t.expected - g.t.paid))} left to pay
             </span>
           </span>
         </li>

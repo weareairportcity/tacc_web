@@ -130,10 +130,10 @@ describe("the Pastor and the 7pm summaries", () => {
     const [pastor] = (await listInbox(`staff:${PASTOR}`)).filter((i) => i.url === `/admin/camp/${camp.id}/report`);
     expect(pastor).toMatchObject({ kind: "daily", title: `${camp.name}: today` });
     // paidUp marks them paid without a payment row, so nothing came in today.
-    expect(pastor.body).toBe("2 registered today, GHS 0 in. 2 in all · 2 fully paid · GHS 0 still owed.");
+    expect(pastor.body).toBe("Today: 2 new registrations and GHS 0 received. In total, 2 of 2 people are fully paid, with GHS 0 left to pay.");
     const [group] = (await listInbox(`leader:${g2.id}`)).filter((i) => i.url === `/leaders/${camp.id}/people/fellowships`);
     expect(group).toMatchObject({ kind: "daily", title: `${camp.name}: Group 2 today` });
-    expect(group.body).toBe("1 registered today, GHS 0 in. 1 in all · 1 fully paid · GHS 0 still owed.");
+    expect(group.body).toBe("Today: 1 new registration and GHS 0 received. In total, 1 of 1 person is fully paid, with GHS 0 left to pay.");
 
     // Once a day: a second run sends nothing new.
     await post("/v1/admin/camp/summary", {});

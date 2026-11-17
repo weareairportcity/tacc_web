@@ -23,7 +23,7 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
       <header className="flex flex-col gap-1.5">
         <h1 className={`${headlineClass} text-[34px]`}>Notifications</h1>
         <p className="text-[15px] text-warm-gray">
-          Everything sent to your phone{staff.role === "leader" ? " (and anyone sharing your code)" : ""}, newest first. Tap one to go where it points.
+          Everything sent to your phone{staff.role === "leader" ? " (and anyone sharing your code)" : ""}, newest first. Tap one to open it.
         </p>
       </header>
       <InboxList items={items} />

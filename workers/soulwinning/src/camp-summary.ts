@@ -184,9 +184,9 @@ async function shortNumbers(env: AppEnv, campId: string, day: string, fellowship
   return { today: people?.today ?? 0, moneyToday: money?.n ?? 0, total: people?.total ?? 0, full: people?.full ?? 0, owed: people?.owed ?? 0 };
 }
 
-/** "12 registered today, GHS 7,200 in. 186 in all · 120 fully paid · GHS 31,400 still owed." */
+/** "Today: 12 new registrations and GHS 7,200 received. In total, 120 of 186 people are fully paid, with GHS 31,400 left to pay." */
 export function shortSummary(n: Short) {
-  return `${n.today} registered today, ${cedis(n.moneyToday)} in. ${n.total} in all · ${n.full} fully paid · ${cedis(n.owed)} still owed.`;
+  return `Today: ${plural(n.today, "new registration")} and ${cedis(n.moneyToday)} received. In total, ${n.full} of ${plural(n.total, "person", "people")} ${n.full === 1 ? "is" : "are"} fully paid, with ${cedis(n.owed)} left to pay.`;
 }
 
 /**

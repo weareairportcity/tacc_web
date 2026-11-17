@@ -297,3 +297,50 @@ export async function trashNote(noteId: string) {
     ),
   );
 }
+
+// ─── Photo export ────────────────────────────────────────────────────────────
+
+export type Original = { id: string; name: string };
+
+/**
+ * Every untouched original, keyed by note id, in photo order. One list call:
+ * drive.file only shows files this app made, and the parent check keeps it to
+ * note folders.
+ */
+export async function listOriginals(noteIds: string[]) {
+  const notes = new Set(noteIds);
+  const files = await listAll(
+    `name contains 'photo-' and mimeType != '${FOLDER_MIME}' and trashed = false`,
+    "id, name, parents, size",
+  );
+  const byNote = new Map<string, Original[]>();
+  for (const f of files) {
+    const note = f.parents?.find((p) => notes.has(p));
+    if (!note || !f.id || !f.name || !(Number(f.size) > 0)) continue;
+    const list = byNote.get(note) ?? [];
+    list.push({ id: f.id, name: f.name });
+    byNote.set(note, list);
+  }
+  const index = (name: string) => Number(name.match(/^photo-(\d+)/)?.[1] ?? 0);
+  for (const list of byNote.values()) list.sort((a, b) => index(a.name) - index(b.name));
+  return byNote;
+}
+
+/**
+ * Streams an original photo. Only files sitting in one of our note folders
+ * qualify, so the route can't be used to read anything else in Drive.
+ */
+export async function fetchOriginal(fileId: string) {
+  const { auth, drive } = client();
+  const [meta, { token }] = await Promise.all([
+    drive.files.get({ fileId, fields: "parents, mimeType, trashed" }).catch(() => null),
+    auth.getAccessToken(),
+  ]);
+  const parent = meta?.data.parents?.[0];
+  if (!meta || meta.data.trashed || !parent || !(await getNoteFolder(parent))) return null;
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  return res.ok ? { body: res.body, mimeType: meta.data.mimeType ?? "application/octet-stream" } : null;
+}

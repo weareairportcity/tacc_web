@@ -158,7 +158,7 @@ describe("expressPay's notice", () => {
   it("texts the person once, when their payments reach the full price", async () => {
     const { camp, id } = await registered();
     const phone = (await getRegistration(id))!.phone;
-    const fullyPaidTexts = () => smsSent.filter((s) => s.recipient.includes(phone) && s.message.includes("You're now fully paid"));
+    const fullyPaidTexts = () => smsSent.filter((s) => s.recipient.includes(phone) && s.message.includes("Your place is now fully paid for"));
 
     const first = await pay(id, 30000);
     succeed(first.reference);
@@ -172,7 +172,7 @@ describe("expressPay's notice", () => {
     await sendNotice(second.reference); // a repeat doesn't text again
     expect(fullyPaidTexts()).toHaveLength(1);
     expect(fullyPaidTexts()[0].message).toMatch(
-      new RegExp(`^Hi Ama, we've received your payment of GHS 300 for ${camp.name}\\. You're now fully paid\\. Thank you!.* Receipt: https://\\S+/camps/r/${second.reference} - The Airport City Church$`),
+      new RegExp(`^Hi Ama, we've received your payment of GHS 300 for ${camp.name}\\. Your place is now fully paid for\\. Thank you!.* Receipt: https://\\S+/camps/r/${second.reference} - The Airport City Church$`),
     );
   });
 
@@ -540,7 +540,7 @@ describe("the Pastor paying for people", () => {
     succeed(checkout.reference);
     await checkBulkPayment(camp.id, checkout.reference);
     const texts = smsSent.slice(before).map((t) => t.message);
-    expect(texts.some((t) => t.includes("Pastor has paid GHS 600 for you"))).toBe(true);
+    expect(texts.some((t) => t.includes("Pastor has paid GHS 600 towards your place at"))).toBe(true);
     const [inbox] = await query<{ body: string }>("app", "SELECT body FROM camp_inbox WHERE owner = ? AND kind = 'payment_received'", [`attendee:${a.id}`]);
     expect(inbox.body).toContain("Pastor has paid GHS 600 for you");
     const staff = await query<{ body: string }>("app", "SELECT body FROM camp_inbox WHERE owner = ? AND kind = 'payment' ORDER BY id DESC LIMIT 5", [`staff:${ACTOR}`]);

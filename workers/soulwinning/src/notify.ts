@@ -227,7 +227,7 @@ export function receiptText(o: {
   roommatesBy: string | null;
 }) {
   const what = o.byPastor
-    ? `Pastor has paid ${cedis(o.amount)} for you for ${o.camp}.`
+    ? `Pastor has paid ${cedis(o.amount)} towards your place at ${o.camp}.`
     : o.bulk
     ? `your balance of ${cedis(o.amount)} for ${o.camp} has been paid for you${o.bulk.note ? ` (${o.bulk.note})` : ""}.`
     : o.payer
@@ -236,8 +236,8 @@ export function receiptText(o: {
   const then = o.left > 0
     ? ` You have ${cedis(o.left)} left to pay.`
     : o.fullyPaidFirstTime
-      ? ` You're now fully paid. Thank you!${o.roommatesBy ? ` Next, choose your roommates in Commune by ${o.roommatesBy}.` : ""}`
-      : " You're fully paid.";
+      ? ` Your place is now fully paid for. Thank you!${o.roommatesBy ? ` Next, choose your roommates in Commune by ${o.roommatesBy}.` : ""}`
+      : " Your place is fully paid for.";
   return `Hi ${o.first}, ${what}${then} Receipt: ${o.receipt} - The Airport City Church`;
 }
 
@@ -264,7 +264,7 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
     const payer = !p.bulk_id && p.payer_name && p.payer_name.trim() && p.payer_name.trim() !== r.full_name ? p.payer_name.trim() : null;
 
     if (await once(env, `receipt:${p.id}`)) {
-      // "You're now fully paid" is said once per person, even across a refund and a second payment.
+      // "Your place is now fully paid for" is said once per person, even across a refund and a second payment.
       const fullClaim =
         full &&
         (
@@ -285,7 +285,7 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
       // App first: the notification is free. The text (2 credits) only goes when no phone of theirs got it (or the Pastor paid).
       const from = byPastor ? `Pastor has paid ${cedis(p.amount_pesewas)} for you` : p.bulk_id ? "Your camp balance was paid for you" : payer ? `${payer} paid ${cedis(p.amount_pesewas)} for you` : `We received ${cedis(p.amount_pesewas)}`;
       const pushed = await toAttendee(env, p.registration_id, "payment_received", {
-        title: full ? "You're fully paid 🎉" : "Payment received",
+        title: full ? "Your place is fully paid for 🎉" : "Payment received",
         body: full
           ? `${from}. You're all set for ${r.camp_name}.${roommatesBy ? ` Next, choose your roommates by ${roommatesBy}.` : ""} Tap to see your receipt.`
           : `${from}. You have ${cedis(left)} left to pay by ${shortDay(r.payment_due_on)}. Tap to see your receipt.`,
