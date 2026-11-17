@@ -10,7 +10,7 @@ import { NoAccess, pageStaff } from "../../../access";
  * People › Fellowships: each fellowship ranked by how many have registered
  * (cancelled left out), with the money. Coordinators see every fellowship and
  * the groups ranked; a Group or PFCC leader sees their own fellowships.
- * Tap one to see its people.
+ * Tap one for its own page of people.
  */
 export default async function FellowshipsPage({ params }: { params: Promise<{ campId: string }> }) {
   const staff = await pageStaff("coordinator", "leader");
@@ -52,7 +52,7 @@ export default async function FellowshipsPage({ params }: { params: Promise<{ ca
           )}
           <section className="flex flex-col gap-2.5">
             {groups.length > 1 && <h2 className="text-[15px] font-semibold">By fellowship</h2>}
-            <FellowshipRanking ranked={ranked} showGroup={!leader} href={(name) => `${people}?fellowship=${encodeURIComponent(name)}`} />
+            <FellowshipRanking ranked={ranked} showGroup={!leader} href={(name) => `${people}/fellowships/${encodeURIComponent(name)}`} />
           </section>
         </>
       )}

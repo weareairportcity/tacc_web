@@ -57,9 +57,12 @@ export function MoneyCard({ all, label = "paid" }: { all: Totals; label?: string
   );
 }
 
-export function GroupRanking({ groups }: { groups: ReturnType<typeof rankGroups> }) {
+const listClass = (bare: boolean) => (bare ? "-mx-4 -mt-1" : "overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card");
+
+/** `bare`: inside a card already (no second border). */
+export function GroupRanking({ groups, bare = false }: { groups: ReturnType<typeof rankGroups>; bare?: boolean }) {
   return (
-    <ol className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
+    <ol className={listClass(bare)}>
       {groups.map((g, i) => (
         <li key={g.name} className="flex min-h-[56px] flex-col justify-center gap-1.5 border-t border-stone-border px-4 py-2.5 first:border-t-0">
           <span className="flex items-baseline gap-3.5">
@@ -80,11 +83,11 @@ export function GroupRanking({ groups }: { groups: ReturnType<typeof rankGroups>
 }
 
 /** Each fellowship ranked. `href`: where tapping one goes (its people), or nothing on a read-only report. */
-export function FellowshipRanking({ ranked, href, showGroup = false }: { ranked: FellowshipRow[]; href?: (name: string) => string; showGroup?: boolean }) {
+export function FellowshipRanking({ ranked, href, showGroup = false, bare = false }: { ranked: FellowshipRow[]; href?: (name: string) => string; showGroup?: boolean; bare?: boolean }) {
   const everyone = active(sum(ranked));
   const top = ranked[0] ? active(ranked[0]) : 0;
   return (
-    <ol className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
+    <ol className={listClass(bare)}>
       {ranked.map((f, i) => {
         const n = active(f);
         const body = (
