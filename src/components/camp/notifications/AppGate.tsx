@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, BookOpen, Check, ChevronLeft, ChevronRight, Copy, EllipsisVertical, Ellipsis, Lock, Plus, Settings, Share, Smartphone, SquarePlus } from "lucide-react";
+import { Bell, BookOpen, Check, ChevronLeft, ChevronRight, Copy, EllipsisVertical, Ellipsis, Lock, Megaphone, Plus, Settings, Share, Smartphone, SquarePlus } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
 import { ErrorText, primaryButtonClass, secondaryButtonClass } from "@/components/camp/ui";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
@@ -194,6 +194,7 @@ export function AppGate({
     const real = push.platform === "ios" ? "Safari" : "Chrome";
     return (
       <Shell first={first} campName={campName} step={1} title={`Open this in ${real}`} lead={`Add ${app.name} to your phone so you ${reason}. You opened this inside ${where.app}, and that only works from ${real}.`}>
+        <WhyCard app={app} />
         <Steps>
           <Step n={1} text={<>Tap <Key><Ellipsis className="h-4 w-4" aria-label="the three dots" /></Key> at the top or bottom of the screen.</>} art={<InAppArt />} />
           <Step n={2} text={<>Tap <strong className="font-semibold">Open in {real}</strong> (or <strong className="font-semibold">Open in browser</strong>).</>} />
@@ -246,7 +247,8 @@ export function AppGate({
 
   // Step 1: add to the Home Screen.
   return (
-    <Shell first={first} campName={campName} step={1} title={`Add ${app.name} to your phone`} lead={`So you ${reason}. It's free and takes a minute.`}>
+    <Shell first={first} campName={campName} step={1} title={`Add ${app.name} to your phone`} lead={`So you ${reason}.`}>
+      <WhyCard app={app} />
       <InstallSteps browser={where.browser} push={push} app={app} />
       {escape}
     </Shell>
@@ -255,36 +257,21 @@ export function AppGate({
 
 function InstallSteps({ browser, push, app }: { browser: Browser; push: ReturnType<typeof usePush>; app: App }) {
   const [pending, start] = useOneAtATime();
-  if (browser === "safari")
+  const share = <Key><Share className="h-4 w-4" aria-label="Share" /></Key>;
+  const add = <><strong className="font-semibold">Add</strong>, then open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>;
+  if (browser === "safari" || browser === "chrome-ios")
     return (
-      <Steps>
-        <Step
-          n={1}
-          text={
-            <>
-              Tap the Share button <Key><Share className="h-4 w-4" aria-label="Share" /></Key> at the bottom of the screen.
-            </>
-          }
-          note={
-            <>
-              Don&apos;t see it? Tap <Key><Ellipsis className="h-4 w-4" aria-label="the three dots" /></Key> first, then Share.
-            </>
-          }
-          art={<SafariBarArt />}
-        />
-        <Step n={2} text={<>Scroll down and tap <strong className="font-semibold">Add to Home Screen</strong>.</>} art={<ShareSheetArt />} />
-        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt app={app} />} />
-        <Step n={4} text={<>Open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>} art={<HomeScreenArt app={app} />} />
-      </Steps>
-    );
-  if (browser === "chrome-ios")
-    return (
-      <Steps>
-        <Step n={1} text={<>Tap the Share button <Key><Share className="h-4 w-4" aria-label="Share" /></Key> at the top right, next to the address.</>} art={<ChromeIosArt />} />
-        <Step n={2} text={<>Scroll down and tap <strong className="font-semibold">Add to Home Screen</strong>.</>} art={<ShareSheetArt />} />
-        <Step n={3} text={<>Tap <strong className="font-semibold">Add</strong> at the top right.</>} art={<AddArt app={app} />} />
-        <Step n={4} text={<>Open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>} art={<HomeScreenArt app={app} />} />
-      </Steps>
+      <OneAtATime
+        steps={[
+          {
+            text: browser === "safari" ? <>Tap {share} at the bottom of the screen.</> : <>Tap {share} at the top right, next to the address.</>,
+            note: browser === "safari" ? <>Can&apos;t see it? Tap <Key><Ellipsis className="h-4 w-4" aria-label="the three dots" /></Key> first.</> : undefined,
+            art: browser === "safari" ? <SafariBarArt /> : <ChromeIosArt />,
+          },
+          { text: <>Tap <strong className="font-semibold">Add to Home Screen</strong>.</>, note: <>Not there? Scroll down the list.</>, art: <ShareSheetArt /> },
+          { text: <>Tap {add}</>, art: <AddArt app={app} /> },
+        ]}
+      />
     );
   if (browser === "other-ios")
     return (
@@ -306,11 +293,85 @@ function InstallSteps({ browser, push, app }: { browser: Browser; push: ReturnTy
       </div>
     );
   return (
-    <Steps>
-      <Step n={1} text={<>Tap the menu <Key><EllipsisVertical className="h-4 w-4" aria-label="the three dots" /></Key> at the top right.</>} art={<AndroidMenuArt />} />
-      <Step n={2} text={<>Tap <strong className="font-semibold">Add to Home screen</strong> or <strong className="font-semibold">Install app</strong>, then <strong className="font-semibold">Install</strong>.</>} />
-      <Step n={3} text={<>Open <strong className="font-semibold">{app.name}</strong> from your Home Screen.</>} art={<HomeScreenArt app={app} />} />
-    </Steps>
+    <OneAtATime
+      steps={[
+        { text: <>Tap <Key><EllipsisVertical className="h-4 w-4" aria-label="the three dots" /></Key> at the top right.</>, art: <AndroidMenuArt /> },
+        {
+          text: (
+            <>
+              Tap <strong className="font-semibold">Add to Home screen</strong> or <strong className="font-semibold">Install app</strong>, then {add}
+            </>
+          ),
+          art: <HomeScreenArt app={app} />,
+        },
+      ]}
+    />
+  );
+}
+
+type OneStep = { text: React.ReactNode; note?: React.ReactNode; art?: React.ReactNode };
+
+/** The install, one step per screen: a big picture, one short line, and Next. */
+function OneAtATime({ steps }: { steps: OneStep[] }) {
+  const [i, setI] = useState(0);
+  const step = steps[i];
+  const last = i === steps.length - 1;
+  return (
+    <section aria-label="How to add it" className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-seline-hero">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[13px] font-medium text-warm-gray" aria-live="polite">
+          Step {i + 1} of {steps.length}
+        </span>
+        <span className="flex gap-1.5" aria-hidden="true">
+          {steps.map((_, n) => (
+            <span key={n} className={cn("h-1.5 w-6 rounded-full transition-colors", n <= i ? "bg-cyan-edge" : "bg-stone-border")} />
+          ))}
+        </span>
+      </div>
+      <div key={i} className="cm-rise flex flex-col gap-4">
+        {step.art && (
+          <div aria-hidden="true" className="overflow-hidden rounded-[14px] bg-stone-canvas">
+            {step.art}
+          </div>
+        )}
+        <p className="flex flex-col gap-1">
+          <span className="text-[19px] leading-snug">{step.text}</span>
+          {step.note && <span className="text-[15px] leading-snug text-warm-gray">{step.note}</span>}
+        </p>
+      </div>
+      <div className="flex gap-2">
+        {i > 0 && (
+          <button type="button" onClick={() => setI(i - 1)} className={`${secondaryButtonClass} h-12 px-5 text-[15px]`}>
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" /> Back
+          </button>
+        )}
+        {!last && (
+          <button type="button" onClick={() => setI(i + 1)} className={`${primaryButtonClass} h-12 flex-1 text-[15px]`}>
+            Next <ChevronRight className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Why we ask: camp updates come through the app. */
+function WhyCard({ app }: { app: App }) {
+  const team = app.kind === "team";
+  return (
+    <section className="cm-rise flex gap-3.5 rounded-2xl bg-cyan-tint p-5">
+      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-white text-cyan-deep">
+        <Megaphone className="h-5 w-5" strokeWidth={1.7} aria-hidden="true" />
+      </span>
+      <span className="flex flex-col gap-1.5">
+        <strong className="text-[17px] font-semibold leading-snug">{team ? "The camp runs through Commune Team" : "Camp updates come through the Commune app"}</strong>
+        <span className="text-[15px] leading-relaxed text-[#44403c]">
+          {team
+            ? "We'll send camp updates through this app: registrations, payments and messages from the coordinators. It's free and takes about a minute."
+            : "During camp, we'll send everything through this app: your receipts, your room, and updates from the coordinators. It's free, takes about a minute, and means you won't miss a thing."}
+        </span>
+      </span>
+    </section>
   );
 }
 
