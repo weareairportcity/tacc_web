@@ -71,14 +71,24 @@ const registeredText = (campName: string, name: string, code: string) =>
 const newCodeText = (campName: string, name: string, code: string) =>
   `Hi ${firstName(name)}, here is your new sign-in code for ${campName}: ${formatCode(code)}. Your old code will no longer work. ${SIGN_OFF}`;
 
-/** `registered`: that phone is already registered, so the page sends them to sign in instead. */
-const NOT_SURE = "We couldn't check this was you and not a computer. Wait a moment and try again.";
+/**
+ * Turnstile is a soft check: a real person whose phone or browser Cloudflare can't
+ * vouch for (old phones, in-app browsers, busy church wifi) still gets through, just
+ * with a much tighter attempt limit, so a script still can't fill the camp or spend
+ * the SMS credit.
+ */
+async function humanOrLimited(human: unknown, name: string, perPhone: number, perAddress: number, windowMs: number) {
+  if (await isHuman(human)) return;
+  console.warn(`turnstile: no pass on ${name}; using the tighter limit`);
+  await limitVisitor(`${name}-unchecked`, perPhone, perAddress, windowMs);
+}
 
+/** `registered`: that phone is already registered, so the page sends them to sign in instead. */
 /** `human`: the Turnstile pass from the page (checked only once Turnstile is set up). */
 export async function registerAction(slug: string, input: RegistrationInput, human?: string) {
   return run<{ code: string } | { registered: true }>(async () => {
-    if (!(await isHuman(human))) throw new CampError(NOT_SURE);
     const camp = await campFor(slug);
+    await humanOrLimited(human, "register", 4, 60, 60 * MINUTE);
     await limitVisitor("register", 10, 500, 60 * MINUTE);
     let created;
     try {
@@ -113,8 +123,8 @@ export async function signInAction(slug: string, code: string) {
 /** Always answers the same way, so it can't be used to find out who registered. */
 export async function forgotCodeAction(slug: string, phone: string, human?: string) {
   return run(async () => {
-    if (!(await isHuman(human))) throw new CampError(NOT_SURE);
     const camp = await campFor(slug);
+    await humanOrLimited(human, "forgot", 3, 30, 60 * MINUTE);
     await limitVisitor("forgot", 5, 100, 60 * MINUTE);
     await limit(`forgot-phone:${camp.id}:${String(phone).replace(/\D/g, "").slice(-9)}`, 3, 24 * 60 * MINUTE);
     await noteAccess({ actor: "visitor", role: "visitor", event: "lost_code", campId: camp.id });

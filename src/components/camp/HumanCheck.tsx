@@ -28,10 +28,10 @@ const load = () =>
   }));
 
 /**
- * Wait for a pass if the widget is still working, instead of failing the
- * submit because the token expired or hadn't arrived yet.
+ * Wait briefly for a pass if the widget is still working. With none, the form
+ * goes anyway: the server lets them through under a tighter limit.
  */
-export async function waitForHuman(current: () => string, retry: () => void, ms = 12_000) {
+export async function waitForHuman(current: () => string, retry: () => void, ms = 5_000) {
   if (!HUMAN_CHECK_ON) return "";
   const have = current();
   if (have) return have;
