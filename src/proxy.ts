@@ -39,6 +39,30 @@ const isLeaders = (pathname: string) => pathname === "/leaders" || pathname.star
  * /admin/camp/<camp>/…, marked as the leaders' side so only a leader code
  * counts there. commune…/leaders itself is their sign-in.
  */
+const LEADER_OTHERS = "camp_leaders";
+
+/**
+ * A notification for another code on this phone (?as=<code id>, see the
+ * Worker's forAccount): swap that code in, then open the page without ?as.
+ * Only moves cookies the phone already holds; each is still checked on use.
+ */
+function switchForNotification(request: NextRequest) {
+  const as = request.nextUrl.searchParams.get("as");
+  if (!as) return null;
+  const url = request.nextUrl.clone();
+  url.searchParams.delete("as");
+  const response = NextResponse.redirect(url);
+  const current = request.cookies.get(LEADER_COOKIE)?.value ?? "";
+  const others = (request.cookies.get(LEADER_OTHERS)?.value ?? "").split("~").filter(Boolean);
+  const target = /^[0-9a-f-]{36}$/i.test(as) ? others.find((v) => v.startsWith(`${as}.`)) : undefined;
+  if (target && !current.startsWith(`${as}.`)) {
+    const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 30 * 24 * 60 * 60 };
+    response.cookies.set(LEADER_COOKIE, target, options);
+    response.cookies.set(LEADER_OTHERS, [current, ...others.filter((v) => v !== target)].filter(Boolean).join("~"), options);
+  }
+  return response;
+}
+
 function leaderArea(request: NextRequest, pathname: string) {
   const headers = new Headers(request.headers);
   headers.set(AREA, "leader");
@@ -48,6 +72,8 @@ function leaderArea(request: NextRequest, pathname: string) {
     url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
     return NextResponse.redirect(url);
   }
+  const switched = switchForNotification(request);
+  if (switched) return switched;
   url.pathname = pathname === "/leaders" ? "/admin/camp/leaders" : `/admin/camp${pathname.slice("/leaders".length)}`;
   return NextResponse.rewrite(url, { request: { headers } });
 }

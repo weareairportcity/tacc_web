@@ -12,7 +12,8 @@ vi.mock("next/headers", () => ({
 }));
 
 const { query } = await import("@/lib/cf");
-const { currentLeader, leaderName, newLeaderCode, signInLeader } = await import("@/lib/camp/leaders");
+const { currentLeader, leaderAccounts, leaderName, newLeaderCode, signInLeader, signOutLeader, switchLeader } = await import("@/lib/camp/leaders");
+const { post } = await import("@/lib/cf");
 const { MEDICAL_TEAM } = await import("@/lib/camp/leader-name");
 const { logMedicalCall, logMedicalSearch, medicalCard } = await import("@/lib/camp/medical");
 const { listHistory } = await import("@/lib/camp/reports");
@@ -104,5 +105,61 @@ describe("the medical team", () => {
     await logMedicalSearch(actor, camp.id, "a");
     const notes = (await listHistory(camp.id, { kind: "medical" })).map((h) => h.note);
     expect(notes).toEqual(["“Kofi”", "“Ama Patient”"]);
+  });
+});
+
+describe("several accounts on one phone", () => {
+  it("adds a second code, switches between them, and signs out of one at a time", async () => {
+    const medical = await newLeaderCode(ACTOR, "medical", MEDICAL_TEAM);
+    const chosen = await newLeaderCode(ACTOR, "fellowship", "Chosen");
+    await signInLeader(chosen.code);
+    await signInLeader(medical.code);
+    expect((await currentLeader())?.role).toBe("medical");
+    expect(await leaderAccounts()).toEqual([
+      { id: medical.id, name: "Medical team", active: true },
+      { id: chosen.id, name: "Chosen leader", active: false },
+    ]);
+    // Signing in again with a code already on the phone doesn't add it twice.
+    await signInLeader(chosen.code);
+    expect((await leaderAccounts()).map((a) => [a.id, a.active])).toEqual([
+      [chosen.id, true],
+      [medical.id, false],
+    ]);
+    expect(await switchLeader(medical.id)).toBe(true);
+    expect((await currentLeader())?.codeId).toBe(medical.id);
+    expect(await switchLeader("00000000-0000-0000-0000-000000000000")).toBe(false);
+
+    // A code turned off can't be switched to, and drops out of the list.
+    await newLeaderCode(ACTOR, "fellowship", "Chosen");
+    expect(await switchLeader(chosen.id)).toBe(false);
+    expect((await leaderAccounts()).map((a) => a.id)).toEqual([medical.id]);
+
+    // Signing out of one hands over to the next; the last one signs out.
+    const g = await newLeaderCode(ACTOR, "group", "Group 1", "Richmond Asante");
+    await signInLeader(g.code);
+    expect((await signOutLeader())?.codeId).toBe(g.id);
+    expect((await currentLeader())?.codeId).toBe(medical.id);
+    await signOutLeader();
+    expect(await currentLeader()).toBeNull();
+  });
+
+  it("a phone keeps notifications for every code on it, and gets each message once", async () => {
+    const { forAccount } = await import("../../workers/soulwinning/src/notify");
+    const a = `leader:${crypto.randomUUID()}`;
+    const b = `leader:${crypto.randomUUID()}`;
+    const endpoint = `http://127.0.0.1:9/${crypto.randomUUID()}`;
+    const keys = { p256dh: "BPbHq3t4QnH5kBvQ0aXmw7d8YxZ", auth: "c2VjcmV0LWF1dGgtMTIz" };
+    const owners = async () => (await query<{ owner: string }>("app", "SELECT owner FROM camp_push_subs WHERE endpoint = ? ORDER BY owner", [endpoint])).map((r) => r.owner);
+    await post("/v1/admin/camp/push-subscribe", { owner: a, endpoint, ...keys });
+    await post("/v1/admin/camp/push-subscribe", { owner: b, endpoint, ...keys, keep: [a] });
+    expect(await owners()).toEqual([a, b].sort());
+    // Without it (a phone with one code), the last code takes the phone over, as before.
+    await post("/v1/admin/camp/push-subscribe", { owner: a, endpoint, ...keys });
+    expect(await owners()).toEqual([a]);
+
+    const id = b.slice("leader:".length);
+    expect(forAccount("/leaders/c1/people", b)).toBe(`/leaders/c1/people?as=${id}`);
+    expect(forAccount("/leaders/c1/people?tab=x", b)).toBe(`/leaders/c1/people?tab=x&as=${id}`);
+    expect(forAccount("/admin/camp/c1", "staff:a@b.co")).toBe("/admin/camp/c1");
   });
 });

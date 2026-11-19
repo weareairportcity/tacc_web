@@ -13,9 +13,12 @@ export const metadata: Metadata = { title: "Leaders · Commune" };
  * mixes it up with the coordinators' email and password sign-in. Signed in,
  * it's their camps (straight to their people when one camp is running).
  */
-export default async function LeadersHome({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  if (await currentLeader()) return <CampAdminHome />;
-  const { next } = await searchParams;
+export default async function LeadersHome({ searchParams }: { searchParams: Promise<{ next?: string; add?: string }> }) {
+  const { next, add } = await searchParams;
+  // "Add another account": sign in with another code and keep this one on the phone.
+  const signedIn = await currentLeader();
+  const adding = !!signedIn && add === "1";
+  if (signedIn && !adding) return <CampAdminHome />;
   // Only back to a leaders' page.
   const to = typeof next === "string" && next.startsWith("/leaders/") && !next.startsWith("//") ? next : "/leaders";
   return (
@@ -26,14 +29,30 @@ export default async function LeadersHome({ searchParams }: { searchParams: Prom
         </span>
         <span className="flex flex-col leading-tight">
           <span className="text-base font-medium">commune</span>
-          <span className="text-xs text-stone-muted">for fellowship and PFCC leaders</span>
+          <span className="text-xs text-stone-muted">for leaders and the camp team</span>
         </span>
       </span>
       <main className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center gap-6 py-10">
-        <h1 className="cm-rise font-display text-[40px] font-normal leading-[1.1] tracking-[-0.022em]">
-          Your <span className="text-cyan-signal">people</span>, at a glance
-        </h1>
+        {adding ? (
+          <>
+            <h1 className="cm-rise font-display text-[40px] font-normal leading-[1.1] tracking-[-0.022em]">
+              Add another <span className="text-cyan-signal">account</span>
+            </h1>
+            <p className="-mt-2 text-[15px] leading-relaxed text-stone-muted">
+              Type the other code, for example your fellowship&apos;s or the medical team&apos;s. You&apos;ll be able to switch between them from the top right.
+            </p>
+          </>
+        ) : (
+          <h1 className="cm-rise font-display text-[40px] font-normal leading-[1.1] tracking-[-0.022em]">
+            Your <span className="text-cyan-signal">people</span>, at a glance
+          </h1>
+        )}
         <LeaderSignIn next={to} />
+        {adding && (
+          <Link href="/leaders" className="text-center text-[15px] text-white underline decoration-white/40 underline-offset-[3px]">
+            Cancel
+          </Link>
+        )}
       </main>
       <p className="text-center text-[13px] text-stone-muted">
         Coordinator?{" "}

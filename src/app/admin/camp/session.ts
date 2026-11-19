@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { currentStaff } from "@/lib/camp/auth";
-import { signInLeader, signOutLeader } from "@/lib/camp/leaders";
+import { signInLeader, signOutLeader, switchLeader } from "@/lib/camp/leaders";
+import { removePushSub } from "@/lib/camp/push";
 import { noteAccess, notePresence, type AccessRole } from "@/lib/camp/logs";
 import { allowVisitor } from "@/lib/camp/rate-limit";
 import type { Staff } from "@/lib/camp/types";
@@ -21,9 +22,22 @@ export async function signOutAction() {
   redirect("/admin/camp/sign-in");
 }
 
-/** Signs a leader out. A coordinator on the same device stays signed in on the coordinators' side. */
-export async function leaderSignOutAction() {
-  await signOutLeader();
+/**
+ * Signs a leader out of the code in use. Another code on this phone takes
+ * over, if there is one. `endpoint`: this phone's notification address, so
+ * that code's notifications stop coming here. A coordinator on the same
+ * device stays signed in on the coordinators' side.
+ */
+export async function leaderSignOutAction(endpoint?: string) {
+  const left = await signOutLeader();
+  if (left && typeof endpoint === "string" && endpoint) await removePushSub(endpoint, `leader:${left.codeId}`).catch(() => null);
+  redirect("/leaders");
+}
+
+/** Switches to another code signed in on this phone, then opens its camp. */
+export async function leaderSwitchAction(codeId: string) {
+  const ok = await switchLeader(String(codeId ?? ""));
+  if (!ok) return { ok: false as const, error: "That account isn't signed in on this phone any more. Add it again with its code." };
   redirect("/leaders");
 }
 

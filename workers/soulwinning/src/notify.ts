@@ -37,7 +37,18 @@ const ICON: Record<StaffKind, string> = {
   daily: "🌙",
 };
 
-type Sub = { endpoint: string; p256dh: string; auth: string };
+type Sub = { endpoint: string; p256dh: string; auth: string; owner: string };
+
+/**
+ * A phone can hold several leader codes ("Add another account"). A leader's
+ * notification says which code it's for (?as=<code id>), so opening it
+ * switches the phone to that account first (proxy.ts).
+ */
+export function forAccount(url: string, owner: string) {
+  const m = owner.match(/^leader:([0-9a-f-]{36})$/i);
+  if (!m || !url.startsWith("/leaders/")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}as=${m[1]}`;
+}
 
 /**
  * The Notifications page: one row per owner for every app notification,
@@ -66,16 +77,19 @@ async function pushTo(env: AppEnv, ownerSql: string, binds: unknown[], kind: str
   await keepInInbox(env, ownerSql, binds, kind, message);
   if (!pushConfigured(env)) return 0;
   const { results } = await env.APP_DB.prepare(
-    `SELECT s.endpoint, s.p256dh, s.auth FROM camp_push_subs s
+    `SELECT s.endpoint, s.p256dh, s.auth, s.owner FROM camp_push_subs s
      WHERE s.owner IN (${ownerSql})
        AND NOT EXISTS (SELECT 1 FROM camp_notify_prefs p, json_each(p.off_json) j WHERE p.owner = s.owner AND j.value = ?)`,
   )
     .bind(...binds, kind)
     .all<Sub>();
   let ok = 0;
+  // A phone with two of these accounts gets it once.
+  const seen = new Set<string>();
+  const subs = (results ?? []).filter((s) => !seen.has(s.endpoint) && seen.add(s.endpoint));
   await Promise.all(
-    (results ?? []).map(async (sub) => {
-      const r = await sendPush(env, sub, message);
+    subs.map(async (sub) => {
+      const r = await sendPush(env, sub, { ...message, url: forAccount(message.url, sub.owner) });
       if (r === "ok") {
         ok++;
         await env.APP_DB.prepare("UPDATE camp_push_subs SET last_ok_at = ?, fails = 0 WHERE endpoint = ?").bind(nowIso(), sub.endpoint).run();
@@ -517,7 +531,7 @@ export async function notifyManyEndpoint(request: Request, env: AppEnv) {
 
 /** A phone turning notifications on (or off: endpoint with remove). Push services are https; 127.0.0.1 is the tests' fake. */
 export async function pushSubscribe(request: Request, env: AppEnv) {
-  const b = await readJson<{ owner?: unknown; endpoint?: unknown; p256dh?: unknown; auth?: unknown; remove?: unknown }>(request);
+  const b = await readJson<{ owner?: unknown; endpoint?: unknown; p256dh?: unknown; auth?: unknown; remove?: unknown; keep?: unknown }>(request);
   const endpoint = typeof b.endpoint === "string" && /^(https:\/\/|http:\/\/127\.0\.0\.1:\d+\/)/.test(b.endpoint) && b.endpoint.length < 1000 ? b.endpoint : null;
   if (!endpoint) throw new HttpError(400, "endpoint required");
   const owner = typeof b.owner === "string" && OWNER.test(b.owner) ? b.owner.toLowerCase() : null;
@@ -534,10 +548,12 @@ export async function pushSubscribe(request: Request, env: AppEnv) {
   // One phone can be an attendee's and a team member's (Android shares one address between the two
   // Home Screen icons). On each side it belongs to whoever turned notifications on there last.
   const team = !owner.startsWith("attendee:");
+  // `keep`: the other leader codes signed in on this phone, which keep getting notifications here too.
+  const keep = team && Array.isArray(b.keep) ? b.keep.filter((k): k is string => typeof k === "string" && /^leader:[0-9a-f-]{36}$/i.test(k)).slice(0, 8) : [];
   await env.APP_DB.batch([
     env.APP_DB.prepare(
-      `DELETE FROM camp_push_subs WHERE endpoint = ? AND owner <> ? AND ${team ? "(owner LIKE 'staff:%' OR owner LIKE 'leader:%')" : "owner LIKE 'attendee:%'"}`,
-    ).bind(endpoint, owner),
+      `DELETE FROM camp_push_subs WHERE endpoint = ? AND owner <> ? AND ${team ? "(owner LIKE 'staff:%' OR owner LIKE 'leader:%')" : "owner LIKE 'attendee:%'"}${keep.length ? ` AND owner NOT IN (${keep.map(() => "?").join(",")})` : ""}`,
+    ).bind(endpoint, owner, ...keep),
     env.APP_DB.prepare(
       `INSERT INTO camp_push_subs (endpoint, p256dh, auth, owner) VALUES (?, ?, ?, ?)
        ON CONFLICT (endpoint, owner) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, fails = 0`,

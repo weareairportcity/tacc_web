@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 import { allow } from "@/lib/camp/rate-limit";
 import { extraRoomsNeeded, nextRoomLabels, planRandomFill, type FillStep } from "@/lib/camp/fill";
 import { findPeople, getBulkReceipt, idsInScope, scopeFor } from "@/lib/camp/reports";
-import { newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
+import { leaderAccounts, newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
@@ -931,7 +931,9 @@ export async function staffPushSubscribeAction(subscription: unknown) {
   return run(
     async () => {
       const staff = await requireCampRole("coordinator", "leader", "pastor", "medical");
-      await savePushSub(teamOwner(staff), subscription);
+      // Every code on this phone keeps its notifications ("Add another account").
+      const keep = staff.role === "leader" || staff.role === "medical" ? (await leaderAccounts()).filter((a) => !a.active).map((a) => `leader:${a.id}`) : [];
+      await savePushSub(teamOwner(staff), subscription, keep);
       return true;
     },
     { quiet: true },
