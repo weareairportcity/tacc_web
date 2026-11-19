@@ -16,7 +16,7 @@ import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery }
 import { notifyLeaders, pushMany } from "@/lib/camp/notify";
 import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
 import { markAllRead } from "@/lib/camp/inbox";
-import { medicalCard } from "@/lib/camp/medical";
+import { logMedicalCall, logMedicalSearch, medicalCard, type CallWho } from "@/lib/camp/medical";
 import { MEDICAL_TEAM } from "@/lib/camp/leader-name";
 import { TEAM_NO_APP_COOKIE } from "@/lib/camp/ipad";
 import { listPeopleForLeader } from "@/lib/camp/reports";
@@ -837,6 +837,30 @@ export async function medicalCardAction(campId: string, personId: string) {
     const staff = await requireCampRole("medical", "coordinator");
     return medicalCard(staff.email, String(campId), String(personId));
   });
+}
+
+/** A finished search (they stopped typing, or opened someone), noted in the History. */
+export async function medicalSearchLogAction(campId: string, term: string) {
+  return run(
+    async () => {
+      const staff = await requireCampRole("medical", "coordinator");
+      await logMedicalSearch(staff.email, String(campId), String(term));
+      return null;
+    },
+    { quiet: true },
+  );
+}
+
+/** A tap on Call in the medical search, noted in the History. */
+export async function medicalCallAction(campId: string, personId: string, who: CallWho) {
+  return run(
+    async () => {
+      const staff = await requireCampRole("medical", "coordinator");
+      await logMedicalCall(staff.email, String(campId), String(personId), String(who) as CallWho);
+      return null;
+    },
+    { quiet: true },
+  );
 }
 
 /** The medical team's code: one, shared, shown once. The old one stops working. */

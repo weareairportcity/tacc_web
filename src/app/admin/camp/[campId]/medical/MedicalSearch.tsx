@@ -3,19 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { BedDouble, ChevronRight, HeartPulse, Phone, Search, ShieldAlert, Users } from "lucide-react";
 import type { FoundPerson } from "@/lib/camp/reports";
-import type { MedicalCard } from "@/lib/camp/medical";
+import type { CallWho, MedicalCard } from "@/lib/camp/medical";
 import { CommuneLoader } from "@/components/camp/brand";
 import { Sheet } from "@/components/camp/sheet";
 import { ErrorText, inputClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { medicalCardAction, medicalFindAction } from "../../actions";
+import { medicalCallAction, medicalCardAction, medicalFindAction, medicalSearchLogAction } from "../../actions";
 
 const localPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
 
 /** A phone number as a big tap-to-call row. */
-function CallRow({ name, phone, note }: { name: string; phone: string; note?: string }) {
+function CallRow({ name, phone, note, onCall }: { name: string; phone: string; note?: string; onCall: () => void }) {
   return (
-    <a href={`tel:+${phone}`} className="cm-row flex min-h-[56px] items-center gap-3 px-4 py-2.5">
+    <a href={`tel:+${phone}`} onClick={onCall} className="cm-row flex min-h-[56px] items-center gap-3 px-4 py-2.5">
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-[15px] font-medium">{name}</span>
         <span className="truncate text-[13px] tabular-nums text-warm-gray">
@@ -75,7 +75,16 @@ export function MedicalSearch({ campId }: { campId: string }) {
     return () => clearTimeout(t);
   }, [term, campId]);
 
+  // The search goes in the History once they stop typing (or open someone).
+  useEffect(() => {
+    const q = term.trim();
+    if (q.length < 2) return;
+    const t = setTimeout(() => void medicalSearchLogAction(campId, q), 1500);
+    return () => clearTimeout(t);
+  }, [term, campId]);
+
   const show = (id: string) => {
+    if (term.trim().length >= 2) void medicalSearchLogAction(campId, term.trim());
     setOpen(id);
     setCard(null);
     setCardError("");
@@ -85,6 +94,10 @@ export function MedicalSearch({ campId }: { campId: string }) {
     });
   };
 
+  // Each call is noted in the History (the phone still dials if the note can't be saved).
+  const called = (who: CallWho) => () => {
+    if (open) void medicalCallAction(campId, open, who);
+  };
   const typed = term.trim().length >= 2;
   const p = card && card.id === open ? card : null;
 
@@ -126,7 +139,7 @@ export function MedicalSearch({ campId }: { campId: string }) {
           {found.length === 0 && !searching && <li className="px-4 py-5 text-center text-[15px] text-warm-gray">No one found. Try part of the name, or the phone number.</li>}
         </ul>
       )}
-      {!typed && <p className="text-center text-[13px] text-warm-gray">Each person you open is noted in the History.</p>}
+      {!typed && <p className="text-center text-[13px] text-warm-gray">Your searches, the people you open and the calls you make are noted in the History.</p>}
 
       <Sheet open={!!open} onClose={() => setOpen(null)} title={p?.full_name ?? "Loading…"} subtitle={p ? `${p.fellowship} · ${p.gender === "male" ? "Male" : "Female"}${p.is_minor ? " · Under 18" : ""}` : undefined}>
         {!p ? (
@@ -135,7 +148,7 @@ export function MedicalSearch({ campId }: { campId: string }) {
           <div className="flex flex-col gap-5">
             {p.phone && (
               <div className={box}>
-                <CallRow name={p.full_name} phone={p.phone} note="their phone" />
+                <CallRow name={p.full_name} phone={p.phone} note="their phone" onCall={called("self")} />
               </div>
             )}
 
@@ -150,8 +163,8 @@ export function MedicalSearch({ campId }: { campId: string }) {
             <Block icon={ShieldAlert} title={p.is_minor ? "Emergency contact and guardian" : "Emergency contact"}>
               {p.emergency_phone || (p.is_minor && p.guardian_phone) ? (
                 <div className={box}>
-                  {p.emergency_phone && <CallRow name={p.emergency_name || "Emergency contact"} phone={p.emergency_phone} note="emergency contact" />}
-                  {!!p.is_minor && p.guardian_phone && <CallRow name={p.guardian_name || "Guardian"} phone={p.guardian_phone} note="parent or guardian" />}
+                  {p.emergency_phone && <CallRow name={p.emergency_name || "Emergency contact"} phone={p.emergency_phone} note="emergency contact" onCall={called("emergency")} />}
+                  {!!p.is_minor && p.guardian_phone && <CallRow name={p.guardian_name || "Guardian"} phone={p.guardian_phone} note="parent or guardian" onCall={called("guardian")} />}
                 </div>
               ) : (
                 <p className="rounded-[10px] border border-stone-border bg-white px-4 py-3 text-[15px] text-warm-gray">
@@ -177,7 +190,7 @@ export function MedicalSearch({ campId }: { campId: string }) {
                 {p.roommates.length ? (
                   <div className={box}>
                     {p.roommates.map((r) => (
-                      <CallRow key={`${r.full_name}${r.phone}`} name={r.full_name} phone={r.phone} />
+                      <CallRow key={r.id} name={r.full_name} phone={r.phone} onCall={called(`roommate:${r.id}`)} />
                     ))}
                   </div>
                 ) : (

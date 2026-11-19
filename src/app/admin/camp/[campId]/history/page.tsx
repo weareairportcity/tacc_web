@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftRight, BedDouble, Clock, CreditCard, RotateCcw, Settings, UserRound, Users } from "lucide-react";
+import { ArrowLeftRight, BedDouble, Clock, CreditCard, RotateCcw, Settings, UserRound, Users, HeartPulse } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { actorName, describeAction } from "@/lib/camp/history-words";
 import { HISTORY_KINDS, historyActors, listHistory, type HistoryKind } from "@/lib/camp/reports";
@@ -8,10 +8,11 @@ import { headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { HistoryFilters } from "./HistoryFilters";
 
-const KIND_WORDS: Record<HistoryKind, string> = { money: "Money", people: "People", rooms: "Rooms", groups: "Roommate groups", settings: "Settings" };
+const KIND_WORDS: Record<HistoryKind, string> = { money: "Money", people: "People", rooms: "Rooms", groups: "Roommate groups", settings: "Settings", medical: "Medical team" };
 
 const iconFor = (action: string) =>
-  action.startsWith("payment.") ? CreditCard
+  action.startsWith("medical.") ? HeartPulse
+  : action.startsWith("payment.") ? CreditCard
   : action.includes("refund") ? RotateCcw
   : action.includes("room_type_change") || action.startsWith("request.room") ? ArrowLeftRight
   : action.startsWith("room") ? BedDouble
@@ -67,6 +68,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
                       <Icon className="mt-0.5 h-[17px] w-[17px] flex-none" strokeWidth={1.6} aria-hidden="true" />
                       <span className="flex-1">
                         <strong className="font-medium">{actorName(e.actor, e.person)}</strong> {describeAction(e.action)}
+                        {e.note && <span className="text-[#57534e]"> {e.note}</span>}
                         {!self && e.person && <span className="text-[#57534e]"> · {e.person}</span>}
                       </span>
                       <time dateTime={e.created_at} className="flex items-center gap-1 text-[13px] tabular-nums text-warm-gray">

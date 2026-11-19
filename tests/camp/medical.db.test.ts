@@ -14,7 +14,8 @@ vi.mock("next/headers", () => ({
 const { query } = await import("@/lib/cf");
 const { currentLeader, leaderName, newLeaderCode, signInLeader } = await import("@/lib/camp/leaders");
 const { MEDICAL_TEAM } = await import("@/lib/camp/leader-name");
-const { medicalCard } = await import("@/lib/camp/medical");
+const { logMedicalCall, logMedicalSearch, medicalCard } = await import("@/lib/camp/medical");
+const { listHistory } = await import("@/lib/camp/reports");
 const { assertRole } = await import("@/lib/camp/roles");
 const { createRoom } = await import("@/lib/camp/rooms");
 const { assignPerson } = await import("@/lib/camp/assignments");
@@ -77,8 +78,31 @@ describe("the medical team", () => {
     const logged = await query<{ actor: string }>("app", "SELECT actor FROM camp_audit_log WHERE action = 'medical.view' AND entity_id = ?", [ama.id]);
     expect(logged.map((l) => l.actor)).toEqual([actor]);
 
+    // Calls: who was called, named from the database.
+    await logMedicalCall(actor, camp.id, ama.id, "emergency");
+    await logMedicalCall(actor, camp.id, ama.id, `roommate:${esi.id}`);
+    await expect(logMedicalCall(actor, camp.id, ama.id, `roommate:${lone.id}`)).rejects.toThrow(CampError);
+    const history = await listHistory(camp.id, { kind: "medical" });
+    expect(history.map((h) => [h.action, h.note, h.person])).toEqual([
+      ["medical.call", "their roommate Esi Roommate", "Ama Patient"],
+      ["medical.call", "their emergency contact (Kwame Patient)", "Ama Patient"],
+      ["medical.view", null, "Akos Alone"],
+      ["medical.view", null, "Ama Patient"],
+    ]);
+
     // Only people in this camp.
     const other = await openCamp();
     await expect(medicalCard(actor, other.camp.id, ama.id)).rejects.toThrow(CampError);
+  });
+
+  it("a finished search is one History entry; the same term again within a minute isn't repeated", async () => {
+    const { camp } = await openCamp();
+    const actor = "leader:medical:Medical team";
+    await logMedicalSearch(actor, camp.id, "Ama  Patient ");
+    await logMedicalSearch(actor, camp.id, "Ama Patient");
+    await logMedicalSearch(actor, camp.id, "Kofi");
+    await logMedicalSearch(actor, camp.id, "a");
+    const notes = (await listHistory(camp.id, { kind: "medical" })).map((h) => h.note);
+    expect(notes).toEqual(["“Kofi”", "“Ama Patient”"]);
   });
 });

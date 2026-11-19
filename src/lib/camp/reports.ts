@@ -576,7 +576,7 @@ export async function peopleFacets(campId: string, filters: PeopleFilters, scope
 
 // ─── History (the audit log) ─────────────────────────────────────────────────
 
-export const HISTORY_KINDS = ["money", "people", "rooms", "groups", "settings"] as const;
+export const HISTORY_KINDS = ["money", "people", "rooms", "groups", "settings", "medical"] as const;
 export type HistoryKind = (typeof HISTORY_KINDS)[number];
 const KIND_PREFIXES: Record<HistoryKind, string[]> = {
   money: ["payment.", "registration.refund"],
@@ -584,10 +584,12 @@ const KIND_PREFIXES: Record<HistoryKind, string[]> = {
   rooms: ["room.", "room_type."],
   groups: ["group."],
   settings: ["camp.", "staff."],
+  medical: ["medical."],
 };
 
 export type HistoryFilters = { who?: string; kind?: HistoryKind; days?: number; before?: number };
-export type HistoryEntry = AuditEntry & { person: string | null };
+/** `note`: a few words of detail (what the medical team searched for, who they called). */
+export type HistoryEntry = AuditEntry & { person: string | null; note: string | null };
 
 /** The audit log, newest first, 50 at a time, with the person each entry is about. */
 export async function listHistory(campId: string, filters: HistoryFilters): Promise<HistoryEntry[]> {
@@ -617,7 +619,7 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
   }
   return query<HistoryEntry>(
     "app",
-    `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id,
+    `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id, json_extract(l.after_json, '$.note') AS note,
        COALESCE(
          (SELECT full_name FROM camp_registrations WHERE id = l.entity_id),
          (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%'),
