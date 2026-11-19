@@ -49,7 +49,7 @@ export default async function CampStaffPage() {
         <h2 className={titleClass}>Medical team</h2>
         <p className="text-sm text-warm-gray">
           One code for the whole medical team, at the same address. It opens a search of everyone: their health notes, emergency contact, room and roommates
-          with phones. Nothing else. Their searches, the people they open and their calls are noted in the History.
+          with phones. Nothing else. Each person they open (with what they searched for) and each call is noted in the History.
         </p>
         <ToastProvider>
           <MedicalCode codes={codes} />

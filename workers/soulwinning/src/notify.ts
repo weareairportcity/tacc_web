@@ -2,6 +2,7 @@ import { logCampSms, sendSms, smsParts } from "./sms";
 import { card, tellGroups, type TgKind } from "./telegram";
 import { HttpError, json, nowIso, readJson, UUID, type AppEnv } from "./util";
 import { pushConfigured, sendPush, type PushMessage } from "./webpush";
+import { forAccount } from "./account-url";
 import { groupForFellowship } from "../../../src/lib/fellowships";
 
 /**
@@ -39,16 +40,7 @@ const ICON: Record<StaffKind, string> = {
 
 type Sub = { endpoint: string; p256dh: string; auth: string; owner: string };
 
-/**
- * A phone can hold several leader codes ("Add another account"). A leader's
- * notification says which code it's for (?as=<code id>), so opening it
- * switches the phone to that account first (proxy.ts).
- */
-export function forAccount(url: string, owner: string) {
-  const m = owner.match(/^leader:([0-9a-f-]{36})$/i);
-  if (!m || !url.startsWith("/leaders/")) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}as=${m[1]}`;
-}
+
 
 /**
  * The Notifications page: one row per owner for every app notification,

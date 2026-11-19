@@ -16,7 +16,7 @@ import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery }
 import { notifyLeaders, pushMany } from "@/lib/camp/notify";
 import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
 import { markAllRead } from "@/lib/camp/inbox";
-import { logMedicalCall, logMedicalSearch, medicalCard, type CallWho } from "@/lib/camp/medical";
+import { logMedicalCall, medicalCard, medicalFind, type CallWho } from "@/lib/camp/medical";
 import { MEDICAL_TEAM } from "@/lib/camp/leader-name";
 import { TEAM_NO_APP_COOKIE } from "@/lib/camp/ipad";
 import { listPeopleForLeader } from "@/lib/camp/reports";
@@ -823,32 +823,20 @@ export async function findPeopleAction(campId: string, term: string) {
 
 // ─── Medical team ─────────────────────────────────────────────────────────────
 
-/** The medical team's search: anyone in the camp, by name or phone. */
+/** The medical team's search: anyone in the camp, by name or phone. Names and fellowships only. */
 export async function medicalFindAction(campId: string, term: string) {
   return look(async () => {
     await requireCampRole("medical", "coordinator");
-    return findPeople(String(campId), String(term), { kind: "all" });
+    return medicalFind(String(campId), String(term));
   });
 }
 
-/** One person's health notes, emergency contact, room and roommates. Each look goes in the History. */
-export async function medicalCardAction(campId: string, personId: string) {
+/** One person's health notes, emergency contact, room and roommates. Each look goes in the History, with what was searched. */
+export async function medicalCardAction(campId: string, personId: string, searched = "") {
   return look(async () => {
     const staff = await requireCampRole("medical", "coordinator");
-    return medicalCard(staff.email, String(campId), String(personId));
+    return medicalCard(staff.email, String(campId), String(personId), String(searched));
   });
-}
-
-/** A finished search (they stopped typing, or opened someone), noted in the History. */
-export async function medicalSearchLogAction(campId: string, term: string) {
-  return run(
-    async () => {
-      const staff = await requireCampRole("medical", "coordinator");
-      await logMedicalSearch(staff.email, String(campId), String(term));
-      return null;
-    },
-    { quiet: true },
-  );
 }
 
 /** A tap on Call in the medical search, noted in the History. */

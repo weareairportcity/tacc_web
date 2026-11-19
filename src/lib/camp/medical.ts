@@ -1,14 +1,22 @@
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
+import { findPeople } from "./reports";
 import { CampError } from "./types";
 
 /**
  * The medical team's view of one person: what they need to help someone at
  * camp. Health notes, emergency contact (and guardian for under-18s), their
- * own phone, their room and each roommate's name and phone. Every search,
- * look and call is written to the History, since these are health details.
+ * own phone, their room and each roommate's name and phone. Each person
+ * opened (with what was searched) and each call is written to the History,
+ * since these are health details. Before opening someone, the search shows
+ * only names and fellowships.
  */
+
+const noteFor = (raw: string) => {
+  const term = String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  return term ? { note: `(searched “${term}”)` } : undefined;
+};
 
 export type Roommate = { id: string; full_name: string; phone: string };
 
@@ -30,7 +38,14 @@ export type MedicalCard = {
   roommates: Roommate[];
 };
 
-export async function medicalCard(actor: string, campId: string, registrationId: string): Promise<MedicalCard> {
+/** The search: names and fellowships only. Everything else is behind opening a person, which is logged. */
+export async function medicalFind(campId: string, raw: string): Promise<{ id: string; full_name: string; fellowship: string }[]> {
+  const found = await findPeople(campId, raw, { kind: "all" });
+  return found.map(({ id, full_name, fellowship }) => ({ id, full_name, fellowship }));
+}
+
+/** `searched`: what they typed to find this person, kept with the History entry. */
+export async function medicalCard(actor: string, campId: string, registrationId: string, searched = ""): Promise<MedicalCard> {
   checkId(campId, "camp");
   checkId(registrationId, "registration");
   const [person] = await query<Omit<MedicalCard, "roommates">>(
@@ -54,29 +69,9 @@ export async function medicalCard(actor: string, campId: string, registrationId:
        WHERE a.registration_id = ? ORDER BY o.full_name COLLATE NOCASE`,
       [registrationId],
     ),
-    batch("app", [auditStatement({ actor, campId, action: "medical.view", entity: "registration", entityId: registrationId })]),
+    batch("app", [auditStatement({ actor, campId, action: "medical.view", entity: "registration", entityId: registrationId, after: noteFor(searched) })]),
   ]);
   return { ...person, roommates };
-}
-
-/**
- * A search in the History, once they've stopped typing (the page sends it
- * after a pause, or when they open someone). The same term twice within a
- * minute is one entry. Opening a person is always logged on its own
- * (medicalCard), since that's where the health details are.
- */
-export async function logMedicalSearch(actor: string, campId: string, raw: string) {
-  const term = String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
-  if (term.length < 2) return;
-  const note = `“${term}”`;
-  const [same] = await query<{ id: number }>(
-    "app",
-    `SELECT id FROM camp_audit_log WHERE camp_id = ? AND actor = ? AND action = 'medical.search'
-       AND json_extract(after_json, '$.note') = ? AND created_at >= ? LIMIT 1`,
-    [checkId(campId, "camp"), actor, note, new Date(Date.now() - 60_000).toISOString()],
-  );
-  if (same) return;
-  await batch("app", [auditStatement({ actor, campId, action: "medical.search", entity: "search", entityId: campId, after: { note } })]);
 }
 
 export type CallWho = "self" | "emergency" | "guardian" | `roommate:${string}`;

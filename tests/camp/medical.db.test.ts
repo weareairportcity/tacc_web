@@ -15,7 +15,7 @@ const { query } = await import("@/lib/cf");
 const { currentLeader, leaderAccounts, leaderName, newLeaderCode, signInLeader, signOutLeader, switchLeader } = await import("@/lib/camp/leaders");
 const { post } = await import("@/lib/cf");
 const { MEDICAL_TEAM } = await import("@/lib/camp/leader-name");
-const { logMedicalCall, logMedicalSearch, medicalCard } = await import("@/lib/camp/medical");
+const { logMedicalCall, medicalCard, medicalFind } = await import("@/lib/camp/medical");
 const { listHistory } = await import("@/lib/camp/reports");
 const { assertRole } = await import("@/lib/camp/roles");
 const { createRoom } = await import("@/lib/camp/rooms");
@@ -96,15 +96,15 @@ describe("the medical team", () => {
     await expect(medicalCard(actor, other.camp.id, ama.id)).rejects.toThrow(CampError);
   });
 
-  it("a finished search is one History entry; the same term again within a minute isn't repeated", async () => {
-    const { camp } = await openCamp();
-    const actor = "leader:medical:Medical team";
-    await logMedicalSearch(actor, camp.id, "Ama  Patient ");
-    await logMedicalSearch(actor, camp.id, "Ama Patient");
-    await logMedicalSearch(actor, camp.id, "Kofi");
-    await logMedicalSearch(actor, camp.id, "a");
-    const notes = (await listHistory(camp.id, { kind: "medical" })).map((h) => h.note);
-    expect(notes).toEqual(["“Kofi”", "“Ama Patient”"]);
+  it("the search shows names and fellowships only; opening someone is logged with what was searched", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const room = await createRoom(ACTOR, camp.id, { label: "S1", room_type_id: roomTypeId, gender: "female", capacity: 2 });
+    const yaa = await paidUp(camp, roomTypeId, { full_name: "Yaa Searchable", fellowship: "Chosen" });
+    await assignPerson(ACTOR, room, yaa.id);
+    expect(await medicalFind(camp.id, "Yaa Search")).toEqual([{ id: yaa.id, full_name: "Yaa Searchable", fellowship: "Chosen" }]);
+    await medicalCard("leader:medical:Medical team", camp.id, yaa.id, "  Yaa   Search ");
+    const [entry] = await listHistory(camp.id, { kind: "medical" });
+    expect([entry.action, entry.note, entry.person]).toEqual(["medical.view", "(searched “Yaa Search”)", "Yaa Searchable"]);
   });
 });
 
@@ -144,7 +144,7 @@ describe("several accounts on one phone", () => {
   });
 
   it("a phone keeps notifications for every code on it, and gets each message once", async () => {
-    const { forAccount } = await import("../../workers/soulwinning/src/notify");
+    const { forAccount } = await import("../../workers/soulwinning/src/account-url");
     const a = `leader:${crypto.randomUUID()}`;
     const b = `leader:${crypto.randomUUID()}`;
     const endpoint = `http://127.0.0.1:9/${crypto.randomUUID()}`;

@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BedDouble, ChevronRight, HeartPulse, Phone, Search, ShieldAlert, Users } from "lucide-react";
-import type { FoundPerson } from "@/lib/camp/reports";
 import type { CallWho, MedicalCard } from "@/lib/camp/medical";
 import { CommuneLoader } from "@/components/camp/brand";
 import { Sheet } from "@/components/camp/sheet";
 import { ErrorText, inputClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { medicalCallAction, medicalCardAction, medicalFindAction, medicalSearchLogAction } from "../../actions";
+import { medicalCallAction, medicalCardAction, medicalFindAction } from "../../actions";
 
 const localPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
 
@@ -50,7 +49,7 @@ const box = "overflow-hidden rounded-[10px] border border-stone-border bg-white 
  */
 export function MedicalSearch({ campId }: { campId: string }) {
   const [term, setTerm] = useState("");
-  const [found, setFound] = useState<FoundPerson[]>([]);
+  const [found, setFound] = useState<{ id: string; full_name: string; fellowship: string }[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -75,20 +74,11 @@ export function MedicalSearch({ campId }: { campId: string }) {
     return () => clearTimeout(t);
   }, [term, campId]);
 
-  // The search goes in the History once they stop typing (or open someone).
-  useEffect(() => {
-    const q = term.trim();
-    if (q.length < 2) return;
-    const t = setTimeout(() => void medicalSearchLogAction(campId, q), 1500);
-    return () => clearTimeout(t);
-  }, [term, campId]);
-
   const show = (id: string) => {
-    if (term.trim().length >= 2) void medicalSearchLogAction(campId, term.trim());
     setOpen(id);
     setCard(null);
     setCardError("");
-    void medicalCardAction(campId, id).then((r) => {
+    void medicalCardAction(campId, id, term).then((r) => {
       if (r.ok) setCard(r.data);
       else setCardError(r.error);
     });
@@ -126,11 +116,7 @@ export function MedicalSearch({ campId }: { campId: string }) {
               <button type="button" onClick={() => show(f.id)} className="cm-row flex min-h-[60px] w-full items-center gap-3 px-4 py-2.5 text-left">
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[15px] font-medium">{f.full_name}</span>
-                  <span className="truncate text-[13px] text-warm-gray">
-                    {f.fellowship}
-                    {f.room_label ? ` · Room ${f.room_label}` : ""}
-                    {f.status === "cancelled" ? " · Cancelled" : ""}
-                  </span>
+                  <span className="truncate text-[13px] text-warm-gray">{f.fellowship}</span>
                 </span>
                 <ChevronRight className="h-4 w-4 flex-none text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
               </button>
@@ -139,7 +125,7 @@ export function MedicalSearch({ campId }: { campId: string }) {
           {found.length === 0 && !searching && <li className="px-4 py-5 text-center text-[15px] text-warm-gray">No one found. Try part of the name, or the phone number.</li>}
         </ul>
       )}
-      {!typed && <p className="text-center text-[13px] text-warm-gray">Your searches, the people you open and the calls you make are noted in the History.</p>}
+      {!typed && <p className="text-center text-[13px] text-warm-gray">The people you open and the calls you make are noted in the History.</p>}
 
       <Sheet open={!!open} onClose={() => setOpen(null)} title={p?.full_name ?? "Loading…"} subtitle={p ? `${p.fellowship} · ${p.gender === "male" ? "Male" : "Female"}${p.is_minor ? " · Under 18" : ""}` : undefined}>
         {!p ? (
