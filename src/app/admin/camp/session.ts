@@ -9,7 +9,8 @@ import { allowVisitor } from "@/lib/camp/rate-limit";
 import type { Staff } from "@/lib/camp/types";
 
 // The access log keeps its four staff roles: a Pastor is logged as a coordinator (their email says who).
-const roleOf = (staff: Staff): AccessRole => (staff.role === "pastor" ? "coordinator" : staff.role);
+// The medical team is logged as a leader (its actor says "Medical team").
+const roleOf = (staff: Staff): AccessRole => (staff.role === "pastor" ? "coordinator" : staff.role === "medical" ? "leader" : staff.role);
 
 /** Signs a coordinator out. A leader code on the same device stays signed in on the leaders' side. */
 export async function signOutAction() {

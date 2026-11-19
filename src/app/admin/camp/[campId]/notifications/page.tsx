@@ -10,7 +10,7 @@ import { NoAccess, pageStaff } from "../../access";
 
 /** Notifications, for coordinators and leaders: every app notification sent to them, to open again later. */
 export default async function NotificationsPage({ params }: { params: Promise<{ campId: string }> }) {
-  const staff = await pageStaff("coordinator", "leader", "pastor");
+  const staff = await pageStaff("coordinator", "leader", "pastor", "medical");
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
@@ -23,7 +23,7 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
       <header className="flex flex-col gap-1.5">
         <h1 className={`${headlineClass} text-[34px]`}>Notifications</h1>
         <p className="text-[15px] text-warm-gray">
-          Everything sent to your phone{staff.role === "leader" ? " (and anyone sharing your code)" : ""}, newest first. Tap one to open it.
+          Everything sent to your phone{staff.role === "leader" || staff.role === "medical" ? " (and anyone sharing your code)" : ""}, newest first. Tap one to open it.
         </p>
       </header>
       <InboxList items={items} />

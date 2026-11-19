@@ -15,7 +15,7 @@ import { HttpError, json, nowIso, readJson, type AppEnv } from "./util";
 // No 0/O or 1/I, as for attendee codes. 32 symbols, so byte % 32 is unbiased.
 const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const LENGTH = 10;
-const SCOPES = ["fellowship", "pfcc", "group"] as const;
+const SCOPES = ["fellowship", "pfcc", "group", "medical"] as const;
 
 const normalize = (raw: unknown) =>
   String(raw ?? "")
@@ -38,7 +38,7 @@ const audit = (env: AppEnv, actor: string, action: string, entityId: string, aft
 
 export async function leaderCodeNew(request: Request, env: AppEnv) {
   const { scope_kind, scope_value, holder_name, actor } = await readJson<{ scope_kind?: unknown; scope_value?: unknown; holder_name?: unknown; actor?: unknown }>(request);
-  if (!SCOPES.includes(scope_kind as (typeof SCOPES)[number])) throw new HttpError(400, "scope_kind must be fellowship, pfcc or group");
+  if (!SCOPES.includes(scope_kind as (typeof SCOPES)[number])) throw new HttpError(400, "scope_kind must be fellowship, pfcc, group or medical");
   const value = typeof scope_value === "string" ? scope_value.trim().slice(0, 80) : "";
   const by = typeof actor === "string" ? actor.slice(0, 254) : "";
   if (!value || !by) throw new HttpError(400, "scope_value and actor required");

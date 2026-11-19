@@ -9,7 +9,8 @@ import type { ScopeKind, Staff, StaffRole } from "@/lib/camp/types";
 import { removeStaffAction, saveStaffAction } from "../actions";
 import { ErrorText, Field, buttonClass, inputClass } from "@/components/camp/ui";
 
-const ROLE_LABELS: Record<StaffRole, string> = {
+// The medical team signs in with a code (its own section), so it isn't a role to give an email.
+const ROLE_LABELS: Record<Exclude<StaffRole, "medical">, string> = {
   admin: "Admin",
   coordinator: "Coordinator",
   leader: "Leader (read-only)",
@@ -55,7 +56,7 @@ export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string
           <li key={s.email} className="flex items-center gap-3 px-5 py-3 text-sm">
             <span className="flex-1 truncate font-medium">{s.email}</span>
             <span className="text-warm-gray">
-              {ROLE_LABELS[s.role]} · {scopeLabel(s)}
+              {ROLE_LABELS[s.role as keyof typeof ROLE_LABELS]} · {scopeLabel(s)}
             </span>
             {s.email !== me && (
               <button
@@ -100,7 +101,7 @@ export function StaffList({ staff, me, bootstrap }: { staff: Staff[]; me: string
           </Field>
           <Field label="Role">
             <select className={inputClass} value={draft.role} onChange={(e) => setRole(e.target.value as StaffRole)}>
-              {(Object.keys(ROLE_LABELS) as StaffRole[]).map((r) => (
+              {(Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]).map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
                 </option>

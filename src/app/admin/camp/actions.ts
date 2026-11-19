@@ -16,6 +16,8 @@ import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery }
 import { notifyLeaders, pushMany } from "@/lib/camp/notify";
 import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
 import { markAllRead } from "@/lib/camp/inbox";
+import { medicalCard } from "@/lib/camp/medical";
+import { MEDICAL_TEAM } from "@/lib/camp/leader-name";
 import { TEAM_NO_APP_COOKIE } from "@/lib/camp/ipad";
 import { listPeopleForLeader } from "@/lib/camp/reports";
 import { formatCedis } from "@/lib/camp/money";
@@ -819,6 +821,33 @@ export async function findPeopleAction(campId: string, term: string) {
   });
 }
 
+// ─── Medical team ─────────────────────────────────────────────────────────────
+
+/** The medical team's search: anyone in the camp, by name or phone. */
+export async function medicalFindAction(campId: string, term: string) {
+  return look(async () => {
+    await requireCampRole("medical", "coordinator");
+    return findPeople(String(campId), String(term), { kind: "all" });
+  });
+}
+
+/** One person's health notes, emergency contact, room and roommates. Each look goes in the History. */
+export async function medicalCardAction(campId: string, personId: string) {
+  return look(async () => {
+    const staff = await requireCampRole("medical", "coordinator");
+    return medicalCard(staff.email, String(campId), String(personId));
+  });
+}
+
+/** The medical team's code: one, shared, shown once. The old one stops working. */
+export async function newMedicalCodeAction() {
+  return run(async () => {
+    const staff = await requireCampRole("admin");
+    await once(staff.email, "newMedicalCodeAction", []);
+    return newLeaderCode(staff.email, "medical", MEDICAL_TEAM);
+  });
+}
+
 // ─── Leader codes (admins only) ──────────────────────────────────────────────
 
 /** A new sign-in code for a fellowship, PFCC or Group Leader (by name), shown once. The old one stops working. */
@@ -877,7 +906,7 @@ export async function cancelPaymentAction(campId: string, reference: string) {
 export async function staffPushSubscribeAction(subscription: unknown) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader", "pastor");
+      const staff = await requireCampRole("coordinator", "leader", "pastor", "medical");
       await savePushSub(teamOwner(staff), subscription);
       return true;
     },
@@ -888,7 +917,7 @@ export async function staffPushSubscribeAction(subscription: unknown) {
 export async function staffPushRemoveAction(endpoint: string) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader", "pastor");
+      const staff = await requireCampRole("coordinator", "leader", "pastor", "medical");
       await removePushSub(endpoint, teamOwner(staff));
       return true;
     },
@@ -899,7 +928,7 @@ export async function staffPushRemoveAction(endpoint: string) {
 export async function staffNotifyPrefsAction(off?: string[]) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader", "pastor");
+      const staff = await requireCampRole("coordinator", "leader", "pastor", "medical");
       return notifyPrefs(teamOwner(staff), off);
     },
     { quiet: true },
@@ -910,7 +939,7 @@ export async function staffNotifyPrefsAction(off?: string[]) {
 export async function teamInstalledAction(platform: string) {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader", "pastor");
+      const staff = await requireCampRole("coordinator", "leader", "pastor", "medical");
       await markTeamInstalled(teamOwner(staff), String(platform));
       return true;
     },
@@ -921,7 +950,7 @@ export async function teamInstalledAction(platform: string) {
 /** "My device can't do this" on the Commune Team set-up: this device opens the pages without the app, for a year. */
 export async function teamNoAppAction() {
   return run(async () => {
-    await requireCampRole("coordinator", "leader", "pastor");
+    await requireCampRole("coordinator", "leader", "pastor", "medical");
     (await cookies()).set(TEAM_NO_APP_COOKIE, "1", {
       httpOnly: true,
       sameSite: "lax",
@@ -953,7 +982,7 @@ export async function messageLeadersAction(campId: string, message: string) {
 export async function markInboxReadAction() {
   return run(
     async () => {
-      const staff = await requireCampRole("coordinator", "leader", "pastor");
+      const staff = await requireCampRole("coordinator", "leader", "pastor", "medical");
       await markAllRead(teamOwner(staff));
       return null;
     },

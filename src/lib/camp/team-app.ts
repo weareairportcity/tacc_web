@@ -10,7 +10,7 @@ import { CampError, type Staff } from "./types";
  */
 
 export function teamOwner(staff: Staff) {
-  if (staff.role !== "leader") return `staff:${staff.email}`;
+  if (staff.role !== "leader" && staff.role !== "medical") return `staff:${staff.email}`;
   const codeId = (staff as Staff & { codeId?: string }).codeId;
   if (!codeId) throw new CampError("Please sign in again.");
   return `leader:${codeId}`;

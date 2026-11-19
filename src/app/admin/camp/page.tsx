@@ -23,14 +23,16 @@ function campState(camp: Camp) {
 }
 
 export default async function CampAdminHome() {
-  const staff = await pageStaff("coordinator", "leader", "pastor");
+  const staff = await pageStaff("coordinator", "leader", "pastor", "medical");
   if (!staff) return <NoAccess />;
-  const leader = staff.role === "leader";
+  const leader = staff.role === "leader" || staff.role === "medical";
   const pastor = staff.role === "pastor";
   // Leaders and the Pastor see published camps only.
   const camps = (await listCamps()).filter((c) => (!leader && !pastor) || c.status !== "draft");
   // A leader with one camp running goes straight to their people.
   const running = camps.filter((c) => c.status === "open" || c.status === "closed");
+  // The medical team goes straight to its search.
+  if (staff.role === "medical" && running.length >= 1) redirect(`/leaders/${running[0].id}/medical`);
   if (leader && running.length === 1) redirect(`/leaders/${running[0].id}/people`);
   // The Pastor goes straight to the running camp's report.
   if (pastor && running.length >= 1) redirect(`/admin/camp/${running[0].id}/report`);
@@ -76,7 +78,7 @@ export default async function CampAdminHome() {
               return (
                 <li key={camp.id} className="cm-rise" style={{ animationDelay: `${i * 50}ms` }}>
                   <Link
-                    href={leader ? `/leaders/${camp.id}/people` : `/admin/camp/${camp.id}`}
+                    href={staff.role === "medical" ? `/leaders/${camp.id}/medical` : leader ? `/leaders/${camp.id}/people` : `/admin/camp/${camp.id}`}
                     className="cm-press flex h-full flex-col overflow-hidden rounded-2xl border border-stone-border bg-white shadow-seline-card"
                   >
                     <CampBanner camp={camp} className="h-28" settle={false} />

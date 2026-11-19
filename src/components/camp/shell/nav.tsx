@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BedDouble, BookOpen, ChartColumn, HandCoins, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquare, MessageSquareHeart, ScanLine, Search, Settings, Smartphone, Users, X } from "lucide-react";
+import { Bell, BedDouble, BookOpen, HeartPulse, ChartColumn, HandCoins, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquare, MessageSquareHeart, ScanLine, Search, Settings, Smartphone, Users, X } from "lucide-react";
 import type { FoundPerson } from "@/lib/camp/reports";
 import { cn } from "@/lib/utils";
 import { STATUS_COLOR, STATUS_WORD } from "../ui";
@@ -41,6 +41,11 @@ const PASTOR_NAV: Item[] = [
   { path: "/report", label: "Report", icon: ChartColumn },
   { path: "/pay", label: "Pay", icon: HandCoins },
 ];
+// The medical team: find anyone, and what was sent to them. Nothing else.
+const MEDICAL_NAV: Item[] = [
+  { path: "/medical", label: "Find", icon: HeartPulse },
+  { path: "/notifications", label: "Notifications", icon: Bell },
+];
 // Phones: four destinations and More (the rest).
 const BAR = ["", "/people", "/check-in", "/rooms"];
 
@@ -49,7 +54,7 @@ function useActive(base: string) {
   return (path: string) => (path === "" ? pathname === base : pathname.startsWith(base + path));
 }
 
-export function Rail({ base, leader, pastor = false, requests }: { base: string; leader: boolean; pastor?: boolean; requests: number }) {
+export function Rail({ base, leader, pastor = false, medical = false, requests }: { base: string; leader: boolean; pastor?: boolean; medical?: boolean; requests: number }) {
   const active = useActive(base);
   const link = ({ path, label, icon: Icon }: Item) => {
     const on = active(path);
@@ -74,10 +79,10 @@ export function Rail({ base, leader, pastor = false, requests }: { base: string;
       </Link>
     );
   };
-  if (pastor)
+  if (pastor || medical)
     return (
-      <nav aria-label="Pastor" className="flex flex-col gap-0.5 text-sm">
-        {PASTOR_NAV.map(link)}
+      <nav aria-label={pastor ? "Pastor" : "Medical team"} className="flex flex-col gap-0.5 text-sm">
+        {(pastor ? PASTOR_NAV : MEDICAL_NAV).map(link)}
       </nav>
     );
   if (leader)
@@ -115,10 +120,10 @@ export function Rail({ base, leader, pastor = false, requests }: { base: string;
   );
 }
 
-export function BottomBar({ base, leader, pastor = false, requests }: { base: string; leader: boolean; pastor?: boolean; requests: number }) {
+export function BottomBar({ base, leader, pastor = false, medical = false, requests }: { base: string; leader: boolean; pastor?: boolean; medical?: boolean; requests: number }) {
   const active = useActive(base);
-  const items = pastor ? PASTOR_NAV : leader ? LEADER_NAV : [...NAV.filter((n) => BAR.includes(n.path)), { path: "/more", label: "More", icon: Ellipsis }];
-  const moreActive = !leader && !pastor && NAV.some((n) => !BAR.includes(n.path) && active(n.path));
+  const items = medical ? MEDICAL_NAV : pastor ? PASTOR_NAV : leader ? LEADER_NAV : [...NAV.filter((n) => BAR.includes(n.path)), { path: "/more", label: "More", icon: Ellipsis }];
+  const moreActive = !leader && !pastor && !medical && NAV.some((n) => !BAR.includes(n.path) && active(n.path));
   return (
     <nav
       aria-label="Coordinator"

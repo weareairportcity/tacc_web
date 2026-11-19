@@ -7,10 +7,10 @@ export const GENDERS = ["male", "female"] as const;
 export type Gender = (typeof GENDERS)[number];
 
 /** pastor: oversees the whole camp (a report, paying for people), nothing else. */
-export const STAFF_ROLES = ["admin", "coordinator", "leader", "pastor"] as const;
+export const STAFF_ROLES = ["admin", "coordinator", "leader", "pastor", "medical"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-export type ScopeKind = "fellowship" | "pfcc" | "group";
+export type ScopeKind = "fellowship" | "pfcc" | "group" | "medical";
 
 export type Camp = {
   id: string;

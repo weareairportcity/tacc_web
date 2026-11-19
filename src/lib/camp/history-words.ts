@@ -25,6 +25,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "registration.shirt_given": "gave out a T-shirt",
   "registration.shirt_given_undo": "took back a T-shirt",
   "registration.fully_paid_sms": "texted them their room is fully paid for",
+  "medical.view": "looked at their health details",
   "leader.sign_in": "signed in",
   "leader.sign_out": "signed out",
   "leader_code.create": "made a leader code",

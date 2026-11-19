@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/camp/toast";
 import { titleClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../access";
 import { GroupLeaderCodes } from "./GroupLeaderCodes";
+import { MedicalCode } from "./MedicalCode";
 import { LeaderCodes } from "./LeaderCodes";
 import { StaffList } from "./StaffList";
 
@@ -42,6 +43,16 @@ export default async function CampStaffPage() {
         </p>
         <ToastProvider>
           <GroupLeaderCodes groups={leaderGroups()} codes={codes} />
+        </ToastProvider>
+      </section>
+      <section className="flex flex-col gap-3 pt-4">
+        <h2 className={titleClass}>Medical team</h2>
+        <p className="text-sm text-warm-gray">
+          One code for the whole medical team, at the same address. It opens a search of everyone: their health notes, emergency contact, room and roommates
+          with phones. Nothing else. Each person they open is noted in the History.
+        </p>
+        <ToastProvider>
+          <MedicalCode codes={codes} />
         </ToastProvider>
       </section>
     </AdminPage>

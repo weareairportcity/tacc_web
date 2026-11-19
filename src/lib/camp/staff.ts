@@ -14,7 +14,8 @@ export async function listStaff(): Promise<Staff[]> {
 export function validateStaff(raw: Staff): Staff {
   const email = String(raw.email ?? "").trim().toLowerCase();
   if (!EMAIL.test(email)) throw new CampError("Enter a valid email.");
-  if (!STAFF_ROLES.includes(raw.role)) throw new CampError("Unknown role.");
+  // The medical team signs in with its code (Staff › Medical team), never by email.
+  if (!STAFF_ROLES.includes(raw.role) || raw.role === "medical") throw new CampError("Unknown role.");
   if (raw.role !== "leader") return { email, role: raw.role, scope_kind: null, scope_value: null };
 
   const value = String(raw.scope_value ?? "").trim();

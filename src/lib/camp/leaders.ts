@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { batch, post, query } from "@/lib/cf";
 import { FELLOWSHIPS, GROUPS, PFCCS, isGroup } from "@/lib/fellowships";
-import { cleanHolder, leaderActor } from "./leader-name";
+import { MEDICAL_TEAM, cleanHolder, leaderActor } from "./leader-name";
 import { auditStatement } from "./audit";
 import { accessStatements, whereFrom } from "./logs";
 import { campSecret } from "./codes";
@@ -43,7 +43,8 @@ export function leaderScopes(): { kind: "fellowship" | "pfcc"; value: string }[]
 
 export const leaderGroups = () => [...GROUPS];
 
-const validScope = (kind: string, value: string) => (kind === "group" ? isGroup(value) : leaderScopes().some((s) => s.kind === kind && s.value === value));
+const validScope = (kind: string, value: string) =>
+  kind === "medical" ? value === MEDICAL_TEAM : kind === "group" ? isGroup(value) : leaderScopes().some((s) => s.kind === kind && s.value === value);
 
 /** Active codes (not the codes themselves: only their hashes are kept). */
 export function listLeaderCodes(): Promise<LeaderCode[]> {
@@ -117,5 +118,7 @@ export async function currentLeader(): Promise<(Staff & { codeId: string }) | nu
     [id],
   ).catch(() => []);
   if (!row || !same(signature, sign(`${id}.${expires}.${row.code_hash}`))) return null;
-  return { email: leaderActor(row.scope_kind, row.scope_value, row.holder_name), role: "leader", scope_kind: row.scope_kind, scope_value: row.scope_value, codeId: id };
+  // The medical team's code is its own role: none of the leaders' pages or actions, only the medical search.
+  const role = row.scope_kind === "medical" ? "medical" : "leader";
+  return { email: leaderActor(row.scope_kind, row.scope_value, row.holder_name), role, scope_kind: row.scope_kind, scope_value: row.scope_value, codeId: id };
 }

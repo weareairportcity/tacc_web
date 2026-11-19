@@ -10,6 +10,7 @@ import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction
 const WHY = {
   coordinator: "hear about registrations, payments and requests as they happen",
   leader: "hear when your people register, pay or ask for something, and get messages from the coordinators",
+  medical: "get messages from the coordinators during camp",
 };
 
 /**
@@ -36,14 +37,14 @@ export async function teamGate(staff: Staff, campName: string) {
   const leader = staff.role === "leader";
   // A Group Leader's code carries their name: greet them by it.
   const holder = staff.scope_kind === "group" ? staff.email.split(":").slice(3).join(":").split(" ")[0] : "";
-  const name = staff.role === "pastor" ? "Pastor" : leader ? holder || (staff.scope_value ?? "Leader") : (leaderName(staff.email) ?? staff.email.split("@")[0]);
+  const name = staff.role === "medical" ? "Medical team" : staff.role === "pastor" ? "Pastor" : leader ? holder || (staff.scope_value ?? "Leader") : (leaderName(staff.email) ?? staff.email.split("@")[0]);
   return {
     tracker,
     gate: (
       <div className="mx-auto max-w-xl px-5 py-6">
         <AppGate
           app={{ kind: "team", name: "Commune Team", icon: "/commune/team-icon-192.png" }}
-          why={WHY[leader ? "leader" : "coordinator"]}
+          why={WHY[staff.role === "medical" ? "medical" : leader ? "leader" : "coordinator"]}
           startUrl={null}
           first={name}
           campName={campName}

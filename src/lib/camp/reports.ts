@@ -37,7 +37,7 @@ export type { Scope } from "./scope";
 /** Coordinators, admins and the Pastor see everyone; a leader sees their own fellowship, PFCC or group. */
 export function scopeFor(staff: Staff): Scope {
   if (staff.role === "admin" || staff.role === "coordinator" || staff.role === "pastor") return { kind: "all" };
-  if (staff.role === "leader" && staff.scope_kind && staff.scope_value) {
+  if (staff.role === "leader" && staff.scope_kind && staff.scope_kind !== "medical" && staff.scope_value) {
     return { kind: staff.scope_kind, value: staff.scope_value };
   }
   throw new CampError("Your leader account isn't linked to a fellowship, PFCC or group yet. Ask a camp admin.");
