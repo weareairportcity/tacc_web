@@ -4,8 +4,8 @@ import { mustSetUpTeamApp, teamInfo, teamOwner } from "@/lib/camp/team-app";
 import type { Staff } from "@/lib/camp/types";
 import { AppGate, AppTracker } from "@/components/camp/notifications/AppGate";
 import { IPadMark } from "@/components/camp/notifications/IPadMark";
-import { IPAD_COOKIE, agentFor } from "@/lib/camp/ipad";
-import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction, teamInstalledAction } from "./actions";
+import { IPAD_COOKIE, TEAM_NO_APP_COOKIE, agentFor, tooOldForAppNotifications } from "@/lib/camp/ipad";
+import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction, teamInstalledAction, teamNoAppAction } from "./actions";
 
 const WHY = {
   coordinator: "hear about registrations, payments and requests as they happen",
@@ -15,7 +15,8 @@ const WHY = {
 /**
  * Commune Team, for coordinators and leaders: on a phone, the camp's pages
  * open once Commune Team is on the Home Screen with notifications on. No way
- * past on a phone; computers aren't asked. Returns the set-up screen, or
+ * past on a phone, except a device too old for app notifications ("My
+ * device can't do this"); computers aren't asked. Returns the set-up screen, or
  * null to show the page (with the install tracker).
  */
 export async function teamGate(staff: Staff, campName: string) {
@@ -28,8 +29,10 @@ export async function teamGate(staff: Staff, campName: string) {
     </>
   );
   // iPads say they're Macs: IPadMark's cookie tells us, so they're asked to install too.
-  const agent = agentFor(h.get("user-agent") ?? "", (await cookies()).get(IPAD_COOKIE)?.value);
-  if (!mustSetUpTeamApp(info, agent)) return { tracker, gate: null };
+  const jar = await cookies();
+  const agent = agentFor(h.get("user-agent") ?? "", jar.get(IPAD_COOKIE)?.value);
+  // "My device can't do this": this device was let through.
+  if (jar.get(TEAM_NO_APP_COOKIE)?.value === "1" || !mustSetUpTeamApp(info, agent)) return { tracker, gate: null };
   const leader = staff.role === "leader";
   // A Group Leader's code carries their name: greet them by it.
   const holder = staff.scope_kind === "group" ? staff.email.split(":").slice(3).join(":").split(" ")[0] : "";
@@ -47,6 +50,7 @@ export async function teamGate(staff: Staff, campName: string) {
           serverInstalled={info.installed}
           serverPush={info.push}
           actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }}
+          noApp={{ run: teamNoAppAction, tooOld: tooOldForAppNotifications(agent) }}
         />
       </div>
     ),

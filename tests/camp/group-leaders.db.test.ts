@@ -172,4 +172,19 @@ describe("iPads install the app too", () => {
     expect(mustSetUpApp({ app_required: 1 }, { status: "registered" }, notSetUp as never, agentFor(mac, undefined))).toBe(false);
     expect(mustSetUpTeamApp({ installed: false, push: false }, agentFor(mac, "1"))).toBe(true);
   });
+
+  it("devices older than iOS 16.4 are too old for app notifications; newer ones and computers aren't", async () => {
+    const { agentFor, tooOldForAppNotifications: tooOld } = await import("@/lib/camp/ipad");
+    const ipadAsMac = (v: string) => agentFor(`Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/${v} Safari/605.1.15`, "1");
+    const iphone = (v: string) => `Mozilla/5.0 (iPhone; CPU iPhone OS ${v} like Mac OS X) AppleWebKit/605.1.15`;
+    expect(tooOld(ipadAsMac("15.6"))).toBe(true);
+    expect(tooOld(ipadAsMac("16.3"))).toBe(true);
+    expect(tooOld(ipadAsMac("16.4"))).toBe(false);
+    expect(tooOld(ipadAsMac("18.0"))).toBe(false);
+    expect(tooOld(iphone("15_7"))).toBe(true);
+    expect(tooOld(iphone("17_1"))).toBe(false);
+    expect(tooOld("Mozilla/5.0 (iPad; CPU OS 16_1 like Mac OS X) AppleWebKit/605.1.15")).toBe(true);
+    expect(tooOld("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15")).toBe(false);
+    expect(tooOld("Mozilla/5.0 (Linux; Android 10) Chrome/120.0")).toBe(false);
+  });
 });

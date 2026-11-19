@@ -48,7 +48,7 @@ export function listTeamApp() {
     `SELECT o.owner, o.name, o.role, t.installed_at, COALESCE(t.platform, '') AS platform,
        EXISTS (SELECT 1 FROM camp_push_subs s WHERE s.owner = o.owner) AS push
      FROM (
-       SELECT 'staff:' || email AS owner, email AS name, 'coordinator' AS role FROM camp_staff WHERE role IN ('admin', 'coordinator')
+       SELECT 'staff:' || email AS owner, email AS name, 'coordinator' AS role FROM camp_staff WHERE role IN ('admin', 'coordinator', 'pastor')
        UNION ALL
        SELECT 'leader:' || id, CASE WHEN holder_name IS NOT NULL THEN holder_name || ' · ' || scope_value ELSE scope_value END, 'leader' FROM camp_leader_codes WHERE revoked_at IS NULL
      ) o LEFT JOIN camp_team_app t ON t.owner = o.owner

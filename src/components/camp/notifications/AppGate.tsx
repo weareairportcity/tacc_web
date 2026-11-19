@@ -87,6 +87,7 @@ export function AppGate({
   serverPush,
   actions,
   textsOnly,
+  noApp,
 }: {
   /** Which app: attendees' Commune by default; the team's is passed in from its own pages. */
   app?: App;
@@ -103,6 +104,12 @@ export function AppGate({
   actions: PushActions;
   /** Attendees only: "My phone can't do this". */
   textsOnly?: () => Promise<Result>;
+  /**
+   * The team only: "My device can't do this", which opens the pages on this
+   * device without the app. Offered on a device too old for app notifications
+   * (`tooOld`), or once added if the device turns out not to support them.
+   */
+  noApp?: { run: () => Promise<Result>; tooOld: boolean };
 }) {
   const router = useRouter();
   const push = usePush(actions);
@@ -162,7 +169,8 @@ export function AppGate({
     );
   }
 
-  const escape = textsOnly ? <TextsInstead textsOnly={textsOnly} /> : null;
+  const skip = noApp ? <WithoutApp run={noApp.run} /> : null;
+  const escape = textsOnly ? <TextsInstead textsOnly={textsOnly} /> : noApp?.tooOld ? skip : null;
 
   // In the other Commune app (attendees' or the team's): this one is added separately, from the browser.
   if (push.installed && where.kind && where.kind !== app.kind) {
@@ -210,6 +218,7 @@ export function AppGate({
         <NotifyStep push={push} app={app} />
         {/* In the app the phone can do this: the way out is only for phones that truly can't. */}
         {(!push.supported || push.permission === "denied") && escape}
+        {!push.supported && !escape && skip}
       </Shell>
     );
   }
@@ -385,6 +394,48 @@ function TextsInstead({ textsOnly }: { textsOnly: () => Promise<Result> }) {
         </button>
         <button type="button" disabled={pending} onClick={go} className="cm-press h-12 flex-1 rounded-full bg-soot px-4 text-[15px] font-medium text-white disabled:opacity-60">
           <Busy pending={pending} text="One moment…">Use texts</Busy>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WithoutApp({ run }: { run: () => Promise<Result> }) {
+  const router = useRouter();
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState("");
+  const [pending, start] = useOneAtATime();
+  if (!asking)
+    return (
+      <button type="button" onClick={() => setAsking(true)} className="cm-press mx-auto h-11 px-3 text-[15px] text-warm-gray underline decoration-stone-muted underline-offset-[3px]">
+        My device can&apos;t do this
+      </button>
+    );
+  return (
+    <div className="cm-pop flex flex-col gap-3 rounded-2xl border border-stone-border bg-white p-5">
+      <p className="text-[17px] font-medium">Use Commune here instead?</p>
+      <p className="text-[15px] leading-relaxed text-warm-gray">
+        This device is too old for app notifications, so you won&apos;t get them here. Everything else works. To get notifications, update the device or use another
+        phone.
+      </p>
+      <ErrorText>{error}</ErrorText>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setAsking(false)} className={`${secondaryButtonClass} h-12 flex-1 text-[15px]`}>
+          Keep trying
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await run();
+              if (!r.ok) return setError(r.error);
+              router.refresh();
+            })
+          }
+          className="cm-press h-12 flex-1 rounded-full bg-soot px-4 text-[15px] font-medium text-white disabled:opacity-60"
+        >
+          <Busy pending={pending} text="One moment…">Continue</Busy>
         </button>
       </div>
     </div>

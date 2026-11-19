@@ -3,6 +3,7 @@
 import { notifyPrefs, removePushSub, savePushSub } from "@/lib/camp/push";
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { allow } from "@/lib/camp/rate-limit";
 import { extraRoomsNeeded, nextRoomLabels, planRandomFill, type FillStep } from "@/lib/camp/fill";
 import { findPeople, getBulkReceipt, idsInScope, scopeFor } from "@/lib/camp/reports";
@@ -15,6 +16,7 @@ import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery }
 import { notifyLeaders, pushMany } from "@/lib/camp/notify";
 import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
 import { markAllRead } from "@/lib/camp/inbox";
+import { TEAM_NO_APP_COOKIE } from "@/lib/camp/ipad";
 import { listPeopleForLeader } from "@/lib/camp/reports";
 import { formatCedis } from "@/lib/camp/money";
 import { todayInGhana } from "@/lib/camp/registrations";
@@ -914,6 +916,21 @@ export async function teamInstalledAction(platform: string) {
     },
     { quiet: true },
   );
+}
+
+/** "My device can't do this" on the Commune Team set-up: this device opens the pages without the app, for a year. */
+export async function teamNoAppAction() {
+  return run(async () => {
+    await requireCampRole("coordinator", "leader", "pastor");
+    (await cookies()).set(TEAM_NO_APP_COOKIE, "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+    });
+    return true;
+  });
 }
 
 /** Texts: a message to every leader's phone, as an app notification (free). Leaders share codes, so there's no number to text. */
