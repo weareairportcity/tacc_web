@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FELLOWSHIPS, GROUPS, PFCCS } from "@/lib/fellowships";
 import { cancelRegistration, register } from "@/lib/camp/registrations";
 import { getCampSummary, summaryCsv } from "@/lib/camp/summary";
 import { summaryPdf } from "@/lib/camp/summary-pdf";
@@ -24,12 +25,17 @@ describe("camp summary", () => {
     expect(s.overview.collected).toBe(120000);
     expect(s.overview.outstanding).toBe(60000);
 
-    expect(s.fellowships.map((r) => r.name)).toEqual(["Qadash", "Chosen"]);
-    expect(s.fellowships[0]).toMatchObject({ rank: 1, people: 2, fully_paid: 2, outstanding: 0, pfcc: "PFCC 2", group: "Group 3" });
-    expect(s.fellowships[1]).toMatchObject({ rank: 2, people: 1, not_paid: 1, outstanding: 60000, pfcc: "PFCC 1", group: "Group 1" });
+    expect(s.fellowships).toHaveLength(FELLOWSHIPS.length);
+    expect(s.fellowships[0]).toMatchObject({ rank: 1, name: "Qadash", people: 2, fully_paid: 2, outstanding: 0 });
+    expect(s.fellowships[1]).toMatchObject({ rank: 2, name: "Chosen", people: 1, not_paid: 1, outstanding: 60000 });
+    expect(s.fellowships.find((r) => r.name === "Royalties")).toMatchObject({ people: 0, outstanding: 0 });
 
-    expect(s.pfccs.map((r) => r.name)).toEqual(["PFCC 2", "PFCC 1"]);
-    expect(s.groups.map((r) => r.name)).toEqual(["Group 3", "Group 1"]);
+    expect(s.pfccs.map((r) => r.name)).toEqual(["PFCC 2", "PFCC 1", "Children's Church"]);
+    expect(s.pfccs).toHaveLength(PFCCS.length);
+    expect(s.pfccs.find((r) => r.name === "Children's Church")?.people).toBe(0);
+    expect(s.groups.map((r) => r.name).slice(0, 2)).toEqual(["Group 3", "Group 1"]);
+    expect(s.groups).toHaveLength(GROUPS.length);
+    expect(s.groups.find((r) => r.name === "Pastor's Group")?.people).toBe(0);
 
     expect(s.rooms).toEqual(
       expect.arrayContaining([
@@ -45,6 +51,9 @@ describe("camp summary", () => {
     expect(csv).toContain("Qadash");
     expect(csv).not.toContain("Esi Chosen");
     expect(csv).not.toMatch(/Placed|Waiting|today/i);
+    expect(csv).toContain("Pastor's Group");
+    expect(csv).toContain("Online Fellowship");
+    expect(csv).toContain('"Fellowships"\r\n"Rank","Name","People"');
 
     const pdf = Buffer.from(await summaryPdf(s)).toString("latin1");
     expect(pdf.startsWith("%PDF-")).toBe(true);
@@ -59,6 +68,7 @@ describe("camp summary", () => {
     await cancelRegistration(ACTOR, esi.id);
     const s = await getCampSummary(camp, "coord@test.local");
     expect(s.rooms).toEqual([]);
-    expect(s.fellowships).toEqual([]);
+    expect(s.fellowships.find((r) => r.name === "Chosen")?.people).toBe(0);
+    expect(s.fellowships).toHaveLength(FELLOWSHIPS.length);
   });
 });

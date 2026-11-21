@@ -37,9 +37,8 @@ function stamp(s: CampSummary) {
   return `Printed by ${s.printedBy} · ${formatAccraLong(s.printedAt)}`;
 }
 
-function rankBody(rows: RankedRow[], extra?: (r: RankedRow) => string[]) {
-  if (!rows.length) return [["—"]];
-  return rows.map((r) => [String(r.rank), r.name, ...(extra ? extra(r) : []), String(r.people), String(r.fully_paid), money(r.outstanding)]);
+function rankBody(rows: RankedRow[]) {
+  return rows.map((r) => [String(r.rank), r.name, String(r.people), String(r.fully_paid), money(r.outstanding)]);
 }
 
 export async function summaryPdf(s: CampSummary): Promise<ArrayBuffer> {
@@ -145,7 +144,7 @@ export async function summaryPdf(s: CampSummary): Promise<ArrayBuffer> {
   block("Rooms", ["Room type", "Gender", "People", "Fully paid", "Outstanding"], roomRows);
   block("PFCCs", rankedHead, rankBody(s.pfccs));
   block("Groups", rankedHead, rankBody(s.groups));
-  block("Fellowships", ["#", "Name", "PFCC", "Group", "People", "Fully paid", "Outstanding"], rankBody(s.fellowships, (r) => [r.pfcc ?? "", r.group ?? ""]));
+  block("Fellowships", rankedHead, rankBody(s.fellowships));
 
   return doc.output("arraybuffer");
 }

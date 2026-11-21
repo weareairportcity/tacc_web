@@ -1,7 +1,7 @@
 import { query } from "@/lib/cf";
 import { formatAccraLong, formatDate } from "@/components/camp/ui";
 import { toCsv } from "./csv";
-import { GROUPS } from "@/lib/fellowships";
+import { FELLOWSHIPS, GROUPS, PFCCS } from "@/lib/fellowships";
 import { getFellowshipBreakdown, type FellowshipRow } from "./reports";
 import type { Camp, Gender } from "./types";
 
@@ -17,8 +17,6 @@ const peopleOf = (r: Pick<FellowshipRow, "registered" | "partially_paid" | "full
 export type RankedRow = {
   rank: number;
   name: string;
-  pfcc?: string;
-  group?: string;
   people: number;
   fully_paid: number;
   partially_paid: number;
@@ -59,10 +57,11 @@ export type CampSummary = {
   rooms: RoomSummaryRow[];
 };
 
-function line(name: string, r: Pick<FellowshipRow, "registered" | "partially_paid" | "fully_paid" | "expected" | "paid">, extra?: Pick<RankedRow, "pfcc" | "group">): Omit<RankedRow, "rank"> {
+const NONE = { registered: 0, partially_paid: 0, fully_paid: 0, expected: 0, paid: 0 };
+
+function line(name: string, r: Pick<FellowshipRow, "registered" | "partially_paid" | "fully_paid" | "expected" | "paid"> = NONE): Omit<RankedRow, "rank"> {
   return {
     name,
-    ...extra,
     people: peopleOf(r),
     fully_paid: r.fully_paid,
     partially_paid: r.partially_paid,
@@ -75,7 +74,6 @@ function line(name: string, r: Pick<FellowshipRow, "registered" | "partially_pai
 
 function rank(rows: Omit<RankedRow, "rank">[]): RankedRow[] {
   return [...rows]
-    .filter((r) => r.people > 0)
     .sort((a, b) => b.people - a.people || b.fully_paid - a.fully_paid || a.name.localeCompare(b.name))
     .map((r, i) => ({ ...r, rank: i + 1 }));
 }
@@ -144,25 +142,16 @@ export async function getCampSummary(camp: Camp, printedBy: string, printedAt = 
     ),
   ]);
 
-  const byPfcc = new Map<string, FellowshipRow[]>();
-  for (const f of fellowships) {
-    const list = byPfcc.get(f.pfcc) ?? [];
-    list.push(f);
-    byPfcc.set(f.pfcc, list);
-  }
+  const found = new Map(fellowships.map((f) => [f.name, f]));
 
   return {
     camp,
     printedBy,
     printedAt,
     overview,
-    pfccs: rank([...byPfcc.entries()].map(([name, rows]) => line(name, sum(rows)))),
-    groups: rank(
-      [...GROUPS, null].map((g) => line(g ?? "Children's Church", sum(fellowships.filter((f) => f.group === g)))),
-    ),
-    fellowships: rank(
-      fellowships.map((f) => line(f.name, f, { pfcc: f.pfcc, group: f.group ?? "—" })),
-    ),
+    pfccs: rank(PFCCS.map((name) => line(name, sum(fellowships.filter((f) => f.pfcc === name))))),
+    groups: rank(GROUPS.map((g) => line(g, sum(fellowships.filter((f) => f.group === g))))),
+    fellowships: rank(FELLOWSHIPS.map((f) => line(f.name, found.get(f.name)))),
     rooms,
   };
 }
@@ -201,10 +190,8 @@ export function summaryCsv(s: CampSummary): string {
     ...s.groups.map(rankCells),
     blank,
     ["Fellowships"],
-    ["Rank", "Name", "PFCC", "Group", "People", "Fully paid", "Part paid", "Not paid", "Expected (GHS)", "Paid (GHS)", "Outstanding (GHS)"],
-    ...s.fellowships.map((r) => [
-      r.rank, r.name, r.pfcc ?? "", r.group ?? "", r.people, r.fully_paid, r.partially_paid, r.not_paid, ghs(r.expected), ghs(r.paid), ghs(r.outstanding),
-    ]),
+    rankHead,
+    ...s.fellowships.map(rankCells),
     blank,
     ["Rooms"],
     ["Room type", "Gender", "People", "Fully paid", "Expected (GHS)", "Paid (GHS)", "Outstanding (GHS)"],
