@@ -9,6 +9,7 @@ import { FellowshipRanking, GroupRanking, active, cedis, rankGroups, sum } from 
 import { Legend, RegistrationStatus, StackedBar, formatDate, headlineClass, statusParts, type BarPart } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
+import { SummaryButton } from "../SummaryButton";
 
 const who = (g: string) => (g === "male" ? "Men" : "Women");
 
@@ -76,12 +77,15 @@ export default async function ReportPage({ params }: { params: Promise<{ campId:
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1.5">
-        <h1 className={`${headlineClass} text-[34px]`}>Report</h1>
-        <p className="text-[14px] text-warm-gray">
-          {camp.name} · {formatDate(camp.starts_on)}
-          {toCamp > 0 ? ` · ${toCamp} ${toCamp === 1 ? "day" : "days"} to go` : during ? " · camp is on" : ""}
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-col gap-1">
+          <h1 className={`${headlineClass} text-[34px]`}>Report</h1>
+          <p className="text-[14px] text-warm-gray">
+            {camp.name} · {formatDate(camp.starts_on)}
+            {toCamp > 0 ? ` · ${toCamp} ${toCamp === 1 ? "day" : "days"} to go` : during ? " · camp is on" : ""}
+          </p>
+        </div>
+        <SummaryButton campId={camp.id} />
       </header>
 
       {/* Hero: the money first, today's numbers beside it (below it on a phone). */}

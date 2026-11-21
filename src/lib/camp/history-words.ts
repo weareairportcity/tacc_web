@@ -33,6 +33,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "leader_code.create": "made a leader code",
   "leader_code.off": "turned off a leader code",
   "people.export": "downloaded the people list",
+  "people.summary": "downloaded the camp summary",
   "view.save": "saved a People view",
   "view.delete": "removed a People view",
   "registration.delete_details": "deleted their details",

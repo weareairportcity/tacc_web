@@ -10,6 +10,7 @@ import { Legend, StackedBar, formatDate, headlineClass, statusParts, type BarPar
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../access";
 import { APP_STATE_SQL, type AppState } from "@/lib/camp/app-first";
+import { SummaryButton } from "./SummaryButton";
 
 /** "ama.mensah@…" → "Ama". */
 const firstName = (email: string) => {
@@ -112,28 +113,31 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <p className="flex items-center gap-2 text-[13px] text-warm-gray">
-          {phase === "open" && <span className="cm-pulse h-[7px] w-[7px] rounded-full bg-cyan-signal" aria-hidden="true" />}
-          {camp.status === "draft" ? "Draft · only coordinators can see it" : phase === "open" ? "Registration open" : phase === "upcoming" ? "Registration not open yet" : "Registration closed"}
-          {" · "}camp in {daysUntil(camp.starts_on)} days
-        </p>
-        <h1 className={`cm-rise ${headlineClass} text-[34px]`}>
-          {greeting()}
-          {firstName(staff.email) && (
-            <>
-              , <span className="text-cyan-edge">{firstName(staff.email)}</span>
-            </>
-          )}
-        </h1>
-        <ul className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-[#57534e]">
-          {dates.map((x) => (
-            <li key={x.label} className="flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" />
-              {x.label} <strong className="font-medium text-ink-black">{formatDate(x.date).replace(/ \d{4}$/, "")}</strong>
-            </li>
-          ))}
-        </ul>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <p className="flex items-center gap-2 text-[13px] text-warm-gray">
+            {phase === "open" && <span className="cm-pulse h-[7px] w-[7px] rounded-full bg-cyan-signal" aria-hidden="true" />}
+            {camp.status === "draft" ? "Draft · only coordinators can see it" : phase === "open" ? "Registration open" : phase === "upcoming" ? "Registration not open yet" : "Registration closed"}
+            {" · "}camp in {daysUntil(camp.starts_on)} days
+          </p>
+          <h1 className={`cm-rise ${headlineClass} text-[34px]`}>
+            {greeting()}
+            {firstName(staff.email) && (
+              <>
+                , <span className="text-cyan-edge">{firstName(staff.email)}</span>
+              </>
+            )}
+          </h1>
+          <ul className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-[#57534e]">
+            {dates.map((x) => (
+              <li key={x.label} className="flex items-center gap-1.5">
+                <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden="true" />
+                {x.label} <strong className="font-medium text-ink-black">{formatDate(x.date).replace(/ \d{4}$/, "")}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <SummaryButton campId={camp.id} />
       </header>
 
       <section aria-label="To do" className="grid gap-2.5 sm:grid-cols-3">
