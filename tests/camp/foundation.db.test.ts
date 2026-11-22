@@ -6,9 +6,11 @@ import {
   createRoomType,
   deleteRoom,
   deleteRoomType,
+  getRoomType,
   importRooms,
   listRooms,
   updateRoom,
+  updateRoomType,
 } from "@/lib/camp/rooms";
 import { listStaff, removeStaff, saveStaff } from "@/lib/camp/staff";
 import { CampError, type CampInput } from "@/lib/camp/types";
@@ -78,6 +80,16 @@ describe("room types and rooms", () => {
     await expect(
       createRoomType(ACTOR, campId, { name: "hostel", price_pesewas: 1, capacity: 2 }),
     ).rejects.toThrow("already a room type");
+  });
+
+  it("saves a subtext on a room type", async () => {
+    await updateRoomType(ACTOR, hostelId, { name: "Hostel", price_pesewas: 60000, capacity: 4, subtext: "Shared bathroom" });
+    expect((await getRoomType(hostelId))!.subtext).toBe("Shared bathroom");
+    await updateRoomType(ACTOR, hostelId, { name: "Hostel", price_pesewas: 60000, capacity: 4, subtext: "  " });
+    expect((await getRoomType(hostelId))!.subtext).toBe("");
+    await expect(
+      updateRoomType(ACTOR, hostelId, { name: "Hostel", price_pesewas: 60000, capacity: 4, subtext: "x".repeat(161) }),
+    ).rejects.toThrow("too long");
   });
 
   it("adds, edits and deletes a room, auditing each step", async () => {

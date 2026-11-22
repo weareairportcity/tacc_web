@@ -221,6 +221,7 @@ function RoomList({ roomTypes }: { roomTypes: RoomType[] }) {
             </span>
             <span className="flex flex-1 flex-col gap-0.5">
               <span className="text-[17px] font-medium text-ink-black">{t.name}</span>
+              {t.subtext?.trim() ? <span className={cn("text-sm leading-snug", full ? "text-ash-gray" : "text-warm-gray")}>{t.subtext.trim()}</span> : null}
               <span className={cn("text-sm", low.length || fullFor.length ? "font-medium text-ink-black" : "text-warm-gray", full && "font-normal text-warm-gray")}>{note}</span>
             </span>
             <span className={cn("font-display text-xl tabular-nums", full && "line-through")}>{formatCedis(t.price_pesewas)}</span>

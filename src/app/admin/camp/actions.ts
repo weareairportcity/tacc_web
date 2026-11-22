@@ -197,12 +197,17 @@ export async function saveCampPhotoAction(campId: string, kind: CampPhoto, url: 
 export async function saveRoomTypeAction(
   campId: string,
   id: string | null,
-  input: { name: string; price: string; capacity: number },
+  input: { name: string; price: string; capacity: number; subtext?: string },
 ) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
     await once(staff.email, "saveRoomTypeAction", [campId, id, input]);
-    const values = { name: input.name, price_pesewas: cedisToPesewas(String(input.price ?? "")), capacity: input.capacity };
+    const values = {
+      name: input.name,
+      subtext: input.subtext,
+      price_pesewas: cedisToPesewas(String(input.price ?? "")),
+      capacity: input.capacity,
+    };
     const existing = nullable(id);
     if (existing) await updateRoomType(staff.email, existing, values);
     else await createRoomType(staff.email, campId, values);

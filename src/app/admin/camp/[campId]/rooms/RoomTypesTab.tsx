@@ -33,7 +33,7 @@ const venueOf = (left: number | null, total: number | null): Venue =>
 export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes: RoomType[] }) {
   const toast = useToast();
   const [places, setPlaces] = useState<{ type: RoomType; gender: Gender } | null>(null);
-  const [edit, setEdit] = useState<{ id: string | null; name: string; price: string; capacity: number } | null>(null);
+  const [edit, setEdit] = useState<{ id: string | null; name: string; price: string; capacity: number; subtext: string } | null>(null);
   const [pending, start] = useOneAtATime();
 
   /** Saves what the venue said, with Undo back to what it was. */
@@ -56,7 +56,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
       });
       setPlaces(null);
     });
-  const add = () => setEdit({ id: null, name: "", price: "", capacity: 4 });
+  const add = () => setEdit({ id: null, name: "", price: "", capacity: 4, subtext: "" });
 
   return (
     <div className="flex flex-col gap-5">
@@ -84,10 +84,13 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
             {roomTypes.map((t) => (
               <li key={t.id} className="flex flex-col rounded-[12px] border border-stone-border bg-white shadow-seline-card">
                 <div className="flex items-start justify-between gap-3 px-5 pt-5">
-                  <h2 className="font-display text-[22px] leading-tight text-balance">{t.name}</h2>
+                  <div className="min-w-0">
+                    <h2 className="font-display text-[22px] leading-tight text-balance">{t.name}</h2>
+                    {t.subtext?.trim() ? <p className="mt-1 text-[14px] leading-snug text-warm-gray">{t.subtext.trim()}</p> : null}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setEdit({ id: t.id, name: t.name, price: pesewasToCedisInput(t.price_pesewas), capacity: t.capacity })}
+                    onClick={() => setEdit({ id: t.id, name: t.name, price: pesewasToCedisInput(t.price_pesewas), capacity: t.capacity, subtext: t.subtext ?? "" })}
                     aria-label={`Edit ${t.name}`}
                     className={cn(ghost, "h-9 flex-none px-3.5")}
                   >
@@ -256,7 +259,7 @@ function PlacesSheet({
   );
 }
 
-function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId: string; draft: { id: string | null; name: string; price: string; capacity: number }; onClose: () => void; canDelete: boolean }) {
+function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId: string; draft: { id: string | null; name: string; price: string; capacity: number; subtext: string }; onClose: () => void; canDelete: boolean }) {
   const toast = useToast();
   const [draft, setDraft] = useState(initial);
   const [confirm, setConfirm] = useState(false);
@@ -295,6 +298,16 @@ function EditTypeSheet({ campId, draft: initial, onClose, canDelete }: { campId:
     >
       <Field label="Name">
         <input autoFocus className={inputClass} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Hostel" />
+      </Field>
+      <Field label="Subtext" hint="Shown under the name when people register. You can leave it empty.">
+        <textarea
+          rows={2}
+          maxLength={160}
+          className={`${inputClass} h-auto py-2.5 leading-relaxed`}
+          value={draft.subtext}
+          onChange={(e) => setDraft({ ...draft, subtext: e.target.value })}
+          placeholder="Shared bathroom, near the chapel…"
+        />
       </Field>
       <Field label="Price" hint={draft.id ? "People already registered keep the price they signed up at." : undefined}>
         <span className="relative flex">

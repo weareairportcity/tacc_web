@@ -67,6 +67,8 @@ export type RoomType = {
   id: string;
   camp_id: string;
   name: string;
+  /** Optional line under the name, set when editing. Empty means none. */
+  subtext?: string;
   price_pesewas: number;
   capacity: number;
   /** Places left for each gender, as last told by the venue. null = no limit, 0 = full. */

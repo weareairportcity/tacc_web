@@ -14,9 +14,9 @@ import { CampError, GENDERS, type Gender, type Room, type RoomInput, type RoomTy
 
 // ─── Room types ──────────────────────────────────────────────────────────────
 
-export type RoomTypeInput = Pick<RoomType, "name" | "price_pesewas" | "capacity">;
+export type RoomTypeInput = Pick<RoomType, "name" | "price_pesewas" | "capacity"> & { subtext?: string };
 
-const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.price_pesewas, t.capacity,
+const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.subtext, t.price_pesewas, t.capacity,
     (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'male') AS places_male,
     (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS places_female,
     (SELECT places_total FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'male') AS total_male,
@@ -30,10 +30,16 @@ export const placesFor = (type: RoomType, gender: Gender) =>
   placesLeft(gender === "male" ? type.places_male : type.places_female);
 
 function validateRoomType(raw: RoomTypeInput): RoomTypeInput {
-  const input = { name: String(raw.name ?? "").trim(), price_pesewas: raw.price_pesewas, capacity: Number(raw.capacity) };
+  const input = {
+    name: String(raw.name ?? "").trim(),
+    subtext: String(raw.subtext ?? "").trim(),
+    price_pesewas: raw.price_pesewas,
+    capacity: Number(raw.capacity),
+  };
   const problems: string[] = [];
   if (!input.name) problems.push("Name is required.");
   if (input.name.length > 60) problems.push("Name is too long.");
+  if (input.subtext.length > 160) problems.push("Subtext is too long.");
   if (!Number.isInteger(input.price_pesewas) || input.price_pesewas < 0) problems.push("Price must be zero or more.");
   if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 100) {
     problems.push("Beds per room must be a whole number from 1 to 100.");
@@ -75,8 +81,8 @@ export async function createRoomType(actor: string, campId: string, raw: RoomTyp
   const id = crypto.randomUUID();
   await batch("app", [
     {
-      sql: "INSERT INTO camp_room_types (id, camp_id, name, price_pesewas, capacity) VALUES (?, ?, ?, ?, ?)",
-      params: [id, campId, input.name, input.price_pesewas, input.capacity],
+      sql: "INSERT INTO camp_room_types (id, camp_id, name, subtext, price_pesewas, capacity) VALUES (?, ?, ?, ?, ?, ?)",
+      params: [id, campId, input.name, input.subtext, input.price_pesewas, input.capacity],
     },
     auditStatement({ actor, campId, action: "room_type.create", entity: "room_type", entityId: id, after: input }),
   ]);
@@ -90,8 +96,8 @@ export async function updateRoomType(actor: string, id: string, raw: RoomTypeInp
   await assertTypeNameFree(before.camp_id, input.name, id);
   await batch("app", [
     {
-      sql: "UPDATE camp_room_types SET name = ?, price_pesewas = ?, capacity = ? WHERE id = ?",
-      params: [input.name, input.price_pesewas, input.capacity, id],
+      sql: "UPDATE camp_room_types SET name = ?, subtext = ?, price_pesewas = ?, capacity = ? WHERE id = ?",
+      params: [input.name, input.subtext, input.price_pesewas, input.capacity, id],
     },
     auditStatement({
       actor,

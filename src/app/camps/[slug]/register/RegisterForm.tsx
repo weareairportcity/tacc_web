@@ -525,6 +525,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
                   </span>
                   <span className="flex flex-1 flex-col gap-0.5">
                     <span className={cn("text-[15px] font-medium", full && "text-warm-gray")}>{t.name}</span>
+                    {t.subtext?.trim() ? <span className={cn("text-[13px] leading-snug", full ? "text-ash-gray" : "text-warm-gray")}>{t.subtext.trim()}</span> : null}
                     {full ? (
                       <span className="flex items-center gap-1.5 text-[13px] text-warm-gray">
                         <CircleSlash className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
