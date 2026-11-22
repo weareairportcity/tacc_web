@@ -30,6 +30,7 @@ export function DetailsForm({
   gender,
   healthAgreed,
   shirtsOn = true,
+  required = false,
   paid = 0,
 }: {
   /** What they've paid, for the refund line when removing themselves. */
@@ -43,9 +44,12 @@ export function DetailsForm({
   gender: GenderState;
   /** They already ticked the health agreement; it isn't asked again. */
   healthAgreed: boolean;
+  /** Emergency contact and a health answer are required for this camp. */
+  required?: boolean;
 }) {
   const [v, setV] = useState(initial);
-  const [showHealth, setShowHealth] = useState(!!initial.health_notes);
+  const [none, setNone] = useState(!!initial.health_none && !initial.health_notes);
+  const [showHealth, setShowHealth] = useState(required || !!initial.health_notes || !!initial.health_none);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, start] = useOneAtATime();
@@ -57,12 +61,19 @@ export function DetailsForm({
   return (
     <>
       <form
+        noValidate={required}
         className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
+          if (required) {
+            if (!v.emergency_name.trim()) return setError("Enter who we should call in an emergency, and how they're related to you.");
+            if (!v.emergency_phone.trim()) return setError("Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
+            if (!none && !v.health_notes.trim()) return setError("Tell us about your health, or tick that you have no health conditions.");
+            if (!none && v.health_notes.trim() && !healthAgreed && !v.health_consent) return setError("Tick that you agree to us keeping your health notes, or leave them empty.");
+          }
           start(async () => {
             setError("");
-            const r = await updateMyDetailsAction(slug, v);
+            const r = await updateMyDetailsAction(slug, { ...v, health_notes: none ? "" : v.health_notes, health_none: none });
             if (!r.ok) return setError(r.error);
             setSaved(true);
           });
@@ -99,23 +110,49 @@ export function DetailsForm({
           )}
         </fieldset>
 
-        <fieldset className={cn(fieldset, !initial.emergency_name && "ring-2 ring-cyan-signal")}>
+        <fieldset className={cn(fieldset, required && !initial.emergency_name && "ring-2 ring-cyan-signal")}>
           <Legend title="If something happens" sub="Who should we call in an emergency at camp?" />
           <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
-            <input className={inputClass} value={v.emergency_name} onChange={set("emergency_name")} />
+            <input required={required} className={inputClass} value={v.emergency_name} onChange={set("emergency_name")} />
           </Field>
           <Field label="Their phone">
-            <input type="tel" inputMode="tel" className={inputClass} value={v.emergency_phone} onChange={set("emergency_phone")} placeholder="024 555 0101" />
+            <input required={required} type="tel" inputMode="tel" className={inputClass} value={v.emergency_phone} onChange={set("emergency_phone")} placeholder="024 555 0101" />
           </Field>
         </fieldset>
 
         {showHealth ? (
           <fieldset className={fieldset}>
-            <Legend title="Your health" sub="Only coordinators see this. Leave it empty if there's nothing." />
-            <Field label="Allergies, medicine or anything we should know">
-              <textarea rows={3} autoFocus={!initial.health_notes} className={`${inputClass} h-auto py-2.5 leading-relaxed`} value={v.health_notes} onChange={set("health_notes")} />
-            </Field>
-            {!healthAgreed && v.health_notes.trim() && (
+            <Legend title="Your health" sub={required ? "Only coordinators see this. Tick below if there's nothing." : "Only coordinators see this. Leave it empty if there's nothing."} />
+            <label className={cn("flex cursor-pointer items-start gap-3 rounded-[12px] border p-3.5", none ? "border-soot bg-stone-canvas" : "border-stone-border")}>
+              <input
+                type="checkbox"
+                className="mt-0.5 h-5 w-5 flex-none accent-soot"
+                checked={none}
+                onChange={(e) => {
+                  setSaved(false);
+                  setNone(e.target.checked);
+                  if (e.target.checked) setV({ ...v, health_notes: "" });
+                }}
+              />
+              <span className="text-[15px] leading-relaxed">I have no health conditions</span>
+            </label>
+            {!none && (
+              <Field label="Allergies, medicine or anything we should know">
+                <textarea
+                  rows={3}
+                  required={required}
+                  autoFocus={!initial.health_notes && !required}
+                  className={`${inputClass} h-auto py-2.5 leading-relaxed`}
+                  value={v.health_notes}
+                  onChange={(e) => {
+                    setSaved(false);
+                    setV({ ...v, health_notes: e.target.value });
+                    if (e.target.value.trim()) setNone(false);
+                  }}
+                />
+              </Field>
+            )}
+            {!healthAgreed && v.health_notes.trim() && !none && (
               <label className="cm-rise flex cursor-pointer items-start gap-3 text-[15px] leading-relaxed">
                 <input
                   required

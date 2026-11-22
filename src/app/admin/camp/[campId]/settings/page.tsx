@@ -57,7 +57,7 @@ export default async function CampSettingsPage({ params }: { params: Promise<{ c
         <ShirtRule campId={camp.id} askSize={camp.shirts_on !== 0} on={!!camp.shirt_paid_only} />
       </Section>
       <Section title="The Commune app" text="App notifications are free; every text costs credits. See what texts have cost on Texts.">
-        <AppRules campId={camp.id} required={camp.app_required !== 0} reminders={camp.leader_reminders === 1} />
+        <AppRules campId={camp.id} required={camp.app_required !== 0} reminders={camp.leader_reminders === 1} details={camp.details_required === 1} />
       </Section>
       <Section
         title="Notifications"

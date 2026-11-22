@@ -3,6 +3,7 @@ import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { inScope as personInScope, scopeSql, type Scope } from "./scope";
 import { shirtRefusal } from "./shirts";
+import { APP_STATE_SQL, type AppState } from "./app-first";
 import { CampError, type RegistrationStatus } from "./types";
 
 /**
@@ -74,16 +75,18 @@ export type PersonCard = Arrival & {
   any_room: number;
   /** People in their roommate group, or null if they're in none. */
   group_size: number | null;
+  /** So leaders know whether they can message this person in the app. */
+  app: AppState;
 };
 
 /** Leaders get phone, money, room, arrival and T-shirt; health notes, emergency contacts and roommates stay with coordinators. */
 export async function personCard(campId: string, registrationId: string, scope: Scope = ALL): Promise<PersonCard> {
   const person = forViewer(await personFor(checkId(campId, "camp"), registrationId, scope), scope);
   const [extra] = await query<
-    Pick<PersonCard, "phone" | "emergency_name" | "emergency_phone" | "any_room" | "group_size"> & { is_minor: number; guardian_name: string; guardian_phone: string }
+    Pick<PersonCard, "phone" | "emergency_name" | "emergency_phone" | "any_room" | "group_size" | "app"> & { is_minor: number; guardian_name: string; guardian_phone: string }
   >(
     "app",
-    `SELECT r.phone, r.emergency_name, r.emergency_phone, r.any_room, r.is_minor, r.guardian_name, r.guardian_phone,
+    `SELECT r.phone, r.emergency_name, r.emergency_phone, r.any_room, r.is_minor, r.guardian_name, r.guardian_phone, ${APP_STATE_SQL} AS app,
        (SELECT COUNT(*) FROM camp_group_members m WHERE m.group_id = (SELECT group_id FROM camp_group_members WHERE registration_id = r.id)) AS group_size
      FROM camp_registrations r WHERE r.id = ?`,
     [person.id],
@@ -97,6 +100,7 @@ export async function personCard(campId: string, registrationId: string, scope: 
     guardian: leader || !extra?.is_minor ? "" : [extra.guardian_name, extra.guardian_phone ? `0${extra.guardian_phone.slice(3)}` : ""].filter(Boolean).join(" · "),
     any_room: extra?.any_room ?? 0,
     group_size: extra?.group_size || null,
+    app: extra?.app ?? "none",
   };
 }
 

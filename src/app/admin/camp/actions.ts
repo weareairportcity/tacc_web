@@ -11,8 +11,8 @@ import { leaderAccounts, newLeaderCode, turnOffLeaderCode } from "@/lib/camp/lea
 import { batch } from "@/lib/cf";
 import { auditStatement } from "@/lib/camp/audit";
 import { requireCampRole } from "@/lib/camp/auth";
-import { createCamp, getCamp, setAppSwitch, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone } from "@/lib/camp/camps";
-import { appDetails, sendBroadcast, sendToPeople, type Audience, type Delivery } from "@/lib/camp/broadcast";
+import { createCamp, getCamp, setAppSwitch, setCampPhoto, setShirtPaidOnly, setShirtsOn, updateCamp, setHelpPhone, type AppSwitch } from "@/lib/camp/camps";
+import { appDetails, sendBroadcast, sendLeaderToPerson, sendToPeople, type Audience, type Delivery } from "@/lib/camp/broadcast";
 import { notifyLeaders, pushMany } from "@/lib/camp/notify";
 import { leaderOwners, markTeamInstalled, teamOwner } from "@/lib/camp/team-app";
 import { markAllRead } from "@/lib/camp/inbox";
@@ -142,11 +142,10 @@ export async function setShirtRuleAction(campId: string, on: boolean) {
 }
 
 /** Settings: whether registration asks for a T-shirt size. The scanner stays either way. */
-/** Settings: "attendees set up the app first" and "leaders can send payment reminders". */
-export async function setAppSwitchAction(campId: string, which: "app_required" | "leader_reminders", on: boolean) {
+/** Settings: the app and details switches. */
+export async function setAppSwitchAction(campId: string, which: AppSwitch, on: boolean) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    if (which !== "app_required" && which !== "leader_reminders") throw new CampError("Unknown setting.");
     await setAppSwitch(staff.email, String(campId), which, on === true);
     return null;
   });
@@ -593,6 +592,26 @@ export async function messagePeopleAction(campId: string, registrationIds: strin
     const camp = await getCamp(String(campId));
     if (!camp) throw new CampError("Unknown camp.");
     return sendToPeople(staff.email, camp, registrationIds, message, how);
+  });
+}
+
+/**
+ * A fellowship, PFCC or group leader: one in-app message to one of their
+ * people. Never a text. If that person hasn't turned notifications on, we
+ * say so and send nothing.
+ */
+export async function leaderMessageAction(campId: string, registrationId: string, message: string) {
+  return run(async () => {
+    const staff = await requireCampRole("leader");
+    await once(staff.email, "leaderMessageAction", [campId, registrationId, message]);
+    const camp = await getCamp(String(campId));
+    if (!camp) throw new CampError("Unknown camp.");
+    const id = String(registrationId);
+    const allowed = await idsInScope(camp.id, [id], scopeFor(staff));
+    if (!allowed.length) throw new CampError("They aren't one of your people.");
+    const person = (await listPeopleForLeader(staff, camp.id, {})).find((r) => r.id === id);
+    if (!person) throw new CampError("They aren't one of your people.");
+    return sendLeaderToPerson(staff.email, camp, person, String(message ?? ""));
   });
 }
 

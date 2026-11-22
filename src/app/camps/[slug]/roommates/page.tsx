@@ -4,6 +4,7 @@ import { getGroupFor } from "@/lib/camp/groups";
 import { campOrigin } from "@/lib/camp/origin";
 import { todayInGhana } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
+import { getPrivateDetails, mustGiveDetails } from "@/lib/camp/profile";
 import { campAndAttendee } from "@/lib/camp/session";
 import { Choice, Intro, Note } from "@/components/camp/subpage";
 import { formatDay } from "@/components/camp/ui";
@@ -29,6 +30,7 @@ export default async function RoommatesPage({ params }: { params: Promise<{ slug
   if (!camp) notFound();
   if (!me) redirect(`/camps/${camp.slug}`);
   if (me.status !== "fully_paid") redirect(`/camps/${camp.slug}/me`);
+  if (mustGiveDetails(camp, me, await getPrivateDetails(me.id))) redirect(`/camps/${camp.slug}/me`);
 
   const [group, origin, types] = await Promise.all([getGroupFor(me.id), campOrigin(), listRoomTypes(camp.id)]);
   const deadline = formatDay(camp.roommate_deadline_on);

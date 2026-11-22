@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { post, query } from "@/lib/cf";
 import { arrivalCounts, checkIn, findArrivals, undoCheckIn } from "@/lib/camp/checkin";
-import { cancelMine, deleteMyDetails, getPrivateDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
+import { cancelMine, deleteMyDetails, detailsComplete, getPrivateDetails, listHealth, mustGiveDetails, setAnyRoom, updateProfile } from "@/lib/camp/profile";
 import { AlreadyRegistered, getRegistration, register } from "@/lib/camp/registrations";
 import { listHistory, listPeople, parsePeopleFilters, peopleFacets } from "@/lib/camp/reports";
 import { makeToken, readToken } from "@/lib/camp/tokens";
@@ -10,7 +10,7 @@ import { createGroup } from "@/lib/camp/groups";
 import { assignGroup, assignPerson, unassign, unassignMany } from "@/lib/camp/assignments";
 import { createRoom } from "@/lib/camp/rooms";
 import { CampError } from "@/lib/camp/types";
-import { getCamp, setShirtsOn } from "@/lib/camp/camps";
+import { getCamp, setAppSwitch, setShirtsOn } from "@/lib/camp/camps";
 import { ACTOR, attendee, openCamp, paidUp, paidWithPayment } from "./helpers";
 
 // Commune v2: what attendees manage themselves, check-in, the People filters,
@@ -41,6 +41,37 @@ describe("profile", () => {
     expect(log).toEqual([{ after_json: null }]);
     await expect(updateProfile(`attendee:${id}`, id, { full_name: "A", email: "x", shirt_size: "", emergency_name: "", emergency_phone: "12", health_notes: "" }))
       .rejects.toThrow(CampError);
+  });
+
+  it("can require an emergency contact and a health answer", async () => {
+    expect(detailsComplete({ emergency_name: "", emergency_phone: "233245550101", health_notes: "", health_none: 0 })).toBe(false);
+    expect(detailsComplete({ emergency_name: "Mum", emergency_phone: "233245550101", health_notes: "", health_none: 1 })).toBe(true);
+    expect(mustGiveDetails({ details_required: 0 }, { status: "registered" }, { emergency_name: "", emergency_phone: "", health_notes: "", health_none: 0 })).toBe(false);
+
+    const { camp, roomTypeId } = await openCamp();
+    const { id } = await register(camp, attendee(roomTypeId));
+    await setAppSwitch(ACTOR, camp.id, "details_required", true);
+    expect((await getCamp(camp.id))?.details_required).toBe(1);
+    const base = { full_name: "Ama Mensah", email: "ama@example.com", shirt_size: "" as const, emergency_name: "", emergency_phone: "", health_notes: "" };
+    await expect(updateProfile(`attendee:${id}`, id, base)).rejects.toThrow("emergency");
+    await expect(updateProfile(`attendee:${id}`, id, { ...base, emergency_name: "Grace Mensah", emergency_phone: "024 555 0101" })).rejects.toThrow("health");
+    await updateProfile(`attendee:${id}`, id, { ...base, emergency_name: "Grace Mensah", emergency_phone: "024 555 0101", health_none: true });
+    expect(await getPrivateDetails(id)).toMatchObject({ emergency_name: "Grace Mensah", emergency_phone: "233245550101", health_notes: "", health_none: 1 });
+    const health = await listHealth(camp.id);
+    expect(health.added.map((r) => r.id)).toContain(id);
+    expect(health.missing.map((r) => r.id)).not.toContain(id);
+  });
+
+  it("asks for emergency and health at register when the camp requires them", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    await setAppSwitch(ACTOR, camp.id, "details_required", true);
+    const live = (await getCamp(camp.id))!;
+    await expect(register(live, attendee(roomTypeId))).rejects.toThrow("emergency");
+    const { id } = await register(live, attendee(roomTypeId, { emergency_name: "Kofi Tetteh, father", emergency_phone: "024 555 0101", health_none: true }));
+    expect(await getPrivateDetails(id)).toMatchObject({ emergency_name: "Kofi Tetteh, father", emergency_phone: "233245550101", health_none: 1 });
+    const health = await listHealth(live.id);
+    expect(health.added).toHaveLength(1);
+    expect(health.missing).toHaveLength(0);
   });
 
   it("'any room' only before joining a group", async () => {

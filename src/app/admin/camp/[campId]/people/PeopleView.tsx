@@ -15,7 +15,7 @@ import { PeopleTabs } from "@/components/camp/PeopleTabs";
 import { ErrorText, Legend, RegistrationStatus as Status, StackedBar, headlineClass, inputClass, primaryButtonClass, statusParts } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { messageCost, type Delivery } from "@/lib/camp/message-cost";
-import { ImportantBox } from "@/components/camp/ImportantBox";
+import { HowPick } from "@/components/camp/HowPick";
 import { coordinatorText, firstName, MAX_COORDINATOR_MESSAGE, smsParts } from "@/lib/camp/sms";
 import { deleteViewAction, leaderRemindAction, messagePeopleAction, openPaymentsForAction, payForPeopleAction, saveViewAction } from "../../actions";
 import type { OpenPayment } from "@/lib/camp/payments";
@@ -310,7 +310,7 @@ export function PeopleView({
           </a>
         </div>
       </header>
-      {rankable && <PeopleTabs base={leader ? `/leaders/${campId}/people` : `/admin/camp/${campId}/people`} current="everyone" />}
+      {rankable && <PeopleTabs base={leader ? `/leaders/${campId}/people` : `/admin/camp/${campId}/people`} current="everyone" health={!leader} />}
 
       {leader && scanNow && (
         <a href={`/leaders/${campId}/check-in`} className={`${primaryButtonClass} cm-rise h-16 w-full text-[18px]`}>
@@ -629,6 +629,7 @@ export function PeopleView({
           campId={campId}
           personId={person}
           leader
+          canMessage
           onClose={() => setPerson(null)}
           actions={(p) =>
             p.status !== "cancelled" &&
@@ -902,11 +903,10 @@ const TEMPLATES: [string, string][] = [
 
 function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; onClose: () => void; campId: string; people: PersonListRow[]; onSent: (n: number) => void }) {
   const [message, setMessage] = useState("");
-  const [important, setImportant] = useState(false);
+  const [how, setHow] = useState<Delivery>("app");
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [pending, start] = useOneAtATime();
-  const how: Delivery = important ? "both" : "app";
   const cost = messageCost(people.map((p) => ({ first: firstName(p.full_name), app: p.app })), message, how);
   const perText = smsParts(coordinatorText(people[0]?.full_name ?? "", message));
   return (
@@ -969,13 +969,19 @@ function TextSheet({ open, onClose, campId, people, onSent }: { open: boolean; o
           {message.length}/{MAX_COORDINATOR_MESSAGE} · {perText} {perText === 1 ? "credit" : "credits"} a text
         </span>
       </label>
-      <ImportantBox checked={important} onChange={setImportant} />
+      <HowPick value={how} onChange={setHow} />
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">What {firstName(people[0]?.full_name ?? "") || "they"} will get</span>
         <p className="rounded-[16px] rounded-bl-[4px] bg-[#e9f4fd] px-3.5 py-3 text-sm leading-relaxed break-words">
           {coordinatorText(people[0]?.full_name ?? "", message || "…")}
         </p>
-        <span className="text-xs text-warm-gray">People with notifications on get it in Commune, free; the rest by text.{important ? " Important: everyone gets a text too." : ""}</span>
+        <span className="text-xs text-warm-gray">
+          {how === "text"
+            ? "Everyone gets a text."
+            : how === "both"
+              ? "Everyone gets a text, and people with the app get a notification too."
+              : "People with notifications on get it in Commune, free; the rest by text."}
+        </span>
       </div>
       <ErrorText>{error}</ErrorText>
     </Sheet>

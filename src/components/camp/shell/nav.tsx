@@ -25,6 +25,7 @@ export const NAV: Item[] = [
   { path: "/money", label: "Money", icon: CreditCard },
   { path: "/requests", label: "Requests", icon: Inbox },
   { path: "/app", label: "The app", icon: Smartphone },
+  { path: "/health", label: "Health", icon: HeartPulse },
   { path: "/texts", label: "Texts", icon: MessageSquare },
   { path: "/history", label: "History", icon: Clock },
   { path: "/feedback", label: "Feedback", icon: MessageSquareHeart },

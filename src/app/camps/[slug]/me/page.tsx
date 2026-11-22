@@ -7,7 +7,7 @@ import { getGroupFor } from "@/lib/camp/groups";
 import { formatCedis } from "@/lib/camp/money";
 import { passQrSvg } from "@/lib/camp/pass";
 import { makeToken } from "@/lib/camp/tokens";
-import { getPrivateDetails } from "@/lib/camp/profile";
+import { detailsComplete, getPrivateDetails } from "@/lib/camp/profile";
 import { daysUntil, listPayments, todayInGhana } from "@/lib/camp/registrations";
 import { listMyRequests } from "@/lib/camp/requests";
 import { listRoomTypes } from "@/lib/camp/rooms";
@@ -109,6 +109,9 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
         : "We'll place you";
   // A coordinator placing them in a room settles it too.
   const roommatesDone = !!group || !!room || !!me.any_room || !choosing;
+
+  const healthDone = !!details.health_none || !!details.health_notes;
+  const detailsDone = camp.details_required ? detailsComplete(details) : !!details.emergency_name;
 
   return (
     <div className="flex flex-col gap-6 pt-2">
@@ -272,12 +275,16 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
               ),
             },
             {
-              done: !!details.emergency_name,
-              title: "Emergency contact",
-              sub: details.emergency_name ? `${details.emergency_name} · ${details.emergency_phone}` : "Someone we can call if something happens at camp.",
+              done: detailsDone,
+              title: camp.details_required ? (detailsDone ? "Emergency and health" : "Emergency contact and health") : "Emergency contact",
+              sub: details.emergency_name
+                ? `${details.emergency_name} · ${details.emergency_phone}${camp.details_required && healthDone ? (details.health_none ? " · no health conditions" : " · health noted") : ""}`
+                : camp.details_required
+                  ? "Someone we can call if something happens at camp, and anything about your health."
+                  : "Someone we can call if something happens at camp.",
               action: (
                 <Link href={`/camps/${camp.slug}/me/details`} className={`${primaryButtonClass} h-12 w-full text-[15px]`}>
-                  <UserRound className="h-[17px] w-[17px]" strokeWidth={1.7} aria-hidden="true" /> Add emergency contact
+                  <UserRound className="h-[17px] w-[17px]" strokeWidth={1.7} aria-hidden="true" /> {camp.details_required ? "Add emergency and health" : "Add emergency contact"}
                 </Link>
               ),
             },
@@ -322,8 +329,8 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
             href={`/camps/${camp.slug}/me/details`}
             icon={UserRound}
             label="Your details"
-            sub={details.emergency_name ? "Emergency contact added" : "Add an emergency contact"}
-            state={details.emergency_name ? "done" : "todo"}
+            sub={detailsDone ? (camp.details_required ? "Emergency and health added" : "Emergency contact added") : camp.details_required ? "Add emergency contact and health" : "Add an emergency contact"}
+            state={detailsDone ? "done" : "todo"}
           />
           {!cancelled && (
             <Tile href={`/camps/${camp.slug}/me/room`} icon={ArrowLeftRight} label="Your room type" sub={`${me.room_type_name} · ${formatCedis(me.price_pesewas)}`} />

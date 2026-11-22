@@ -49,6 +49,8 @@ export type Camp = {
   app_required: number;
   /** 1: leaders can send payment reminders, as app notifications only (Settings). */
   leader_reminders: number;
+  /** 1: attendees must add an emergency contact and answer health before paying or picking roommates (Settings). */
+  details_required: number;
 };
 
 /** logo: beside the back button and in the sidebar · banner: the wide image up top · venue_photo: "Where we'll be". */
@@ -56,7 +58,7 @@ export const CAMP_PHOTOS = ["logo", "banner", "venue_photo"] as const;
 export type CampPhoto = (typeof CAMP_PHOTOS)[number];
 
 /** What a coordinator fills in; id, slug and created_at are set on save. */
-export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "shirts_on" | "help_phone" | "app_required" | "leader_reminders" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
+export type CampInput = Omit<Camp, "id" | "created_at" | "slug" | "shirt_paid_only" | "shirts_on" | "help_phone" | "app_required" | "leader_reminders" | "details_required" | "momo_fee_bps" | `${CampPhoto}_url` | `${CampPhoto}_credit`> & {
   /** Defaults to fee_bps. */
   momo_fee_bps?: number;
 };
@@ -146,6 +148,12 @@ export type RegistrationInput = {
   guardian_name?: string;
   guardian_phone?: string;
   guardian_consent?: boolean;
+  /** Asked at register when the camp requires emergency and health details. */
+  emergency_name?: string;
+  emergency_phone?: string;
+  health_notes?: string;
+  health_none?: boolean;
+  health_consent?: boolean;
 };
 
 /** Details an attendee can change themselves. Phone, gender and fellowship are a coordinator's. */
@@ -158,6 +166,8 @@ export type ProfileInput = {
   health_notes: string;
   /** The attendee ticked that they agree to health notes being kept (Act 843: special personal data). */
   health_consent?: boolean;
+  /** They ticked that they have no health conditions. Ignored if health_notes is set. */
+  health_none?: boolean;
 };
 
 /** Emergency contact, health notes and guardian: shown to the attendee and coordinators only. */
@@ -166,6 +176,8 @@ export type PrivateDetails = Pick<ProfileInput, "emergency_name" | "emergency_ph
   guardian_name: string;
   guardian_phone: string;
   health_consent_at: string | null;
+  /** 1: they said they have no health conditions. */
+  health_none: number;
 };
 
 export type RequestKind = "refund" | "room_change";

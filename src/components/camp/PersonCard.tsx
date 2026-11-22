@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Phone } from "lucide-react";
-import { personCardAction } from "@/app/admin/camp/actions";
+import { Bell, Check, MessageSquare, Phone } from "lucide-react";
+import { leaderMessageAction, personCardAction } from "@/app/admin/camp/actions";
+import { APP_STATE_WORDS } from "@/lib/camp/app-words";
 import type { PersonCard } from "@/lib/camp/checkin";
 import { formatCedis } from "@/lib/camp/money";
-import { CommuneLoader } from "./brand";
+import { MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
+import { CommuneLoader, Busy } from "./brand";
+import { useOneAtATime } from "./useOneAtATime";
 import { Sheet } from "./sheet";
-import { ErrorText, formatAccraStamp, secondaryButtonClass } from "./ui";
+import { useToast } from "./toast";
+import { ErrorText, Field, formatAccraStamp, inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 
 const when = (at: string) => formatAccraStamp(at);
 
@@ -30,16 +34,21 @@ export function PersonCardSheet({
   personId,
   onClose,
   leader,
+  canMessage,
   actions,
 }: {
   campId: string;
   personId: string | null;
   onClose: () => void;
   leader: boolean;
+  /** Fellowship, PFCC and group leaders: in-app message, never a text. */
+  canMessage?: boolean;
   actions?: (p: PersonCard) => React.ReactNode;
 }) {
+  const toast = useToast();
   const [card, setCard] = useState<PersonCard | null>(null);
   const [error, setError] = useState("");
+  const [messaging, setMessaging] = useState(false);
 
   useEffect(() => {
     if (!personId) return;
@@ -53,6 +62,7 @@ export function PersonCardSheet({
       live = false;
       setCard(null);
       setError("");
+      setMessaging(false);
     };
   }, [campId, personId]);
 
@@ -105,8 +115,23 @@ export function PersonCardSheet({
                 <Phone className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Call
               </a>
             )}
+            {canMessage && p.status !== "cancelled" && (
+              <button type="button" onClick={() => setMessaging((on) => !on)} className={`${secondaryButtonClass} h-11 px-5`}>
+                <MessageSquare className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Message
+              </button>
+            )}
             {actions?.(p)}
           </div>
+          {canMessage && messaging && (
+            <LeaderMessage
+              campId={campId}
+              person={p}
+              onSent={() => {
+                setMessaging(false);
+                toast(`Sent to ${p.full_name.trim().split(/\s+/)[0]} in the app`);
+              }}
+            />
+          )}
           <dl className="flex flex-col">
             {rows.map(([k, v]) => (
               <div key={k} className="grid grid-cols-[110px_1fr] gap-3 border-t border-stone-border py-3 text-[15px] first:border-t-0">
@@ -119,5 +144,53 @@ export function PersonCardSheet({
         </>
       )}
     </Sheet>
+  );
+}
+
+/** In-app only. If they haven't turned notifications on, we say so and don't send. */
+function LeaderMessage({ campId, person, onSent }: { campId: string; person: PersonCard; onSent: () => void }) {
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [pending, start] = useOneAtATime();
+  const first = person.full_name.trim().split(/\s+/)[0];
+  const onApp = person.app === "on";
+  if (!onApp) {
+    return (
+      <p className="flex items-start gap-2.5 rounded-[12px] bg-stone-canvas p-3.5 text-[15px] leading-snug">
+        <Bell className="mt-0.5 h-[18px] w-[18px] flex-none" strokeWidth={1.7} aria-hidden="true" />
+        <span>
+          {first} hasn&apos;t turned on notifications ({APP_STATE_WORDS[person.app].toLowerCase()}). You can only message them in the app.
+        </span>
+      </p>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-3 rounded-[12px] border border-stone-border p-3.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        start(async () => {
+          setError("");
+          const r = await leaderMessageAction(campId, person.id, message);
+          if (!r.ok) return setError(r.error);
+          setMessage("");
+          onSent();
+        });
+      }}
+    >
+      <p className="flex items-start gap-2.5 text-[15px] leading-snug">
+        <Bell className="mt-0.5 h-[18px] w-[18px] flex-none text-[#0b5e0b]" strokeWidth={1.7} aria-hidden="true" />
+        <span>
+          This goes to {first} in the app. Leaders can&apos;t send texts. <strong className="font-semibold">Free.</strong>
+        </span>
+      </p>
+      <Field label="Message">
+        <textarea rows={3} autoFocus maxLength={MAX_COORDINATOR_MESSAGE} value={message} onChange={(e) => setMessage(e.target.value)} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
+      </Field>
+      <ErrorText>{error}</ErrorText>
+      <button type="submit" disabled={pending || message.trim().length < 3} className={`${primaryButtonClass} h-11 w-full`}>
+        <Busy pending={pending} text="Sending…">Send in the app</Busy>
+      </button>
+    </form>
   );
 }

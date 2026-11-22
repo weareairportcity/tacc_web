@@ -11,7 +11,7 @@ import type { PayMethod } from "@/lib/camp/money";
 import { allow, allowVisitor } from "@/lib/camp/rate-limit";
 import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
-import { cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateProfile } from "@/lib/camp/profile";
+import { assertReadyDetails, cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateProfile } from "@/lib/camp/profile";
 import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
 import { makeToken, readToken } from "@/lib/camp/tokens";
@@ -156,6 +156,7 @@ export async function payAction(slug: string, amountCedis: string, method: PayMe
     const me = await currentAttendee(camp.id);
     if (!me) throw new CampError("Please sign in again.");
     if (me.status === "cancelled") throw new CampError("This registration has been cancelled.");
+    await assertReadyDetails(camp, me);
     const amount = cedisToPesewas(amountCedis);
     const balance = me.price_pesewas - me.paid_pesewas;
     if (balance <= 0) throw new CampError("You're already fully paid.");
@@ -229,24 +230,26 @@ async function signedIn(slug: string) {
 }
 
 /** Runs a group change, then refreshes the attendee's pages. */
-function groupAction<T>(slug: string, fn: (me: Registration) => Promise<T>) {
+function groupAction<T>(slug: string, fn: (me: Registration, camp: Awaited<ReturnType<typeof campFor>>) => Promise<T>) {
   return run(async () => {
     const { camp, me } = await signedIn(slug);
-    const result = await fn(me);
+    const result = await fn(me, camp);
     revalidatePath(`/camps/${camp.slug}`, "layout");
     return result;
   });
 }
 
 export async function createGroupAction(slug: string) {
-  return groupAction(slug, async (me) => {
+  return groupAction(slug, async (me, camp) => {
+    await assertReadyDetails(camp, me);
     await createGroup(me);
     return null;
   });
 }
 
 export async function joinGroupAction(slug: string, code: string, leaveCurrent = false) {
-  return groupAction(slug, async (me) => {
+  return groupAction(slug, async (me, camp) => {
+    await assertReadyDetails(camp, me);
     await limitVisitor("group-join", 20, 300, 15 * MINUTE);
     await joinByCode(me, String(code), { leaveCurrent: leaveCurrent === true });
     await forgetJoin(slug);
@@ -306,7 +309,7 @@ export async function changeMyGenderAction(slug: string, gender: Gender) {
 }
 
 export async function setAnyRoomAction(slug: string, anyRoom: boolean) {
-  return mine(slug, (me) => setAnyRoom(me, anyRoom === true).then(() => null));
+  return mine(slug, (me, camp) => assertReadyDetails(camp, me).then(() => setAnyRoom(me, anyRoom === true)).then(() => null));
 }
 
 export async function cancelMineAction(slug: string, reason: string, deleteDetails: boolean) {

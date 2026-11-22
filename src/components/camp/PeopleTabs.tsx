@@ -1,14 +1,26 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** People's two views: everyone in a list, or fellowships ranked. `base`: this side's People address. */
-export function PeopleTabs({ base, current }: { base: string; current: "everyone" | "fellowships" }) {
+/** People's views: everyone, fellowships ranked, and (coordinators) health. `base`: this side's People address. */
+export function PeopleTabs({
+  base,
+  current,
+  health = false,
+}: {
+  base: string;
+  current: "everyone" | "fellowships" | "health";
+  health?: boolean;
+}) {
   const tabs = [
-    { key: "everyone", href: base, label: "Everyone" },
-    { key: "fellowships", href: `${base}/fellowships`, label: "Fellowships" },
-  ] as const;
+    { key: "everyone" as const, href: base, label: "Everyone" },
+    { key: "fellowships" as const, href: `${base}/fellowships`, label: "Fellowships" },
+    ...(health ? [{ key: "health" as const, href: `${base.replace(/\/people$/, "/health")}`, label: "Health" }] : []),
+  ];
   return (
-    <nav aria-label="People views" className="grid w-full max-w-[320px] grid-cols-2 gap-1 rounded-full border border-stone-border bg-white p-[3px]">
+    <nav
+      aria-label="People views"
+      className={cn("grid w-full gap-1 rounded-full border border-stone-border bg-white p-[3px]", health ? "max-w-[420px] grid-cols-3" : "max-w-[320px] grid-cols-2")}
+    >
       {tabs.map((t) => (
         <Link
           key={t.key}

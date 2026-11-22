@@ -73,7 +73,7 @@ export function daysUntil(date: string, today = todayInGhana()) {
 }
 
 /** Trims and checks the form. Throws CampError with every problem at once. */
-export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType[]) {
+export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType[], campRequiresDetails = false) {
   const problems: string[] = [];
   const full_name = tidyName(raw.full_name);
   if (!isFullName(full_name)) problems.push(FULL_NAME_PROBLEM);
@@ -95,6 +95,19 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
     if (!guardian_phone) problems.push("Enter your parent or guardian's phone as a Ghana number, e.g. 024 555 0101.");
     if (raw.guardian_consent !== true) problems.push("Tick that your parent or guardian agrees to you coming.");
   }
+  const emergency_name = String(raw.emergency_name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+  const rawEmergency = String(raw.emergency_phone ?? "").trim();
+  const emergency_phone = rawEmergency ? normalizePhone(rawEmergency) : "";
+  const health_notes = String(raw.health_notes ?? "").trim().slice(0, 1000);
+  const health_none = !health_notes && raw.health_none === true;
+  if (campRequiresDetails) {
+    if (!emergency_name) problems.push("Enter who we should call in an emergency, and how they're related to you.");
+    if (!rawEmergency || emergency_phone === null) problems.push("Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
+    if (!health_notes && !health_none) problems.push("Tell us about your health, or tick that you have no health conditions.");
+    if (health_notes && raw.health_consent !== true) problems.push("Tick that you agree to us keeping your health notes, or leave them empty.");
+  } else if (emergency_phone === null) {
+    problems.push("Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
+  }
   const roomType = roomTypes.find((t) => t.id === raw.room_type_id);
   if (!roomType) problems.push("Choose a room type.");
   else if (GENDERS.includes(raw.gender) && placesFor(roomType, raw.gender) === 0) {
@@ -114,6 +127,10 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
     is_minor,
     guardian_name,
     guardian_phone: guardian_phone ?? "",
+    emergency_name,
+    emergency_phone: emergency_phone ?? "",
+    health_notes: health_none ? "" : health_notes,
+    health_none,
     roomType: roomType!,
   };
 }
@@ -124,7 +141,7 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
  */
 export async function register(camp: Camp, raw: RegistrationInput, today = todayInGhana()) {
   if (!registrationOpen(camp, today)) throw new CampError("Registration for this camp is closed.");
-  const input = validateRegistration(raw, await listRoomTypes(camp.id));
+  const input = validateRegistration(raw, await listRoomTypes(camp.id), camp.details_required === 1);
 
   const [existing] = await query<{ id: string }>(
     "app",
@@ -141,8 +158,9 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
   const statements = [
     {
       sql: `INSERT INTO camp_registrations (id, camp_id, room_type_id, full_name, phone, email, gender, fellowship,
-              pfcc, church, price_pesewas, status, code_hash, shirt_size, is_minor, guardian_name, guardian_phone, guardian_consent_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              pfcc, church, price_pesewas, status, code_hash, shirt_size, is_minor, guardian_name, guardian_phone, guardian_consent_at,
+              emergency_name, emergency_phone, health_notes, health_none, health_consent_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         camp.id,
@@ -162,6 +180,11 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
         input.guardian_name,
         input.guardian_phone,
         input.is_minor ? new Date().toISOString() : null,
+        input.emergency_name,
+        input.emergency_phone,
+        input.health_notes,
+        input.health_none ? 1 : 0,
+        input.health_notes ? new Date().toISOString() : null,
       ],
     },
     auditStatement({ actor: `attendee:${id}`, campId: camp.id, action: "registration.create", entity: "registration", entityId: id, after }),

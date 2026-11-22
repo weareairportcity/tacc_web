@@ -18,6 +18,7 @@ export function Sheet({
   subtitle,
   children,
   footer,
+  locked,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,6 +26,8 @@ export function Sheet({
   subtitle?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Can't be dismissed: no close button, Escape or backdrop. */
+  locked?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<Element | null>(null);
@@ -50,10 +53,10 @@ export function Sheet({
       aria-labelledby="cm-sheet-title"
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        if (!locked) onClose();
       }}
       // A click on the backdrop lands on the dialog itself.
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(e) => e.target === e.currentTarget && !locked && onClose()}
     >
       {open && (
         <div className="flex h-full flex-col">
@@ -65,14 +68,16 @@ export function Sheet({
               </h2>
               {subtitle && <p className="text-[13px] text-warm-gray">{subtitle}</p>}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="cm-press flex h-10 w-10 flex-none items-center justify-center rounded-full border border-stone-border bg-white"
-            >
-              <X className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
-            </button>
+            {!locked && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="cm-press flex h-10 w-10 flex-none items-center justify-center rounded-full border border-stone-border bg-white"
+              >
+                <X className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+              </button>
+            )}
           </header>
           <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
           {footer && (

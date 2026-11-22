@@ -103,6 +103,7 @@ export function FellowshipMembers({ campId, leader, rows }: { campId: string; le
           campId={campId}
           personId={person}
           leader
+          canMessage
           onClose={() => setPerson(null)}
           actions={(p) =>
             p.status !== "cancelled" &&

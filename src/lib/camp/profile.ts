@@ -2,11 +2,11 @@ import { cancelled } from "./notify";
 import { FULL_NAME_PROBLEM, isFullName, tidyName } from "./names";
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
-import { checkId } from "./camps";
+import { checkId, getCamp } from "./camps";
 import { generateCode, hashCode } from "./codes";
 import { getGroupFor } from "./groups";
 import { checkShirtSize, cancelRegistration, getRegistration, normalizePhone } from "./registrations";
-import { CampError, type PrivateDetails, type ProfileInput, type Registration } from "./types";
+import { CampError, type Camp, type PrivateDetails, type ProfileInput, type Registration } from "./types";
 
 /**
  * What an attendee manages themselves: their details, "any room", and
@@ -17,17 +17,70 @@ import { CampError, type PrivateDetails, type ProfileInput, type Registration } 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const actorOf = (me: Registration) => `attendee:${me.id}`;
 
+const emptyDetails = (): PrivateDetails => ({
+  emergency_name: "",
+  emergency_phone: "",
+  health_notes: "",
+  is_minor: 0,
+  guardian_name: "",
+  guardian_phone: "",
+  health_consent_at: null,
+  health_none: 0,
+});
+
 export async function getPrivateDetails(registrationId: string): Promise<PrivateDetails> {
   const [row] = await query<PrivateDetails>(
     "app",
-    `SELECT emergency_name, emergency_phone, health_notes, is_minor, guardian_name, guardian_phone, health_consent_at
+    `SELECT emergency_name, emergency_phone, health_notes, is_minor, guardian_name, guardian_phone, health_consent_at, health_none
      FROM camp_registrations WHERE id = ?`,
     [checkId(registrationId, "registration")],
   );
-  return row ?? { emergency_name: "", emergency_phone: "", health_notes: "", is_minor: 0, guardian_name: "", guardian_phone: "", health_consent_at: null };
+  return row ?? emptyDetails();
 }
 
-export function validateProfile(raw: ProfileInput): ProfileInput {
+/** Emergency name + Ghana phone, and either health notes or "none". */
+export function detailsComplete(d: Pick<PrivateDetails, "emergency_name" | "emergency_phone" | "health_notes" | "health_none">) {
+  return Boolean(d.emergency_name.trim() && d.emergency_phone && (d.health_none || d.health_notes.trim()));
+}
+
+/** This camp asks for details, they haven't cancelled, and they haven't answered yet. */
+export function mustGiveDetails(camp: Pick<Camp, "details_required">, me: Pick<Registration, "status">, details: Pick<PrivateDetails, "emergency_name" | "emergency_phone" | "health_notes" | "health_none">) {
+  if (!camp.details_required || me.status === "cancelled") return false;
+  return !detailsComplete(details);
+}
+
+export async function assertReadyDetails(camp: Camp, me: Registration) {
+  if (!mustGiveDetails(camp, me, await getPrivateDetails(me.id))) return;
+  throw new CampError("Add your emergency contact and health details first, on your home page.");
+}
+
+export type HealthRow = {
+  id: string;
+  full_name: string;
+  fellowship: string;
+  emergency_name: string;
+  emergency_phone: string;
+  health_notes: string;
+  health_none: number;
+};
+
+/** Coordinators' Health page: who has answered, and who hasn't. Cancelled left out. */
+export async function listHealth(campId: string) {
+  const rows = await query<HealthRow>(
+    "app",
+    `SELECT id, full_name, fellowship, emergency_name, emergency_phone, health_notes, health_none
+     FROM camp_registrations
+     WHERE camp_id = ? AND status <> 'cancelled' AND deleted_at IS NULL
+     ORDER BY full_name COLLATE NOCASE`,
+    [checkId(campId, "camp")],
+  );
+  const added: HealthRow[] = [];
+  const missing: HealthRow[] = [];
+  for (const row of rows) (detailsComplete(row) ? added : missing).push(row);
+  return { added, missing };
+}
+
+export function validateProfile(raw: ProfileInput, opts?: { requireDetails?: boolean }): ProfileInput {
   const problems: string[] = [];
   const full_name = tidyName(raw.full_name);
   if (!isFullName(full_name)) problems.push(FULL_NAME_PROBLEM);
@@ -40,30 +93,39 @@ export function validateProfile(raw: ProfileInput): ProfileInput {
   const emergency_phone = rawPhone ? normalizePhone(rawPhone) : "";
   if (emergency_phone === null) problems.push("Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
   const health_notes = String(raw.health_notes ?? "").trim().slice(0, 1000);
+  const health_none = health_notes ? false : raw.health_none;
+  if (opts?.requireDetails) {
+    if (!emergency_name) problems.push("Enter who we should call in an emergency, and how they're related to you.");
+    if (!rawPhone) problems.push("Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
+    if (!health_notes && health_none !== true) problems.push("Tell us about your health, or tick that you have no health conditions.");
+  }
   if (problems.length) throw new CampError(problems.join(" "));
-  return { full_name, email, shirt_size, emergency_name, emergency_phone: emergency_phone ?? "", health_notes, health_consent: raw.health_consent === true };
+  return { full_name, email, shirt_size, emergency_name, emergency_phone: emergency_phone ?? "", health_notes, health_consent: raw.health_consent === true, health_none };
 }
 
 /** The attendee's own edit, or a coordinator's (actor is then their email). */
 export async function updateProfile(actor: string, registrationId: string, raw: ProfileInput) {
   const before = await getRegistration(registrationId);
   if (!before) throw new CampError("Unknown registration.");
-  const input = validateProfile(raw);
+  const self = actor === `attendee:${before.id}`;
+  const camp = await getCamp(before.camp_id);
+  const requireDetails = !!camp?.details_required && self;
+  const input = validateProfile(raw, { requireDetails });
+  const prev = await getPrivateDetails(before.id);
+  const health_none = input.health_notes ? 0 : input.health_none === true ? 1 : input.health_none === false ? 0 : prev.health_none;
   // Health notes are special personal data (Act 843): an attendee writing them ticks that they
   // agree. A coordinator noting what they were told is the church's own record. Removing the
   // notes takes the agreement back.
-  const self = actor === `attendee:${before.id}`;
   if (self && input.health_notes) {
-    const [had] = await query<{ health_consent_at: string | null }>("app", "SELECT health_consent_at FROM camp_registrations WHERE id = ?", [before.id]);
-    if (!had?.health_consent_at && !input.health_consent) throw new CampError("Tick that you agree to us keeping your health notes, or leave them empty.");
+    if (!prev.health_consent_at && !input.health_consent) throw new CampError("Tick that you agree to us keeping your health notes, or leave them empty.");
   }
   const consent = !input.health_notes ? "NULL" : self ? "coalesce(health_consent_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))" : "health_consent_at";
   await batch("app", [
     {
       sql: `UPDATE camp_registrations SET full_name = ?, email = ?, shirt_size = ?, emergency_name = ?, emergency_phone = ?, health_notes = ?,
-              health_consent_at = ${consent}
+              health_none = ?, health_consent_at = ${consent}
             WHERE id = ? AND deleted_at IS NULL`,
-      params: [input.full_name, input.email, input.shirt_size, input.emergency_name, input.emergency_phone, input.health_notes, before.id],
+      params: [input.full_name, input.email, input.shirt_size, input.emergency_name, input.emergency_phone, input.health_notes, health_none, before.id],
     },
     // No values in the log: it holds no contact or health details.
     auditStatement({ actor, campId: before.camp_id, action: "registration.profile", entity: "registration", entityId: before.id, ifChanged: true }),
@@ -118,7 +180,7 @@ function wipeStatements(me: Registration, reason = "") {
   return [
     {
       sql: `UPDATE camp_registrations SET full_name = 'Deleted', phone = ?, email = '', emergency_name = '', emergency_phone = '',
-              health_notes = '', health_consent_at = NULL, guardian_name = '', guardian_phone = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              health_notes = '', health_none = 0, health_consent_at = NULL, guardian_name = '', guardian_phone = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
               app_installed_at = NULL, app_platform = NULL, texts_only_at = NULL
             WHERE id = ?`,
       params: [`deleted:${me.id}`, hashCode(generateCode(16)), me.id],

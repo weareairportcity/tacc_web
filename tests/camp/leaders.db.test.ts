@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { post, query } from "@/lib/cf";
-import { arrivalCounts, findArrivals, markScan, recentArrivals, undoScan } from "@/lib/camp/checkin";
+import { sendLeaderToPerson } from "@/lib/camp/broadcast";
+import { arrivalCounts, findArrivals, markScan, personCard, recentArrivals, undoScan } from "@/lib/camp/checkin";
 import { leaderActor, leaderName, leaderScopes, newLeaderCode, turnOffLeaderCode } from "@/lib/camp/leaders";
 import { listHistory } from "@/lib/camp/reports";
 import { CampError } from "@/lib/camp/types";
@@ -76,5 +77,20 @@ describe("leaders scanning", () => {
     expect(seen.roommates).toBeNull();
     const coordinator = (await markScan(ACTOR, camp.id, mine.id, "checkin")).person;
     expect(coordinator.health_notes).toBe("Asthma");
+  });
+});
+
+describe("leaders messaging", () => {
+  it("only sends in the app, and says so when notifications are off", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const mine = await paidUp(camp, roomTypeId, { full_name: "Ama Qadash", fellowship: "Qadash" });
+    const card = await personCard(camp.id, mine.id, { kind: "fellowship", value: "Qadash" });
+    expect(card.app).toBe("none");
+    await expect(sendLeaderToPerson(leaderActor("fellowship", "Qadash"), camp, { ...mine, app: "none" }, "Please bring your Bible.")).rejects.toThrow(
+      "hasn't turned on notifications",
+    );
+    await expect(sendLeaderToPerson(leaderActor("fellowship", "Qadash"), camp, { ...mine, status: "cancelled", app: "on" }, "Please bring your Bible.")).rejects.toThrow(
+      "cancelled",
+    );
   });
 });

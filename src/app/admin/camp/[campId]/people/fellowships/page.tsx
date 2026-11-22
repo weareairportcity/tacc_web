@@ -33,7 +33,7 @@ export default async function FellowshipsPage({ params }: { params: Promise<{ ca
   return (
     <div className="flex flex-col gap-5">
       <h1 className={`${headlineClass} text-[34px]`}>{leader && scope.kind !== "all" ? scope.value : "People"}</h1>
-      <PeopleTabs base={people} current="fellowships" />
+      <PeopleTabs base={people} current="fellowships" health={!leader} />
       <p className="text-[15px] text-warm-gray">
         {ranked.length} {ranked.length === 1 ? "fellowship" : "fellowships"} ranked by how many have registered. {everyone} {everyone === 1 ? "person" : "people"} in all;
         cancelled registrations aren&apos;t counted.

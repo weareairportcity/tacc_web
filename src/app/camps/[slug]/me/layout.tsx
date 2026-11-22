@@ -3,6 +3,8 @@ import { isFullName } from "@/lib/camp/names";
 import { FullNameStep } from "./FullNameStep";
 import { notFound, redirect } from "next/navigation";
 import { appInfo, mustSetUpApp } from "@/lib/camp/app-first";
+import { getPrivateDetails, mustGiveDetails } from "@/lib/camp/profile";
+import { DetailsGate } from "./DetailsGate";
 import type { Metadata } from "next";
 import { appPass, campAndAttendee } from "@/lib/camp/session";
 import { AppGate, AppTracker } from "@/components/camp/notifications/AppGate";
@@ -42,12 +44,26 @@ export default async function MeLayout({ children, params }: { children: React.R
 
   // Registered with one name, before full names were required: ask for the rest first.
   const askName = me.status !== "cancelled" && !isFullName(me.full_name) ? <FullNameStep slug={camp.slug} name={me.full_name} /> : null;
+  const details = await getPrivateDetails(me.id);
+  const askDetails =
+    !askName && mustGiveDetails(camp, me, details) ? (
+      <DetailsGate
+        slug={camp.slug}
+        identity={{ full_name: me.full_name, email: me.email, shirt_size: me.shirt_size }}
+        emergencyName={details.emergency_name}
+        emergencyPhone={details.emergency_phone ? `0${details.emergency_phone.slice(3)}` : ""}
+        healthNotes={details.health_notes}
+        healthNone={details.health_none === 1}
+        healthAgreed={!!details.health_consent_at}
+      />
+    ) : null;
   if (!mustSetUpApp(camp, me, info, agent)) {
     return (
       <>
         {tracker}
         {children}
         {askName}
+        {askDetails}
       </>
     );
   }

@@ -7,7 +7,7 @@ import { Bell, Check, CreditCard, Link2, Lock, MessageSquare, Phone, RotateCcw, 
 import { APP_STATE_WORDS } from "@/lib/camp/app-words";
 import { messageCost, type Delivery } from "@/lib/camp/message-cost";
 import { coordinatorText, MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
-import { ImportantBox } from "@/components/camp/ImportantBox";
+import { HowPick } from "@/components/camp/HowPick";
 import { formatCedis, pesewasToCedisInput } from "@/lib/camp/money";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import type { GenderRoom } from "@/lib/camp/gender";
@@ -633,12 +633,11 @@ function Refund({
   );
 }
 
-/** A message to this one person: the app if they have notifications on, otherwise a text. Important: both. */
+/** A message to this one person. Coordinators pick In the app, Text, or Both. */
 function MessageOne({ data, pending, error, onCancel, onSend }: { data: Data; pending: boolean; error: string; onCancel: () => void; onSend: (message: string, how: Delivery) => void }) {
   const [message, setMessage] = useState("");
-  const [important, setImportant] = useState(false);
+  const [how, setHow] = useState<Delivery>("app");
   const onApp = data.app.state === "on";
-  const how: Delivery = important ? "both" : "app";
   const first = data.person.full_name.trim().split(/\s+/)[0];
   const cost = messageCost([{ first, app: data.app.state }], message, how);
   return (
@@ -658,19 +657,19 @@ function MessageOne({ data, pending, error, onCancel, onSend }: { data: Data; pe
         <span>
           {onApp ? (
             <>
-              {first} has notifications on, so this goes to the app. <strong className="font-semibold">Free.</strong>
+              {first} has notifications on. In the app is free; Text or Both costs credits.
             </>
           ) : (
             <>
-              {first} isn&apos;t on the app ({APP_STATE_WORDS[data.app.state].toLowerCase()}), so this goes by text.
+              {first} isn&apos;t on the app ({APP_STATE_WORDS[data.app.state].toLowerCase()}). In the app still texts them; pick Text or Both to be sure.
             </>
           )}
         </span>
       </p>
+      <HowPick value={how} onChange={setHow} />
       <Field label="Message">
         <textarea rows={4} autoFocus maxLength={MAX_COORDINATOR_MESSAGE} value={message} onChange={(e) => setMessage(e.target.value)} className={`${inputClass} h-auto py-2.5 leading-relaxed`} />
       </Field>
-      {onApp && <ImportantBox checked={important} onChange={setImportant} />}
       <p className="rounded-[16px] rounded-bl-[4px] bg-[#e9f4fd] px-3.5 py-3 text-sm leading-relaxed break-words">{coordinatorText(first, message || "…")}</p>
       <ErrorText>{error}</ErrorText>
       <div className="flex gap-2">

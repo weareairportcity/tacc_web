@@ -37,10 +37,12 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
           emergency_name: details.emergency_name,
           emergency_phone: details.emergency_phone ? `0${details.emergency_phone.slice(3)}` : "",
           health_notes: details.health_notes,
+          health_none: details.health_none === 1,
         }}
         cancelled={me.status === "cancelled"}
         healthAgreed={!!details.health_consent_at}
         shirtsOn={camp.shirts_on !== 0}
+        required={camp.details_required !== 0}
         paid={me.paid_pesewas}
         gender={{
           now: me.gender,

@@ -110,6 +110,34 @@ export async function sendToPeople(actor: string, camp: Camp, registrationIds: s
   return deliver(actor, camp, people, text, how, "message", { count: people.length });
 }
 
+/**
+ * A fellowship, PFCC or group leader's message to one of their people: app
+ * notification only, never a text. If they haven't turned notifications on,
+ * nothing is sent.
+ */
+export async function sendLeaderToPerson(actor: string, camp: Camp, person: { id: string; full_name: string; app: AppState; status: RegistrationStatus }, message: string) {
+  const text = checkMessage(message);
+  if (person.status === "cancelled") throw new CampError("That registration is cancelled.");
+  const first = firstName(person.full_name);
+  if (person.app !== "on") {
+    throw new CampError(`${first} hasn't turned on notifications. You can only message them in the app.`);
+  }
+  const { delivered } = await pushMany([
+    {
+      registration_id: person.id,
+      kind: "messages",
+      title: camp.name,
+      body: `Hi ${first}, ${text}`,
+      url: `/camps/${camp.slug}/me/notifications`,
+    },
+  ]);
+  if (!delivered.has(person.id)) throw new CampError(`Couldn't send it to ${first}'s phone. Try again in a moment.`);
+  await batch("app", [
+    auditStatement({ actor, campId: camp.id, action: "people.text", entity: "registration", entityId: person.id, after: { how: "app", leader: true, app: 1 } }),
+  ]);
+  return { texts: 0, credits: 0, app: 1, failed: 0 };
+}
+
 export type AppDetails = { state: AppState; platform: string; installed_at: string | null; texts_only_at: string | null; push_since: string | null };
 
 /** One person's app status, for their panel. */

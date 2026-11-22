@@ -9,6 +9,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "camp.help_phone": "changed the help number",
   "camp.app_required": "changed whether attendees must set up the app",
   "camp.leader_reminders": "changed whether leaders can send payment reminders",
+  "camp.details_required": "changed whether emergency and health details are required",
   "staff.remove": "removed a coordinator",
   "pay.experience": "rated Commune after paying in full",
   "registration.create": "registered",
