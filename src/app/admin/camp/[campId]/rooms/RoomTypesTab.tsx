@@ -10,20 +10,25 @@ import { InlineConfirm, Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
+import { placesLeft } from "@/components/camp/places";
 import { deleteRoomTypeAction, saveRoomTypeAction, setPlacesLeftAction } from "../../actions";
 import { Stepper } from "./AllRooms";
 
 const ghost =
   "cm-press inline-flex h-10 items-center gap-2 rounded-full border border-stone-border bg-white px-4 text-[13px] font-medium text-ink-black transition-colors hover:border-stone-muted";
 const who = (g: Gender) => (g === "male" ? "Men" : "Women");
-const placesOf = (t: RoomType, g: Gender) => (g === "male" ? t.places_male : t.places_female);
+const placesOf = (t: RoomType, g: Gender) => placesLeft(g === "male" ? t.places_male : t.places_female);
+const totalOf = (t: RoomType, g: Gender) => placesLeft(g === "male" ? t.total_male : t.total_female);
+const takenOf = (t: RoomType, g: Gender) => Number((g === "male" ? t.taken_male : t.taken_female) ?? 0);
 
-type Venue = "plenty" | "few" | "none";
-const venueOf = (n: number | null): Venue => (n === null ? "plenty" : n === 0 ? "none" : "few");
+type Venue = "plenty" | "total" | "few" | "none";
+const venueOf = (left: number | null, total: number | null): Venue =>
+  left === null ? "plenty" : total != null ? "total" : left === 0 ? "none" : "few";
 
 /**
- * Room types and how many places the venue says are left, per gender. The
- * number counts down by itself as people register; at 0 it shows Full.
+ * Room types and how many places the venue says are left, per gender. They
+ * can type remaining or a total (remaining = total minus people already
+ * registered). Remaining counts down as people register; at 0 it shows Full.
  */
 export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes: RoomType[] }) {
   const toast = useToast();
@@ -32,16 +37,19 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
   const [pending, start] = useOneAtATime();
 
   /** Saves what the venue said, with Undo back to what it was. */
-  const savePlaces = (type: RoomType, gender: Gender, value: number | null, before: number | null) =>
+  const savePlaces = (type: RoomType, gender: Gender, value: number | null, total: number | null) =>
     start(async () => {
-      const r = await setPlacesLeftAction(type.id, gender, value);
+      const beforeLeft = placesOf(type, gender);
+      const beforeTotal = totalOf(type, gender);
+      const r = await setPlacesLeftAction(type.id, gender, value, total);
       if (!r.ok) return toast(r.error, { tone: "error" });
-      toast(`${type.name} · ${who(gender)}: ${value === null ? "no limit" : value === 0 ? "full" : `${value} left`}`, {
+      const left = total != null ? Math.max(0, total - takenOf(type, gender)) : value;
+      toast(`${type.name} · ${who(gender)}: ${left === null ? "no limit" : left === 0 ? "full" : total != null ? `${left} of ${total} left` : `${left} left`}`, {
         action: {
           label: "Undo",
           run: () =>
             start(async () => {
-              const u = await setPlacesLeftAction(type.id, gender, before);
+              const u = await setPlacesLeftAction(type.id, gender, beforeLeft, beforeTotal);
               toast(u.ok ? "Undone" : u.error, { tone: u.ok ? "ok" : "error" });
             }),
         },
@@ -66,7 +74,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-prose text-[14px] leading-relaxed text-warm-gray">
-              What people choose when they register. When the venue says rooms are running out, set how many places are left; it counts down by itself.
+              What people choose when they register. Set how many places are left, or the total; remaining counts down by itself.
             </p>
             <button type="button" onClick={add} className={ghost}>
               <Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" /> Add a room type
@@ -99,6 +107,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
                 <ul className="mt-auto border-t border-stone-border">
                   {(["female", "male"] as const).map((g) => {
                     const n = placesOf(t, g);
+                    const total = totalOf(t, g);
                     return (
                       <li key={g} className="flex min-h-14 items-center gap-3 border-t border-stone-border px-5 py-2 text-sm first:border-t-0">
                         <span className="w-14 flex-none font-medium">{who(g)}</span>
@@ -109,7 +118,13 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
                             </span>
                           ) : n === 0 ? (
                             <span className="inline-flex items-center gap-1.5 font-medium">
-                              <CircleSlash className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Full. Can&apos;t be picked
+                              <CircleSlash className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+                              {total != null ? `Full · ${total}` : "Full. Can't be picked"}
+                            </span>
+                          ) : total != null ? (
+                            <span className="inline-flex items-center gap-2 font-medium">
+                              <span className="cm-pulse h-[7px] w-[7px] rounded-full bg-cyan-signal" aria-hidden="true" />
+                              <span className="tabular-nums">{`${n} of ${total} left`}</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-2 font-medium">
@@ -143,7 +158,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
           gender={places.gender}
           pending={pending}
           onClose={() => setPlaces(null)}
-          onSave={(value) => savePlaces(places.type, places.gender, value, placesOf(places.type, places.gender))}
+          onSave={(value, total) => savePlaces(places.type, places.gender, value, total)}
         />
       )}
       {edit && <EditTypeSheet campId={campId} draft={edit} onClose={() => setEdit(null)} canDelete={!!edit.id} />}
@@ -151,11 +166,36 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
   );
 }
 
-function PlacesSheet({ type, gender, pending, onClose, onSave }: { type: RoomType; gender: Gender; pending: boolean; onClose: () => void; onSave: (value: number | null) => void }) {
+function PlacesSheet({
+  type,
+  gender,
+  pending,
+  onClose,
+  onSave,
+}: {
+  type: RoomType;
+  gender: Gender;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (value: number | null, total: number | null) => void;
+}) {
   const current = placesOf(type, gender);
-  const [venue, setVenue] = useState<Venue>(current === null ? "few" : venueOf(current));
-  const [n, setN] = useState(current && current > 0 ? current : 5);
-  const value = venue === "plenty" ? null : venue === "none" ? 0 : n;
+  const currentTotal = totalOf(type, gender);
+  const taken = takenOf(type, gender);
+  const [venue, setVenue] = useState<Venue>(current === null ? "few" : venueOf(current, currentTotal));
+  const [leftN, setLeftN] = useState(current && current > 0 ? current : 5);
+  const [totalN, setTotalN] = useState(currentTotal && currentTotal > 0 ? currentTotal : Math.max(20, taken + (current && current > 0 ? current : 0)));
+  const totalToSave = venue === "total" ? totalN : null;
+  const value = venue === "plenty" ? null : venue === "none" ? 0 : venue === "total" ? totalN : leftN;
+  const unchanged =
+    venue === "plenty"
+      ? current === null
+      : venue === "none"
+        ? current === 0 && currentTotal == null
+        : venue === "few"
+          ? current === leftN && currentTotal == null
+          : currentTotal === totalN;
+  const leftover = Math.max(0, totalN - taken);
   const choice = (v: Venue, label: string, extra?: React.ReactNode) => (
     <label className={cn("flex cursor-pointer flex-col gap-3 rounded-[12px] px-4 py-3.5", venue === v ? "border border-cyan-edge bg-cyan-tint shadow-[0_0_0_1px_#2f90da]" : "border border-stone-border hover:border-stone-muted")}>
       <span className="flex items-center gap-3 text-[15px] font-medium">
@@ -164,6 +204,16 @@ function PlacesSheet({ type, gender, pending, onClose, onSave }: { type: RoomTyp
       </span>
       {venue === v && extra}
     </label>
+  );
+  const chips = (n: number, set: (n: number) => void, qs: number[]) => (
+    <span className="flex flex-wrap items-center gap-2 pl-[30px]">
+      <Stepper value={n} min={1} max={9999} label={venue === "total" ? "Total places" : "Places left"} onChange={set} />
+      {qs.map((q) => (
+        <button key={q} type="button" onClick={() => set(q)} className={cn("cm-press h-9 rounded-full border px-3 text-[13px]", n === q ? "border-cyan-edge bg-white font-medium text-cyan-deep" : "border-stone-border bg-white")}>
+          {q}
+        </button>
+      ))}
+    </span>
   );
   return (
     <Sheet
@@ -176,7 +226,7 @@ function PlacesSheet({ type, gender, pending, onClose, onSave }: { type: RoomTyp
           <button type="button" onClick={onClose} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
             Cancel
           </button>
-          <button type="button" disabled={pending || value === current} onClick={() => onSave(value)} className={`${primaryButtonClass} flex-1`}>
+          <button type="button" disabled={pending || unchanged} onClick={() => onSave(value, totalToSave)} className={`${primaryButtonClass} flex-1`}>
             <Busy pending={pending} text="Saving…">Save</Busy>
           </button>
         </>
@@ -185,20 +235,23 @@ function PlacesSheet({ type, gender, pending, onClose, onSave }: { type: RoomTyp
       <div role="radiogroup" className="flex flex-col gap-2">
         {choice("plenty", "Plenty of rooms. No limit")}
         {choice(
-          "few",
-          "Only a few left",
-          <span className="flex flex-wrap items-center gap-2 pl-[30px]">
-            <Stepper value={n} min={1} max={9999} label="Places left" onChange={setN} />
-            {[5, 10, 20].map((q) => (
-              <button key={q} type="button" onClick={() => setN(q)} className={cn("cm-press h-9 rounded-full border px-3 text-[13px]", n === q ? "border-cyan-edge bg-white font-medium text-cyan-deep" : "border-stone-border bg-white")}>
-                {q}
-              </button>
-            ))}
-          </span>,
+          "total",
+          "This is the total",
+          <>
+            {chips(totalN, setTotalN, [20, 50, 100])}
+            <p className="pl-[30px] text-[13px] leading-relaxed text-warm-gray">
+              {taken === 0
+                ? "Counts down as people register."
+                : totalN <= taken
+                  ? `${taken} already registered. This is less, so it will show as Full. People already registered keep their place.`
+                  : `${taken} already registered. ${leftover} will be left.`}
+            </p>
+          </>,
         )}
+        {choice("few", "Only a few left", chips(leftN, setLeftN, [5, 10, 20]))}
         {choice("none", "No more. Show it as Full")}
       </div>
-      <p className="text-[13px] leading-relaxed text-warm-gray">The number counts down as people register. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
+      <p className="text-[13px] leading-relaxed text-warm-gray">Remaining counts down as people register. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
     </Sheet>
   );
 }

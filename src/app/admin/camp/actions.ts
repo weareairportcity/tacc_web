@@ -210,11 +210,16 @@ export async function saveRoomTypeAction(
   });
 }
 
-/** placesLeft: null for no limit, 0 for full, otherwise what the venue says is left. */
-export async function setPlacesLeftAction(roomTypeId: string, gender: Gender, placesLeft: number | null) {
+/** placesLeft: null for no limit, 0 for full, otherwise remaining. placesTotal: they typed a total, not remaining. */
+export async function setPlacesLeftAction(
+  roomTypeId: string,
+  gender: Gender,
+  placesLeft: number | null,
+  placesTotal: number | null = null,
+) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    await setPlacesLeft(staff.email, roomTypeId, gender, placesLeft);
+    await setPlacesLeft(staff.email, roomTypeId, gender, placesLeft, placesTotal);
     return null;
   });
 }

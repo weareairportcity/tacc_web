@@ -72,6 +72,12 @@ export type RoomType = {
   /** Places left for each gender, as last told by the venue. null = no limit, 0 = full. */
   places_male: number | null;
   places_female: number | null;
+  /** Last total typed for that gender, if they set a total rather than remaining. */
+  total_male?: number | null;
+  total_female?: number | null;
+  /** People currently registered (not cancelled). Used to turn a total into remaining. */
+  taken_male?: number;
+  taken_female?: number;
 };
 
 export type Room = {

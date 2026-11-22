@@ -76,6 +76,39 @@ describe("places left", () => {
     await expect(setPlacesLeft(ACTOR, roomTypeId, "female", 2.5)).rejects.toThrow("whole number");
   });
 
+  it("can be set as a total, minus people already registered", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    await register(camp, attendee(roomTypeId));
+    await register(camp, attendee(roomTypeId));
+    await setPlacesLeft(ACTOR, roomTypeId, "female", null, 10);
+    const type = (await getRoomType(roomTypeId))!;
+    expect(type.places_female).toBe(8);
+    expect(type.total_female).toBe(10);
+    expect(type.taken_female).toBe(2);
+    await register(camp, attendee(roomTypeId));
+    expect((await getRoomType(roomTypeId))!.places_female).toBe(7);
+    expect((await getRoomType(roomTypeId))!.total_female).toBe(10);
+  });
+
+  it("shows full when the total is already taken", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    await register(camp, attendee(roomTypeId));
+    await register(camp, attendee(roomTypeId));
+    await setPlacesLeft(ACTOR, roomTypeId, "female", null, 2);
+    expect((await getRoomType(roomTypeId))!.places_female).toBe(0);
+    await expect(register(camp, attendee(roomTypeId))).rejects.toThrow("Hostel is full for women");
+  });
+
+  it("clears a stored total when they later set remaining", async () => {
+    const { roomTypeId } = await openCamp();
+    await setPlacesLeft(ACTOR, roomTypeId, "female", null, 20);
+    expect((await getRoomType(roomTypeId))!.total_female).toBe(20);
+    await setPlacesLeft(ACTOR, roomTypeId, "female", 4);
+    const type = (await getRoomType(roomTypeId))!;
+    expect(type.places_female).toBe(4);
+    expect(type.total_female).toBeNull();
+  });
+
   it("doesn't give a place back when someone cancels", async () => {
     const { camp, roomTypeId } = await openCamp();
     await setPlacesLeft(ACTOR, roomTypeId, "female", 1);

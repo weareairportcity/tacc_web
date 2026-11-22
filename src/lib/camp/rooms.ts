@@ -18,7 +18,11 @@ export type RoomTypeInput = Pick<RoomType, "name" | "price_pesewas" | "capacity"
 
 const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.price_pesewas, t.capacity,
     (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'male') AS places_male,
-    (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS places_female
+    (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS places_female,
+    (SELECT places_total FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'male') AS total_male,
+    (SELECT places_total FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS total_female,
+    (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'male' AND r.status <> 'cancelled' AND r.deleted_at IS NULL) AS taken_male,
+    (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'female' AND r.status <> 'cancelled' AND r.deleted_at IS NULL) AS taken_female
   FROM camp_room_types t`;
 
 /** Places left for one gender: null means no limit, 0 means full. */
@@ -118,29 +122,60 @@ export async function deleteRoomType(actor: string, id: string) {
   ]);
 }
 
+async function takenFor(roomTypeId: string, gender: Gender) {
+  const [{ n }] = await query<{ n: number }>(
+    "app",
+    `SELECT count(*) AS n FROM camp_registrations
+     WHERE room_type_id = ? AND gender = ? AND status <> 'cancelled' AND deleted_at IS NULL`,
+    [roomTypeId, gender],
+  );
+  return Number(n) || 0;
+}
+
+const totalFor = (type: RoomType, gender: Gender) =>
+  placesLeft(gender === "male" ? type.total_male : type.total_female);
+
 /**
  * Records how many places the venue says are left for one gender of a room
- * type. null removes the limit; 0 marks it full. Registrations count it down
- * (migration 0009's triggers), so this is only for when the venue gives a new
- * number.
+ * type. null removes the limit; 0 marks it full. Pass `placesTotal` when the
+ * number is a total, not remaining: remaining becomes total minus people
+ * already registered. Registrations count remaining down (migration 0009).
  */
-export async function setPlacesLeft(actor: string, roomTypeId: string, gender: Gender, placesLeft: number | null) {
+export async function setPlacesLeft(
+  actor: string,
+  roomTypeId: string,
+  gender: Gender,
+  placesLeft: number | null,
+  placesTotal: number | null = null,
+) {
   const type = await getRoomType(roomTypeId);
   if (!type) throw new CampError("Unknown room type.");
   if (!GENDERS.includes(gender)) throw new CampError("Choose male or female.");
-  if (placesLeft !== null && (!Number.isInteger(placesLeft) || placesLeft < 0 || placesLeft > 10_000)) {
+
+  let left = placesLeft;
+  let total: number | null = null;
+  if (placesTotal != null) {
+    if (!Number.isInteger(placesTotal) || placesTotal < 1 || placesTotal > 10_000) {
+      throw new CampError("Total places must be a whole number from 1 to 10,000.");
+    }
+    left = Math.max(0, placesTotal - (await takenFor(type.id, gender)));
+    total = placesTotal;
+  } else if (left !== null && (!Number.isInteger(left) || left < 0 || left > 10_000)) {
     throw new CampError("Places left must be a whole number from 0 to 10,000.");
   }
+
   const before = placesFor(type, gender);
-  if (before === placesLeft) return;
+  const beforeTotal = totalFor(type, gender);
+  if (before === left && beforeTotal === total) return;
   await batch("app", [
-    placesLeft === null
+    left === null
       ? { sql: "DELETE FROM camp_room_type_places WHERE room_type_id = ? AND gender = ?", params: [type.id, gender] }
       : {
-          sql: `INSERT INTO camp_room_type_places (room_type_id, gender, places_left, updated_by) VALUES (?, ?, ?, ?)
+          sql: `INSERT INTO camp_room_type_places (room_type_id, gender, places_left, places_total, updated_by) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (room_type_id, gender) DO UPDATE SET places_left = excluded.places_left,
+                  places_total = excluded.places_total,
                   updated_by = excluded.updated_by, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
-          params: [type.id, gender, placesLeft, actor],
+          params: [type.id, gender, left, total, actor],
         },
     auditStatement({
       actor,
@@ -148,8 +183,8 @@ export async function setPlacesLeft(actor: string, roomTypeId: string, gender: G
       action: "room_type.places_left",
       entity: "room_type",
       entityId: type.id,
-      before: { gender, places_left: before },
-      after: { gender, places_left: placesLeft },
+      before: { gender, places_left: before, places_total: beforeTotal },
+      after: { gender, places_left: left, places_total: total },
     }),
   ]);
 }
