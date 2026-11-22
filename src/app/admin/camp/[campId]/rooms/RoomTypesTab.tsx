@@ -113,6 +113,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
                   {(["female", "male"] as const).map((g) => {
                     const n = placesOf(t, g);
                     const total = totalOf(t, g);
+                    const taken = takenOf(t, g);
                     return (
                       <li key={g} className="flex min-h-14 items-center gap-3 border-t border-stone-border px-5 py-2 text-sm first:border-t-0">
                         <span className="w-14 flex-none font-medium">{who(g)}</span>
@@ -124,7 +125,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
                           ) : n === 0 ? (
                             <span className="inline-flex items-center gap-1.5 font-medium">
                               <CircleSlash className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
-                              {total != null ? `Full · ${total} beds` : "Full. Can't be picked"}
+                              {fullLine(taken, total)}
                             </span>
                           ) : total != null ? (
                             <span className="inline-flex items-center gap-2 font-medium">
@@ -173,6 +174,13 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
 
 function countWord(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+function fullLine(taken: number, total: number | null) {
+  if (taken === 0) return total != null ? "Full" : "Full. Can't be picked";
+  const people = countWord(taken, "person", "people");
+  const over = total != null ? taken - total : 0;
+  return over > 0 ? `Full · ${people} · ${over} over` : `Full · ${people}`;
 }
 
 function PlacesSheet({
@@ -257,7 +265,7 @@ function PlacesSheet({
               {taken === 0
                 ? "Counts down as people register."
                 : leftover === 0
-                  ? `${taken} already registered. It will show as Full. People already registered keep their place.`
+                  ? `${countWord(taken, "person", "people")} already registered${taken > bedsTotal ? ` · ${taken - bedsTotal} over` : ""}. It will show as Full. People already registered keep their place.`
                   : `${taken} already registered. ${countWord(leftover, "bed", "beds")} left.`}
             </p>
           </>,
