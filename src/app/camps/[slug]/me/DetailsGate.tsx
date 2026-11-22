@@ -8,7 +8,7 @@ import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import type { ProfileInput } from "@/lib/camp/types";
-import { updateMyDetailsAction } from "../../actions";
+import { updateMyDetailsAction } from "../actions";
 
 /** Can't continue on their pages until emergency contact and health are answered. */
 export function DetailsGate({
