@@ -111,7 +111,7 @@ export function DetailsForm({
         </fieldset>
 
         <fieldset className={cn(fieldset, required && !initial.emergency_name && "ring-2 ring-cyan-signal")}>
-          <Legend title="If something happens" sub="Who should we call in an emergency at camp?" />
+          <Legend title="In any case of emergency" sub="Who should we call in an emergency at camp?" />
           <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
             <input required={required} className={inputClass} value={v.emergency_name} onChange={set("emergency_name")} />
           </Field>

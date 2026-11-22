@@ -76,7 +76,7 @@ export function DetailsGate({
         }}
       >
         <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
-          <legend className="mb-1 text-[15px] font-semibold">If something happens</legend>
+          <legend className="mb-1 text-[15px] font-semibold">In any case of emergency</legend>
           <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
             <input id="gate_emergency_name" autoComplete="name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
           </Field>

@@ -347,7 +347,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           {detailsRequired && (
             <>
               <fieldset className={cn(fieldsetClass, "cm-rise")}>
-                <Legend icon={HeartPulse}>If something happens</Legend>
+                <Legend icon={HeartPulse}>In any case of emergency</Legend>
                 <p className="-mt-2 text-sm leading-relaxed text-warm-gray">Who should we call in an emergency at camp?</p>
                 <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
                   <input
