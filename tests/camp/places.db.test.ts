@@ -99,6 +99,16 @@ describe("places left", () => {
     await expect(register(camp, attendee(roomTypeId))).rejects.toThrow("Hostel is full for women");
   });
 
+  it("turns a room count into beds, minus people already registered", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    await register(camp, attendee(roomTypeId));
+    await setPlacesLeft(ACTOR, roomTypeId, "female", null, 3, true);
+    const type = (await getRoomType(roomTypeId))!;
+    expect(type.capacity).toBe(4);
+    expect(type.total_female).toBe(12);
+    expect(type.places_female).toBe(11);
+  });
+
   it("clears a stored total when they later set remaining", async () => {
     const { roomTypeId } = await openCamp();
     await setPlacesLeft(ACTOR, roomTypeId, "female", null, 20);

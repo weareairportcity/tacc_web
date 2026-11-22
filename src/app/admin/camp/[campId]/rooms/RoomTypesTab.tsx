@@ -27,8 +27,9 @@ const venueOf = (left: number | null, total: number | null): Venue =>
 
 /**
  * Room types and how many places the venue says are left, per gender. They
- * can type remaining or a total (remaining = total minus people already
- * registered). Remaining counts down as people register; at 0 it shows Full.
+ * can type remaining places, or how many rooms there are (beds = rooms ×
+ * beds a room, minus people already registered). Remaining counts down as
+ * people register; at 0 it shows Full.
  */
 export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes: RoomType[] }) {
   const toast = useToast();
@@ -37,14 +38,15 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
   const [pending, start] = useOneAtATime();
 
   /** Saves what the venue said, with Undo back to what it was. */
-  const savePlaces = (type: RoomType, gender: Gender, value: number | null, total: number | null) =>
+  const savePlaces = (type: RoomType, gender: Gender, value: number | null, total: number | null, asRooms = false) =>
     start(async () => {
       const beforeLeft = placesOf(type, gender);
       const beforeTotal = totalOf(type, gender);
-      const r = await setPlacesLeftAction(type.id, gender, value, total);
+      const r = await setPlacesLeftAction(type.id, gender, value, total, asRooms);
       if (!r.ok) return toast(r.error, { tone: "error" });
-      const left = total != null ? Math.max(0, total - takenOf(type, gender)) : value;
-      toast(`${type.name} · ${who(gender)}: ${left === null ? "no limit" : left === 0 ? "full" : total != null ? `${left} of ${total} left` : `${left} left`}`, {
+      const beds = asRooms && total != null ? total * type.capacity : total;
+      const left = beds != null ? Math.max(0, beds - takenOf(type, gender)) : value;
+      toast(`${type.name} · ${who(gender)}: ${left === null ? "no limit" : left === 0 ? "full" : beds != null ? `${left} of ${beds} beds left` : `${left} left`}`, {
         action: {
           label: "Undo",
           run: () =>
@@ -74,7 +76,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-prose text-[14px] leading-relaxed text-warm-gray">
-              What people choose when they register. Set how many places are left, or the total; remaining counts down by itself.
+              What people choose when they register. Set how many rooms there are, or how many places are left; remaining beds count down by themselves.
             </p>
             <button type="button" onClick={add} className={ghost}>
               <Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" /> Add a room type
@@ -122,12 +124,12 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
                           ) : n === 0 ? (
                             <span className="inline-flex items-center gap-1.5 font-medium">
                               <CircleSlash className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
-                              {total != null ? `Full · ${total}` : "Full. Can't be picked"}
+                              {total != null ? `Full · ${total} beds` : "Full. Can't be picked"}
                             </span>
                           ) : total != null ? (
                             <span className="inline-flex items-center gap-2 font-medium">
                               <span className="cm-pulse h-[7px] w-[7px] rounded-full bg-cyan-signal" aria-hidden="true" />
-                              <span className="tabular-nums">{`${n} of ${total} left`}</span>
+                              <span className="tabular-nums">{`${n} of ${total} beds left`}</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-2 font-medium">
@@ -161,12 +163,16 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
           gender={places.gender}
           pending={pending}
           onClose={() => setPlaces(null)}
-          onSave={(value, total) => savePlaces(places.type, places.gender, value, total)}
+          onSave={(value, total, asRooms) => savePlaces(places.type, places.gender, value, total, asRooms)}
         />
       )}
       {edit && <EditTypeSheet campId={campId} draft={edit} onClose={() => setEdit(null)} canDelete={!!edit.id} />}
     </div>
   );
+}
+
+function countWord(n: number, one: string, many: string) {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 function PlacesSheet({
@@ -180,16 +186,21 @@ function PlacesSheet({
   gender: Gender;
   pending: boolean;
   onClose: () => void;
-  onSave: (value: number | null, total: number | null) => void;
+  onSave: (value: number | null, total: number | null, asRooms?: boolean) => void;
 }) {
   const current = placesOf(type, gender);
   const currentTotal = totalOf(type, gender);
   const taken = takenOf(type, gender);
+  const bedsARoom = type.capacity;
+  const roomsFromTotal = currentTotal != null && bedsARoom > 0 ? Math.max(1, Math.round(currentTotal / bedsARoom)) : null;
+  const maxRooms = Math.max(1, Math.floor(10_000 / bedsARoom));
   const [venue, setVenue] = useState<Venue>(current === null ? "few" : venueOf(current, currentTotal));
   const [leftN, setLeftN] = useState(current && current > 0 ? current : 5);
-  const [totalN, setTotalN] = useState(currentTotal && currentTotal > 0 ? currentTotal : Math.max(20, taken + (current && current > 0 ? current : 0)));
-  const totalToSave = venue === "total" ? totalN : null;
-  const value = venue === "plenty" ? null : venue === "none" ? 0 : venue === "total" ? totalN : leftN;
+  const [roomsN, setRoomsN] = useState(roomsFromTotal ?? 5);
+  const bedsTotal = roomsN * bedsARoom;
+  const leftover = Math.max(0, bedsTotal - taken);
+  const totalToSave = venue === "total" ? roomsN : null;
+  const value = venue === "plenty" ? null : venue === "none" ? 0 : venue === "total" ? roomsN : leftN;
   const unchanged =
     venue === "plenty"
       ? current === null
@@ -197,8 +208,7 @@ function PlacesSheet({
         ? current === 0 && currentTotal == null
         : venue === "few"
           ? current === leftN && currentTotal == null
-          : currentTotal === totalN;
-  const leftover = Math.max(0, totalN - taken);
+          : roomsFromTotal === roomsN;
   const choice = (v: Venue, label: string, extra?: React.ReactNode) => (
     <label className={cn("flex cursor-pointer flex-col gap-3 rounded-[12px] px-4 py-3.5", venue === v ? "border border-cyan-edge bg-cyan-tint shadow-[0_0_0_1px_#2f90da]" : "border border-stone-border hover:border-stone-muted")}>
       <span className="flex items-center gap-3 text-[15px] font-medium">
@@ -208,9 +218,9 @@ function PlacesSheet({
       {venue === v && extra}
     </label>
   );
-  const chips = (n: number, set: (n: number) => void, qs: number[]) => (
+  const chips = (n: number, set: (n: number) => void, qs: number[], label: string, max: number) => (
     <span className="flex flex-wrap items-center gap-2 pl-[30px]">
-      <Stepper value={n} min={1} max={9999} label={venue === "total" ? "Total places" : "Places left"} onChange={set} />
+      <Stepper value={n} min={1} max={max} label={label} onChange={set} />
       {qs.map((q) => (
         <button key={q} type="button" onClick={() => set(q)} className={cn("cm-press h-9 rounded-full border px-3 text-[13px]", n === q ? "border-cyan-edge bg-white font-medium text-cyan-deep" : "border-stone-border bg-white")}>
           {q}
@@ -229,7 +239,7 @@ function PlacesSheet({
           <button type="button" onClick={onClose} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
             Cancel
           </button>
-          <button type="button" disabled={pending || unchanged} onClick={() => onSave(value, totalToSave)} className={`${primaryButtonClass} flex-1`}>
+          <button type="button" disabled={pending || unchanged} onClick={() => onSave(value, totalToSave, venue === "total")} className={`${primaryButtonClass} flex-1`}>
             <Busy pending={pending} text="Saving…">Save</Busy>
           </button>
         </>
@@ -241,20 +251,21 @@ function PlacesSheet({
           "total",
           "This is the total",
           <>
-            {chips(totalN, setTotalN, [20, 50, 100])}
+            {chips(roomsN, (n) => setRoomsN(Math.min(maxRooms, n)), [5, 10, 20].filter((q) => q <= maxRooms), "Rooms", maxRooms)}
             <p className="pl-[30px] text-[13px] leading-relaxed text-warm-gray">
+              {countWord(roomsN, "room", "rooms")} × {countWord(bedsARoom, "bed", "beds")} = {countWord(bedsTotal, "bed", "beds")}.{" "}
               {taken === 0
                 ? "Counts down as people register."
-                : totalN <= taken
-                  ? `${taken} already registered. This is less, so it will show as Full. People already registered keep their place.`
-                  : `${taken} already registered. ${leftover} will be left.`}
+                : leftover === 0
+                  ? `${taken} already registered. It will show as Full. People already registered keep their place.`
+                  : `${taken} already registered. ${countWord(leftover, "bed", "beds")} left.`}
             </p>
           </>,
         )}
-        {choice("few", "Only a few left", chips(leftN, setLeftN, [5, 10, 20]))}
+        {choice("few", "Only a few left", chips(leftN, setLeftN, [5, 10, 20], "Places left", 9999))}
         {choice("none", "No more. Show it as Full")}
       </div>
-      <p className="text-[13px] leading-relaxed text-warm-gray">Remaining counts down as people register. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
+      <p className="text-[13px] leading-relaxed text-warm-gray">Remaining beds count down as people register. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
     </Sheet>
   );
 }

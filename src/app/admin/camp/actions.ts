@@ -215,16 +215,17 @@ export async function saveRoomTypeAction(
   });
 }
 
-/** placesLeft: null for no limit, 0 for full, otherwise remaining. placesTotal: they typed a total, not remaining. */
+/** placesLeft: null for no limit, 0 for full, otherwise remaining. placesTotal: a total; asRooms means that number is rooms, not beds. */
 export async function setPlacesLeftAction(
   roomTypeId: string,
   gender: Gender,
   placesLeft: number | null,
   placesTotal: number | null = null,
+  asRooms = false,
 ) {
   return run(async () => {
     const staff = await requireCampRole("coordinator");
-    await setPlacesLeft(staff.email, roomTypeId, gender, placesLeft, placesTotal);
+    await setPlacesLeft(staff.email, roomTypeId, gender, placesLeft, placesTotal, asRooms);
     return null;
   });
 }

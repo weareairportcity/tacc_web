@@ -144,7 +144,8 @@ const totalFor = (type: RoomType, gender: Gender) =>
 /**
  * Records how many places the venue says are left for one gender of a room
  * type. null removes the limit; 0 marks it full. Pass `placesTotal` when the
- * number is a total, not remaining: remaining becomes total minus people
+ * number is a total, not remaining. `asRooms` means that number is rooms;
+ * beds = rooms × the type's capacity. Remaining is total beds minus people
  * already registered. Registrations count remaining down (migration 0009).
  */
 export async function setPlacesLeft(
@@ -153,6 +154,7 @@ export async function setPlacesLeft(
   gender: Gender,
   placesLeft: number | null,
   placesTotal: number | null = null,
+  asRooms = false,
 ) {
   const type = await getRoomType(roomTypeId);
   if (!type) throw new CampError("Unknown room type.");
@@ -161,11 +163,21 @@ export async function setPlacesLeft(
   let left = placesLeft;
   let total: number | null = null;
   if (placesTotal != null) {
-    if (!Number.isInteger(placesTotal) || placesTotal < 1 || placesTotal > 10_000) {
-      throw new CampError("Total places must be a whole number from 1 to 10,000.");
+    if (asRooms) {
+      if (!Number.isInteger(placesTotal) || placesTotal < 1 || placesTotal > 10_000) {
+        throw new CampError("Number of rooms must be a whole number from 1 to 10,000.");
+      }
+      const beds = placesTotal * type.capacity;
+      if (beds > 10_000) throw new CampError("That's too many beds. Try fewer rooms.");
+      left = Math.max(0, beds - (await takenFor(type.id, gender)));
+      total = beds;
+    } else {
+      if (!Number.isInteger(placesTotal) || placesTotal < 1 || placesTotal > 10_000) {
+        throw new CampError("Total places must be a whole number from 1 to 10,000.");
+      }
+      left = Math.max(0, placesTotal - (await takenFor(type.id, gender)));
+      total = placesTotal;
     }
-    left = Math.max(0, placesTotal - (await takenFor(type.id, gender)));
-    total = placesTotal;
   } else if (left !== null && (!Number.isInteger(left) || left < 0 || left > 10_000)) {
     throw new CampError("Places left must be a whole number from 0 to 10,000.");
   }
