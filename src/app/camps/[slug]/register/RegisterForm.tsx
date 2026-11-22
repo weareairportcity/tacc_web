@@ -63,8 +63,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   const humanRef = useRef(human);
   humanRef.current = human;
   const [round, setRound] = useState(0);
-  // About you, then (when required) emergency and health, then room type, then the code.
-  const [phase, setPhase] = useState<"you" | "details" | "room">("you");
+  // About you (and emergency/health when the camp asks), then room type, then the code.
+  const [step, setStep] = useState<1 | 2>(1);
   const aboutYou = useRef<HTMLDivElement>(null);
 
   const miss = (id: string, message: string) => {
@@ -114,16 +114,13 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     return true;
   };
 
-  const go = (next: "you" | "details" | "room") => {
-    setError("");
-    setErrorAt(null);
-    setPhase(next);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const next = () => {
     if (!checkAboutYou()) return;
-    go(detailsRequired ? "details" : "room");
+    if (detailsRequired && !checkDetails()) return;
+    setError("");
+    setErrorAt(null);
+    setStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const mark = <K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K], id?: string) => {
@@ -147,16 +144,12 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkAboutYou()) {
-      setPhase("you");
-      return;
-    }
-    if (detailsRequired && !checkDetails()) {
-      setPhase("details");
+    if (!checkAboutYou() || (detailsRequired && !checkDetails())) {
+      setStep(1);
       return;
     }
     if (!checkRoom()) {
-      setPhase("room");
+      setStep(2);
       return;
     }
     setError("");
@@ -172,8 +165,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
           document.getElementById("room")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         // Something about them (a phone, an email) needs fixing: back to step 1, everything kept.
-        else if (/emergency|health/i.test(result.error)) setPhase("details");
-        else if (/phone|email|name|gender|guardian/i.test(result.error)) setPhase("you");
+        else if (/phone|email|name|gender|guardian|emergency|health/i.test(result.error)) setStep(1);
         return setError(result.error);
       }
       // Already registered with this phone: sign in instead of a dead end.
@@ -185,7 +177,7 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
   if (code) {
     return (
       <section className="cm-rise flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-seline-hero">
-        <Steps phase="code" detailsRequired={detailsRequired} />
+        <Steps step={3} />
         <h2 className={titleClass}>You&apos;re registered</h2>
         <p className="text-[15px] leading-relaxed text-warm-gray">This is your sign-in code. We&apos;ve texted it to you too.</p>
         <p className="rounded-[10px] bg-stone-canvas py-5 text-center font-mono text-[26px] font-medium tracking-[0.08em] tabular-nums">{code}</p>
@@ -217,8 +209,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
 
   return (
     <form noValidate onSubmit={submit} className="flex flex-col gap-5">
-      <Steps phase={phase} detailsRequired={detailsRequired} />
-      {phase === "you" && (
+      <Steps step={step} />
+      {step === 1 && (
         <div ref={aboutYou} className="flex flex-col gap-5">
           <ErrorText>{error}</ErrorText>
           <fieldset className={cn(fieldsetClass, "cm-rise")}>
@@ -352,105 +344,97 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
               {errorAt === "guardian_consent" && <ErrorText>{error}</ErrorText>}
             </fieldset>
           )}
+          {detailsRequired && (
+            <>
+              <fieldset className={cn(fieldsetClass, "cm-rise")}>
+                <Legend icon={HeartPulse}>If something happens</Legend>
+                <p className="-mt-2 text-sm leading-relaxed text-warm-gray">Who should we call in an emergency at camp?</p>
+                <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
+                  <input
+                    id="emergency_name"
+                    aria-invalid={errorAt === "emergency_name" || undefined}
+                    className={cn(inputClass, errorAt === "emergency_name" && "outline-2 outline-cyan-signal")}
+                    value={values.emergency_name ?? ""}
+                    onChange={(e) => mark("emergency_name", e.target.value, "emergency_name")}
+                  />
+                </Field>
+                {errorAt === "emergency_name" && <ErrorText>{error}</ErrorText>}
+                <Field label="Their phone">
+                  <input
+                    id="emergency_phone"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="024 555 0101"
+                    aria-invalid={errorAt === "emergency_phone" || undefined}
+                    className={cn(inputClass, errorAt === "emergency_phone" && "outline-2 outline-cyan-signal")}
+                    value={values.emergency_phone ?? ""}
+                    onChange={(e) => mark("emergency_phone", e.target.value, "emergency_phone")}
+                  />
+                </Field>
+                {errorAt === "emergency_phone" && <ErrorText>{error}</ErrorText>}
+              </fieldset>
+              <fieldset className={cn(fieldsetClass, "cm-rise")}>
+                <Legend icon={HeartPulse}>Your health</Legend>
+                <p className="-mt-2 text-sm leading-relaxed text-warm-gray">Only coordinators see this.</p>
+                <label
+                  id="health_none"
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-[12px] border p-3.5",
+                    values.health_none ? "border-soot bg-stone-canvas" : "border-stone-border",
+                    errorAt === "health_none" && "outline-2 outline-cyan-signal",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 flex-none accent-soot"
+                    checked={values.health_none === true}
+                    onChange={(e) => {
+                      mark("health_none", e.target.checked, "health_none");
+                      if (e.target.checked) mark("health_notes", "");
+                    }}
+                  />
+                  <span className="text-[15px] leading-relaxed">I have no health conditions</span>
+                </label>
+                {errorAt === "health_none" && <ErrorText>{error}</ErrorText>}
+                {!values.health_none && (
+                  <Field label="Allergies, medicine or anything we should know">
+                    <textarea
+                      id="health_notes"
+                      rows={3}
+                      className={`${inputClass} h-auto py-2.5 leading-relaxed`}
+                      value={values.health_notes ?? ""}
+                      onChange={(e) => {
+                        mark("health_notes", e.target.value, "health_notes");
+                        if (e.target.value.trim()) mark("health_none", false);
+                      }}
+                    />
+                  </Field>
+                )}
+                {!values.health_none && String(values.health_notes ?? "").trim() && (
+                  <label
+                    id="health_consent"
+                    className={cn("flex cursor-pointer items-start gap-3 rounded-[8px] p-1 text-[15px] leading-relaxed", errorAt === "health_consent" && "outline-2 outline-cyan-signal")}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-5 w-5 flex-none accent-soot"
+                      checked={values.health_consent === true}
+                      onChange={(e) => mark("health_consent", e.target.checked, "health_consent")}
+                    />
+                    I agree to the church keeping this so coordinators can look after me at camp. I can remove it any time.
+                  </label>
+                )}
+                {errorAt === "health_consent" && <ErrorText>{error}</ErrorText>}
+              </fieldset>
+            </>
+          )}
           <button type="button" onClick={next} className={`${primaryButtonClass} h-[52px] w-full`}>
             Next: your room type
           </button>
         </div>
       )}
 
-      {phase === "details" && detailsRequired && (
-        <div className="flex flex-col gap-5">
-          <ErrorText>{error}</ErrorText>
-          <fieldset className={cn(fieldsetClass, "cm-rise")}>
-            <Legend icon={HeartPulse}>If something happens</Legend>
-            <p className="-mt-2 text-sm leading-relaxed text-warm-gray">Who should we call in an emergency at camp?</p>
-            <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
-              <input
-                id="emergency_name"
-                aria-invalid={errorAt === "emergency_name" || undefined}
-                className={cn(inputClass, errorAt === "emergency_name" && "outline-2 outline-cyan-signal")}
-                value={values.emergency_name ?? ""}
-                onChange={(e) => mark("emergency_name", e.target.value, "emergency_name")}
-              />
-            </Field>
-            {errorAt === "emergency_name" && <ErrorText>{error}</ErrorText>}
-            <Field label="Their phone">
-              <input
-                id="emergency_phone"
-                type="tel"
-                inputMode="tel"
-                placeholder="024 555 0101"
-                aria-invalid={errorAt === "emergency_phone" || undefined}
-                className={cn(inputClass, errorAt === "emergency_phone" && "outline-2 outline-cyan-signal")}
-                value={values.emergency_phone ?? ""}
-                onChange={(e) => mark("emergency_phone", e.target.value, "emergency_phone")}
-              />
-            </Field>
-            {errorAt === "emergency_phone" && <ErrorText>{error}</ErrorText>}
-          </fieldset>
-          <fieldset className={cn(fieldsetClass, "cm-rise")}>
-            <Legend icon={HeartPulse}>Your health</Legend>
-            <p className="-mt-2 text-sm leading-relaxed text-warm-gray">Only coordinators see this.</p>
-            <label
-              id="health_none"
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-[12px] border p-3.5",
-                values.health_none ? "border-soot bg-stone-canvas" : "border-stone-border",
-                errorAt === "health_none" && "outline-2 outline-cyan-signal",
-              )}
-            >
-              <input
-                type="checkbox"
-                className="mt-0.5 h-5 w-5 flex-none accent-soot"
-                checked={values.health_none === true}
-                onChange={(e) => {
-                  mark("health_none", e.target.checked, "health_none");
-                  if (e.target.checked) mark("health_notes", "");
-                }}
-              />
-              <span className="text-[15px] leading-relaxed">I have no health conditions</span>
-            </label>
-            {errorAt === "health_none" && <ErrorText>{error}</ErrorText>}
-            {!values.health_none && (
-              <Field label="Allergies, medicine or anything we should know">
-                <textarea
-                  id="health_notes"
-                  rows={3}
-                  className={`${inputClass} h-auto py-2.5 leading-relaxed`}
-                  value={values.health_notes ?? ""}
-                  onChange={(e) => {
-                    mark("health_notes", e.target.value, "health_notes");
-                    if (e.target.value.trim()) mark("health_none", false);
-                  }}
-                />
-              </Field>
-            )}
-            {!values.health_none && String(values.health_notes ?? "").trim() && (
-              <label
-                id="health_consent"
-                className={cn("flex cursor-pointer items-start gap-3 rounded-[8px] p-1 text-[15px] leading-relaxed", errorAt === "health_consent" && "outline-2 outline-cyan-signal")}
-              >
-                <input
-                  type="checkbox"
-                  className="mt-1 h-5 w-5 flex-none accent-soot"
-                  checked={values.health_consent === true}
-                  onChange={(e) => mark("health_consent", e.target.checked, "health_consent")}
-                />
-                I agree to the church keeping this so coordinators can look after me at camp. I can remove it any time.
-              </label>
-            )}
-            {errorAt === "health_consent" && <ErrorText>{error}</ErrorText>}
-          </fieldset>
-          <button type="button" onClick={() => { if (checkDetails()) go("room"); }} className={`${primaryButtonClass} h-[52px] w-full`}>
-            Next: your room type
-          </button>
-          <button type="button" onClick={() => go("you")} className="self-center text-[15px] text-warm-gray underline underline-offset-[3px]">
-            Back to about you
-          </button>
-        </div>
-      )}
-
-      {phase === "room" && (
+      {step === 2 && (
         <>
           <ErrorText>{error}</ErrorText>
           <fieldset className={cn(fieldsetClass, "cm-rise")}>
@@ -602,13 +586,8 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
               <Link href="/camps/privacy" className="underline underline-offset-[3px]">Privacy</Link> policy.
             </p>
         </div>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => go(detailsRequired ? "details" : "you")}
-            className="self-center text-[15px] text-warm-gray underline underline-offset-[3px]"
-          >
-            {detailsRequired ? "Back to emergency and health" : "Back to about you"}
+          <button type="button" disabled={pending} onClick={() => setStep(1)} className="self-center text-[15px] text-warm-gray underline underline-offset-[3px]">
+            Back to about you
           </button>
         </>
       )}
@@ -617,18 +596,17 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
 }
 
 /** "Step 1 of 3 · About you", with a bar per step: how far there is to go. */
-function Steps({ phase, detailsRequired }: { phase: "you" | "details" | "room" | "code"; detailsRequired: boolean }) {
-  const names = detailsRequired ? ["About you", "If something happens", "Your room type", "Your code"] : ["About you", "Your room type", "Your code"];
-  const step = detailsRequired ? { you: 1, details: 2, room: 3, code: 4 }[phase] : { you: 1, details: 1, room: 2, code: 3 }[phase];
+function Steps({ step }: { step: 1 | 2 | 3 }) {
+  const names = ["About you", "Your room type", "Your code"];
   return (
-    <div className="flex flex-col gap-2" aria-label={`Step ${step} of ${names.length}: ${names[step - 1]}`}>
+    <div className="flex flex-col gap-2" aria-label={`Step ${step} of 3: ${names[step - 1]}`}>
       <span aria-hidden="true" className="flex gap-1.5">
         {names.map((n, i) => (
           <span key={n} className={cn("h-1 flex-1 rounded-full", i < step ? "bg-soot" : "bg-stone-border")} />
         ))}
       </span>
       <span className="text-[13px] text-warm-gray">
-        Step {step} of {names.length} · {names[step - 1]}
+        Step {step} of 3 · {names[step - 1]}
       </span>
     </div>
   );
