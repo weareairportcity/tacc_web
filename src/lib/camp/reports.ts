@@ -4,6 +4,7 @@ import { CHURCHES, FELLOWSHIPS, PFCCS, groupForFellowship } from "@/lib/fellowsh
 import { scopeSql, type Scope } from "./scope";
 import type { AuditEntry } from "./audit";
 import { ID, checkId } from "./camps";
+import { WIPED_NAME } from "./names";
 import { formatGroupCode } from "./codes";
 import { toCsv } from "./csv";
 import { groupState } from "./groups";
@@ -620,12 +621,12 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
   return query<HistoryEntry>(
     "app",
     `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id, json_extract(l.after_json, '$.note') AS note,
-       COALESCE(
+       NULLIF(COALESCE(
          (SELECT full_name FROM camp_registrations WHERE id = l.entity_id),
          (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%'),
          (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.after_json, '$.registration_id')),
          (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.before_json, '$.registration_id'))
-       ) AS person
+       ), '${WIPED_NAME}') AS person
      FROM camp_audit_log l WHERE ${where.join(" AND ")} ORDER BY l.id DESC LIMIT 50`,
     params,
   );

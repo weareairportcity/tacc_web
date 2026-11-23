@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CircleAlert, Clock, KeyRound, LogIn, LogOut, Pencil } from "lucide-react";
 import { listCamps } from "@/lib/camp/camps";
-import { actorName, describeAction } from "@/lib/camp/history-words";
+import { actorName, describeAction, visiblePerson } from "@/lib/camp/history-words";
 import { ACCESS_WORDS, listLogs, type AccessEvent, type AccessRole, type LogKind } from "@/lib/camp/logs";
 import { AdminPage } from "@/components/camp/AdminPage";
 import { UrlFilters } from "@/components/camp/UrlFilters";
@@ -84,8 +84,9 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
               <ol>
                 {g.entries.map((e) => {
                   const Icon = iconFor(e.kind, e.event, e.ok);
-                  const who = e.actor === "visitor" ? "Someone not signed in" : actorName(e.actor, e.person);
-                  const what = e.kind === "change" ? describeAction(e.event) : (ACCESS_WORDS[e.event as AccessEvent] ?? e.event.replace(/_/g, " "));
+                  const person = visiblePerson(e.person);
+                  const who = e.actor === "visitor" ? "Someone not signed in" : actorName(e.actor, person);
+                  const what = e.kind === "change" ? describeAction(e.event, e.actor) : (ACCESS_WORDS[e.event as AccessEvent] ?? e.event.replace(/_/g, " "));
                   return (
                     <li key={e.key} className="flex items-start gap-3 border-t border-stone-border py-3 text-sm">
                       <Icon className={`mt-0.5 h-[17px] w-[17px] flex-none ${e.ok ? "" : "text-st-none"}`} strokeWidth={1.6} aria-hidden="true" />
@@ -100,7 +101,7 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
                           )}{" "}
                           {what}
                           {!e.ok && <span> · didn&apos;t work</span>}
-                          {e.kind === "change" && e.person && !e.actor.startsWith("attendee:") && <span className="text-[#57534e]"> · {e.person}</span>}
+                          {e.kind === "change" && person && !e.actor.startsWith("attendee:") && <span className="text-[#57534e]"> · {person}</span>}
                         </span>
                         <span className="text-[13px] text-warm-gray">
                           {[e.role ? ROLE_WORD[e.role] : "", e.camp_name, e.place, e.device].filter(Boolean).join(" · ")}

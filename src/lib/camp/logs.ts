@@ -4,6 +4,7 @@ import { batch, query } from "@/lib/cf";
 import { checkId } from "./camps";
 import { describeDevice, parseUserAgent } from "./device";
 import { leaderName } from "./leaders";
+import { WIPED_NAME } from "./names";
 
 /**
  * The sign-in log, who's online, and who came on which day (migration 0020).
@@ -191,7 +192,7 @@ export async function listLogs(f: LogFilters): Promise<{ entries: LogEntry[]; ne
       : query<LogEntry>(
           "app",
           `SELECT 'a' || l.id AS key, 'access' AS kind, l.created_at, l.actor, l.role, l.event, l.camp_id, c.name AS camp_name, l.ok,
-             l.place, l.device, (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%') AS person
+             l.place, l.device, NULLIF((SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%'), '${WIPED_NAME}') AS person
            FROM (SELECT * FROM camp_access_log ${clause(accessRole)} ORDER BY created_at DESC LIMIT ${PAGE}) l
            LEFT JOIN camps c ON c.id = l.camp_id`,
           [...params, ...(f.role ? [f.role] : [])],
@@ -202,10 +203,10 @@ export async function listLogs(f: LogFilters): Promise<{ entries: LogEntry[]; ne
           "app",
           `SELECT 'c' || l.id AS key, 'change' AS kind, l.created_at, l.actor, '' AS role, l.action AS event, l.camp_id, c.name AS camp_name,
              1 AS ok, '' AS place, '' AS device,
-             COALESCE(
+             NULLIF(COALESCE(
                (SELECT full_name FROM camp_registrations WHERE id = l.entity_id),
                (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%')
-             ) AS person
+             ), '${WIPED_NAME}') AS person
            FROM (SELECT * FROM camp_audit_log ${clause(changeRole)} ORDER BY created_at DESC LIMIT ${PAGE}) l
            LEFT JOIN camps c ON c.id = l.camp_id`,
           params,

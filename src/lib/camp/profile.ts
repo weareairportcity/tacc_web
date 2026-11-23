@@ -1,5 +1,5 @@
 import { cancelled } from "./notify";
-import { FULL_NAME_PROBLEM, isFullName, tidyName } from "./names";
+import { FULL_NAME_PROBLEM, WIPED_NAME, isFullName, tidyName } from "./names";
 import { batch, query } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId, getCamp } from "./camps";
@@ -179,11 +179,11 @@ export async function deleteMyDetails(me: Registration, reason = "") {
 function wipeStatements(me: Registration, reason = "") {
   return [
     {
-      sql: `UPDATE camp_registrations SET full_name = 'Deleted', phone = ?, email = '', emergency_name = '', emergency_phone = '',
+      sql: `UPDATE camp_registrations SET full_name = ?, phone = ?, email = '', emergency_name = '', emergency_phone = '',
               health_notes = '', health_none = 0, health_consent_at = NULL, guardian_name = '', guardian_phone = '', shirt_size = '', code_hash = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
               app_installed_at = NULL, app_platform = NULL, texts_only_at = NULL
             WHERE id = ?`,
-      params: [`deleted:${me.id}`, hashCode(generateCode(16)), me.id],
+      params: [WIPED_NAME, `deleted:${me.id}`, hashCode(generateCode(16)), me.id],
     },
     // Their phones' notification addresses and choices, and what they wrote when rating Commune (the stars stay, as a count).
     { sql: "DELETE FROM camp_push_subs WHERE owner = ?", params: [`attendee:${me.id}`] },

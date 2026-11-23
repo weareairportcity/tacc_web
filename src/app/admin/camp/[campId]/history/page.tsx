@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftRight, BedDouble, Clock, CreditCard, RotateCcw, Settings, UserRound, Users, HeartPulse } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
-import { actorName, describeAction } from "@/lib/camp/history-words";
+import { actorName, describeAction, visiblePerson } from "@/lib/camp/history-words";
 import { HISTORY_KINDS, historyActors, listHistory, type HistoryKind } from "@/lib/camp/reports";
 import { headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
@@ -63,13 +63,14 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
                 {g.entries.map((e) => {
                   const Icon = iconFor(e.action);
                   const self = e.actor.startsWith("attendee:");
+                  const person = visiblePerson(e.person);
                   return (
                     <li key={e.id} className="flex items-start gap-3 border-t border-stone-border py-3 text-sm">
                       <Icon className="mt-0.5 h-[17px] w-[17px] flex-none" strokeWidth={1.6} aria-hidden="true" />
                       <span className="flex-1">
-                        <strong className="font-medium">{actorName(e.actor, e.person)}</strong> {describeAction(e.action)}
+                        <strong className="font-medium">{actorName(e.actor, person)}</strong> {describeAction(e.action, e.actor)}
                         {e.note && <span className="text-[#57534e]"> {e.note}</span>}
-                        {!self && e.person && <span className="text-[#57534e]"> · {e.person}</span>}
+                        {!self && person && <span className="text-[#57534e]"> · {person}</span>}
                       </span>
                       <time dateTime={e.created_at} className="flex items-center gap-1 text-[13px] tabular-nums text-warm-gray">
                         <Clock className="h-3 w-3 max-sm:hidden" strokeWidth={1.8} aria-hidden="true" />

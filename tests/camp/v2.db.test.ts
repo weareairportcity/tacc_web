@@ -169,6 +169,15 @@ describe("History", () => {
     expect(await listHistory(camp.id, { kind: "money" })).toEqual([]);
     expect((await listHistory(camp.id, { who: ACTOR })).every((e) => e.actor === ACTOR)).toBe(true);
   });
+
+  it("does not name someone after they delete their details", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const { id } = await register(camp, attendee(roomTypeId, { full_name: "Ama Mensah" }));
+    await cancelMine((await getRegistration(id))!, "", true);
+    const history = await listHistory(camp.id, { kind: "people" });
+    expect(history.find((e) => e.action === "registration.delete_details")).toMatchObject({ person: null });
+    expect(history.find((e) => e.action === "registration.cancel")).toMatchObject({ person: null });
+  });
 });
 
 describe("saved views", () => {

@@ -7,6 +7,9 @@
 
 export const FULL_NAME_PROBLEM = "Enter your full name: first name and surname.";
 
+/** Stored on a registration after they delete their details. Never shown as a name. */
+export const WIPED_NAME = "Deleted";
+
 export const tidyName = (raw: unknown) => String(raw ?? "").replace(/\s+/g, " ").trim();
 
 export function isFullName(raw: unknown) {

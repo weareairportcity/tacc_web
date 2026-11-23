@@ -1,3 +1,4 @@
+import { WIPED_NAME } from "./names";
 import { leaderName } from "./leader-name";
 /** Plain words for the audit log's action codes, for History. */
 export const ACTION_WORDS: Record<string, string> = {
@@ -76,9 +77,15 @@ export const ACTION_WORDS: Record<string, string> = {
   "room_type.places_left": "updated places left",
 };
 
+/** Names we still store after a wipe, which must not be shown as a person. */
+export const visiblePerson = (person: string | null | undefined) => {
+  const name = person?.trim();
+  return !name || name === WIPED_NAME ? null : name;
+};
+
 export const actorName = (actor: string, person: string | null) =>
   actor.startsWith("attendee:")
-    ? (person ?? "An attendee")
+    ? (visiblePerson(person) ?? "An attendee")
     : actor.startsWith("leader:")
       ? (leaderName(actor) ?? "A leader")
       : actor === "paystack" || actor === "expresspay"
@@ -87,4 +94,10 @@ export const actorName = (actor: string, person: string | null) =>
           ? "Commune"
           : actor.split("@")[0];
 
-export const describeAction = (action: string) => ACTION_WORDS[action] ?? action.replace(/[._]/g, " ");
+export const describeAction = (action: string, actor = "") => {
+  if (actor.startsWith("attendee:")) {
+    if (action === "registration.cancel") return "cancelled their registration";
+    if (action === "registration.delete_details") return "deleted their details";
+  }
+  return ACTION_WORDS[action] ?? action.replace(/[._]/g, " ");
+};
