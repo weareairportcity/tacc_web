@@ -23,8 +23,8 @@ export function PlacesNote({ type }: { type: RoomType }) {
 }
 
 /**
- * Places left for one gender. When a total is set, remaining is total beds
- * minus people who have fully paid. Otherwise it is what the venue last said.
+ * Places left for one gender. Remaining is for people who have fully paid:
+ * total beds minus paid, or the leftover the venue last said.
  */
 export function remainingBeds(type: RoomType, gender: Gender): number | null {
   const total = placesLeft(gender === "male" ? type.total_male : type.total_female);

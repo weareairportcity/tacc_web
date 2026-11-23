@@ -273,7 +273,7 @@ function PlacesSheet({
         {choice("few", "Only a few left", chips(leftN, setLeftN, [5, 10, 20], "Places left", 9999))}
         {choice("none", "No more. Show it as Full")}
       </div>
-      <p className="text-[13px] leading-relaxed text-warm-gray">When you set a total, remaining beds count down as people pay in full. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
+      <p className="text-[13px] leading-relaxed text-warm-gray">Remaining beds count down as people pay in full. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
     </Sheet>
   );
 }

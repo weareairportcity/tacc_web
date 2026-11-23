@@ -25,7 +25,7 @@ const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.subtext, t.price_pesewas,
     (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'female' AND r.status = 'fully_paid' AND r.deleted_at IS NULL) AS taken_female
   FROM camp_room_types t`;
 
-/** Places left for one gender: null means no limit, 0 means full. Totals count fully paid people. */
+/** Places left for one gender: null means no limit, 0 means full. Limits count fully paid people. */
 export const placesFor = (type: RoomType, gender: Gender) => remainingBeds(type, gender);
 
 function validateRoomType(raw: RoomTypeInput): RoomTypeInput {
@@ -145,7 +145,7 @@ const totalFor = (type: RoomType, gender: Gender) =>
  * type. null removes the limit; 0 marks it full. Pass `placesTotal` when the
  * number is a total, not remaining. `asRooms` means that number is rooms;
  * beds = rooms × the type's capacity. Remaining is total beds minus people
- * who have fully paid. Paying counts remaining down (migration 0032).
+ * who have fully paid. Paying counts remaining down (migration 0033).
  */
 export async function setPlacesLeft(
   actor: string,
