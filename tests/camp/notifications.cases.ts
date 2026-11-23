@@ -207,6 +207,19 @@ describe("app notifications", () => {
     expect(await getReceipt("CAMP-0000000000000000")).toBeNull();
   });
 
+  it("texts and notifies in the app when someone else pays, even if they have the app", async () => {
+    const { id } = await registered({ full_name: "Ama Paidfor" });
+    const p = await phone(`attendee-${id}`);
+    await savePushSub(`attendee:${id}`, p.json);
+    const checkout = await startPaymentFor(id, 20000, CALLBACK, "Uncle Kofi", "card");
+    succeed(checkout.reference);
+    await checkPayment(id, checkout.reference);
+    expect(pushes.filter((x) => x.id === `attendee-${id}`)).toHaveLength(1);
+    expect(smsSent.find((s) => s.message.includes(checkout.reference))?.message).toMatch(
+      /^Hi Ama, Uncle Kofi has paid GHS 200 towards your room at .+\. You have GHS 400 left to pay\. Receipt: /,
+    );
+  });
+
   it("text the receipt to people without the app, with the same link", async () => {
     const { id } = await registered({ full_name: "Yaw Noapp" });
     const checkout = await payInFull(id, 20000);

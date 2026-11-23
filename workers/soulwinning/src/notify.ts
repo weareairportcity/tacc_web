@@ -9,8 +9,9 @@ import { groupForFellowship } from "../../../src/lib/fellowships";
  * Commune's notifications, in plain words.
  *
  *   Coordinators (admins and coordinators): app notifications on their phones
- *   and the Telegram group. Attendees: app notifications, and a text only
- *   when no phone of theirs got the notification (texts cost credits).
+ *   and the Telegram group. Attendees: app notifications. A text only when no
+ *   phone of theirs got the notification, except when someone else paid:
+ *   then they get the text as well (texts cost credits).
  *
  * Each person turns kinds off on their own (camp_notify_prefs); the Telegram
  * group has its own switches (/settings). Nothing here ever throws into the
@@ -256,8 +257,9 @@ async function isPastor(env: AppEnv, email: string | null | undefined) {
 
 /**
  * A payment went through: the receipt text and app notification to the
- * attendee (once per payment), and, unless it's a share of a coordinator's
- * payment, the coordinators' update.
+ * attendee (once per payment). When they pay themselves, the text only goes
+ * if no phone got the notification. When someone else pays, they get both.
+ * Unless it's a share of a coordinator's payment, coordinators get an update.
  */
 export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk: { note: string | null } | null = null) {
   try {
@@ -288,7 +290,9 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
       const byPastor = p.bulk_id
         ? await isPastor(env, (await env.APP_DB.prepare("SELECT paid_by FROM camp_bulk_payments WHERE id = ?").bind(p.bulk_id).first<{ paid_by: string }>())?.paid_by)
         : false;
-      // App first: the notification is free. The text (2 credits) only goes when no phone of theirs got it (or the Pastor paid).
+      // App first when they pay themselves: the notification is free, the text
+      // only goes if no phone got it. When someone else pays, they get both.
+      const paidForThem = !!(p.bulk_id || payer);
       const from = byPastor ? `Pastor has paid ${cedis(p.amount_pesewas)} for you` : p.bulk_id ? "Your camp balance was paid for you" : payer ? `${payer} paid ${cedis(p.amount_pesewas)} for you` : `We received ${cedis(p.amount_pesewas)}`;
       const pushed = await toAttendee(env, p.registration_id, "payment_received", {
         title: full ? "Your room is fully paid for 🎉" : "Payment received",
@@ -297,7 +301,7 @@ export async function paymentReceived(env: AppEnv, p: Paid, actor: string, bulk:
           : `${from}. You have ${cedis(left)} left to pay by ${shortDay(r.payment_due_on)}. Tap to see your receipt.`,
         url: `/camps/r/${encodeURIComponent(p.reference)}`,
       });
-      if ((!pushed || byPastor) && /^233\d{9}$/.test(r.phone) && today <= r.ends_on) {
+      if ((!pushed || paidForThem) && /^233\d{9}$/.test(r.phone) && today <= r.ends_on) {
         const text = receiptText({
           first: firstName(r.full_name),
           camp: r.camp_name,
