@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Church, Clock, CreditCard, MapPin, Phone, Users } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
-import { placesLeft } from "@/components/camp/places";
+import { remainingBeds } from "@/components/camp/places";
 import { daysUntil, registrationPhase } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { campAndAttendee } from "@/lib/camp/session";
@@ -199,8 +199,8 @@ function RoomList({ roomTypes }: { roomTypes: RoomType[] }) {
   return (
     <ul className="flex flex-col gap-2.5">
       {roomTypes.map((t) => {
-        const female = placesLeft(t.places_female);
-        const male = placesLeft(t.places_male);
+        const female = remainingBeds(t, "female");
+        const male = remainingBeds(t, "male");
         const full = female === 0 && male === 0;
         const low = (
           [

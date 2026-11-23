@@ -3,7 +3,7 @@ import { auditStatement } from "./audit";
 import { ID, checkId } from "./camps";
 import { parseRoomCsv, type CsvError } from "./csv";
 import { autoRoomNumber, formatAutoRoomLabel } from "./fill";
-import { placesLeft } from "@/components/camp/places";
+import { placesLeft, remainingBeds } from "@/components/camp/places";
 import { CampError, GENDERS, type Gender, type Room, type RoomInput, type RoomType } from "./types";
 
 /**
@@ -21,13 +21,12 @@ const TYPE_SELECT = `SELECT t.id, t.camp_id, t.name, t.subtext, t.price_pesewas,
     (SELECT places_left FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS places_female,
     (SELECT places_total FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'male') AS total_male,
     (SELECT places_total FROM camp_room_type_places p WHERE p.room_type_id = t.id AND p.gender = 'female') AS total_female,
-    (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'male' AND r.status <> 'cancelled' AND r.deleted_at IS NULL) AS taken_male,
-    (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'female' AND r.status <> 'cancelled' AND r.deleted_at IS NULL) AS taken_female
+    (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'male' AND r.status = 'fully_paid' AND r.deleted_at IS NULL) AS taken_male,
+    (SELECT count(*) FROM camp_registrations r WHERE r.room_type_id = t.id AND r.gender = 'female' AND r.status = 'fully_paid' AND r.deleted_at IS NULL) AS taken_female
   FROM camp_room_types t`;
 
-/** Places left for one gender: null means no limit, 0 means full. */
-export const placesFor = (type: RoomType, gender: Gender) =>
-  placesLeft(gender === "male" ? type.places_male : type.places_female);
+/** Places left for one gender: null means no limit, 0 means full. Totals count fully paid people. */
+export const placesFor = (type: RoomType, gender: Gender) => remainingBeds(type, gender);
 
 function validateRoomType(raw: RoomTypeInput): RoomTypeInput {
   const input = {
@@ -132,7 +131,7 @@ async function takenFor(roomTypeId: string, gender: Gender) {
   const [{ n }] = await query<{ n: number }>(
     "app",
     `SELECT count(*) AS n FROM camp_registrations
-     WHERE room_type_id = ? AND gender = ? AND status <> 'cancelled' AND deleted_at IS NULL`,
+     WHERE room_type_id = ? AND gender = ? AND status = 'fully_paid' AND deleted_at IS NULL`,
     [roomTypeId, gender],
   );
   return Number(n) || 0;
@@ -146,7 +145,7 @@ const totalFor = (type: RoomType, gender: Gender) =>
  * type. null removes the limit; 0 marks it full. Pass `placesTotal` when the
  * number is a total, not remaining. `asRooms` means that number is rooms;
  * beds = rooms × the type's capacity. Remaining is total beds minus people
- * already registered. Registrations count remaining down (migration 0009).
+ * who have fully paid. Paying counts remaining down (migration 0032).
  */
 export async function setPlacesLeft(
   actor: string,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placesLeft, placesState } from "@/components/camp/places";
+import { placesLeft, placesState, remainingBeds } from "@/components/camp/places";
 import type { RoomType } from "@/lib/camp/types";
 
 const type = (over: Partial<RoomType> = {}): RoomType => ({
@@ -40,5 +40,12 @@ describe("placesState", () => {
     expect(placesState(type({ places_male: null }), "male")).toBeNull();
     expect(placesState(type({ places_female: 0, places_male: 9 }), "female")).toBe("full");
     expect(placesState(type({ places_female: 0, places_male: 9 }), "male")).toBe(9);
+  });
+
+  it("counts remaining beds from people who have fully paid when a total is set", () => {
+    expect(remainingBeds(type({ total_female: 10, taken_female: 2, places_female: 0 }), "female")).toBe(8);
+    expect(placesState(type({ total_female: 10, taken_female: 10, places_female: 3 }), "female")).toBe("full");
+    expect(placesState(type({ total_female: 10, taken_female: 12, places_female: 0 }), "female")).toBe("full");
+    expect(placesState(type({ places_female: 4, taken_female: 9 }), "female")).toBe(4);
   });
 });

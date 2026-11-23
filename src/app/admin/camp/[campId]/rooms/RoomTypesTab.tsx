@@ -10,7 +10,7 @@ import { InlineConfirm, Sheet } from "@/components/camp/sheet";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { placesLeft } from "@/components/camp/places";
+import { placesLeft, remainingBeds } from "@/components/camp/places";
 import { deleteRoomTypeAction, saveRoomTypeAction, setPlacesLeftAction } from "../../actions";
 import { Stepper } from "./AllRooms";
 
@@ -28,8 +28,8 @@ const venueOf = (left: number | null, total: number | null): Venue =>
 /**
  * Room types and how many places the venue says are left, per gender. They
  * can type remaining places, or how many rooms there are (beds = rooms ×
- * beds a room, minus people already registered). Remaining counts down as
- * people register; at 0 it shows Full.
+ * beds a room, minus people who have fully paid). Remaining counts down as
+ * people pay; at 0 it shows Full.
  */
 export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes: RoomType[] }) {
   const toast = useToast();
@@ -76,7 +76,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-prose text-[14px] leading-relaxed text-warm-gray">
-              What people choose when they register. Set how many rooms there are, or how many places are left; remaining beds count down by themselves.
+              What people choose when they register. Set how many rooms there are, or how many places are left; remaining beds count down as people pay in full.
             </p>
             <button type="button" onClick={add} className={ghost}>
               <Plus className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" /> Add a room type
@@ -111,7 +111,7 @@ export function RoomTypesTab({ campId, roomTypes }: { campId: string; roomTypes:
                 </dl>
                 <ul className="mt-auto border-t border-stone-border">
                   {(["female", "male"] as const).map((g) => {
-                    const n = placesOf(t, g);
+                    const n = remainingBeds(t, g);
                     const total = totalOf(t, g);
                     const taken = takenOf(t, g);
                     return (
@@ -263,17 +263,17 @@ function PlacesSheet({
             <p className="pl-[30px] text-[13px] leading-relaxed text-warm-gray">
               {countWord(roomsN, "room", "rooms")} × {countWord(bedsARoom, "bed", "beds")} = {countWord(bedsTotal, "bed", "beds")}.{" "}
               {taken === 0
-                ? "Counts down as people register."
+                ? "Counts down as people pay in full."
                 : leftover === 0
-                  ? `${countWord(taken, "person", "people")} already registered${taken > bedsTotal ? ` · ${taken - bedsTotal} over` : ""}. It will show as Full. People already registered keep their place.`
-                  : `${taken} already registered. ${countWord(leftover, "bed", "beds")} left.`}
+                  ? `${countWord(taken, "person", "people")} fully paid${taken > bedsTotal ? ` · ${taken - bedsTotal} over` : ""}. It will show as Full. People already registered keep their place.`
+                  : `${countWord(taken, "person", "people")} fully paid. ${countWord(leftover, "bed", "beds")} left.`}
             </p>
           </>,
         )}
         {choice("few", "Only a few left", chips(leftN, setLeftN, [5, 10, 20], "Places left", 9999))}
         {choice("none", "No more. Show it as Full")}
       </div>
-      <p className="text-[13px] leading-relaxed text-warm-gray">Remaining beds count down as people register. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
+      <p className="text-[13px] leading-relaxed text-warm-gray">When you set a total, remaining beds count down as people pay in full. At 0 it shows Full and can&apos;t be picked; people already registered keep their place.</p>
     </Sheet>
   );
 }

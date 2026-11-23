@@ -53,6 +53,14 @@ describe("camp migrations", () => {
     await apply();
     expect(await tables()).toEqual(expected);
 
+    await down("0032_camp_places_paid");
+    expect(await tables()).toEqual(expected);
+    await down("0031_camp_room_type_subtext");
+    expect(await tables()).toEqual(expected);
+    await down("0030_camp_places_total");
+    expect(await tables()).toEqual(expected);
+    await down("0029_camp_details_required");
+    expect(await tables()).toEqual(expected);
     await down("0028_camp_medical");
     expect(await tables()).toEqual(expected);
     await down("0027_camp_groups_inbox");

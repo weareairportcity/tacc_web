@@ -77,7 +77,7 @@ export type RoomType = {
   /** Last total typed for that gender, if they set a total rather than remaining. */
   total_male?: number | null;
   total_female?: number | null;
-  /** People currently registered (not cancelled). Used to turn a total into remaining. */
+  /** People who have fully paid. Used to turn a total into remaining beds. */
   taken_male?: number;
   taken_female?: number;
 };
