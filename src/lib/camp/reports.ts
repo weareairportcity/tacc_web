@@ -590,7 +590,14 @@ const KIND_PREFIXES: Record<HistoryKind, string[]> = {
 
 export type HistoryFilters = { who?: string; kind?: HistoryKind; days?: number; before?: number };
 /** `note`: a few words of detail (what the medical team searched for, who they called). */
-export type HistoryEntry = AuditEntry & { person: string | null; note: string | null };
+export type HistoryEntry = AuditEntry & {
+  person: string | null;
+  note: string | null;
+  /** Receipt reference, when this entry is a payment. */
+  reference: string | null;
+  amount_pesewas: number | string | null;
+  people: number | string | null;
+};
 
 /** The audit log, newest first, 50 at a time, with the person each entry is about. */
 export async function listHistory(campId: string, filters: HistoryFilters): Promise<HistoryEntry[]> {
@@ -621,8 +628,20 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
   return query<HistoryEntry>(
     "app",
     `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id, json_extract(l.after_json, '$.note') AS note,
+       COALESCE(
+         json_extract(l.after_json, '$.reference'),
+         (SELECT reference FROM camp_payments WHERE id = l.entity_id),
+         (SELECT reference FROM camp_bulk_payments WHERE id = l.entity_id)
+       ) AS reference,
+       COALESCE(
+         json_extract(l.after_json, '$.amount_pesewas'),
+         (SELECT amount_pesewas FROM camp_payments WHERE id = l.entity_id),
+         (SELECT amount_pesewas FROM camp_bulk_payments WHERE id = l.entity_id)
+       ) AS amount_pesewas,
+       json_extract(l.after_json, '$.people') AS people,
        NULLIF(COALESCE(
          (SELECT full_name FROM camp_registrations WHERE id = l.entity_id),
+         (SELECT r.full_name FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id WHERE p.id = l.entity_id),
          (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%'),
          (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.after_json, '$.registration_id')),
          (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.before_json, '$.registration_id'))

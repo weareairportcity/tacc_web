@@ -101,3 +101,12 @@ export const describeAction = (action: string, actor = "") => {
   }
   return ACTION_WORDS[action] ?? action.replace(/[._]/g, " ");
 };
+
+/** Receipt page for a payment in History, or the coordinator bulk receipt. */
+export function historyReceiptHref(action: string, reference: string | null | undefined, campId: string) {
+  const ref = String(reference ?? "").trim();
+  if (!ref) return null;
+  if (action === "payment.success") return `/camps/r/${encodeURIComponent(ref)}`;
+  if (action === "payment.bulk_success") return `/admin/camp/${campId}/money/paid?reference=${encodeURIComponent(ref)}`;
+  return null;
+}

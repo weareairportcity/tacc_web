@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftRight, BedDouble, Clock, CreditCard, RotateCcw, Settings, UserRound, Users, HeartPulse } from "lucide-react";
 import { getCamp, ID } from "@/lib/camp/camps";
-import { actorName, describeAction, visiblePerson } from "@/lib/camp/history-words";
+import { actorName, describeAction, historyReceiptHref, visiblePerson } from "@/lib/camp/history-words";
+import { formatCedis } from "@/lib/camp/money";
 import { HISTORY_KINDS, historyActors, listHistory, type HistoryKind } from "@/lib/camp/reports";
 import { headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
@@ -64,14 +65,28 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
                   const Icon = iconFor(e.action);
                   const self = e.actor.startsWith("attendee:");
                   const person = visiblePerson(e.person);
+                  const amount = Number(e.amount_pesewas);
+                  const people = Number(e.people);
+                  const href = historyReceiptHref(e.action, e.reference, camp.id);
+                  const words = (
+                    <>
+                      <strong className="font-medium">{actorName(e.actor, person)}</strong> {describeAction(e.action, e.actor)}
+                      {Number.isFinite(amount) && amount > 0 && <span className="tabular-nums"> of {formatCedis(amount)}</span>}
+                      {e.note && <span className="text-[#57534e]"> {e.note}</span>}
+                      {!self && person && <span className="text-[#57534e]"> · {person}</span>}
+                      {Number.isFinite(people) && people > 1 && <span className="text-[#57534e]"> · {people} people</span>}
+                    </>
+                  );
                   return (
                     <li key={e.id} className="flex items-start gap-3 border-t border-stone-border py-3 text-sm">
                       <Icon className="mt-0.5 h-[17px] w-[17px] flex-none" strokeWidth={1.6} aria-hidden="true" />
-                      <span className="flex-1">
-                        <strong className="font-medium">{actorName(e.actor, person)}</strong> {describeAction(e.action, e.actor)}
-                        {e.note && <span className="text-[#57534e]"> {e.note}</span>}
-                        {!self && person && <span className="text-[#57534e]"> · {person}</span>}
-                      </span>
+                      {href ? (
+                        <Link href={href} className="flex-1 underline-offset-[3px] hover:underline">
+                          {words}
+                        </Link>
+                      ) : (
+                        <span className="flex-1">{words}</span>
+                      )}
                       <time dateTime={e.created_at} className="flex items-center gap-1 text-[13px] tabular-nums text-warm-gray">
                         <Clock className="h-3 w-3 max-sm:hidden" strokeWidth={1.8} aria-hidden="true" />
                         {new Date(e.created_at.endsWith("Z") ? e.created_at : `${e.created_at}Z`).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Accra" })}

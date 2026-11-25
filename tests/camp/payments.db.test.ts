@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { post, query } from "@/lib/cf";
 import { feeFor } from "@/lib/camp/money";
 import { checkPayment, startPayment } from "@/lib/camp/payments";
+import { listHistory } from "@/lib/camp/reports";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
 import { CampError } from "@/lib/camp/types";
 import { TEST_WORKER_URL } from "../setup/constants";
@@ -86,7 +87,7 @@ describe("the email expressPay gets", () => {
 
 describe("instalments", () => {
   it("move a registration from Registered to Partially paid to Fully paid", async () => {
-    const { id } = await registered();
+    const { camp, id } = await registered();
     expect((await getRegistration(id))?.status).toBe("registered");
 
     const first = await pay(id, 20000);
@@ -102,6 +103,10 @@ describe("instalments", () => {
     const payments = await listPayments(id);
     expect(payments.map((p) => p.status)).toEqual(["success", "success"]);
     expect(await auditActions(await paymentId(first.reference))).toEqual(["payment.success"]);
+    const money = (await listHistory(camp.id, { kind: "money" })).find((e) => e.action === "payment.success" && e.reference === first.reference);
+    expect(money?.person).toBe("Ama Mensah");
+    expect(Number(money?.amount_pesewas)).toBe(20000);
+    expect(money?.reference).toBe(first.reference);
   });
 
   it("refuses a payment once fully paid", async () => {

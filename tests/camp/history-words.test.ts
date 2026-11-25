@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actorName, describeAction, visiblePerson } from "@/lib/camp/history-words";
+import { actorName, describeAction, historyReceiptHref, visiblePerson } from "@/lib/camp/history-words";
 
 describe("history copy", () => {
   it("does not present the wiped name as a person", () => {
@@ -17,5 +17,13 @@ describe("history copy", () => {
       "An attendee cancelled their registration",
     );
     expect(describeAction("registration.cancel", "coordinator@test.local")).toBe("cancelled a registration");
+  });
+
+  it("opens the receipt for a confirmed payment", () => {
+    expect(historyReceiptHref("payment.success", "CAMP-250E6E0A7DBBB54A", "camp")).toBe("/camps/r/CAMP-250E6E0A7DBBB54A");
+    expect(historyReceiptHref("payment.bulk_success", "CAMP-B0123456789ABCDEF", "camp-id")).toBe(
+      "/admin/camp/camp-id/money/paid?reference=CAMP-B0123456789ABCDEF",
+    );
+    expect(historyReceiptHref("registration.create", "CAMP-250E6E0A7DBBB54A", "camp")).toBeNull();
   });
 });
