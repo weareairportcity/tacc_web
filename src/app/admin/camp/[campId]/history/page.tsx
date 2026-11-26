@@ -73,7 +73,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
                       <strong className="font-medium">{actorName(e.actor, person)}</strong> {describeAction(e.action, e.actor)}
                       {Number.isFinite(amount) && amount > 0 && <span className="tabular-nums"> of {formatCedis(amount)}</span>}
                       {e.note && <span className="text-[#57534e]"> {e.note}</span>}
-                      {!self && person && <span className="text-[#57534e]"> · {person}</span>}
+                      {!self && person && e.action !== "payment.move" && <span className="text-[#57534e]"> · {person}</span>}
                       {Number.isFinite(people) && people > 1 && <span className="text-[#57534e]"> · {people} people</span>}
                     </>
                   );

@@ -44,7 +44,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "request.withdraw": "withdrew a request",
   "request.approve": "approved a request",
   "request.decline": "declined a request",
-  "payment.move": "moved a payment to another person",
+  "payment.move": "moved a payment",
   "registration.fellowship_change": "changed fellowship",
   "payment.success": "confirmed a payment",
   "payment.bulk_start": "started a payment for several people",

@@ -627,7 +627,14 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
   }
   return query<HistoryEntry>(
     "app",
-    `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id, json_extract(l.after_json, '$.note') AS note,
+    `SELECT l.id, l.created_at, l.actor, l.action, l.entity, l.entity_id, COALESCE(
+         json_extract(l.after_json, '$.note'),
+         CASE l.action
+           WHEN 'payment.move' THEN 'from ' || COALESCE((SELECT full_name FROM camp_registrations WHERE id = json_extract(l.before_json, '$.registration_id')), 'someone')
+             || ' to ' || COALESCE((SELECT full_name FROM camp_registrations WHERE id = json_extract(l.after_json, '$.registration_id')), 'someone')
+           WHEN 'registration.fellowship_change' THEN 'from ' || json_extract(l.before_json, '$.fellowship') || ' to ' || json_extract(l.after_json, '$.fellowship')
+         END
+       ) AS note,
        COALESCE(
          json_extract(l.after_json, '$.reference'),
          (SELECT reference FROM camp_payments WHERE id = l.entity_id),

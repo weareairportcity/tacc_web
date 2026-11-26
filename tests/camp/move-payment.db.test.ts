@@ -23,7 +23,8 @@ describe("moving a payment", () => {
     expect(e!.status).toBe("registered");
     expect(v!.paid_pesewas).toBe(v!.price_pesewas);
     expect(v!.status).toBe("fully_paid");
-    expect((await listHistory(camp.id, {})).map((x) => x.action)).toContain("payment.move");
+    const moved = (await listHistory(camp.id, {})).find((x) => x.action === "payment.move")!;
+    expect(moved.note).toBe("from Ebenezer Azu to Afordanyi Kofi Vincent");
   });
 
   it("refuses to overpay the other person or move onto the same person", async () => {
@@ -45,6 +46,6 @@ describe("changing fellowship", () => {
     expect([after.fellowship, after.pfcc]).toEqual(["Radah", "PFCC 2"]);
     await expect(changeFellowship(`attendee:${p.id}`, p.id, "Radah")).rejects.toThrow("already your fellowship");
     await expect(changeFellowship(`attendee:${p.id}`, p.id, "Nonsense")).rejects.toThrow("Choose a fellowship");
-    expect((await listHistory(camp.id, {})).map((x) => x.action)).toContain("registration.fellowship_change");
+    expect((await listHistory(camp.id, {})).find((x) => x.action === "registration.fellowship_change")!.note).toBe("from Chosen to Radah");
   });
 });
