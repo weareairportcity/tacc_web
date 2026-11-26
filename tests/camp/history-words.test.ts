@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { actorName, describeAction, historyReceiptHref, visiblePerson } from "@/lib/camp/history-words";
 
 describe("history copy", () => {
+  it("says Commune for rooms it makes and fills when someone is fully paid", () => {
+    expect(actorName("attendee:1", "Vincent", "room.create")).toBe("Commune");
+    expect(actorName("attendee:1", "Vincent", "room.assign")).toBe("Commune");
+    expect(describeAction("room.create")).toBe("added room");
+    expect(describeAction("room.assign")).toBe("placed");
+  });
+
   it("does not present the wiped name as a person", () => {
     expect(visiblePerson("Deleted")).toBeNull();
     expect(visiblePerson("Ama Mensah")).toBe("Ama Mensah");

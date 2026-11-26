@@ -65,10 +65,10 @@ export const ACTION_WORDS: Record<string, string> = {
   "group.remove": "removed someone from a group",
   "group.lock": "locked a group",
   "group.unlock": "unlocked a group",
-  "room.assign": "placed someone in a room",
+  "room.assign": "placed",
   "room.assign_group": "placed a group in a room",
   "room.unassign": "took someone out of a room",
-  "room.create": "added a room",
+  "room.create": "added room",
   "room.update": "edited a room",
   "room.delete": "deleted a room",
   "room.import": "imported rooms",
@@ -85,9 +85,14 @@ export const visiblePerson = (person: string | null | undefined) => {
   return !name || name === WIPED_NAME ? null : name;
 };
 
-export const actorName = (actor: string, person: string | null) =>
+/** Rooms made and filled the moment someone is fully paid are Commune's doing, not the attendee's. */
+const AUTO_ROOM = ["room.create", "room.assign"];
+
+export const actorName = (actor: string, person: string | null, action = "") =>
   actor.startsWith("attendee:")
-    ? (visiblePerson(person) ?? "An attendee")
+    ? AUTO_ROOM.includes(action)
+      ? "Commune"
+      : (visiblePerson(person) ?? "An attendee")
     : actor.startsWith("leader:")
       ? (leaderName(actor) ?? "A leader")
       : actor === "paystack" || actor === "expresspay"

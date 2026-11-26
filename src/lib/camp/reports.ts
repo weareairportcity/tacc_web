@@ -633,6 +633,8 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
            WHEN 'payment.move' THEN 'from ' || COALESCE((SELECT full_name FROM camp_registrations WHERE id = json_extract(l.before_json, '$.registration_id')), 'someone')
              || ' to ' || COALESCE((SELECT full_name FROM camp_registrations WHERE id = json_extract(l.after_json, '$.registration_id')), 'someone')
            WHEN 'registration.fellowship_change' THEN 'from ' || json_extract(l.before_json, '$.fellowship') || ' to ' || json_extract(l.after_json, '$.fellowship')
+           WHEN 'room.create' THEN json_extract(l.after_json, '$.label')
+           WHEN 'room.assign' THEN 'in room ' || (SELECT label FROM camp_rooms WHERE id = l.entity_id)
          END
        ) AS note,
        COALESCE(

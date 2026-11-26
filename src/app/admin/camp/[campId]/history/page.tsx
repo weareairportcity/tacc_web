@@ -70,10 +70,11 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
                   const href = historyReceiptHref(e.action, e.reference, camp.id);
                   const words = (
                     <>
-                      <strong className="font-medium">{actorName(e.actor, person)}</strong> {describeAction(e.action, e.actor)}
+                      <strong className="font-medium">{actorName(e.actor, person, e.action)}</strong> {describeAction(e.action, e.actor)}
+                      {e.action === "room.assign" && person && <strong className="font-medium"> {person}</strong>}
                       {Number.isFinite(amount) && amount > 0 && <span className="tabular-nums"> of {formatCedis(amount)}</span>}
                       {e.note && <span className="text-[#57534e]"> {e.note}</span>}
-                      {!self && person && e.action !== "payment.move" && <span className="text-[#57534e]"> · {person}</span>}
+                      {!self && person && e.action !== "payment.move" && e.action !== "room.assign" && <span className="text-[#57534e]"> · {person}</span>}
                       {Number.isFinite(people) && people > 1 && <span className="text-[#57534e]"> · {people} people</span>}
                     </>
                   );
