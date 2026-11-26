@@ -11,6 +11,7 @@ import { useToast } from "@/components/camp/toast";
 import { ErrorText, Field, RegistrationStatus, headlineClass, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { approveRefundAction, approveRoomChangeAction, declineRequestAction } from "../../actions";
+import { PersonLink } from "@/components/camp/shell/PersonOnThisPage";
 
 const since = (iso: string) => {
   const hours = Math.round((Date.now() - Date.parse(iso)) / 3_600_000);
@@ -124,9 +125,9 @@ function Decide({ campId, request: r, onDone }: { campId: string; request: CampR
           </div>
         ))}
       </dl>
-      <Link href={`/admin/camp/${campId}/people?person=${r.registration_id}`} className="text-sm underline underline-offset-[3px]">
+      <PersonLink id={r.registration_id} className="text-sm underline underline-offset-[3px]">
         Open {r.full_name.split(" ")[0]}&apos;s details
-      </Link>
+      </PersonLink>
 
       {r.status !== "pending" ? (
         <p className="flex items-center gap-2 text-sm">

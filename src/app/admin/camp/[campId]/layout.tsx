@@ -17,6 +17,7 @@ import { InboxBell } from "@/components/camp/inbox/InboxBell";
 import { listMyOpenBulkPayments } from "@/lib/camp/payments";
 import { pageStaff } from "../access";
 import { OpenPayments } from "./OpenPayments";
+import { PersonOnThisPage } from "@/components/camp/shell/PersonOnThisPage";
 import { teamGate } from "../TeamGate";
 
 /**
@@ -110,6 +111,7 @@ export default async function CampShell({ children, params }: { children: React.
         </div>
       </div>
       <OpenPayments campId={camp.id} payments={open} />
+      {!leaderSide && !pastor && <PersonOnThisPage campId={camp.id} />}
       {tracker}
       {/* On a computer nobody is made to, but they're asked to turn on notifications each visit. */}
       <NotifyPrompt who="staff" actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />

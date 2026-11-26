@@ -7,6 +7,7 @@ import { getCamp, ID } from "@/lib/camp/camps";
 import { headlineClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
+import { PersonLink } from "@/components/camp/shell/PersonOnThisPage";
 
 /**
  * Coordinators: who is arriving on which day (a tab per camp day, checked-in
@@ -114,14 +115,13 @@ function Transport({ campId, people, days }: { campId: string; people: ArrivalPe
 /** A list of people. Checked-in people are highlighted. */
 function Section({
   title,
-  campId,
   rows,
   empty,
   showHow = false,
   showTime = false,
 }: {
   title: string;
-  campId: string;
+  campId?: string;
   rows: ArrivalPerson[];
   empty: string;
   showWhen?: boolean;
@@ -139,7 +139,7 @@ function Section({
         <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
           {rows.map((p) => (
             <li key={p.id} className={cn("border-t border-stone-border first:border-t-0", p.checked_in_at && "bg-st-paid/10")}>
-              <Link href={`/admin/camp/${campId}/people?person=${p.id}`} className="cm-row flex min-h-12 items-center gap-3 px-4 text-sm">
+              <PersonLink id={p.id} className="cm-row flex min-h-12 items-center gap-3 px-4 text-sm">
                 <span className="flex-1 font-medium">{p.full_name}</span>
                 <span className="text-warm-gray">{p.fellowship}</span>
                 {showHow && p.transport && <span className="text-warm-gray">{p.transport === "bus" ? "Bus" : "Own way"}</span>}
@@ -149,7 +149,7 @@ function Section({
                     <Check className="h-3 w-3" strokeWidth={2.4} aria-hidden="true" /> Checked in
                   </span>
                 )}
-              </Link>
+              </PersonLink>
             </li>
           ))}
         </ul>

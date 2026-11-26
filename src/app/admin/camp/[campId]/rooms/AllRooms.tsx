@@ -13,6 +13,7 @@ import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/c
 import { cn } from "@/lib/utils";
 import { assignPersonAction, deleteRoomAction, importRoomsAction, saveRoomAction, unassignAction } from "../../actions";
 import { Arrived, BedBar } from "./Beds";
+import { PersonLink } from "@/components/camp/shell/PersonOnThisPage";
 
 type Draft = { id: string | null; label: string; room_type_id: string; gender: Gender; capacity: number };
 
@@ -316,10 +317,10 @@ export function AllRooms({ campId, rooms, roomTypes }: { campId: string; rooms: 
                 {editing.occupants.map((o) => (
                   <div key={o.registration_id} className="flex min-h-12 items-center gap-3 border-t border-stone-border text-sm">
                     {/* The same person panel as People and Requests. */}
-                    <Link href={`/admin/camp/${campId}/people?person=${o.registration_id}`} className="flex flex-1 items-center gap-1.5 underline-offset-[3px] hover:underline">
+                    <PersonLink id={o.registration_id} className="flex flex-1 items-center gap-1.5 underline-offset-[3px] hover:underline">
                       <Arrived on={!!o.checked_in} />
                       {o.full_name}
-                    </Link>
+                    </PersonLink>
                     <button
                       type="button"
                       disabled={pending}

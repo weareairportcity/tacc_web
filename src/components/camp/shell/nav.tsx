@@ -8,6 +8,7 @@ import type { FoundPerson } from "@/lib/camp/reports";
 import { cn } from "@/lib/utils";
 import { STATUS_COLOR, STATUS_WORD } from "../ui";
 import { findPeopleAction } from "@/app/admin/camp/actions";
+import { openPersonHref } from "./PersonOnThisPage";
 
 /**
  * Commune's coordinator navigation: a rail on wide screens, a bottom bar on
@@ -163,6 +164,7 @@ export function BottomBar({ base, leader, pastor = false, medical = false, reque
  */
 export function FindPerson({ base, campId, leader, className, autoFocus }: { base: string; campId: string; leader: boolean; className?: string; autoFocus?: boolean }) {
   const router = useRouter();
+  const pathname = usePathname();
   const ref = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState("");
   const [found, setFound] = useState<FoundPerson[]>([]);
@@ -206,7 +208,7 @@ export function FindPerson({ base, campId, leader, className, autoFocus }: { bas
     setOpen(false);
     setTerm("");
     ref.current?.blur();
-    if (person && !leader) router.push(`${base}/people?person=${person.id}`);
+    if (person && !leader) router.push(openPersonHref(pathname, new URLSearchParams(window.location.search), base, person.id), { scroll: false });
     else router.push(`${base}/people${q ? `?q=${encodeURIComponent(person?.full_name ?? q)}` : ""}`);
   };
 

@@ -9,6 +9,7 @@ import { listBulkPayments } from "@/lib/camp/reports";
 import { formatDate, headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
 import { ExpressPayCheck } from "./ExpressPayCheck";
+import { PersonLink } from "@/components/camp/shell/PersonOnThisPage";
 
 const FLAG_WORDS: Record<string, string> = {
   amount_mismatch: "paid the wrong amount",
@@ -48,13 +49,13 @@ export default async function MoneyPage({ params }: { params: Promise<{ campId: 
         <Section title={`To look at · ${flagged.length}`}>
           {flagged.map((p) => (
             <li key={p.id} className="border-t border-stone-border first:border-t-0">
-              <Link href={`${base}/people?person=${p.registration_id}`} className="cm-row flex min-h-[52px] items-center gap-3 px-4 py-2.5 text-sm">
+              <PersonLink id={p.registration_id} className="cm-row flex min-h-[52px] items-center gap-3 px-4 py-2.5 text-sm">
                 <AlertTriangle className="h-[18px] w-[18px] flex-none" strokeWidth={1.6} aria-hidden="true" />
                 <span className="flex-1">
                   <strong className="font-medium">{p.full_name}</strong> {FLAG_WORDS[p.flag ?? ""] ?? p.flag} · {formatCedis(p.charged_pesewas)}
                 </span>
                 <ChevronRight className="h-4 w-4 text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
-              </Link>
+              </PersonLink>
             </li>
           ))}
         </Section>

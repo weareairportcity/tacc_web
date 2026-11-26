@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../access";
 import { APP_STATE_SQL, type AppState } from "@/lib/camp/app-first";
 import { SummaryButton } from "./SummaryButton";
+import { PersonLink } from "@/components/camp/shell/PersonOnThisPage";
 
 /** "ama.mensah@…" → "Ama". */
 const firstName = (email: string) => {
@@ -285,14 +286,14 @@ export default async function Today({ params }: { params: Promise<{ campId: stri
             <ul className="flex flex-col text-sm">
               {t.latestPayments.map((p) => (
                 <li key={`${p.registration_id}.${p.paid_at}`} className="border-t border-stone-border first:border-t-0">
-                  <Link href={`${people}?person=${p.registration_id}`} className="cm-row -mx-2 flex min-h-10 items-center gap-3 rounded-[6px] px-2">
+                  <PersonLink id={p.registration_id} className="cm-row -mx-2 flex min-h-10 items-center gap-3 rounded-[6px] px-2">
                     <span className="flex-1 truncate">
                       {p.full_name}
                       {p.by && <span className="text-warm-gray"> · {p.by === "coordinator" ? "by a coordinator" : `by ${p.by}`}</span>}
                     </span>
                     <span className="tabular-nums">{cedis(p.amount_pesewas)}</span>
                     <span className="w-12 text-right text-xs text-warm-gray">{since(p.paid_at)}</span>
-                  </Link>
+                  </PersonLink>
                 </li>
               ))}
             </ul>

@@ -9,6 +9,7 @@ import type { AppState } from "@/lib/camp/app-first";
 import { APP_STATE_WORDS } from "@/lib/camp/app-words";
 import { Legend, StackedBar, headlineClass, inputClass, type BarPart } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
+import { PersonLink } from "@/components/camp/shell/PersonOnThisPage";
 
 const ORDER: AppState[] = ["on", "installed", "none", "texts"];
 const ICON: Record<AppState, typeof Bell> = { on: Bell, installed: BellOff, none: Smartphone, texts: MessageSquare };
@@ -111,7 +112,7 @@ export function AppList({ campId, required, people, team = [] }: { campId: strin
             const Icon = ICON[p.state];
             return (
               <li key={p.id} className="border-t border-stone-border first:border-t-0">
-                <Link href={`${base}/people?person=${p.id}`} className="cm-row flex min-h-[60px] items-center gap-3.5 px-4 py-2.5">
+                <PersonLink id={p.id} className="cm-row flex min-h-[60px] items-center gap-3.5 px-4 py-2.5">
                   <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-full", p.state === "on" ? "bg-[#e7f4e7] text-[#0b5e0b]" : "bg-stone-canvas text-[#57534e]")}>
                     <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
                   </span>
@@ -123,7 +124,7 @@ export function AppList({ campId, required, people, team = [] }: { campId: strin
                   </span>
                   <span className="hidden text-[13px] text-warm-gray sm:block">{p.fellowship}</span>
                   <ChevronRight className="h-4 w-4 flex-none text-ash-gray" strokeWidth={1.8} aria-hidden="true" />
-                </Link>
+                </PersonLink>
               </li>
             );
           })}
