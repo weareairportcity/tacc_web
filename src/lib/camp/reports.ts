@@ -651,6 +651,7 @@ export async function listHistory(campId: string, filters: HistoryFilters): Prom
        NULLIF(COALESCE(
          (SELECT full_name FROM camp_registrations WHERE id = l.entity_id),
          (SELECT r.full_name FROM camp_payments p JOIN camp_registrations r ON r.id = p.registration_id WHERE p.id = l.entity_id),
+         (SELECT r.full_name FROM camp_complaints c JOIN camp_registrations r ON r.id = c.registration_id WHERE c.id = l.entity_id),
          (SELECT full_name FROM camp_registrations WHERE id = substr(l.actor, 10) AND l.actor LIKE 'attendee:%'),
          (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.after_json, '$.registration_id')),
          (SELECT full_name FROM camp_registrations WHERE id = json_extract(l.before_json, '$.registration_id'))

@@ -21,7 +21,7 @@ export default async function ComplaintsPage({ params, searchParams }: { params:
   const leader = staff.role === "leader";
   if (leader && camp.status === "draft") notFound();
   const { c } = await searchParams;
-  const rows = await listComplaints(camp.id, scopeFor(staff));
+  const rows = await listComplaints(camp.id, scopeFor(staff), undefined, staff.email);
   return (
     <div className="flex flex-col gap-5">
       <h1 className={`${headlineClass} text-[34px]`}>Complaints</h1>

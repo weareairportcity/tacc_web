@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createComplaint, listComplaints, listMyComplaints, openComplaintCount, resolveComplaint } from "@/lib/camp/complaints";
+import { createComplaint, listComplaints, listMyComplaints, markComplaintRead, openComplaintCount, resolveComplaint, unreadComplaints } from "@/lib/camp/complaints";
 import { listHistory } from "@/lib/camp/reports";
 import { getRegistration, register } from "@/lib/camp/registrations";
 import { ACTOR, attendee, openCamp } from "./helpers";
@@ -56,5 +56,25 @@ describe("complaints", () => {
     await expect(createComplaint(ama, "  ")).rejects.toThrow("what the problem is");
     for (let i = 0; i < 5; i++) await createComplaint(ama, `Problem number ${i}`);
     await expect(createComplaint(ama, "One more")).rejects.toThrow("wait a little");
+  });
+
+  it("count as unread for each person until they open it, and History says who it was from", async () => {
+    const { camp, roomTypeId } = await openCamp();
+    const ama = await person(camp, roomTypeId, "Ama Mensah", "Qadash");
+    const id = await createComplaint(ama, "The tap in our room is broken");
+    expect(await unreadComplaints(camp.id, ACTOR)).toBe(1);
+    expect((await listComplaints(camp.id, { kind: "all" }, undefined, ACTOR))[0].unread).toBe(true);
+
+    await markComplaintRead(ACTOR, id);
+    expect(await unreadComplaints(camp.id, ACTOR)).toBe(0);
+    // Someone else still has it unread, and a leader of another fellowship can't mark it.
+    expect(await unreadComplaints(camp.id, "other@test.local")).toBe(1);
+    await markComplaintRead("leader:fellowship:Chosen", id, { kind: "fellowship", value: "Chosen" });
+    expect(await unreadComplaints(camp.id, "leader:fellowship:Chosen", { kind: "fellowship", value: "Chosen" })).toBe(0);
+
+    await resolveComplaint(ACTOR, id, "Plumber came");
+    const entry = (await listHistory(camp.id, {})).find((e) => e.action === "complaint.resolve")!;
+    expect([entry.actor, entry.person, entry.note]).toEqual([ACTOR, "Ama Mensah", "(Plumber came)"]);
+    expect(await unreadComplaints(camp.id, "other@test.local")).toBe(0);
   });
 });

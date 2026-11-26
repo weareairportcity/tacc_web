@@ -14,6 +14,8 @@ import { CampError, type Registration } from "./types";
  */
 
 export type Complaint = {
+  /** This viewer hasn't opened it yet. Only set when a viewer was given. */
+  unread?: boolean;
   id: string;
   created_at: string;
   registration_id: string;
@@ -52,14 +54,37 @@ export async function createComplaint(me: Registration, rawBody: string, photoUr
   return id;
 }
 
-/** Newest first. Leaders see only their own people's. */
-export function listComplaints(campId: string, scope: Scope = { kind: "all" }, status?: "open" | "resolved") {
+/** Newest first. Leaders see only their own people's. `viewer`: marks which this person hasn't opened. */
+export async function listComplaints(campId: string, scope: Scope = { kind: "all" }, status?: "open" | "resolved", viewer?: string) {
   const s = scopeSql(scope);
-  return query<Complaint>(
+  const rows = await query<Complaint>(
     "app",
     `${SELECT} WHERE c.camp_id = ?${s.sql}${status ? " AND c.status = ?" : ""} ORDER BY c.created_at DESC LIMIT 300`,
     [checkId(campId, "camp"), ...s.params, ...(status ? [status] : [])],
   );
+  if (!viewer) return rows;
+  const read = new Set((await query<{ complaint_id: string }>("app", "SELECT complaint_id FROM camp_complaint_reads WHERE viewer = ? AND complaint_id IN (SELECT c.id FROM camp_complaints c WHERE c.camp_id = ?)", [viewer, campId])).map((r) => r.complaint_id));
+  return rows.map((r) => ({ ...r, unread: r.status === "open" && !read.has(r.id) }));
+}
+
+/** Open complaints this person hasn't opened: the badge. */
+export async function unreadComplaints(campId: string, viewer: string, scope: Scope = { kind: "all" }) {
+  const s = scopeSql(scope);
+  const [row] = await query<{ n: number }>(
+    "app",
+    `SELECT COUNT(*) AS n FROM camp_complaints c JOIN camp_registrations r ON r.id = c.registration_id
+     WHERE c.camp_id = ? AND c.status = 'open'${s.sql}
+       AND NOT EXISTS (SELECT 1 FROM camp_complaint_reads x WHERE x.complaint_id = c.id AND x.viewer = ?)`,
+    [checkId(campId, "camp"), ...s.params, viewer],
+  );
+  return row?.n ?? 0;
+}
+
+/** They opened it. Only for complaints they're allowed to see. */
+export async function markComplaintRead(viewer: string, id: string, scope: Scope = { kind: "all" }) {
+  const [c] = await query<Complaint>("app", `${SELECT} WHERE c.id = ?`, [checkId(id, "complaint")]);
+  if (!c || !inScope(c, scope)) return;
+  await query("app", "INSERT INTO camp_complaint_reads (viewer, complaint_id) VALUES (?, ?) ON CONFLICT DO NOTHING", [viewer, id]);
 }
 
 export function listMyComplaints(registrationId: string) {
@@ -86,7 +111,7 @@ export async function resolveComplaint(actor: string, id: string, note = "", sco
       sql: "UPDATE camp_complaints SET status = 'resolved', resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), resolved_by = ?, resolution_note = ? WHERE id = ? AND status = 'open' RETURNING id",
       params: [actor, text, c.id],
     },
-    auditStatement({ actor, campId: c.camp_id, action: "complaint.resolve", entity: "complaint", entityId: c.id, after: { note: text || undefined }, ifChanged: true }),
+    auditStatement({ actor, campId: c.camp_id, action: "complaint.resolve", entity: "complaint", entityId: c.id, after: { note: text ? `(${text})` : undefined }, ifChanged: true }),
   ]);
   if (!results[0].results.length) throw new CampError("That one is already resolved.");
   const reg = await getRegistration(c.registration_id);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Clock } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
@@ -11,7 +11,7 @@ import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { actorName } from "@/lib/camp/history-words";
 import type { Complaint } from "@/lib/camp/complaints";
 import { cn } from "@/lib/utils";
-import { resolveComplaintAction } from "../../actions";
+import { readComplaintAction, resolveComplaintAction } from "../../actions";
 
 /** Ghana time is UTC. */
 const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC" });
@@ -29,10 +29,21 @@ export function ComplaintsList({ campId, rows, start, leader }: { campId: string
   const [error, setError] = useState("");
   const [pending, begin] = useOneAtATime();
 
+  // Opened from a notification: it counts as read.
+  useEffect(() => {
+    const c = rows.find((r) => r.id === start);
+    if (c?.unread) void readComplaintAction(campId, c.id).then(() => router.refresh());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const counts = useMemo(() => ({ open: rows.filter((r) => r.status === "open").length, resolved: rows.filter((r) => r.status === "resolved").length, all: rows.length }), [rows]);
   const shown = rows.filter((r) => filter === "all" || r.status === filter);
   const current = rows.find((r) => r.id === openId) ?? null;
 
+  const open = (c: Complaint) => {
+    setOpenId(c.id);
+    if (c.unread) void readComplaintAction(campId, c.id).then(() => router.refresh());
+  };
   const close = () => {
     setOpenId(null);
     setNote("");
@@ -71,14 +82,14 @@ export function ComplaintsList({ campId, rows, start, leader }: { campId: string
         <ul className="overflow-hidden rounded-[10px] border border-stone-border bg-white shadow-seline-card">
           {shown.map((c) => (
             <li key={c.id} className="border-t border-stone-border first:border-t-0">
-              <button type="button" onClick={() => setOpenId(c.id)} className="cm-row flex w-full items-start gap-3 px-4 py-3.5 text-left text-sm">
+              <button type="button" onClick={() => open(c)} className="cm-row flex w-full items-start gap-3 px-4 py-3.5 text-left text-sm">
                 <span
                   className={cn("mt-1.5 h-2 w-2 flex-none rounded-full", c.status === "open" ? "bg-cyan-signal" : "bg-st-paid")}
                   aria-label={c.status === "open" ? "Open" : "Resolved"}
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex items-baseline justify-between gap-3">
-                    <span className="truncate font-medium">{c.full_name}</span>
+                    <span className={cn("truncate", c.unread ? "font-semibold" : "font-medium")}>{c.full_name}{c.unread && <span className="ml-2 rounded-full bg-cyan-signal px-1.5 py-0.5 align-middle text-[10px] font-semibold text-ink-black">New</span>}</span>
                     <span className="flex-none text-[13px] tabular-nums text-warm-gray">{short(c.created_at)}</span>
                   </span>
                   <span className="line-clamp-2 leading-snug text-[#57534e]">{c.body}</span>

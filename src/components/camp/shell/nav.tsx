@@ -59,7 +59,7 @@ function useActive(base: string) {
   return (path: string) => (path === "" ? pathname === base : pathname.startsWith(base + path));
 }
 
-export function Rail({ base, leader, pastor = false, medical = false, requests }: { base: string; leader: boolean; pastor?: boolean; medical?: boolean; requests: number }) {
+export function Rail({ base, leader, pastor = false, medical = false, requests, complaints = 0 }: { base: string; leader: boolean; pastor?: boolean; medical?: boolean; requests: number; complaints?: number }) {
   const active = useActive(base);
   const link = ({ path, label, icon: Icon }: Item) => {
     const on = active(path);
@@ -79,6 +79,12 @@ export function Rail({ base, leader, pastor = false, medical = false, requests }
           <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-signal px-1.5 text-[11px] font-semibold text-ink-black">
             {requests}
             <span className="sr-only"> waiting</span>
+          </span>
+        )}
+        {path === "/complaints" && complaints > 0 && (
+          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-signal px-1.5 text-[11px] font-semibold text-ink-black">
+            {complaints}
+            <span className="sr-only"> unread</span>
           </span>
         )}
       </Link>
@@ -107,9 +113,9 @@ export function Rail({ base, leader, pastor = false, medical = false, requests }
         <summary className="cm-hover flex h-9 cursor-pointer list-none items-center gap-2 rounded-[10px] px-3 text-[13px] font-medium text-warm-gray [&::-webkit-details-marker]:hidden">
           <Ellipsis className="h-4 w-4" strokeWidth={1.6} aria-hidden="true" />
           More
-          {requests > 0 && (
+          {requests + complaints > 0 && (
             <span className="ml-auto h-2 w-2 rounded-full bg-cyan-signal group-open:hidden">
-              <span className="sr-only">{requests} requests waiting</span>
+              <span className="sr-only">{requests} requests waiting, {complaints} unread complaints</span>
             </span>
           )}
         </summary>
@@ -125,7 +131,7 @@ export function Rail({ base, leader, pastor = false, medical = false, requests }
   );
 }
 
-export function BottomBar({ base, leader, pastor = false, medical = false, requests }: { base: string; leader: boolean; pastor?: boolean; medical?: boolean; requests: number }) {
+export function BottomBar({ base, leader, pastor = false, medical = false, requests, complaints = 0 }: { base: string; leader: boolean; pastor?: boolean; medical?: boolean; requests: number; complaints?: number }) {
   const active = useActive(base);
   const items = medical ? MEDICAL_NAV : pastor ? PASTOR_NAV : leader ? LEADER_NAV : [...NAV.filter((n) => BAR.includes(n.path)), { path: "/more", label: "More", icon: Ellipsis }];
   const moreActive = !leader && !pastor && !medical && NAV.some((n) => !BAR.includes(n.path) && active(n.path));
@@ -147,9 +153,9 @@ export function BottomBar({ base, leader, pastor = false, medical = false, reque
               <Icon className="h-5 w-5" strokeWidth={1.6} aria-hidden="true" />
             </span>
             {label}
-            {path === "/more" && requests > 0 && (
+            {((path === "/more" && requests + complaints > 0) || (path === "/complaints" && complaints > 0)) && (
               <span className="absolute right-[calc(50%-22px)] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-cyan-signal">
-                <span className="sr-only">{requests} requests waiting</span>
+                <span className="sr-only">{path === "/more" ? `${requests} requests waiting, ${complaints} unread complaints` : `${complaints} unread complaints`}</span>
               </span>
             )}
           </Link>

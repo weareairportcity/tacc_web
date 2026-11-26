@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BookOpen, Bus, ChevronRight, Megaphone, Clock, CreditCard, HeartPulse, Inbox, MessageSquare, MessageSquareHeart, Settings, Smartphone } from "lucide-react";
 import { ID } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
+import { unreadComplaints } from "@/lib/camp/complaints";
 import { SignOutButton } from "@/components/camp/SignOutButton";
 import { headlineClass } from "@/components/camp/ui";
 import { NoAccess, pageStaff } from "../../access";
@@ -13,12 +14,12 @@ export default async function MorePage({ params }: { params: Promise<{ campId: s
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
-  const { requests } = await navCounts(campId);
+  const [{ requests }, complaints] = await Promise.all([navCounts(campId), unreadComplaints(campId, staff.email)]);
   const base = `/admin/camp/${campId}`;
   const items = [
     { href: `${base}/requests`, icon: Inbox, label: "Requests", count: requests },
     { href: `${base}/arrivals`, icon: Bus, label: "Arrivals", count: 0 },
-    { href: `${base}/complaints`, icon: Megaphone, label: "Complaints", count: 0 },
+    { href: `${base}/complaints`, icon: Megaphone, label: "Complaints", count: complaints },
     { href: `${base}/money`, icon: CreditCard, label: "Money", count: 0 },
     { href: `${base}/app`, icon: Smartphone, label: "The app", count: 0 },
     { href: `${base}/health`, icon: HeartPulse, label: "Health", count: 0 },

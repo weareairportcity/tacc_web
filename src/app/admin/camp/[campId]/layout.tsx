@@ -3,7 +3,8 @@ import { staffNotifyPrefsAction, staffPushRemoveAction, staffPushSubscribeAction
 import Link from "next/link";
 import { Check, ChevronDown } from "lucide-react";
 import { getCamp, ID, listCamps } from "@/lib/camp/camps";
-import { navCounts } from "@/lib/camp/reports";
+import { navCounts, scopeFor } from "@/lib/camp/reports";
+import { unreadComplaints } from "@/lib/camp/complaints";
 import { CommuneLogo } from "@/components/camp/brand";
 import { CampLogo } from "@/components/camp/photos";
 import { BottomBar, FindPerson, PhoneSearch, Rail } from "@/components/camp/shell/nav";
@@ -43,11 +44,12 @@ export default async function CampShell({ children, params }: { children: React.
         {gate}
       </ToastProvider>
     );
-  const [counts, camps, open, unread] = await Promise.all([
+  const [counts, camps, open, unread, complaints] = await Promise.all([
     leader || pastor || medical ? { requests: 0 } : navCounts(camp.id),
     listCamps(),
     listMyOpenBulkPayments(camp.id, staff.email).catch(() => []),
     (async () => unreadCount(teamOwner(staff)))().catch(() => 0),
+    pastor || medical ? 0 : unreadComplaints(camp.id, staff.email, scopeFor(staff)).catch(() => 0),
   ]);
   // The leaders' side has its own address (see proxy.ts).
   const home = leaderSide ? "/leaders" : "/admin/camp";
@@ -89,7 +91,7 @@ export default async function CampShell({ children, params }: { children: React.
             <CommuneLogo size={26} label={null} />
             <span className="text-[15px] font-medium">commune</span>
           </Link>
-          <Rail base={base} leader={leader} pastor={pastor} medical={medical} requests={counts.requests} />
+          <Rail base={base} leader={leader} pastor={pastor} medical={medical} requests={counts.requests} complaints={complaints} />
           <span className="mt-auto flex flex-col gap-0.5 px-2 text-xs text-[#6f6863]">
             <span className="truncate">{leaderName(staff.email) ?? staff.email}</span>
             <SignOutButton leader={leaderSide} className="self-start text-[#6f6863]" />
@@ -115,7 +117,7 @@ export default async function CampShell({ children, params }: { children: React.
       {tracker}
       {/* On a computer nobody is made to, but they're asked to turn on notifications each visit. */}
       <NotifyPrompt who="staff" actions={{ save: staffPushSubscribeAction, remove: staffPushRemoveAction, prefs: staffNotifyPrefsAction }} />
-      <BottomBar base={base} leader={leader} pastor={pastor} medical={medical} requests={counts.requests} />
+      <BottomBar base={base} leader={leader} pastor={pastor} medical={medical} requests={counts.requests} complaints={complaints} />
     </ToastProvider>
   );
 }

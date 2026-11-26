@@ -41,7 +41,7 @@ import {
 } from "@/lib/camp/rooms";
 import { changeRoomType, movePayment, recordRefund } from "@/lib/camp/adjustments";
 import { cancelScheduled, scheduleMessage } from "@/lib/camp/scheduled";
-import { resolveComplaint } from "@/lib/camp/complaints";
+import { markComplaintRead, resolveComplaint } from "@/lib/camp/complaints";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
@@ -673,6 +673,16 @@ export async function resolveComplaintAction(campId: string, id: string, note: s
     revalidatePath(`/leaders/${String(campId)}/complaints`);
     return null;
   });
+}
+
+/** They opened a complaint: it stops counting as unread for them. */
+export async function readComplaintAction(campId: string, id: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    await markComplaintRead(staff.email, String(id), scopeFor(staff));
+    revalidatePath(`/admin/camp/${String(campId)}`, "layout");
+    return null;
+  }, { quiet: true });
 }
 
 /** Texts: cancel a scheduled message that hasn't gone yet. */
