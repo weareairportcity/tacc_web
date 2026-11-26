@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCampBoard, listRoomsWithOccupants } from "@/lib/camp/assignments";
 import { getCamp, ID } from "@/lib/camp/camps";
+import { listKeyBearers } from "@/lib/camp/key-bearers";
 import { listRoomSmsPending } from "@/lib/camp/room-sms";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { headlineClass } from "@/components/camp/ui";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { NoAccess, pageStaff } from "../../access";
 import { AllRooms } from "./AllRooms";
 import { AssignBoard } from "./AssignBoard";
+import { KeyBearers } from "./KeyBearers";
 import { RoomTypesTab } from "./RoomTypesTab";
 
 // Texting rooms sends one mNotify request per room, a few at a time.
@@ -17,6 +19,7 @@ export const maxDuration = 60;
 const TABS = [
   ["", "Place people"],
   ["all", "All rooms"],
+  ["keys", "Key bearers"],
   ["types", "Room types"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -46,7 +49,10 @@ export default async function RoomsPage({
 
   let body: React.ReactNode;
   if (tab === "types") body = <RoomTypesTab campId={camp.id} roomTypes={roomTypes} />;
-  else if (tab === "all") body = <AllRooms campId={camp.id} rooms={await listRoomsWithOccupants(camp.id)} roomTypes={roomTypes} />;
+  else if (tab === "keys") {
+    const k = await listKeyBearers(camp.id);
+    body = <KeyBearers rows={k.rows} empty={k.empty} />;
+  } else if (tab === "all") body = <AllRooms campId={camp.id} rooms={await listRoomsWithOccupants(camp.id)} roomTypes={roomTypes} />;
   else
     body = (
       <AssignBoard
@@ -67,6 +73,8 @@ export default async function RoomsPage({
         <h1 className={`${headlineClass} text-[34px] md:text-[40px]`}>
           {tab === "types" ? (
             "Room types"
+          ) : tab === "keys" ? (
+            "Key bearers"
           ) : tab === "all" ? (
             "All rooms"
           ) : !lanes.length ? (

@@ -2,7 +2,8 @@ import { batch, query, querySoon } from "@/lib/cf";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { inScope as personInScope, scopeSql, type Scope } from "./scope";
-import { shirtRefusal } from "./shirts";
+import { checkInRefusal, shirtRefusal } from "./shirts";
+import { roomOnCheckIn } from "./checkin-room";
 import { APP_STATE_SQL, type AppState } from "./app-first";
 import { CampError, type RegistrationStatus } from "./types";
 
@@ -147,7 +148,9 @@ export async function markScan(actor: string, campId: string, registrationId: st
   const person = await personFor(campId, registrationId, scope);
   if (person.status === "cancelled") throw new CampError(`${person.full_name}'s registration is cancelled.`);
   const done = mode === "checkin" ? person.checked_in_at : person.shirt_given_at;
-  if (done) return { person: forViewer(person, scope), already: true };
+  if (done) return { person: forViewer(person, scope), already: true, room: null };
+  // Only people who've paid in full check in (they're the ones who get a bed).
+  if (mode === "checkin" && person.status !== "fully_paid") throw new CampError(checkInRefusal(person.full_name, person.price_pesewas - person.paid_pesewas));
   if (mode === "shirt" && person.status !== "fully_paid") {
     const [camp] = await query<{ shirt_paid_only: number }>("app", "SELECT shirt_paid_only FROM camps WHERE id = ?", [campId]);
     if (camp?.shirt_paid_only) throw new CampError(shirtRefusal(person.full_name, person.price_pesewas - person.paid_pesewas));
@@ -174,7 +177,9 @@ export async function markScan(actor: string, campId: string, registrationId: st
       ifChanged: true,
     }),
   ]);
-  return { person: forViewer((await getArrival(person.id))!, scope), already: false };
+  // Checking in gives a bed: their own room if they have one, else one is found or opened for them.
+  const room = mode === "checkin" ? await roomOnCheckIn(actor, person.id) : null;
+  return { person: forViewer((await getArrival(person.id))!, scope), already: false, room };
 }
 
 export async function undoScan(actor: string, campId: string, registrationId: string, mode: ScanMode, scope: Scope = ALL) {

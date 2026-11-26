@@ -5,7 +5,7 @@ import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Camera, Check, ChevronRight, CircleAlert, CloudOff, Flashlight, HeartPulse, ScanLine, Search, Shirt, X } from "lucide-react";
 import type { Arrival, RosterPerson, ScanCounts, ScanMode } from "@/lib/camp/checkin";
 import { Busy } from "@/components/camp/brand";
-import { shirtRefusal } from "@/lib/camp/shirts";
+import { checkInRefusal, shirtRefusal } from "@/lib/camp/shirts";
 import { formatCedis } from "@/lib/camp/money";
 import { useToast } from "@/components/camp/toast";
 import { PersonCardSheet } from "@/components/camp/PersonCard";
@@ -15,7 +15,7 @@ import { arrivalsAction, findArrivalsAction, scanAction, scanCountsAction, undoS
 import { idOf, useOfflineScans, type Problem } from "./offline";
 
 type Result =
-  | { person: Arrival; already: boolean; mode: ScanMode }
+  | { person: Arrival; already: boolean; mode: ScanMode; warning?: string | null }
   // Kept on the phone with no signal. `person` is from the phone's copy of the list, if it knows them.
   | { kept: true; person: RosterPerson | null; already: boolean; key: string | null; mode: ScanMode }
   | { error: string };
@@ -197,6 +197,12 @@ export function CheckIn({
         setResult({ error: `${k.person.full_name}'s registration is cancelled.` });
         return;
       }
+      if (k.person && m === "checkin" && !k.already && k.person.status !== "fully_paid") {
+        if (k.key) offline.drop(k.key);
+        setResult({ error: checkInRefusal(k.person.full_name, k.person.price_pesewas - k.person.paid_pesewas) });
+        navigator.vibrate?.([80, 60, 80]);
+        return;
+      }
       if (k.person && m === "shirt" && shirtPaidOnly && !k.already && k.person.status !== "fully_paid") {
         if (k.key) offline.drop(k.key);
         setResult({ error: shirtRefusal(k.person.full_name, k.person.price_pesewas - k.person.paid_pesewas) });
@@ -227,7 +233,7 @@ export function CheckIn({
           navigator.vibrate?.([80, 60, 80]);
           return;
         }
-        setResult({ person: r.data.person, already: r.data.already, mode: m });
+        setResult({ person: r.data.person, already: r.data.already, mode: m, warning: r.data.room?.warning ?? null });
         if (!r.data.already) {
           bump(m, 1);
           moved(r.data.person, m, true);
@@ -854,6 +860,7 @@ function ResultCard({
             <dt className="text-xs text-warm-gray">{leader ? "Fellowship" : "With"}</dt>
             <dd className="leading-snug">{leader ? p.fellowship : (p.roommates ?? "—")}</dd>
           </div>
+          {"warning" in result && result.warning && <p className="col-span-2 rounded-[10px] bg-stone-canvas p-3 text-sm">{result.warning}</p>}
         </dl>
       )}
       <p className="flex flex-wrap items-center gap-2 text-sm">

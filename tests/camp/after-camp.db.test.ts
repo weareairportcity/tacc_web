@@ -155,8 +155,9 @@ describe("T-shirts and payment", () => {
     expect(camp.shirt_paid_only).toBe(1);
     await expect(markScan(ACTOR, camp.id, id, "shirt")).rejects.toThrow("No T-shirt yet: Kojo still has GHS 600.00 outstanding.");
     expect((await markScan(ACTOR, camp.id, paid.id, "shirt")).already).toBe(false);
-    // Checking in isn't affected.
-    expect((await markScan(ACTOR, camp.id, id, "checkin")).already).toBe(false);
+    // Only people who've paid in full check in.
+    await expect(markScan(ACTOR, camp.id, id, "checkin")).rejects.toThrow("Can't check Kojo in yet: GHS 600.00 is still outstanding.");
+    expect((await markScan(ACTOR, camp.id, paid.id, "checkin")).already).toBe(false);
     await setShirtPaidOnly(ACTOR, camp.id, false);
     expect((await markScan(ACTOR, camp.id, id, "shirt")).already).toBe(false);
     expect((await getCamp(camp.id))?.shirt_paid_only).toBe(0);
