@@ -121,3 +121,34 @@ export const cancelled = (r: { id: string; camp_id: string; full_name: string; p
 export const requestAnswered = (registrationId: string, slug: string, text: string) =>
   notifyAttendee(registrationId, "request_answered", { title: "Your request was answered", body: text, url: `/camps/${slug}/me` });
 
+
+/** Someone changed fellowship: the leaders they've joined and the ones they've left are told. App only. */
+export async function fellowshipMoved(r: { id: string; camp_id: string; full_name: string }, from: string, to: string) {
+  await send({
+    to: "leaders",
+    kind: "moved",
+    registration_id: r.id,
+    from_fellowship: from,
+    title: `${r.full_name} joined ${to}`,
+    body: `${r.full_name} moved to ${to} from ${from}.`,
+    left_title: `${r.full_name} left ${from}`,
+    left_body: `${r.full_name} moved from ${from} to ${to}.`,
+    url: `/leaders/${r.camp_id}/people?person=${r.id}`,
+  });
+}
+
+/** A payment was moved to another person: both are told (text if they have a number, else the app), leaders and coordinators too. */
+export async function paymentMoved(o: { from_id: string; to_id: string; reference: string; amount_pesewas: number; by: string; camp_id: string }) {
+  await send({
+    to: "moves",
+    kind: "payment_moved",
+    from_id: o.from_id,
+    to_id: o.to_id,
+    reference: o.reference,
+    amount_pesewas: o.amount_pesewas,
+    by: o.by,
+    title: "A payment was moved",
+    body: "A payment was moved to another person.",
+    url: `/admin/camp/${o.camp_id}/people?person=${o.to_id}`,
+  });
+}

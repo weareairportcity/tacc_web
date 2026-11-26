@@ -7,6 +7,7 @@ import { getPrivateDetails } from "@/lib/camp/profile";
 import { todayInGhana } from "@/lib/camp/registrations";
 import { campAndAttendee } from "@/lib/camp/session";
 import { Intro } from "@/components/camp/subpage";
+import { PFCC_GROUPS } from "@/lib/fellowships";
 import { DetailsForm } from "./DetailsForm";
 
 export default async function DetailsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -39,6 +40,7 @@ export default async function DetailsPage({ params }: { params: Promise<{ slug: 
           health_notes: details.health_notes,
           health_none: details.health_none === 1,
         }}
+        fellowship={{ now: me.fellowship, groups: PFCC_GROUPS.map((g) => ({ pfcc: g.pfcc, names: g.fellowships.map((f) => f.name) })) }}
         cancelled={me.status === "cancelled"}
         healthAgreed={!!details.health_consent_at}
         shirtsOn={camp.shirts_on !== 0}

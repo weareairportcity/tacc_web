@@ -39,7 +39,7 @@ import {
   updateRoom,
   updateRoomType,
 } from "@/lib/camp/rooms";
-import { changeRoomType, recordRefund } from "@/lib/camp/adjustments";
+import { changeRoomType, movePayment, recordRefund } from "@/lib/camp/adjustments";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
@@ -278,6 +278,16 @@ export async function cancelRegistrationAction(id: string) {
 }
 
 // Each returns a warning for the coordinator, or null.
+
+/** Moves a payment that went onto the wrong person to the right one. Both balances follow. */
+export async function movePaymentAction(campId: string, paymentId: string, toRegistrationId: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await once(staff.email, "movePaymentAction", [campId, paymentId, toRegistrationId]);
+    await personIn(campId, String(toRegistrationId));
+    return await movePayment(staff.email, String(paymentId), String(toRegistrationId));
+  });
+}
 
 export async function recordRefundAction(registrationId: string, amountCedis: string, reference: string, note: string) {
   return run(async () => {

@@ -164,7 +164,7 @@ export type RegistrationInput = {
   health_consent?: boolean;
 };
 
-/** Details an attendee can change themselves. Phone, gender and fellowship are a coordinator's. */
+/** Details an attendee can change themselves. Phone is a coordinator's; gender and fellowship have their own sections. */
 export type ProfileInput = {
   full_name: string;
   email: string;

@@ -3,7 +3,7 @@ import { card, tellGroups, type TgKind } from "./telegram";
 import { HttpError, json, nowIso, readJson, UUID, type AppEnv } from "./util";
 import { pushConfigured, sendPush, type PushMessage } from "./webpush";
 import { forAccount } from "./account-url";
-import { groupForFellowship } from "../../../src/lib/fellowships";
+import { groupForFellowship, pfccForFellowship } from "../../../src/lib/fellowships";
 
 /**
  * Commune's notifications, in plain words.
@@ -151,6 +151,112 @@ export async function toLeaders(env: AppEnv, registrationId: string, kind: "regi
   } catch (err) {
     console.error("notify leaders", kind, err);
     return 0;
+  }
+}
+
+/** The leader codes that look after a fellowship: its own, its PFCC's and its group's. */
+async function leaderOwners(env: AppEnv, fellowship: string): Promise<string[]> {
+  const { results } = await env.APP_DB.prepare(
+    `SELECT 'leader:' || id AS owner FROM camp_leader_codes
+     WHERE revoked_at IS NULL AND ((scope_kind = 'fellowship' AND scope_value = ?) OR (scope_kind = 'pfcc' AND scope_value = ?) OR (scope_kind = 'group' AND scope_value = ?))`,
+  )
+    .bind(fellowship, pfccForFellowship(fellowship) ?? "", groupForFellowship(fellowship) ?? "")
+    .all<{ owner: string }>();
+  return (results ?? []).map((r) => r.owner);
+}
+
+/**
+ * Someone changed fellowship: the leaders they've joined are told, and the
+ * ones they've left (unless they lead both, e.g. the same group). Never throws.
+ */
+export async function movedFellowship(env: AppEnv, registrationId: string, from: string, m: { to: { title: string; body: string }; left: { title: string; body: string } }) {
+  try {
+    const r = await env.APP_DB.prepare("SELECT camp_id, fellowship FROM camp_registrations WHERE id = ?").bind(registrationId).first<{ camp_id: string; fellowship: string }>();
+    if (!r) return { joined: 0, left: 0 };
+    const [now, before] = await Promise.all([leaderOwners(env, r.fellowship), leaderOwners(env, from)]);
+    const gone = before.filter((o) => !now.includes(o));
+    const [joined, left] = await Promise.all([
+      now.length ? pushToOwners(env, now, "registration", { ...m.to, url: `/leaders/${r.camp_id}/people?person=${registrationId}`, tag: `leader-moved:${registrationId}` }) : 0,
+      gone.length ? pushToOwners(env, gone, "registration", { ...m.left, url: `/leaders/${r.camp_id}/people`, tag: `leader-left:${registrationId}` }) : 0,
+    ]);
+    await toStaff(env, "registration", {
+      title: "Fellowship changed",
+      body: m.to.body,
+      url: `/admin/camp/${r.camp_id}/people?person=${registrationId}`,
+      lines: [
+        ["Person", m.to.title.replace(/ joined .*$/, "")],
+        ["From", from],
+        ["To", r.fellowship],
+      ],
+    });
+    return { joined, left };
+  } catch (err) {
+    console.error("notify moved", err);
+    return { joined: 0, left: 0 };
+  }
+}
+
+/**
+ * A coordinator moved a payment from one person to another. Both are told:
+ * a text if they have a number, the app notification either way. The leaders
+ * of both fellowships (and their groups and PFCCs) get an app notification,
+ * and the coordinators get the app notification and Telegram. Never throws.
+ */
+export async function paymentMoved(env: AppEnv, o: { from_id: string; to_id: string; reference: string; amount_pesewas: number; by: string }) {
+  try {
+    const [from, to] = await Promise.all([person(env, o.from_id), person(env, o.to_id)]);
+    const fromFell = await env.APP_DB.prepare("SELECT fellowship FROM camp_registrations WHERE id = ?").bind(o.from_id).first<{ fellowship: string }>();
+    const toFell = await env.APP_DB.prepare("SELECT fellowship FROM camp_registrations WHERE id = ?").bind(o.to_id).first<{ fellowship: string }>();
+    if (!from || !to || !fromFell || !toFell) return;
+    const amount = cedis(o.amount_pesewas);
+    const outstanding = (x: PaidPerson) => Math.max(0, x.price_pesewas - x.paid_pesewas);
+    const today = nowIso().slice(0, 10);
+
+    const gets = async (id: string, x: PaidPerson, title: string, body: string, text: string, url: string) => {
+      await toAttendee(env, id, "payment_received", { title, body, url });
+      if (/^233\d{9}$/.test(x.phone) && today <= x.ends_on) {
+        if (await sendSms(env, x.phone, text, "Commune")) await logCampSms(env, x.camp_id, "payment_moved", 1, smsParts(text));
+      }
+    };
+    const receipt = receiptUrl(env, o.reference);
+    await Promise.all([
+      gets(
+        o.to_id,
+        to,
+        "Your payment was moved to you",
+        `Your ${amount} payment was on ${from.full_name}'s page by mistake. It's now on yours. Tap to see your receipt.`,
+        `Hi ${firstName(to.full_name)}, your ${amount} payment for ${to.camp_name} was on ${from.full_name}'s page by mistake. We've moved it to yours. You've now paid ${cedis(to.paid_pesewas)} of ${cedis(to.price_pesewas)}. Receipt: ${receipt} - The Airport City Church`,
+        `/camps/r/${encodeURIComponent(o.reference)}`,
+      ),
+      gets(
+        o.from_id,
+        from,
+        "A payment was moved off your page",
+        `The ${amount} on your page was ${to.full_name}'s payment, so we moved it to them. You have ${cedis(outstanding(from))} outstanding.`,
+        `Hi ${firstName(from.full_name)}, the ${amount} on your page was ${to.full_name}'s payment, so we moved it to them. You still have ${cedis(outstanding(from))} outstanding for ${from.camp_name}. Pay here: ${communeOrigin(env)}/camps/${from.slug}/pay - The Airport City Church`,
+        `/camps/${from.slug}/pay`,
+      ),
+    ]);
+
+    const owners = [...new Set([...(await leaderOwners(env, fromFell.fellowship)), ...(await leaderOwners(env, toFell.fellowship))])];
+    const body = `${amount} was moved from ${from.full_name} to ${to.full_name}.`;
+    const leaders = owners.length ? await pushToOwners(env, owners, "payment", { title: "A payment was moved", body, url: `/leaders/${from.camp_id}/people?person=${o.to_id}`, tag: `leader-pay-moved:${o.reference}` }) : 0;
+    await toStaff(env, "payment", {
+      title: "A payment was moved",
+      body,
+      url: `/admin/camp/${from.camp_id}/people?person=${o.to_id}`,
+      lines: [
+        ["Amount", amount],
+        ["From", `${from.full_name} (${fromFell.fellowship}) · ${cedis(outstanding(from))} outstanding now`],
+        ["To", `${to.full_name} (${toFell.fellowship}) · ${to.status === "fully_paid" ? "fully paid" : `${cedis(outstanding(to))} outstanding`}`],
+        ["Moved by", payerWords(o.by)],
+        ["Camp", from.camp_name],
+        ["Receipt no.", o.reference],
+      ],
+    });
+    return { leaders };
+  } catch (err) {
+    console.error("notify payment moved", err);
   }
 }
 
@@ -465,7 +571,7 @@ const ALL_KINDS: string[] = [...ATTENDEE_KINDS, "registration", "payment", "paym
 
 /** Events that happen on the Next side: registration, requests, cancellations, rooms. */
 export async function notifyEndpoint(request: Request, env: AppEnv) {
-  const b = await readJson<{ to?: unknown; kind?: unknown; registration_id?: unknown; owners?: unknown; title?: unknown; body?: unknown; url?: unknown; lines?: unknown }>(request);
+  const b = await readJson<{ to?: unknown; kind?: unknown; registration_id?: unknown; from_fellowship?: unknown; from_id?: unknown; to_id?: unknown; reference?: unknown; amount_pesewas?: unknown; by?: unknown; left_title?: unknown; left_body?: unknown; owners?: unknown; title?: unknown; body?: unknown; url?: unknown; lines?: unknown }>(request);
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const lines: Line[] = Array.isArray(b.lines)
     ? b.lines.slice(0, 14).map((l) => (typeof l === "string" ? text(l, 40) : Array.isArray(l) ? ([text(l[0], 40), text(l[1], 300)] as const) : null))
@@ -479,6 +585,14 @@ export async function notifyEndpoint(request: Request, env: AppEnv) {
         ? await toLeaders(env, b.registration_id, b.kind, { title: m.title, body: m.body, url: (campId) => `/leaders/${campId}/people?person=${b.registration_id}` })
         : 0;
     return json({ ...(await toStaff(env, b.kind, m)), leaders });
+  }
+  if (b.to === "moves" && b.kind === "payment_moved" && typeof b.from_id === "string" && UUID.test(b.from_id) && typeof b.to_id === "string" && UUID.test(b.to_id) && typeof b.reference === "string" && Number.isInteger(b.amount_pesewas)) {
+    await paymentMoved(env, { from_id: b.from_id, to_id: b.to_id, reference: text(b.reference, 80), amount_pesewas: b.amount_pesewas as number, by: text(b.by, 120) });
+    return json({ ok: true });
+  }
+  if (b.to === "leaders" && b.kind === "moved" && typeof b.registration_id === "string" && UUID.test(b.registration_id) && typeof b.from_fellowship === "string") {
+    const left = { title: text(b.left_title, 80) || m.title, body: text(b.left_body, 300) || m.body };
+    return json(await movedFellowship(env, b.registration_id, text(b.from_fellowship, 80), { to: { title: m.title, body: m.body }, left }));
   }
   if (b.to === "leaders" && b.kind === "messages" && Array.isArray(b.owners)) {
     // A coordinator's message to the leaders: app notifications only (leaders share a code, so there's no phone to text).

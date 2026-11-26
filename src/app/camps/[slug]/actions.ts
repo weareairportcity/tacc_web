@@ -12,6 +12,7 @@ import { allow, allowVisitor } from "@/lib/camp/rate-limit";
 import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
 import { assertReadyDetails, cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateProfile } from "@/lib/camp/profile";
+import { changeFellowship } from "@/lib/camp/fellowship";
 import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
 import { makeToken, readToken } from "@/lib/camp/tokens";
@@ -306,6 +307,11 @@ export async function changeMyGenderAction(slug: string, gender: Gender) {
     const r = await changeGender(`attendee:${me.id}`, me.id, gender, { attendee: true });
     return { group: r.group, room: r.oldRoom };
   });
+}
+
+/** Changes the attendee's own fellowship. Their leaders, People lists and texts follow. */
+export async function changeMyFellowshipAction(slug: string, fellowship: string) {
+  return mine(slug, (me) => changeFellowship(`attendee:${me.id}`, me.id, String(fellowship)));
 }
 
 export async function setAnyRoomAction(slug: string, anyRoom: boolean) {

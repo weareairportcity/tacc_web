@@ -20,9 +20,11 @@ import {
   changeGenderAction,
   changeRoomTypeAction,
   checkInAction,
+  findPeopleAction,
   genderRoomsAction,
   getPersonAction,
   messagePeopleAction,
+  movePaymentAction,
   openPaymentsForAction,
   payForPeopleAction,
   payLinkAction,
@@ -34,7 +36,7 @@ import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 
 type Data = Extract<Awaited<ReturnType<typeof getPersonAction>>, { ok: true }>["data"];
-type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel" | "message";
+type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel" | "message" | "movepay";
 
 const PAYMENT_WORDS = { pending: "Processing", success: "", failed: "Not completed" } as const;
 const ghanaPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
@@ -47,6 +49,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
   const [mode, setMode] = useState<Mode>("view");
   const [pending, start] = useOneAtATime();
   const [paying, setPaying] = useState(false);
+  const [moving, setMoving] = useState<{ id: string; amount: number } | null>(null);
   const [blockers, setBlockers] = useState<{ me: string; payments: OpenPayment[] } | null>(null);
 
   const load = (personId: string) =>
@@ -117,6 +120,19 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
           onCancel={() => setMode("view")}
           onSave={(gender, roomId) =>
             act(() => changeGenderAction(campId, data.person.id, gender, roomId), (w: string | null) => w ?? `${data.person.full_name} is now down as ${gender}`)
+          }
+        />
+      ) : mode === "movepay" && moving ? (
+        <MovePayment
+          campId={campId}
+          fromId={data.person.id}
+          from={data.person.full_name}
+          amount={moving.amount}
+          pending={pending}
+          error={error}
+          onCancel={() => setMode("view")}
+          onMove={(toId, toName) =>
+            act(() => movePaymentAction(campId, moving.id, toId), (w: { warning: string | null } | null) => w?.warning ?? `Moved ${formatCedis(moving.amount)} to ${toName}`)
           }
         />
       ) : mode === "message" ? (
@@ -289,16 +305,30 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
           <Section title="Payments">
             {data.payments.length === 0 && <p className="text-sm text-warm-gray">None yet.</p>}
             {data.payments.map((pay) => (
-              <Row
-                key={pay.id}
-                term={`${(pay.paid_at ?? pay.created_at).slice(0, 10)}${pay.payer_name ? ` · ${pay.payer_name}` : pay.bulk_id ? " · by a coordinator" : ""}`}
-                value={
-                  <span className={pay.status === "success" ? "" : "text-warm-gray"}>
-                    {formatCedis(pay.amount_pesewas)}
-                    {PAYMENT_WORDS[pay.status] && ` · ${PAYMENT_WORDS[pay.status]}`}
-                  </span>
-                }
-              />
+              <div key={pay.id}>
+                <Row
+                  term={`${(pay.paid_at ?? pay.created_at).slice(0, 10)}${pay.payer_name ? ` · ${pay.payer_name}` : pay.bulk_id ? " · by a coordinator" : ""}`}
+                  value={
+                    <span className={pay.status === "success" ? "" : "text-warm-gray"}>
+                      {formatCedis(pay.amount_pesewas)}
+                      {PAYMENT_WORDS[pay.status] && ` · ${PAYMENT_WORDS[pay.status]}`}
+                    </span>
+                  }
+                />
+                {pay.status === "success" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError("");
+                      setMoving({ id: pay.id, amount: pay.amount_pesewas });
+                      setMode("movepay");
+                    }}
+                    className="min-h-10 text-xs text-warm-gray underline underline-offset-[3px]"
+                  >
+                    Paid for someone else? Move to them
+                  </button>
+                )}
+              </div>
             ))}
             {data.refunds.map((f) => (
               <Row key={f.id} term={`${f.created_at.slice(0, 10)} · refund`} value={`− ${formatCedis(f.amount_pesewas)}`} />
@@ -683,5 +713,83 @@ function MessageOne({ data, pending, error, onCancel, onSend }: { data: Data; pe
         </button>
       </div>
     </form>
+  );
+}
+
+/** Moves one payment to the person it was really for. Search by name, pick them, confirm. */
+function MovePayment({
+  campId,
+  fromId,
+  from,
+  amount,
+  pending,
+  error,
+  onCancel,
+  onMove,
+}: {
+  campId: string;
+  fromId: string;
+  from: string;
+  amount: number;
+  pending: boolean;
+  error: string;
+  onCancel: () => void;
+  onMove: (toId: string, toName: string) => void;
+}) {
+  const [term, setTerm] = useState("");
+  const [found, setFound] = useState<{ id: string; full_name: string; fellowship: string; status: string }[]>([]);
+  const [chosen, setChosen] = useState<{ id: string; full_name: string } | null>(null);
+
+  useEffect(() => {
+    if (term.trim().length < 2) return;
+    let stale = false;
+    const t = setTimeout(() => {
+      findPeopleAction(campId, term).then((r) => {
+        if (!stale && r.ok) setFound(r.data.filter((x) => x.id !== fromId && x.status !== "cancelled"));
+      });
+    }, 250);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
+  }, [term, campId, fromId]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="rounded-[10px] bg-stone-canvas p-4 text-sm leading-relaxed">
+        Move {formatCedis(amount)} from {from} to the person who really paid or was paid for. The receipt goes with it. {from}&apos;s balance goes up by that amount and theirs goes down.
+      </p>
+      <Field label="Move it to" hint="Type their name.">
+        <input className={inputClass} value={term} onChange={(e) => { setTerm(e.target.value); setChosen(null); }} autoComplete="off" />
+      </Field>
+      {!chosen && term.trim().length >= 2 && found.length > 0 && (
+        <ul className="flex flex-col divide-y divide-stone-border rounded-[10px] border border-stone-border">
+          {found.map((x) => (
+            <li key={x.id}>
+              <button type="button" onClick={() => setChosen({ id: x.id, full_name: x.full_name })} className="flex min-h-11 w-full items-center justify-between gap-3 px-3.5 text-left text-sm">
+                <span className="font-medium">{x.full_name}</span>
+                <span className="text-warm-gray">{x.fellowship}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ErrorText>{error}</ErrorText>
+      {chosen ? (
+        <InlineConfirm
+          question={`Move ${formatCedis(amount)} to ${chosen.full_name}?`}
+          detail={`It leaves ${from} and counts towards ${chosen.full_name}. Logged in History.`}
+          confirmLabel="Yes, move it"
+          primary
+          pending={pending}
+          onCancel={() => setChosen(null)}
+          onConfirm={() => onMove(chosen.id, chosen.full_name)}
+        />
+      ) : (
+        <button type="button" onClick={onCancel} className="cm-press h-12 self-start rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
+          Cancel
+        </button>
+      )}
+    </div>
   );
 }

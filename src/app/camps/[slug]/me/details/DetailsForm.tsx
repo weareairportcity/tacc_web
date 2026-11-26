@@ -7,7 +7,7 @@ import { Check } from "lucide-react";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass, secondaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { changeMyGenderAction, updateMyDetailsAction } from "../../actions";
+import { changeMyFellowshipAction, changeMyGenderAction, updateMyDetailsAction } from "../../actions";
 import { DeleteMe } from "../DeleteMe";
 
 const fieldset = "m-0 flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card";
@@ -20,6 +20,8 @@ const Legend = ({ title, sub }: { title: string; sub: string }) => (
   </legend>
 );
 
+type FellowshipState = { now: string; groups: { pfcc: string; names: string[] }[] };
+
 type GenderState = { now: Gender; inGroup: boolean; room: string | null; canChange: boolean };
 
 export function DetailsForm({
@@ -28,6 +30,7 @@ export function DetailsForm({
   initial,
   cancelled,
   gender,
+  fellowship,
   healthAgreed,
   shirtsOn = true,
   required = false,
@@ -42,6 +45,7 @@ export function DetailsForm({
   initial: ProfileInput;
   cancelled: boolean;
   gender: GenderState;
+  fellowship: FellowshipState;
   /** They already ticked the health agreement; it isn't asked again. */
   healthAgreed: boolean;
   /** Emergency contact and a health answer are required for this camp. */
@@ -183,6 +187,7 @@ export function DetailsForm({
         )}
       </form>
 
+      {!cancelled && <FellowshipSection slug={slug} fellowship={fellowship} />}
       {!cancelled && <GenderSection slug={slug} gender={gender} />}
 
       <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
@@ -257,6 +262,93 @@ function GenderSection({ slug, gender }: { slug: string; gender: GenderState }) 
             Change to {to}
           </button>
         ))}
+    </section>
+  );
+}
+
+/** Fellowship, saved on its own after a confirm. Their leaders and the church's lists follow straight away. */
+function FellowshipSection({ slug, fellowship }: { slug: string; fellowship: FellowshipState }) {
+  const [now, setNow] = useState(fellowship.now);
+  const [pick, setPick] = useState(fellowship.now);
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const [pending, start] = useOneAtATime();
+
+  return (
+    <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
+      <h2 className="text-[15px] font-semibold">Fellowship</h2>
+      <p className="text-sm text-warm-gray">
+        You&apos;re in <span className="font-medium text-soot">{now}</span>. Your leaders and the camp lists follow your fellowship, so changing it moves you to the new leaders.
+      </p>
+      {done && (
+        <p role="status" className="cm-rise flex items-center gap-2 text-sm">
+          <Check className="h-4 w-4 text-st-paid" strokeWidth={2.4} aria-hidden="true" /> Changed. You&apos;re now in {now}.
+        </p>
+      )}
+      {confirm ? (
+        <div role="alertdialog" aria-label="Confirm" className="cm-pop flex flex-col gap-3 rounded-[12px] border-2 border-soot p-4">
+          <p className="text-[15px] font-semibold">Move to {pick}?</p>
+          <p className="text-sm">The leaders of {now} and {pick} will be told.</p>
+          <ErrorText>{error}</ErrorText>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setConfirm(false)} className="cm-press h-11 rounded-full border border-stone-border bg-white px-4 text-sm font-medium">
+              Stay in {now}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  setError("");
+                  const r = await changeMyFellowshipAction(slug, pick);
+                  if (!r.ok) return setError(r.error);
+                  setNow(pick);
+                  setConfirm(false);
+                  setDone(true);
+                })
+              }
+              className="cm-press h-11 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white"
+            >
+              <Busy pending={pending} text="Changing…">{`Yes, move to ${pick}`}</Busy>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <Field label="Choose your fellowship">
+            <select
+              className={inputClass}
+              value={pick}
+              onChange={(e) => {
+                setPick(e.target.value);
+                setDone(false);
+              }}
+            >
+              {fellowship.groups.map((g) => (
+                <optgroup key={g.pfcc} label={g.pfcc}>
+                  {g.names.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <button
+            type="button"
+            disabled={pick === now}
+            onClick={() => {
+              setError("");
+              setConfirm(true);
+            }}
+            className="cm-press inline-flex h-12 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-5 text-sm font-medium disabled:opacity-50"
+          >
+            Change fellowship
+          </button>
+        </div>
+      )}
     </section>
   );
 }

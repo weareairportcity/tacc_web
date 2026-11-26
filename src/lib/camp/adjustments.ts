@@ -4,6 +4,7 @@ import { auditStatement } from "./audit";
 import { checkId } from "./camps";
 import { getGroupFor, groupStatementsForRemoval } from "./groups";
 import { formatCedis } from "./money";
+import { paymentMoved } from "./notify";
 import { getRegistration, isFull } from "./registrations";
 import { listRoomTypes, placesFor } from "./rooms";
 import { CampError, type Gender, type Registration, type RoomType } from "./types";
@@ -122,6 +123,71 @@ export async function recordRefund(actor: string, registrationId: string, raw: R
     }
   }
   return { warning: null };
+}
+
+// ─── Moving a payment ────────────────────────────────────────────────────────
+
+/**
+ * Moves a successful payment to another person in the same camp, for money
+ * that went onto the wrong registration (someone paid into a friend's page).
+ * The money isn't touched: only whose balance it counts towards. Both
+ * registrations are recomputed in the same batch. Refused if the payment has
+ * a refund against it, if the other person would end up overpaid, or if the
+ * first would end up with less than their refunds.
+ */
+export async function movePayment(actor: string, paymentId: string, toRegistrationId: string) {
+  const [pay] = await query<{ id: string; registration_id: string; amount_pesewas: number; status: string; reference: string }>(
+    "app",
+    "SELECT id, registration_id, amount_pesewas, status, reference FROM camp_payments WHERE id = ?",
+    [checkId(paymentId, "payment")],
+  );
+  if (!pay) throw new CampError("Unknown payment.");
+  if (pay.status !== "success") throw new CampError("Only a payment that went through can be moved.");
+  if (pay.registration_id === toRegistrationId) throw new CampError("That payment is already on this person.");
+  const [from, to] = await Promise.all([getRegistration(pay.registration_id), getRegistration(checkId(toRegistrationId, "registration"))]);
+  if (!from || !to) throw new CampError("Unknown registration.");
+  if (from.camp_id !== to.camp_id) throw new CampError("Both people must be in the same camp.");
+  if (to.status === "cancelled") throw new CampError(`${to.full_name} has cancelled, so they can't receive a payment.`);
+  if (to.paid_pesewas + pay.amount_pesewas > to.price_pesewas) {
+    throw new CampError(`${to.full_name} has paid ${formatCedis(to.paid_pesewas)} of ${formatCedis(to.price_pesewas)}, so ${formatCedis(pay.amount_pesewas)} would be too much.`);
+  }
+  if (from.paid_pesewas - pay.amount_pesewas < 0) throw new CampError(`${from.full_name} has had a refund against this money, so it can't be moved.`);
+
+  const net = (col: string) => NET_PAID.replaceAll("camp_registrations.id", col);
+  const results = await batch("app", [
+    {
+      // Guarded again here on what's actually paid, so a payment arriving at the same moment can't overpay.
+      sql: `UPDATE camp_payments SET registration_id = ?1
+            WHERE id = ?2 AND registration_id = ?3 AND status = 'success'
+              AND NOT EXISTS (SELECT 1 FROM camp_refunds WHERE payment_id = ?2)
+              AND ${net("?1")} + amount_pesewas <= (SELECT price_pesewas FROM camp_registrations WHERE id = ?1)
+              AND ${net("?3")} - amount_pesewas >= 0
+            RETURNING id`,
+      params: [to.id, pay.id, from.id],
+    },
+    auditStatement({
+      actor,
+      campId: from.camp_id,
+      action: "payment.move",
+      entity: "payment",
+      entityId: pay.id,
+      before: { registration_id: from.id },
+      after: { registration_id: to.id, amount_pesewas: pay.amount_pesewas, reference: pay.reference },
+      ifChanged: true,
+    }),
+    refreshStatement(from.id),
+    refreshStatement(to.id),
+  ]);
+  if (!results[0].results.length) throw new CampError("The balances changed. Please refresh and try again.");
+
+  await paymentMoved({ from_id: from.id, to_id: to.id, reference: pay.reference, amount_pesewas: pay.amount_pesewas, by: actor, camp_id: from.camp_id });
+  const after = (await getRegistration(from.id))!;
+  if (from.status === "fully_paid" && after.status !== "fully_paid") {
+    const { group_code, room_label } = await placement(from.id);
+    const holds = [group_code && "a roommate group", room_label && `room ${room_label}`].filter(Boolean);
+    if (holds.length) return { from: from.full_name, to: to.full_name, warning: `${from.full_name} is no longer fully paid but still has ${holds.join(" and ")}. Remove them if they shouldn't keep it.` };
+  }
+  return { from: from.full_name, to: to.full_name, warning: null };
 }
 
 // ─── Room type changes ───────────────────────────────────────────────────────
