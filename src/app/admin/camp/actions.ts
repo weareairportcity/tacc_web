@@ -41,6 +41,7 @@ import {
 } from "@/lib/camp/rooms";
 import { changeRoomType, movePayment, recordRefund } from "@/lib/camp/adjustments";
 import { cancelScheduled, scheduleMessage } from "@/lib/camp/scheduled";
+import { resolveComplaint } from "@/lib/camp/complaints";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
@@ -659,6 +660,18 @@ export async function scheduleBroadcastAction(campId: string, audience: Audience
     const r = await scheduleMessage(staff.email, String(campId), { audience, message: String(message), how, sendAt: at });
     revalidatePath(`/admin/camp/${campId}/texts`);
     return r;
+  });
+}
+
+/** Complaints: mark one resolved (a leader only for their own people's). The person is thanked in the app. */
+export async function resolveComplaintAction(campId: string, id: string, note: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator", "leader");
+    await once(staff.email, "resolveComplaintAction", [campId, id]);
+    await resolveComplaint(staff.email, String(id), String(note ?? ""), scopeFor(staff));
+    revalidatePath(`/admin/camp/${String(campId)}/complaints`);
+    revalidatePath(`/leaders/${String(campId)}/complaints`);
+    return null;
   });
 }
 

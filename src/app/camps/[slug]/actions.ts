@@ -13,6 +13,8 @@ import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/gr
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
 import { assertReadyDetails, cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateArrival, updateProfile } from "@/lib/camp/profile";
 import type { ArrivalInput } from "@/lib/camp/arrival";
+import { createComplaint, MAX_COMPLAINT } from "@/lib/camp/complaints";
+import { putMedia } from "@/lib/cf";
 import { changeFellowship } from "@/lib/camp/fellowship";
 import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
@@ -475,6 +477,31 @@ export async function markInboxReadAction(slug: string) {
 export async function saveFullNameAction(slug: string, name: string) {
   return mine(slug, async (me) => {
     await setFullName(me, String(name ?? ""));
+    return null;
+  });
+}
+
+// ─── Report a problem ────────────────────────────────────────────────────────
+
+/** Photos are downsized on the phone; this is the most the server takes. */
+const COMPLAINT_PHOTO_MAX = 450 * 1024;
+
+/** A complaint in words, with an optional small JPEG. The coordinators and their leaders are told in the app. */
+export async function submitComplaintAction(slug: string, form: FormData) {
+  return mine(slug, async (me) => {
+    const text = String(form.get("body") ?? "");
+    if (text.trim().length < 3) throw new CampError("Tell us what the problem is.");
+    if (text.trim().length > MAX_COMPLAINT) throw new CampError(`Keep it to ${MAX_COMPLAINT} characters.`);
+    let photo = "";
+    const file = form.get("photo");
+    if (file instanceof File && file.size > 0) {
+      if (file.size > COMPLAINT_PHOTO_MAX) throw new CampError("That photo is too big. Try another.");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) throw new CampError("The photo must be a JPEG.");
+      // A long random name, so only someone given the link can open it.
+      photo = await putMedia(`complaint-${crypto.randomUUID()}.jpg`, bytes, "image/jpeg");
+    }
+    await createComplaint(me, text, photo);
     return null;
   });
 }

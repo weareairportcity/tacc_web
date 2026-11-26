@@ -11,7 +11,7 @@ import { HttpError, json, readJson, timingSafeEqual, type AppEnv } from "./util"
  * change /settings (on/off buttons for each kind of message).
  */
 
-export type TgKind = "registration" | "payment" | "payment_problem" | "request" | "cancellation" | "daily";
+export type TgKind = "registration" | "payment" | "payment_problem" | "request" | "cancellation" | "complaint" | "daily";
 
 /** What the group can turn on and off, in the order /settings shows them. */
 export const TG_KINDS: { kind: TgKind; label: string }[] = [
@@ -20,6 +20,7 @@ export const TG_KINDS: { kind: TgKind; label: string }[] = [
   { kind: "payment_problem", label: "Payments that need a look" },
   { kind: "request", label: "Refund and room requests" },
   { kind: "cancellation", label: "Cancellations" },
+  { kind: "complaint", label: "Complaints" },
   { kind: "daily", label: "Evening summary (7 pm)" },
 ];
 

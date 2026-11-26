@@ -18,8 +18,8 @@ import { groupForFellowship, pfccForFellowship } from "../../../src/lib/fellowsh
  * caller: a payment must never fail because a notification did.
  */
 
-export const STAFF_PUSH_KINDS = ["registration", "payment", "payment_problem", "request"] as const;
-export const ATTENDEE_KINDS = ["payment_received", "payment_failed", "room_ready", "request_answered", "due_soon", "camp_tomorrow", "messages"] as const;
+export const STAFF_PUSH_KINDS = ["registration", "payment", "payment_problem", "request", "complaint"] as const;
+export const ATTENDEE_KINDS = ["payment_received", "payment_failed", "room_ready", "request_answered", "complaint_resolved", "due_soon", "camp_tomorrow", "messages"] as const;
 export type StaffKind = TgKind;
 export type AttendeeKind = (typeof ATTENDEE_KINDS)[number];
 
@@ -36,6 +36,7 @@ const ICON: Record<StaffKind, string> = {
   payment_problem: "⚠️",
   request: "📨",
   cancellation: "❌",
+  complaint: "📣",
   daily: "🌙",
 };
 
@@ -134,7 +135,7 @@ export async function toStaff(env: AppEnv, kind: StaffKind, m: { title: string; 
  * their own). The group comes from the fellowship (src/lib/fellowships.ts).
  * Kinds: registration, payment, request. Never throws.
  */
-export async function toLeaders(env: AppEnv, registrationId: string, kind: "registration" | "payment" | "request", m: { title: string; body: string; url: (campId: string) => string }) {
+export async function toLeaders(env: AppEnv, registrationId: string, kind: "registration" | "payment" | "request" | "complaint", m: { title: string; body: string; url: (campId: string) => string }) {
   try {
     const r = await env.APP_DB.prepare("SELECT camp_id, fellowship FROM camp_registrations WHERE id = ?").bind(registrationId).first<{ camp_id: string; fellowship: string }>();
     if (!r) return 0;
@@ -567,7 +568,7 @@ export async function sendReminders(env: AppEnv, now = new Date(), force = false
 // ─── Endpoints for the Next server ──────────────────────────────────────────
 
 const OWNER = /^(attendee:[0-9a-f-]{36}|leader:[0-9a-f-]{36}|staff:[^\s@]+@[^\s@]+\.[^\s@]+)$/i;
-const ALL_KINDS: string[] = [...ATTENDEE_KINDS, "registration", "payment", "payment_problem", "request", "cancellation"];
+const ALL_KINDS: string[] = [...ATTENDEE_KINDS, "registration", "payment", "payment_problem", "request", "cancellation", "complaint"];
 
 /** Events that happen on the Next side: registration, requests, cancellations, rooms. */
 export async function notifyEndpoint(request: Request, env: AppEnv) {
@@ -578,11 +579,16 @@ export async function notifyEndpoint(request: Request, env: AppEnv) {
     : [];
   const m = { title: text(b.title, 80), body: text(b.body, 300), url: text(b.url, 300) || "/camps", lines };
   if (!m.title || !m.body || !m.url.startsWith("/")) throw new HttpError(400, "title, body and a relative url required");
-  if (b.to === "staff" && (b.kind === "registration" || b.kind === "request" || b.kind === "cancellation")) {
+  if (b.to === "staff" && (b.kind === "registration" || b.kind === "request" || b.kind === "cancellation" || b.kind === "complaint")) {
     // Their leaders hear about their own people too (not cancellations).
     const leaders =
-      (b.kind === "registration" || b.kind === "request") && typeof b.registration_id === "string" && UUID.test(b.registration_id)
-        ? await toLeaders(env, b.registration_id, b.kind, { title: m.title, body: m.body, url: (campId) => `/leaders/${campId}/people?person=${b.registration_id}` })
+      (b.kind === "registration" || b.kind === "request" || b.kind === "complaint") && typeof b.registration_id === "string" && UUID.test(b.registration_id)
+        ? await toLeaders(env, b.registration_id, b.kind, {
+            title: m.title,
+            body: m.body,
+            // A complaint opens on the Complaints page; the rest on the person.
+            url: (campId) => (b.kind === "complaint" ? m.url.replace(/^\/admin\/camp\//, "/leaders/") : `/leaders/${campId}/people?person=${b.registration_id}`),
+          })
         : 0;
     return json({ ...(await toStaff(env, b.kind, m)), leaders });
   }
@@ -600,7 +606,7 @@ export async function notifyEndpoint(request: Request, env: AppEnv) {
     if (!owners.length) return json({ push: 0 });
     return json({ push: await pushTo(env, owners.map(() => "?").join(","), owners, "messages", { title: m.title, body: m.body, url: m.url, tag: `messages:${Date.now()}` }) });
   }
-  if (b.to === "attendee" && typeof b.registration_id === "string" && UUID.test(b.registration_id) && (b.kind === "room_ready" || b.kind === "request_answered")) {
+  if (b.to === "attendee" && typeof b.registration_id === "string" && UUID.test(b.registration_id) && (b.kind === "room_ready" || b.kind === "request_answered" || b.kind === "complaint_resolved")) {
     return json({ push: await toAttendee(env, b.registration_id, b.kind, { title: m.title, body: m.body, url: m.url }) });
   }
   throw new HttpError(400, "unknown notification");

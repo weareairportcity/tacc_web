@@ -37,17 +37,17 @@ import type { OpenPayment } from "@/lib/camp/payments";
 import { Blockers } from "../OpenPayments";
 
 type Data = Extract<Awaited<ReturnType<typeof getPersonAction>>, { ok: true }>["data"];
-type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel" | "message" | "movepay";
+export type Mode = "view" | "edit" | "room" | "gender" | "refund" | "cancel" | "message" | "movepay";
 
 const PAYMENT_WORDS = { pending: "Processing", success: "", failed: "Not completed" } as const;
 const ghanaPhone = (p: string) => (/^233\d{9}$/.test(p) ? `0${p.slice(3, 5)} ${p.slice(5, 8)} ${p.slice(8)}` : p);
 
 /** One person, in a side panel over the People list. Every change ends in a toast. */
-export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string; id: string | null; onClose: () => void; onChanged: () => void }) {
+export function PersonPanel({ campId, id, onClose, onChanged, startMode = "view" }: { campId: string; id: string | null; onClose: () => void; onChanged: () => void; startMode?: Mode }) {
   const toast = useToast();
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
-  const [mode, setMode] = useState<Mode>("view");
+  const [mode, setMode] = useState<Mode>(startMode);
   const [pending, start] = useOneAtATime();
   const [paying, setPaying] = useState(false);
   const [moving, setMoving] = useState<{ id: string; amount: number } | null>(null);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeftRight, Check, ChevronDown, ChevronRight, CircleSlash, Clock, Download, Lock, MessageSquareHeart, QrCode, RotateCcw, UserRound, Users, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, Megaphone, Check, ChevronDown, ChevronRight, CircleSlash, Clock, Download, Lock, MessageSquareHeart, QrCode, RotateCcw, UserRound, Users, type LucideIcon } from "lucide-react";
 import { getMyRoom } from "@/lib/camp/assignments";
 import { feedbackOpen, hasAnswered } from "@/lib/camp/feedback";
 import { getGroupFor } from "@/lib/camp/groups";
@@ -335,6 +335,7 @@ export default async function MyRegistration({ params }: { params: Promise<{ slu
           {!cancelled && (
             <Tile href={`/camps/${camp.slug}/me/room`} icon={ArrowLeftRight} label="Your room type" sub={`${me.room_type_name} · ${formatCedis(me.price_pesewas)}`} />
           )}
+          {!cancelled && <Tile href={`/camps/${camp.slug}/me/report`} icon={Megaphone} label="Report a problem" sub="Tell the coordinators and your leaders" />}
           {(!cancelled || me.paid_pesewas > 0) && (
             <Tile href={`/camps/${camp.slug}/me/cancel`} icon={RotateCcw} label={cancelled ? "Ask for a refund" : "Cancel or refund"} sub="Ask for money back" />
           )}

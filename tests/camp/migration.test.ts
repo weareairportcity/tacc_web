@@ -50,12 +50,15 @@ describe("camp migrations", () => {
     const appFirst = [...payExperience, "camp_sms_log"].sort();
     const teamApp = [...appFirst, "camp_team_app"].sort();
     const base = [...teamApp, "camp_inbox"].sort();
-    const expected = [...base, "camp_scheduled_sends"].sort();
+    const expected = [...base, "camp_scheduled_sends", "camp_complaints"].sort();
+    const beforeComplaints = [...base, "camp_scheduled_sends"].sort();
     await apply();
     expect(await tables()).toEqual(expected);
 
+    await down("0036_camp_complaints");
+    expect(await tables()).toEqual(beforeComplaints);
     await down("0035_camp_scheduled_messages");
-    expect(await tables()).toEqual(expected);
+    expect(await tables()).toEqual(beforeComplaints);
     await down("0034_camp_arrival");
     expect(await tables()).toEqual(base);
     await down("0033_camp_places_paid_few");

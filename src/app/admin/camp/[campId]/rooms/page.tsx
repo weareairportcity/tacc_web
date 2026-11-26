@@ -51,7 +51,7 @@ export default async function RoomsPage({
   if (tab === "types") body = <RoomTypesTab campId={camp.id} roomTypes={roomTypes} />;
   else if (tab === "keys") {
     const k = await listKeyBearers(camp.id);
-    body = <KeyBearers rows={k.rows} empty={k.empty} />;
+    body = <KeyBearers campId={camp.id} rows={k.rows} empty={k.empty} />;
   } else if (tab === "all") body = <AllRooms campId={camp.id} rooms={await listRoomsWithOccupants(camp.id)} roomTypes={roomTypes} />;
   else
     body = (

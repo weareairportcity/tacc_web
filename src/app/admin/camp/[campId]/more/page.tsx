@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookOpen, Bus, ChevronRight, Clock, CreditCard, HeartPulse, Inbox, MessageSquare, MessageSquareHeart, Settings, Smartphone } from "lucide-react";
+import { BookOpen, Bus, ChevronRight, Megaphone, Clock, CreditCard, HeartPulse, Inbox, MessageSquare, MessageSquareHeart, Settings, Smartphone } from "lucide-react";
 import { ID } from "@/lib/camp/camps";
 import { navCounts } from "@/lib/camp/reports";
 import { SignOutButton } from "@/components/camp/SignOutButton";
@@ -18,6 +18,7 @@ export default async function MorePage({ params }: { params: Promise<{ campId: s
   const items = [
     { href: `${base}/requests`, icon: Inbox, label: "Requests", count: requests },
     { href: `${base}/arrivals`, icon: Bus, label: "Arrivals", count: 0 },
+    { href: `${base}/complaints`, icon: Megaphone, label: "Complaints", count: 0 },
     { href: `${base}/money`, icon: CreditCard, label: "Money", count: 0 },
     { href: `${base}/app`, icon: Smartphone, label: "The app", count: 0 },
     { href: `${base}/health`, icon: HeartPulse, label: "Health", count: 0 },

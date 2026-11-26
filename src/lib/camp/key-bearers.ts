@@ -9,6 +9,8 @@ import { checkId } from "./camps";
  * the log of who made them; nothing extra is stored.
  */
 
+export type Person = { registration_id: string; full_name: string; fellowship: string; phone: string; checked_in: boolean };
+
 export type KeyBearer = {
   room_id: string;
   label: string;
@@ -16,7 +18,9 @@ export type KeyBearer = {
   gender: "male" | "female";
   capacity: number;
   occupied: number;
-  bearer: { registration_id: string; full_name: string; fellowship: string; phone: string; checked_in: boolean };
+  bearer: Person;
+  /** Everyone in the room, in the order they were put in it. */
+  occupants: Person[];
   /** "made" the room, or was "first" in it. */
   why: "made" | "first";
 };
@@ -44,6 +48,7 @@ export async function listKeyBearers(campId: string): Promise<{ rows: KeyBearer[
     // Occupants come in the order they were put in the room.
     const made = room.occupants.find((o) => o.registration_id === maker.get(room.id));
     const who = made ?? room.occupants[0];
+    const person = (o: (typeof room.occupants)[number]): Person => ({ registration_id: o.registration_id, full_name: o.full_name, fellowship: o.fellowship, phone: phone.get(o.registration_id) ?? "", checked_in: Boolean(o.checked_in) });
     rows.push({
       room_id: room.id,
       label: room.label,
@@ -51,7 +56,8 @@ export async function listKeyBearers(campId: string): Promise<{ rows: KeyBearer[
       gender: room.gender,
       capacity: room.capacity,
       occupied: room.occupied,
-      bearer: { registration_id: who.registration_id, full_name: who.full_name, fellowship: who.fellowship, phone: phone.get(who.registration_id) ?? "", checked_in: Boolean(who.checked_in) },
+      bearer: person(who),
+      occupants: room.occupants.map(person),
       why: made ? "made" : "first",
     });
   }

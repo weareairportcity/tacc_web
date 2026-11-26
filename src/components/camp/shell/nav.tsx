@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, BedDouble, Bus, BookOpen, HeartPulse, ChartColumn, HandCoins, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquare, MessageSquareHeart, ScanLine, Search, Settings, Smartphone, Users, X } from "lucide-react";
+import { Bell, BedDouble, Bus, Megaphone, BookOpen, HeartPulse, ChartColumn, HandCoins, Clock, CreditCard, Ellipsis, Inbox, LayoutGrid, MessageSquare, MessageSquareHeart, ScanLine, Search, Settings, Smartphone, Users, X } from "lucide-react";
 import type { FoundPerson } from "@/lib/camp/reports";
 import { cn } from "@/lib/utils";
 import { STATUS_COLOR, STATUS_WORD } from "../ui";
@@ -26,6 +26,7 @@ export const NAV: Item[] = [
   { path: "/money", label: "Money", icon: CreditCard },
   { path: "/requests", label: "Requests", icon: Inbox },
   { path: "/arrivals", label: "Arrivals", icon: Bus },
+  { path: "/complaints", label: "Complaints", icon: Megaphone },
   { path: "/app", label: "The app", icon: Smartphone },
   { path: "/health", label: "Health", icon: HeartPulse },
   { path: "/texts", label: "Texts", icon: MessageSquare },
@@ -38,6 +39,7 @@ const MAIN = ["", "/people", "/rooms", "/check-in", "/money"];
 const LEADER_NAV: Item[] = [
   { path: "/people", label: "People", icon: Users },
   { path: "/check-in", label: "Scan", icon: ScanLine },
+  { path: "/complaints", label: "Complaints", icon: Megaphone },
 ];
 // The Pastor oversees the camp: the report, and paying for people. Nothing else.
 const PASTOR_NAV: Item[] = [

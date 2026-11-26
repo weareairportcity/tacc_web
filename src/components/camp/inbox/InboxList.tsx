@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, BedDouble, CalendarClock, CircleAlert, CreditCard, Inbox, MessageSquare, UserPlus, type LucideIcon } from "lucide-react";
+import { Bell, BedDouble, Megaphone, CalendarClock, CircleAlert, CreditCard, Inbox, MessageSquare, UserPlus, type LucideIcon } from "lucide-react";
 import type { InboxItem } from "@/lib/camp/inbox";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ const ICON: Record<string, LucideIcon> = {
   due_soon: CalendarClock,
   camp_tomorrow: CalendarClock,
   messages: MessageSquare,
+  complaint: Megaphone,
+  complaint_resolved: Megaphone,
 };
 
 const stamp = (iso: string) => Date.parse(iso.endsWith("Z") ? iso : `${iso.replace(" ", "T")}Z`);

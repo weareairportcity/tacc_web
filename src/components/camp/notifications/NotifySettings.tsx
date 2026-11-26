@@ -12,6 +12,7 @@ export const ATTENDEE_KINDS = [
   { kind: "payment_failed", label: "A payment that didn't go through", hint: "So you can try again" },
   { kind: "room_ready", label: "Your room", hint: "When your room is ready" },
   { kind: "request_answered", label: "Answers to your requests", hint: "Refunds and room changes" },
+  { kind: "complaint_resolved", label: "Your reports", hint: "When a problem you reported is resolved" },
   { kind: "due_soon", label: "Payment reminders", hint: "Before payment is due" },
   { kind: "camp_tomorrow", label: "Day before camp", hint: "A reminder to bring your pass" },
   { kind: "messages", label: "Messages from coordinators", hint: "Camp news, and the thank-you after camp" },
@@ -22,6 +23,7 @@ export const STAFF_KINDS = [
   { kind: "payment", label: "Payments received", hint: "Each payment, with what's left" },
   { kind: "payment_problem", label: "Payments that need a look", hint: "Wrong amount, or paid twice" },
   { kind: "request", label: "New requests", hint: "Refunds and room changes" },
+  { kind: "complaint", label: "Complaints", hint: "When someone reports a problem" },
 ];
 
 /**

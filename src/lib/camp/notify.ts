@@ -10,8 +10,8 @@ import { formatCedis } from "./money";
 
 /** `lines`: the Telegram message, one "Label: value" per line (a string is a section heading). */
 type Message = { title: string; body: string; url: string; lines?: ([string, string] | string)[] };
-type StaffKind = "registration" | "request" | "cancellation";
-type AttendeeKind = "room_ready" | "request_answered";
+type StaffKind = "registration" | "request" | "cancellation" | "complaint";
+type AttendeeKind = "room_ready" | "request_answered" | "complaint_resolved";
 
 async function send(body: Record<string, unknown>) {
   try {
@@ -152,3 +152,31 @@ export async function paymentMoved(o: { from_id: string; to_id: string; referenc
     url: `/admin/camp/${o.camp_id}/people?person=${o.to_id}`,
   });
 }
+
+/** A complaint came in: the coordinators (app and Telegram) and the leaders of their fellowship, group and PFCC (app). Never a text. */
+export async function complaintReceived(c: { id: string; camp_id: string; registration_id: string; full_name: string; fellowship: string; body: string; photo: boolean }) {
+  const short = c.body.length > 140 ? `${c.body.slice(0, 137)}...` : c.body;
+  await notifyStaff(
+    "complaint",
+    {
+      title: "New complaint",
+      body: `${c.full_name}: ${short}`,
+      url: `/admin/camp/${c.camp_id}/complaints?c=${c.id}`,
+      lines: [
+        ["From", c.full_name],
+        ["Fellowship", c.fellowship],
+        ["Photo", c.photo ? "Yes" : ""],
+        ["Said", short],
+      ],
+    },
+    c.registration_id,
+  );
+}
+
+/** Resolved: the person is thanked, in the app only. */
+export const complaintResolved = (r: { registration_id: string; slug: string; full_name: string }) =>
+  notifyAttendee(r.registration_id, "complaint_resolved", {
+    title: "Your complaint was resolved",
+    body: `Thank you for telling us, ${r.full_name.trim().split(/\s+/)[0]}. It has been marked resolved.`,
+    url: `/camps/${r.slug}/me/report`,
+  });
