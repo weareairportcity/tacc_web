@@ -77,22 +77,6 @@ describe("what texts cost", () => {
   });
 });
 
-describe("the Home Screen app's pass", () => {
-  it("only signs in with a pass made for this person's current code and camp", async () => {
-    const { appPass, signInWithAppPass } = await import("@/lib/camp/session");
-    const { id, camp } = await registered({ full_name: "Esi Homescreen" });
-    const other = await registered();
-    const pass = (await appPass(id))!;
-    expect(pass).toMatch(/^[0-9a-f-]{36}\.[\w-]{32}$/);
-    expect(await signInWithAppPass(camp, `${id}.${"x".repeat(32)}`)).toBe(false);
-    expect(await signInWithAppPass(other.camp, pass)).toBe(false);
-    expect(await signInWithAppPass(camp, "nonsense")).toBe(false);
-    // A new code turns old passes off.
-    await query("app", "UPDATE camp_registrations SET code_hash = 'changed' WHERE id = ?", [id]);
-    expect(await signInWithAppPass(camp, pass)).toBe(false);
-  });
-});
-
 describe("a message's cost", () => {
   it("is free for people with notifications on, and texts everyone when it's important", async () => {
     const { messageCost } = await import("@/lib/camp/message-cost");

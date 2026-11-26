@@ -10,7 +10,8 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-const { currentAttendee, startAttendeeSession } = await import("@/lib/camp/session");
+const { appPass, currentAttendee, signInWithAppPass, startAttendeeSession } = await import("@/lib/camp/session");
+const { query } = await import("@/lib/cf");
 const { getRegistrationWithCode } = await import("@/lib/camp/registrations");
 const { registered } = await import("./helpers");
 
@@ -46,5 +47,41 @@ describe("the sign-in cookie", () => {
     // Or stretches the expiry.
     jar.set("commune_attendee", `${me.id}.${Number(expires) + 1}.${signature}`);
     expect(await currentAttendee(me.camp.id)).toBeNull();
+  });
+});
+
+describe("the Home Screen app's pass", () => {
+  it("signs in once, for this person's current code and camp, so a copied link is no use", async () => {
+    const { id, camp } = await registered({ full_name: "Esi Homescreen" });
+    const other = await registered();
+    const pass = (await appPass(id))!;
+    expect(pass).toMatch(/^[0-9a-f-]{36}\.\d{10,16}\.[\w-]{32}$/);
+    const [, expires] = pass.split(".");
+    expect(await signInWithAppPass(camp, `${id}.${expires}.${"x".repeat(32)}`)).toBe(false);
+    expect(await signInWithAppPass(other.camp, pass)).toBe(false);
+    expect(await signInWithAppPass(camp, "nonsense")).toBe(false);
+    // The expiry can't be pushed later without the signature changing.
+    expect(await signInWithAppPass(camp, `${id}.${Number(expires) + 86_400_000}.${pass.split(".")[2]}`)).toBe(false);
+
+    expect(await signInWithAppPass(camp, pass)).toBe(true);
+    expect((await currentAttendee(camp.id))?.id).toBe(id);
+    // Someone else opening the same link afterwards gets nothing.
+    jar.clear();
+    expect(await signInWithAppPass(camp, pass)).toBe(false);
+    expect(await currentAttendee(camp.id)).toBeNull();
+  });
+
+  it("stops working after an hour, and when the code is changed", async () => {
+    const { id, camp } = await registered();
+    const pass = (await appPass(id))!;
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 61 * 60 * 1000 });
+    try {
+      expect(await signInWithAppPass(camp, pass)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+    const fresh = (await appPass(id))!;
+    await query("app", "UPDATE camp_registrations SET code_hash = 'changed' WHERE id = ?", [id]);
+    expect(await signInWithAppPass(camp, fresh)).toBe(false);
   });
 });

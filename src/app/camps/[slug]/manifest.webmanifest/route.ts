@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const safe = /^[a-z0-9-]{1,80}$/.test(slug) ? slug : "";
   if (!safe) return communeManifest({ name: "Commune", short_name: "Commune", start_url: "/camps", scope: "/" });
   const pass = new URL(request.url).searchParams.get("t") ?? "";
-  const personal = /^[0-9a-f-]{36}\.[\w-]{10,64}$/i.test(pass);
+  const personal = /^[0-9a-f-]{36}\.\d{10,16}\.[\w-]{10,64}$/i.test(pass);
   return communeManifest(
     { name: "Commune", short_name: "Commune", start_url: personal ? `/camps/${safe}/app?t=${pass}` : `/camps/${safe}/me?app=1`, scope: "/", id: `/camps/${safe}` },
     personal,

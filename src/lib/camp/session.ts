@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { campSecret } from "./codes";
 import { getCampBySlug } from "./camps";
+import { allow } from "./rate-limit";
 import { getRegistrationWithCode } from "./registrations";
 import type { Camp, Registration } from "./types";
 
@@ -77,22 +78,33 @@ export async function campAndAttendee(slug: string): Promise<{ camp: Camp | null
 /**
  * Carrying the sign-in over to the Home Screen app. On an iPhone the app
  * keeps its own cookies, apart from Safari's, so it would open signed out.
- * Its start address carries this pass instead: the registration and a
- * signature over its code's hash, so a new code ("forgot your code") turns
- * old passes off, like sessions.
+ * Its start address carries this pass instead: the registration, an expiry
+ * and a signature over both and the code's hash, so a new code ("forgot your
+ * code") turns old passes off, like sessions.
+ *
+ * The address can be copied and shared, so a pass is made to be useless
+ * afterwards: it works for an hour, and only once. The app
+ * keeps its own session after that first sign-in.
  */
+const PASS_MS = 60 * 60 * 1000;
+const passSignature = (id: string, expires: string, codeHash: string) => sign(`app-pass.${id}.${expires}.${codeHash}`).slice(0, 32);
+
 export async function appPass(registrationId: string) {
   const found = await getRegistrationWithCode(registrationId).catch(() => null);
-  return found ? `${registrationId}.${sign(`app-pass.${registrationId}.${found.codeHash}`).slice(0, 32)}` : null;
+  if (!found) return null;
+  const expires = String(Date.now() + PASS_MS);
+  return `${registrationId}.${expires}.${passSignature(registrationId, expires, found.codeHash)}`;
 }
 
-/** Signs in with an app pass for this camp. False if it doesn't check out. */
+/** Signs in with an app pass for this camp. False if it doesn't check out, has run out or was already used. */
 export async function signInWithAppPass(camp: Camp, pass: string) {
-  const [id, signature] = String(pass ?? "").split(".");
-  if (!id || !signature || !/^[0-9a-f-]{36}$/i.test(id)) return false;
+  const [id, expires, signature] = String(pass ?? "").split(".");
+  if (!id || !expires || !signature || !/^[0-9a-f-]{36}$/i.test(id) || !(Number(expires) > Date.now())) return false;
   const found = await getRegistrationWithCode(id).catch(() => null);
   if (!found || found.registration.camp_id !== camp.id || found.registration.status === "cancelled") return false;
-  if (!same(signature, sign(`app-pass.${id}.${found.codeHash}`).slice(0, 32))) return false;
+  if (!same(signature, passSignature(id, expires, found.codeHash))) return false;
+  // Once: the first use claims it. Checked after the signature, so guesses never write.
+  if (!(await allow(`app-pass:${signature}`, 1, PASS_MS * 2))) return false;
   await startAttendeeSession(id, found.codeHash, camp.ends_on);
   return true;
 }
