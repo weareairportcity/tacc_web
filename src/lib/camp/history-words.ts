@@ -54,6 +54,8 @@ export const ACTION_WORDS: Record<string, string> = {
   "payment.flagged": "flagged a payment to check",
   "people.text": "messaged people",
   "people.broadcast": "sent a message to everyone",
+  "people.schedule": "scheduled a message",
+  "people.schedule_cancel": "cancelled a scheduled message",
   "people.remind": "sent payment reminders",
   "leaders.message": "sent a message to the leaders",
   "feedback.text": "sent the thank-you messages",

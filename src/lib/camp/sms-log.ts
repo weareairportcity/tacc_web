@@ -10,7 +10,7 @@ import { checkId } from "./camps";
  * summary) to the same table.
  */
 
-export type SmsKind = "registration" | "code" | "receipt" | "room" | "thanks" | "message" | "broadcast" | "summary" | "alert";
+export type SmsKind = "registration" | "code" | "receipt" | "room" | "thanks" | "message" | "broadcast" | "summary" | "alert" | "arrival_details" | "payment_moved";
 
 export async function logCampSms(row: { campId: string; kind: SmsKind; texts: number; credits: number; pushed?: number; actor?: string; note?: string }) {
   if (row.texts <= 0 && !row.pushed) return;
@@ -38,6 +38,8 @@ export const SMS_KIND_WORDS: Record<SmsKind, string> = {
   broadcast: "Texts to everyone",
   summary: "Evening summary to coordinators",
   alert: "Payment alerts",
+  arrival_details: "Arrival and health reminder",
+  payment_moved: "Texts about a moved payment",
 };
 
 export type SmsUse = { kind: SmsKind; texts: number; credits: number; pushed: number };

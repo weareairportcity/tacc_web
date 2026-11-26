@@ -40,6 +40,7 @@ import {
   updateRoomType,
 } from "@/lib/camp/rooms";
 import { changeRoomType, movePayment, recordRefund } from "@/lib/camp/adjustments";
+import { cancelScheduled, scheduleMessage } from "@/lib/camp/scheduled";
 import { changeGender, roomsFor } from "@/lib/camp/gender";
 import { assignGroup, assignPerson, getMyRoom, getPoolBoard, listPools, unassign, unassignMany } from "@/lib/camp/assignments";
 import { cancelRegistration, getRegistration, listPayments } from "@/lib/camp/registrations";
@@ -646,6 +647,28 @@ export async function broadcastAction(campId: string, audience: Audience, messag
     const r = await sendBroadcast(staff.email, camp, audience, message, how);
     revalidatePath(`/admin/camp/${camp.id}/texts`);
     return r;
+  });
+}
+
+/** Texts: schedule a message for later. `sendAtGhana` is "YYYY-MM-DDTHH:mm" in Ghana time (the same as UTC). */
+export async function scheduleBroadcastAction(campId: string, audience: Audience, message: string, how: Delivery, sendAtGhana: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await once(staff.email, "scheduleBroadcastAction", [campId, audience, message, how, sendAtGhana]);
+    const at = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(sendAtGhana)) ? `${sendAtGhana}:00Z` : "";
+    const r = await scheduleMessage(staff.email, String(campId), { audience, message: String(message), how, sendAt: at });
+    revalidatePath(`/admin/camp/${campId}/texts`);
+    return r;
+  });
+}
+
+/** Texts: cancel a scheduled message that hasn't gone yet. */
+export async function cancelScheduledAction(campId: string, id: string) {
+  return run(async () => {
+    const staff = await requireCampRole("coordinator");
+    await cancelScheduled(staff.email, String(id));
+    revalidatePath(`/admin/camp/${String(campId)}/texts`);
+    return null;
   });
 }
 

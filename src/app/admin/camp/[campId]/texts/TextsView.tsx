@@ -3,6 +3,7 @@ import type { Recipient } from "@/lib/camp/broadcast";
 import { firstName } from "@/lib/camp/sms";
 import { SMS_KIND_WORDS, type Broadcast, type SmsUse } from "@/lib/camp/sms-log";
 import { formatDate, headlineClass } from "@/components/camp/ui";
+import { actorName } from "@/lib/camp/history-words";
 import { Composer } from "./Composer";
 import type { Audience } from "@/lib/camp/broadcast-audience";
 
@@ -85,7 +86,7 @@ export function TextsView({
               <li key={b.id} className="flex flex-col gap-1 border-t border-stone-border py-3 first:border-t-0 first:pt-0">
                 <p className="text-[15px] leading-relaxed">{b.note}</p>
                 <p className="text-[13px] tabular-nums text-warm-gray">
-                  {formatDate(b.created_at.slice(0, 10))} · {n(b.texts)} {b.texts === 1 ? "text" : "texts"} ({n(b.credits)} credits)
+                  {formatDate(b.created_at.slice(0, 10))}{b.actor ? ` · sent by ${actorName(b.actor, null)}` : ""} · {n(b.texts)} {b.texts === 1 ? "text" : "texts"} ({n(b.credits)} credits)
                   {b.pushed ? ` · ${n(b.pushed)} in the app` : ""}
                 </p>
               </li>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Bell, MessageSquare, Send } from "lucide-react";
+import { Bell, CalendarClock, MessageSquare, Send } from "lucide-react";
 import { Busy } from "@/components/camp/brand";
 import { useToast } from "@/components/camp/toast";
 import { ErrorText, inputClass, primaryButtonClass } from "@/components/camp/ui";
@@ -14,7 +14,7 @@ import { smsPartsOf } from "@/lib/sms-plain";
 import { cn } from "@/lib/utils";
 import { messageCost, type Delivery } from "@/lib/camp/message-cost";
 import { ImportantBox } from "@/components/camp/ImportantBox";
-import { broadcastAction } from "../../actions";
+import { broadcastAction, scheduleBroadcastAction } from "../../actions";
 
 type Person = { first: string; status: RegistrationStatus; app: AppState };
 
@@ -40,6 +40,9 @@ export function Composer({ campId, campName, balance, people, initialAudience = 
   const [important, setImportant] = useState(false);
   const how: Delivery = important ? "both" : appFirst ? "app" : "text";
   const [confirming, setConfirming] = useState(false);
+  // Send later: a time in Ghana time ("YYYY-MM-DDTHH:mm"), the same as UTC.
+  const [later, setLater] = useState(false);
+  const [when, setWhen] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useOneAtATime();
 
@@ -50,11 +53,24 @@ export function Composer({ campId, campName, balance, people, initialAudience = 
   const credits = cost.credits;
   const perText = smsPartsOf(coordinatorText(picked[0]?.first ?? "Ama", message || "…"));
   const tooMany = balance !== null && credits > balance;
-  const ready = message.trim().length >= 3 && picked.length > 0;
+  const ready = message.trim().length >= 3 && picked.length > 0 && (!later || when.length === 16);
+
+  const nowGhana = new Date().toISOString().slice(0, 16);
+  const whenWords = when ? new Date(`${when}:00Z`).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) : "";
 
   const send = () =>
     start(async () => {
       setError("");
+      if (later) {
+        const s = await scheduleBroadcastAction(campId, audience, message, how, when);
+        setConfirming(false);
+        if (!s.ok) return setError(s.error);
+        setMessage("");
+        setLater(false);
+        setWhen("");
+        toast(`Scheduled for ${whenWords}. See it under Scheduled.`);
+        return;
+      }
       const r = await broadcastAction(campId, audience, message, how);
       setConfirming(false);
       if (!r.ok) return setError(r.error);
@@ -131,6 +147,40 @@ export function Composer({ campId, campName, balance, people, initialAudience = 
           <ImportantBox checked={important} onChange={setImportant} />
         </div>
 
+        <div className="flex flex-col gap-2">
+          <div role="radiogroup" aria-label="When to send" className="grid grid-cols-2 gap-1 rounded-full border border-stone-border bg-white p-[3px]">
+            {[
+              [false, "Send now", Send],
+              [true, "Schedule for later", CalendarClock],
+            ].map(([v, label, Icon]) => (
+              <button
+                key={String(label)}
+                type="button"
+                role="radio"
+                aria-checked={later === v}
+                onClick={() => {
+                  setLater(v as boolean);
+                  setConfirming(false);
+                }}
+                className={cn("cm-press flex h-9 items-center justify-center gap-1.5 rounded-full text-sm font-medium", later === v ? "bg-soot text-white" : "text-[#57534e]")}
+              >
+                {(() => {
+                  const I = Icon as typeof Send;
+                  return <I className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />;
+                })()}
+                {String(label)}
+              </button>
+            ))}
+          </div>
+          {later && (
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Send it at (Ghana time)
+              <input type="datetime-local" min={nowGhana} value={when} onChange={(e) => { setWhen(e.target.value); setConfirming(false); }} className={inputClass} />
+              <span className="text-xs font-normal text-warm-gray">Who is in the group is worked out when it goes, so people who pay or add the app before then are counted correctly. It goes within 10 minutes of this time.</span>
+            </label>
+          )}
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">What {picked[0]?.first || "they"} will get</span>
           <p className="rounded-[16px] rounded-bl-[4px] bg-[#e9f4fd] px-3.5 py-3 text-sm leading-relaxed break-words">{coordinatorText(picked[0]?.first ?? "Ama", message || "…")}</p>
@@ -176,20 +226,20 @@ export function Composer({ campId, campName, balance, people, initialAudience = 
         {confirming ? (
           <div className="cm-pop flex flex-col gap-2">
             <p className="text-[15px] leading-snug">
-              Send to <strong className="font-semibold">{n(picked.length)}</strong> {picked.length === 1 ? "person" : "people"} for <strong className="font-semibold">{n(credits)}</strong> {credits === 1 ? "credit" : "credits"}?
+              {later ? `Schedule for ${whenWords} to ` : "Send to "}<strong className="font-semibold">{n(picked.length)}</strong> {picked.length === 1 ? "person" : "people"} for <strong className="font-semibold">{n(credits)}</strong> {credits === 1 ? "credit" : "credits"}?
             </p>
             <div className="flex gap-2">
               <button type="button" onClick={() => setConfirming(false)} className="cm-press h-12 rounded-full border border-stone-border bg-white px-5 text-sm font-medium">
                 Back
               </button>
               <button type="button" disabled={pending} aria-busy={pending} onClick={send} className="cm-press h-12 flex-1 rounded-full bg-soot px-4 text-sm font-medium text-white disabled:opacity-60">
-                <Busy pending={pending} text="Sending…">Yes, send</Busy>
+                <Busy pending={pending} text={later ? "Scheduling…" : "Sending…"}>{later ? "Yes, schedule" : "Yes, send"}</Busy>
               </button>
             </div>
           </div>
         ) : (
           <button type="button" disabled={!ready || tooMany} onClick={() => setConfirming(true)} className={`${primaryButtonClass} h-[52px] w-full`}>
-            <Send className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> Send
+            {later ? <CalendarClock className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" /> : <Send className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />} {later ? "Schedule" : "Send"}
           </button>
         )}
         <p className="text-[12px] leading-snug text-warm-gray">From the sender Commune, for {campName}. Cancelled registrations are left out.</p>

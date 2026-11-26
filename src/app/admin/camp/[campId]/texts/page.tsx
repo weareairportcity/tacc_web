@@ -2,10 +2,12 @@ import { notFound } from "next/navigation";
 import { getCamp, ID } from "@/lib/camp/camps";
 import { listRecipients } from "@/lib/camp/broadcast";
 import { listBroadcasts, smsUse } from "@/lib/camp/sms-log";
+import { listScheduled } from "@/lib/camp/scheduled";
 import { smsBalance } from "@/lib/mnotify";
 import { NoAccess, pageStaff } from "../../access";
 import { TextsView } from "./TextsView";
 import { LeadersMessage } from "./LeadersMessage";
+import { ScheduledList } from "./ScheduledList";
 import { query } from "@/lib/cf";
 
 // Sending to a few hundred people takes a while.
@@ -20,7 +22,7 @@ export default async function TextsPage({ params, searchParams }: { params: Prom
   if (!staff) return <NoAccess />;
   const { campId } = await params;
   if (!ID.test(campId)) notFound();
-  const [camp, recipients, use, broadcasts, balance, leaders] = await Promise.all([
+  const [camp, recipients, use, broadcasts, balance, leaders, scheduled] = await Promise.all([
     getCamp(campId),
     listRecipients(campId),
     smsUse(campId),
@@ -30,6 +32,7 @@ export default async function TextsPage({ params, searchParams }: { params: Prom
       "app",
       "SELECT COUNT(*) AS codes, (SELECT COUNT(*) FROM camp_push_subs s WHERE s.owner LIKE 'leader:%') AS phones FROM camp_leader_codes WHERE revoked_at IS NULL",
     ),
+    listScheduled(campId),
   ]);
   if (!camp) notFound();
   const { to } = await searchParams;
@@ -37,6 +40,7 @@ export default async function TextsPage({ params, searchParams }: { params: Prom
   return (
     <div className="flex flex-col gap-6">
       <TextsView camp={camp} recipients={recipients.map(({ full_name, status, app }) => ({ full_name, status, app }))} use={use} broadcasts={broadcasts} balance={balance} audience={to === "noapp" || to === "owing" || to === "paid" ? to : "all"} />
+      <ScheduledList campId={camp.id} waiting={scheduled.waiting} done={scheduled.done} />
       <LeadersMessage campId={camp.id} codes={leaders[0]?.codes ?? 0} phones={leaders[0]?.phones ?? 0} />
     </div>
   );

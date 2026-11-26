@@ -11,6 +11,9 @@ export function communeManifest(app: { name: string; short_name: string; start_u
       ...app,
       description: team ? "Commune for camp coordinators and leaders, The Airport City Church" : "The camp app of The Airport City Church",
       display: "standalone",
+      // A link opened while the app is installed goes to the app where the phone allows it (Android and desktop).
+      launch_handler: { client_mode: ["navigate-existing", "auto"] },
+      handle_links: "preferred",
       background_color: "#fafaf9",
       theme_color: "#fafaf9",
       icons: [
