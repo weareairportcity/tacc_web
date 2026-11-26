@@ -2,6 +2,7 @@ import { newRegistration } from "./notify";
 import { FULL_NAME_PROBLEM, isFullName, tidyName } from "./names";
 import { batch, query } from "@/lib/cf";
 import { CHURCHES, FELLOWSHIPS } from "@/lib/fellowships";
+import { validateArrival } from "./arrival";
 import { roomStatementsForRemoval } from "./assignments";
 import { auditStatement } from "./audit";
 import { checkId } from "./camps";
@@ -28,7 +29,7 @@ import {
 
 const COLUMNS = `r.id, r.created_at, r.camp_id, r.room_type_id, t.name AS room_type_name, r.full_name, r.phone,
   r.email, r.gender, r.fellowship, r.pfcc, r.church, r.price_pesewas, r.paid_pesewas, r.status, r.shirt_size,
-  r.any_room, r.checked_in_at`;
+  r.any_room, r.checked_in_at, r.arrival_day, r.arrival_time, r.transport`;
 const FROM = "FROM camp_registrations r JOIN camp_room_types t ON t.id = r.room_type_id";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -141,7 +142,17 @@ export function validateRegistration(raw: RegistrationInput, roomTypes: RoomType
  */
 export async function register(camp: Camp, raw: RegistrationInput, today = todayInGhana()) {
   if (!registrationOpen(camp, today)) throw new CampError("Registration for this camp is closed.");
-  const input = validateRegistration(raw, await listRoomTypes(camp.id), camp.details_required === 1);
+  // Every problem at once, including how they'll get to camp.
+  const arrivalProblems: string[] = [];
+  const arrival = validateArrival(camp, raw, arrivalProblems);
+  let input;
+  try {
+    input = validateRegistration(raw, await listRoomTypes(camp.id), camp.details_required === 1);
+  } catch (err) {
+    if (err instanceof CampError && arrivalProblems.length) throw new CampError(`${err.message} ${arrivalProblems.join(" ")}`);
+    throw err;
+  }
+  if (arrivalProblems.length) throw new CampError(arrivalProblems.join(" "));
 
   const [existing] = await query<{ id: string }>(
     "app",
@@ -159,8 +170,8 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
     {
       sql: `INSERT INTO camp_registrations (id, camp_id, room_type_id, full_name, phone, email, gender, fellowship,
               pfcc, church, price_pesewas, status, code_hash, shirt_size, is_minor, guardian_name, guardian_phone, guardian_consent_at,
-              emergency_name, emergency_phone, health_notes, health_none, health_consent_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              emergency_name, emergency_phone, health_notes, health_none, health_consent_at, arrival_day, arrival_time, transport)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         camp.id,
@@ -185,6 +196,9 @@ export async function register(camp: Camp, raw: RegistrationInput, today = today
         input.health_notes,
         input.health_none ? 1 : 0,
         input.health_notes ? new Date().toISOString() : null,
+        arrival.arrival_day,
+        arrival.arrival_time,
+        arrival.transport,
       ],
     },
     auditStatement({ actor: `attendee:${id}`, campId: camp.id, action: "registration.create", entity: "registration", entityId: id, after }),

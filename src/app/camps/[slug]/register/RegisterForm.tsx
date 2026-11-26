@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BedDouble, Church, CircleSlash, HeartPulse, Shirt, User } from "lucide-react";
+import { BedDouble, Bus, Church, CircleSlash, HeartPulse, Shirt, User } from "lucide-react";
 import { formatCedis } from "@/lib/camp/money";
 import { SHIRT_SIZES, type RegistrationInput, type RoomType } from "@/lib/camp/types";
 import { HumanCheck, waitForHuman } from "@/components/camp/HumanCheck";
@@ -14,6 +14,7 @@ import { ErrorText, Field, inputClass, primaryButtonClass, secondaryButtonClass,
 import { cn } from "@/lib/utils";
 import { registerAction } from "../actions";
 import { FULL_NAME_PROBLEM, isFullName } from "@/lib/camp/names";
+import { ArrivalFields } from "@/components/camp/ArrivalFields";
 
 type Props = {
   slug: string;
@@ -26,6 +27,8 @@ type Props = {
   fellowshipGroups: { pfcc: string; names: string[] }[];
   churches: string[];
   dueOn?: string;
+  /** The camp's days, by name. */
+  days: { date: string; name: string }[];
 };
 
 const fieldsetClass = "m-0 flex flex-col gap-4 rounded-[10px] border border-stone-border bg-white p-5 shadow-seline-card";
@@ -39,7 +42,7 @@ function Legend({ icon: Icon, children }: { icon: typeof User; children: React.R
   );
 }
 
-export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches, shirtsOn = true, detailsRequired = false }: Props) {
+export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, churches, days, shirtsOn = true, detailsRequired = false }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<RegistrationInput>({
     full_name: "",
@@ -50,6 +53,9 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     church: churches.length === 1 ? churches[0] : "",
     room_type_id: "",
     shirt_size: "",
+    arrival_day: "",
+    arrival_time: "",
+    transport: "",
     emergency_name: "",
     emergency_phone: "",
     health_notes: "",
@@ -101,6 +107,9 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
     if (!values.fellowship) return miss("fellowship", "Choose your fellowship.");
     if (churches.length > 1 && !values.church) return miss("church", "Choose your church.");
     if (!values.room_type_id) return miss("room", "Pick a room type.");
+    if (!values.arrival_day) return miss("arrival_day", "Choose the day you'll arrive at camp.");
+    if (!values.arrival_time) return miss("arrival_time", "Choose the time of day you'll arrive.");
+    if (!values.transport) return miss("transport", "Choose how you'll get to camp: by bus or by yourself.");
     return true;
   };
 
@@ -485,6 +494,23 @@ export function RegisterForm({ slug, signedIn, roomTypes, fellowshipGroups, chur
               </Field>
             )}
             {errorAt === "church" && <ErrorText>{error}</ErrorText>}
+          </fieldset>
+
+          <fieldset className={cn(fieldsetClass, "cm-rise")} style={{ animationDelay: "30ms" }}>
+            <Legend icon={Bus}>Getting to camp</Legend>
+            <ArrivalFields
+              days={days}
+              errorAt={errorAt}
+              value={{ arrival_day: values.arrival_day ?? "", arrival_time: values.arrival_time ?? "", transport: values.transport ?? "" }}
+              onChange={(a) => {
+                setValues({ ...values, ...a });
+                if (errorAt === "arrival_day" || errorAt === "arrival_time" || errorAt === "transport") {
+                  setErrorAt(null);
+                  setError("");
+                }
+              }}
+            />
+            {(errorAt === "arrival_day" || errorAt === "arrival_time" || errorAt === "transport") && <ErrorText>{error}</ErrorText>}
           </fieldset>
 
           <fieldset

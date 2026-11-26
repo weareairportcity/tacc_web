@@ -65,6 +65,28 @@ export async function sendSms(env: AppEnv, to: string, message: string, sender?:
   }
 }
 
+/** One message to many numbers in a few calls. True only if every call went through. */
+export async function sendSmsMany(env: AppEnv, to: string[], message: string, sender?: string) {
+  if (!env.MNOTIFY_API_KEY || to.length === 0) return { sent: 0, failed: to.length };
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < to.length; i += 200) {
+    const chunk = to.slice(i, i + 200).map(toGhana);
+    try {
+      const res = await fetch(`${env.MNOTIFY_API_URL ?? "https://api.mnotify.com/api"}/sms/quick?key=${encodeURIComponent(env.MNOTIFY_API_KEY)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: chunk, sender: sender || env.MNOTIFY_SENDER_ID || "TACCBooking", message: plainSms(message), is_schedule: "false", schedule_date: "" }),
+      });
+      if (res.ok) sent += chunk.length;
+      else failed += chunk.length;
+    } catch {
+      failed += chunk.length;
+    }
+  }
+  return { sent, failed };
+}
+
 async function log(
   env: AppEnv,
   row: {

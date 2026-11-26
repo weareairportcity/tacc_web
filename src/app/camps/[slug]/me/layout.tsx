@@ -3,6 +3,7 @@ import { isFullName } from "@/lib/camp/names";
 import { FullNameStep } from "./FullNameStep";
 import { notFound, redirect } from "next/navigation";
 import { appInfo, mustSetUpApp } from "@/lib/camp/app-first";
+import { campDays, mustGiveArrival } from "@/lib/camp/arrival";
 import { getPrivateDetails, mustGiveDetails } from "@/lib/camp/profile";
 import { DetailsGate } from "./DetailsGate";
 import type { Metadata } from "next";
@@ -45,9 +46,15 @@ export default async function MeLayout({ children, params }: { children: React.R
   // Registered with one name, before full names were required: ask for the rest first.
   const askName = me.status !== "cancelled" && !isFullName(me.full_name) ? <FullNameStep slug={camp.slug} name={me.full_name} /> : null;
   const details = await getPrivateDetails(me.id);
+  const needDetails = mustGiveDetails(camp, me, details);
+  const needArrival = mustGiveArrival(camp, me);
   const askDetails =
-    !askName && mustGiveDetails(camp, me, details) ? (
+    !askName && (needDetails || needArrival) ? (
       <DetailsGate
+        askDetails={needDetails}
+        askArrival={needArrival}
+        days={campDays(camp)}
+        arrival={{ arrival_day: me.arrival_day, arrival_time: me.arrival_time, transport: me.transport }}
         slug={camp.slug}
         identity={{ full_name: me.full_name, email: me.email, shirt_size: me.shirt_size }}
         emergencyName={details.emergency_name}

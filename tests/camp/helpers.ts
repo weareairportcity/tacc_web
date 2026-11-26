@@ -40,6 +40,10 @@ export const attendee = (roomTypeId: string, overrides: Partial<RegistrationInpu
   fellowship: "Qadash",
   church: "TACC",
   room_type_id: roomTypeId,
+  // The default camp starts in 60 days; self + morning is allowed on any day.
+  arrival_day: day(60),
+  arrival_time: "morning",
+  transport: "self",
   ...overrides,
 });
 

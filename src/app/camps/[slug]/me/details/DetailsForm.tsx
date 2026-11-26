@@ -7,7 +7,9 @@ import { Check } from "lucide-react";
 import { SHIRT_SIZES, type Gender, type ProfileInput } from "@/lib/camp/types";
 import { ErrorText, Field, inputClass, primaryButtonClass, titleClass, secondaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
-import { changeMyFellowshipAction, changeMyGenderAction, updateMyDetailsAction } from "../../actions";
+import { ArrivalFields } from "@/components/camp/ArrivalFields";
+import type { ArrivalInput } from "@/lib/camp/arrival";
+import { changeMyFellowshipAction, changeMyGenderAction, updateMyArrivalAction, updateMyDetailsAction } from "../../actions";
 import { DeleteMe } from "../DeleteMe";
 
 const fieldset = "m-0 flex flex-col gap-4 rounded-2xl border border-stone-border bg-white p-5 shadow-seline-card";
@@ -31,6 +33,7 @@ export function DetailsForm({
   cancelled,
   gender,
   fellowship,
+  arrival,
   healthAgreed,
   shirtsOn = true,
   required = false,
@@ -46,6 +49,7 @@ export function DetailsForm({
   cancelled: boolean;
   gender: GenderState;
   fellowship: FellowshipState;
+  arrival: { days: { date: string; name: string }[]; now: ArrivalInput };
   /** They already ticked the health agreement; it isn't asked again. */
   healthAgreed: boolean;
   /** Emergency contact and a health answer are required for this camp. */
@@ -187,6 +191,7 @@ export function DetailsForm({
         )}
       </form>
 
+      {!cancelled && <ArrivalSection slug={slug} days={arrival.days} now={arrival.now} />}
       {!cancelled && <FellowshipSection slug={slug} fellowship={fellowship} />}
       {!cancelled && <GenderSection slug={slug} gender={gender} />}
 
@@ -348,6 +353,49 @@ function FellowshipSection({ slug, fellowship }: { slug: string; fellowship: Fel
             Change fellowship
           </button>
         </div>
+      )}
+    </section>
+  );
+}
+
+/** When and how they get to camp, saved on its own. Editable any time. */
+function ArrivalSection({ slug, days, now }: { slug: string; days: { date: string; name: string }[]; now: ArrivalInput }) {
+  const [v, setV] = useState(now);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [pending, start] = useOneAtATime();
+  return (
+    <section className="mt-4 flex flex-col gap-3 border-t border-stone-border pt-5">
+      <h2 className="text-[15px] font-semibold">Getting to camp</h2>
+      <p className="text-sm text-warm-gray">When you&apos;ll arrive and how you&apos;re coming. You can change this any time.</p>
+      <ArrivalFields
+        days={days}
+        value={v}
+        onChange={(a) => {
+          setV(a);
+          setSaved(false);
+        }}
+      />
+      <ErrorText>{error}</ErrorText>
+      <button
+        type="button"
+        disabled={pending || !v.arrival_day || !v.arrival_time || !v.transport}
+        onClick={() =>
+          start(async () => {
+            setError("");
+            const r = await updateMyArrivalAction(slug, v);
+            if (!r.ok) return setError(r.error);
+            setSaved(true);
+          })
+        }
+        className="cm-press inline-flex h-12 items-center gap-2 self-start rounded-full border border-stone-border bg-white px-5 text-sm font-medium disabled:opacity-50"
+      >
+        <Busy pending={pending} text="Saving…">Save arrival</Busy>
+      </button>
+      {saved && (
+        <p role="status" className="cm-rise flex items-center gap-2 text-sm">
+          <Check className="h-4 w-4 text-st-paid" strokeWidth={2.4} aria-hidden="true" /> Saved
+        </p>
       )}
     </section>
   );

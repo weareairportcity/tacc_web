@@ -11,7 +11,8 @@ import type { PayMethod } from "@/lib/camp/money";
 import { allow, allowVisitor } from "@/lib/camp/rate-limit";
 import { createGroup, joinByCode, leaveGroup, removeMember } from "@/lib/camp/groups";
 import { AlreadyRegistered, findByCode, getRegistration, listPayments, register, resetCode } from "@/lib/camp/registrations";
-import { assertReadyDetails, cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateProfile } from "@/lib/camp/profile";
+import { assertReadyDetails, cancelMine, deleteMyDetails, setAnyRoom, setFullName, updateArrival, updateProfile } from "@/lib/camp/profile";
+import type { ArrivalInput } from "@/lib/camp/arrival";
 import { changeFellowship } from "@/lib/camp/fellowship";
 import { changeGender } from "@/lib/camp/gender";
 import { askForRefund, askForRoomChange, withdrawRequest } from "@/lib/camp/requests";
@@ -299,6 +300,11 @@ function mine<T>(slug: string, fn: (me: Registration, camp: Awaited<ReturnType<t
 
 export async function updateMyDetailsAction(slug: string, input: ProfileInput) {
   return mine(slug, (me) => updateProfile(`attendee:${me.id}`, me.id, input).then(() => null));
+}
+
+/** When and how they get to camp. Editable any time. */
+export async function updateMyArrivalAction(slug: string, input: ArrivalInput) {
+  return mine(slug, (me) => updateArrival(`attendee:${me.id}`, me.id, input).then(() => null));
 }
 
 /** Changes the attendee's own gender, until the roommate deadline. They leave a group and room of the old one. */

@@ -139,6 +139,10 @@ export type Registration = {
   /** "I'm happy with any room": no roommate group, a coordinator places them. */
   any_room: 0 | 1;
   checked_in_at: string | null;
+  /** The camp day they arrive (YYYY-MM-DD), the time of day and how. Empty until answered. */
+  arrival_day: string;
+  arrival_time: "" | "morning" | "afternoon" | "evening";
+  transport: "" | "bus" | "self";
 };
 
 /** What an attendee types in; PFCC comes from the fellowship. */
@@ -151,6 +155,9 @@ export type RegistrationInput = {
   church: string;
   room_type_id: string;
   shirt_size?: ShirtSize | "";
+  arrival_day?: string;
+  arrival_time?: "" | "morning" | "afternoon" | "evening";
+  transport?: "" | "bus" | "self";
   /** Under 18: a parent or guardian's name and phone, and that they agree. */
   is_minor?: boolean;
   guardian_name?: string;

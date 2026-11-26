@@ -4,6 +4,7 @@ import { leaveTo } from "@/components/camp/leave";
 import { useEffect, useState } from "react";
 import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { Bell, Check, CreditCard, Link2, Lock, MessageSquare, Phone, RotateCcw, Trash2 } from "lucide-react";
+import { arrivalLine } from "@/lib/camp/arrival";
 import { APP_STATE_WORDS } from "@/lib/camp/app-words";
 import { messageCost, type Delivery } from "@/lib/camp/message-cost";
 import { coordinatorText, MAX_COORDINATOR_MESSAGE } from "@/lib/camp/sms";
@@ -266,6 +267,7 @@ export function PersonPanel({ campId, id, onClose, onChanged }: { campId: string
               }
             />
             <Row term="Fellowship" value={`${data.person.fellowship} · ${data.person.pfcc}`} />
+            <Row term="Arriving" value={arrivalLine(data.person) || "Hasn't said yet"} />
             <Row term="T-shirt" value={data.person.shirt_size || "—"} />
           </Section>
 

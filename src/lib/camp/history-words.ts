@@ -20,6 +20,7 @@ export const ACTION_WORDS: Record<string, string> = {
   "registration.room_type_change": "changed room type",
   "registration.gender_change": "changed gender",
   "registration.profile": "updated details",
+  "registration.arrival": "set how they get to camp",
   "registration.any_room": "chose any room",
   "registration.choose_room": "chose to pick roommates",
   "registration.check_in": "checked in",

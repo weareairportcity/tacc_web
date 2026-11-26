@@ -1,6 +1,7 @@
 import { cancelled } from "./notify";
 import { FULL_NAME_PROBLEM, WIPED_NAME, isFullName, tidyName } from "./names";
 import { batch, query } from "@/lib/cf";
+import { arrivalLine, mustGiveArrival, validateArrival, type ArrivalInput } from "./arrival";
 import { auditStatement } from "./audit";
 import { checkId, getCamp } from "./camps";
 import { generateCode, hashCode } from "./codes";
@@ -50,8 +51,44 @@ export function mustGiveDetails(camp: Pick<Camp, "details_required">, me: Pick<R
 }
 
 export async function assertReadyDetails(camp: Camp, me: Registration) {
-  if (!mustGiveDetails(camp, me, await getPrivateDetails(me.id))) return;
-  throw new CampError("Add your emergency contact and health details first, on your home page.");
+  const arrival = mustGiveArrival(camp, me);
+  const details = mustGiveDetails(camp, me, await getPrivateDetails(me.id));
+  if (!arrival && !details) return;
+  throw new CampError(
+    arrival && details
+      ? "Tell us when and how you're getting to camp, and add your emergency contact and health details, first."
+      : arrival
+        ? "Tell us when and how you're getting to camp first."
+        : "Add your emergency contact and health details first, on your home page.",
+  );
+}
+
+/** Saves the day, time and way they'll get to camp (attendees or coordinators). Sunday: morning, by yourself. */
+export async function updateArrival(actor: string, registrationId: string, raw: Partial<ArrivalInput>) {
+  const before = await getRegistration(checkId(registrationId, "registration"));
+  if (!before) throw new CampError("Unknown registration.");
+  if (before.status === "cancelled") throw new CampError("This registration is cancelled.");
+  const camp = await getCamp(before.camp_id);
+  if (!camp) throw new CampError("Unknown camp.");
+  const problems: string[] = [];
+  const a = validateArrival(camp, raw, problems);
+  if (problems.length) throw new CampError(problems.join(" "));
+  await batch("app", [
+    {
+      sql: "UPDATE camp_registrations SET arrival_day = ?, arrival_time = ?, transport = ? WHERE id = ? AND status <> 'cancelled' AND deleted_at IS NULL",
+      params: [a.arrival_day, a.arrival_time, a.transport, before.id],
+    },
+    auditStatement({
+      actor,
+      campId: before.camp_id,
+      action: "registration.arrival",
+      entity: "registration",
+      entityId: before.id,
+      before: { arrival_day: before.arrival_day, arrival_time: before.arrival_time, transport: before.transport },
+      after: { ...a, note: arrivalLine(a) },
+      ifChanged: true,
+    }),
+  ]);
 }
 
 export type HealthRow = {

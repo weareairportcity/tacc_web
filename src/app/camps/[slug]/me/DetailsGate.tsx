@@ -8,9 +8,11 @@ import { useOneAtATime } from "@/components/camp/useOneAtATime";
 import { ErrorText, Field, inputClass, primaryButtonClass } from "@/components/camp/ui";
 import { cn } from "@/lib/utils";
 import type { ProfileInput } from "@/lib/camp/types";
-import { updateMyDetailsAction } from "../actions";
+import { updateMyArrivalAction, updateMyDetailsAction } from "../actions";
+import { ArrivalFields } from "@/components/camp/ArrivalFields";
+import type { ArrivalInput } from "@/lib/camp/arrival";
 
-/** Can't continue on their pages until emergency contact and health are answered. */
+/** Can't continue on their pages until how they get to camp, and emergency contact and health, are answered. Only what's missing is asked. */
 export function DetailsGate({
   slug,
   identity,
@@ -19,7 +21,15 @@ export function DetailsGate({
   healthNotes,
   healthNone,
   healthAgreed,
+  askDetails,
+  askArrival,
+  days,
+  arrival,
 }: {
+  askDetails: boolean;
+  askArrival: boolean;
+  days: { date: string; name: string }[];
+  arrival: ArrivalInput;
   slug: string;
   identity: Pick<ProfileInput, "full_name" | "email" | "shirt_size">;
   emergencyName: string;
@@ -36,11 +46,14 @@ export function DetailsGate({
   const [none, setNone] = useState(healthNone && !healthNotes);
   const [consent, setConsent] = useState(healthAgreed);
   const [error, setError] = useState("");
+  const [errorAt, setErrorAt] = useState<string | null>(null);
+  const [when, setWhen] = useState<ArrivalInput>(arrival);
   const [pending, start] = useOneAtATime();
   // The details page is the same form; cancel must stay reachable.
   if (path.endsWith("/details") || path.endsWith("/cancel")) return null;
   const miss = (id: string, message: string) => {
     setError(message);
+    setErrorAt(id);
     requestAnimationFrame(() => {
       const el = document.getElementById(id);
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -50,18 +63,42 @@ export function DetailsGate({
   };
 
   return (
-    <Sheet open locked onClose={() => undefined} title="Before you continue" subtitle="Who we should call if something happens at camp, and anything about your health.">
+    <Sheet open locked onClose={() => undefined} title="Before you continue"
+      subtitle={
+        askArrival && askDetails
+          ? "When and how you're getting to camp, who we should call if something happens, and anything about your health."
+          : askArrival
+            ? "When and how you're getting to camp."
+            : "Who we should call if something happens at camp, and anything about your health."
+      }>
       <form
         noValidate
         className="flex flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault();
+          if (askArrival) {
+            if (!when.arrival_day) return miss("gate_arrival_day", "Choose the day you'll arrive at camp.");
+            if (!when.arrival_time) return miss("gate_arrival_time", "Choose the time of day you'll arrive.");
+            if (!when.transport) return miss("gate_transport", "Choose how you'll get to camp: by bus or by yourself.");
+          }
+          if (!askDetails) {
+            setError("");
+            return start(async () => {
+              const r = await updateMyArrivalAction(slug, when);
+              if (!r.ok) return setError(r.error);
+              router.refresh();
+            });
+          }
           if (!name.trim()) return miss("gate_emergency_name", "Enter who we should call in an emergency, and how they're related to you.");
           if (!phone.trim()) return miss("gate_emergency_phone", "Enter the emergency contact's phone as a Ghana number, e.g. 024 555 0101.");
           if (!notes.trim() && !none) return miss("gate_health_none", "Tell us about your health, or tick that you have no health conditions.");
           if (notes.trim() && !healthAgreed && !consent) return miss("gate_health_consent", "Tick that you agree to us keeping your health notes, or leave them empty.");
           setError("");
           start(async () => {
+            if (askArrival) {
+              const a = await updateMyArrivalAction(slug, when);
+              if (!a.ok) return setError(a.error);
+            }
             const r = await updateMyDetailsAction(slug, {
               ...identity,
               emergency_name: name,
@@ -75,6 +112,25 @@ export function DetailsGate({
           });
         }}
       >
+        {askArrival && (
+          <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
+            <legend className="mb-1 text-[15px] font-semibold">Getting to camp</legend>
+            <ArrivalFields
+              days={days}
+              value={when}
+              errorAt={errorAt}
+              ids={{ day: "gate_arrival_day", time: "gate_arrival_time", transport: "gate_transport" }}
+              onChange={(a) => {
+                setWhen(a);
+                setErrorAt(null);
+                setError("");
+              }}
+            />
+          </fieldset>
+        )}
+
+        {askDetails && (
+        <>
         <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
           <legend className="mb-1 text-[15px] font-semibold">In any case of emergency</legend>
           <Field label="Their name" hint="And how they're related to you, e.g. Kofi Tetteh, father.">
@@ -127,6 +183,8 @@ export function DetailsGate({
             </label>
           )}
         </fieldset>
+        </>
+        )}
 
         <ErrorText>{error}</ErrorText>
         <button type="submit" disabled={pending} aria-busy={pending} className={`${primaryButtonClass} h-[52px] w-full`}>

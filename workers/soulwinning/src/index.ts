@@ -1,5 +1,6 @@
 import { handleAdmin } from "./admin";
 import { expressPayNotice, reconcile } from "./camp";
+import { runScheduledSends } from "./camp-arrival";
 import { sendDailySummaries } from "./camp-summary";
 import { sendReminders } from "./notify";
 import { telegramHook } from "./telegram";
@@ -121,6 +122,11 @@ export default {
         reconcile(env as AppEnv)
           .then((r) => console.log("camp reconcile", JSON.stringify(r)))
           .catch((e) => console.error("camp reconcile failed", e)),
+      );
+      ctx.waitUntil(
+        runScheduledSends(env as AppEnv, new Date(controller.scheduledTime))
+          .then((r) => r.length && console.log("camp scheduled sends", JSON.stringify(r)))
+          .catch((e) => console.error("camp scheduled sends failed", e)),
       );
       return;
     }

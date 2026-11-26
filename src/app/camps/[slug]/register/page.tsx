@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { campDays } from "@/lib/camp/arrival";
 import { registrationOpen } from "@/lib/camp/registrations";
 import { listRoomTypes } from "@/lib/camp/rooms";
 import { campAndAttendee } from "@/lib/camp/session";
@@ -32,6 +33,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ slug:
         fellowshipGroups={PFCC_GROUPS.map((g) => ({ pfcc: g.pfcc, names: g.fellowships.map((f) => f.name) }))}
         churches={[...CHURCHES]}
         dueOn={camp.payment_due_on}
+        days={campDays(camp)}
       />
     </div>
   );

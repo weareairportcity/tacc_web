@@ -2,6 +2,7 @@ import { notifyEndpoint, notifyManyEndpoint, notifyPrefs, pushSubscribe, sendRem
 import { telegramSetup } from "./telegram";
 import { sendDailySummaries } from "./camp-summary";
 import { leaderCodeCheck, leaderCodeNew, leaderCodeOff } from "./camp-leaders";
+import { arrivalSmsEndpoint } from "./camp-arrival";
 import { bulkCheck, payCancel, bulkInit, payCheck, payInit, postReconcile, providerCheck } from "./camp";
 import { recount } from "./db";
 import { deletePhotos, signPaths } from "./photos";
@@ -193,6 +194,8 @@ export async function handleAdmin(request: Request, env: AppEnv, path: string) {
       return payCheck(request, env);
     case "/v1/admin/camp/reconcile":
       return postReconcile(request, env);
+    case "/v1/admin/camp/arrival-sms":
+      return arrivalSmsEndpoint(request, env);
     case "/v1/admin/camp/provider-check":
       return providerCheck(request, env);
     case "/v1/admin/camp/notify":
